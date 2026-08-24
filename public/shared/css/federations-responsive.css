@@ -1,0 +1,510 @@
+/* SK Federations — shared mobile/desktop page fit */
+html,
+body {
+    max-width: 100%;
+    overflow-x: hidden;
+}
+
+.main-content,
+.page-container,
+.calendar-page-container,
+.profile-container,
+.auditlog-page,
+.accounts-page,
+.barangay-logos-container,
+.bm-container,
+.km-container,
+.cf-container,
+.archive-posts-page,
+.arfed-page,
+.aroff-page,
+.deleted-sk-off-page,
+.manage-account-container {
+    min-width: 0;
+    max-width: 100%;
+}
+
+.table-wrapper,
+.table-responsive,
+.arfed-table-wrapper,
+.aroff-table-wrapper,
+.dso-table-wrapper,
+.bm-table-wrap,
+.km-table-wrapper,
+.audit-table-wrap,
+.dash-audit-table-wrap,
+.federation-officers-body {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    max-width: 100%;
+}
+
+.table-wrapper::-webkit-scrollbar,
+.table-responsive::-webkit-scrollbar,
+.arfed-table-wrapper::-webkit-scrollbar,
+.aroff-table-wrapper::-webkit-scrollbar,
+.dso-table-wrapper::-webkit-scrollbar,
+.bm-table-wrap::-webkit-scrollbar,
+.km-table-wrapper::-webkit-scrollbar,
+.audit-table-wrap::-webkit-scrollbar {
+    height: 8px;
+}
+
+.table-wrapper::-webkit-scrollbar-thumb,
+.table-responsive::-webkit-scrollbar-thumb,
+.arfed-table-wrapper::-webkit-scrollbar-thumb,
+.aroff-table-wrapper::-webkit-scrollbar-thumb,
+.dso-table-wrapper::-webkit-scrollbar-thumb,
+.bm-table-wrap::-webkit-scrollbar-thumb,
+.km-table-wrapper::-webkit-scrollbar-thumb,
+.audit-table-wrap::-webkit-scrollbar-thumb {
+    background: rgba(33, 63, 153, 0.35);
+    border-radius: 8px;
+}
+
+/* Archive pages: pagination stays at the very bottom of the viewport */
+.aroff-page,
+.arfed-page,
+.deleted-sk-off-page {
+    --archive-footer-height: 34px;
+    padding-bottom: calc(var(--archive-footer-height, 34px) + 28px);
+}
+
+.aroff-page-footer,
+.arfed-page-footer,
+.dso-page-footer {
+    position: fixed;
+    bottom: 0;
+    left: var(--sidebar-width, 260px);
+    right: 0;
+    z-index: 90;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 5px 20px;
+    border-top: 1px solid #e2e8f0;
+    background: #f8fafc;
+    font-size: 11px;
+    color: #64748b;
+    min-height: var(--archive-footer-height, 34px);
+    box-shadow: 0 -1px 4px rgba(15, 23, 42, 0.04);
+}
+
+body.sidebar-collapsed .aroff-page-footer,
+body.sidebar-collapsed .arfed-page-footer,
+body.sidebar-collapsed .dso-page-footer {
+    left: var(--sidebar-collapsed, 72px);
+}
+
+.pagination-footer-nav {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.pagination-footer-right {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.pagination-page-label,
+.pagination-page-of,
+.pagination-record-count {
+    font-size: 11px;
+    color: #64748b;
+    white-space: nowrap;
+}
+
+.pagination-page-input {
+    width: 34px;
+    height: 22px;
+    padding: 0 2px;
+    border: 1px solid #e2e8f0;
+    border-radius: 4px;
+    background: #ffffff;
+    color: #374151;
+    font-size: 11px;
+    font-weight: 600;
+    text-align: center;
+    -moz-appearance: textfield;
+    appearance: textfield;
+}
+
+.pagination-page-input::-webkit-outer-spin-button,
+.pagination-page-input::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+
+.pagination-page-input:focus {
+    outline: none;
+    border-color: #94a3b8;
+    box-shadow: 0 0 0 2px rgba(148, 163, 184, 0.2);
+}
+
+.pagination-arrow {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    padding: 0;
+    border: 1px solid #e2e8f0;
+    border-radius: 4px;
+    background: #ffffff;
+    color: #64748b;
+    cursor: pointer;
+}
+
+.pagination-arrow:hover:not(:disabled) {
+    background: #f1f5f9;
+    border-color: #cbd5e1;
+    color: #374151;
+}
+
+.pagination-arrow:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+}
+
+.pagination-rows-select {
+    height: 22px;
+    min-width: 72px;
+    padding: 0 1.4rem 0 0.45rem;
+    border: 1px solid #e2e8f0;
+    border-radius: 4px;
+    background: #ffffff;
+    color: #374151;
+    font-size: 11px;
+    font-weight: 500;
+    cursor: pointer;
+    appearance: none;
+    background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2'%3e%3cpolyline points='6,9 12,15 18,9'%3e%3c/polyline%3e%3c/svg%3e");
+    background-repeat: no-repeat;
+    background-position: right 0.35rem center;
+    background-size: 0.75rem;
+}
+
+/* Archive View Details — match Manage SK Officials account view */
+.aroff-view-modal-box,
+.arfed-view-modal-box,
+.dso-view-modal-box {
+    max-width: 920px;
+    width: min(920px, calc(100vw - 32px));
+}
+
+.aroff-view-body,
+.arfed-view-body,
+.dso-view-body {
+    gap: 0;
+}
+
+.account-modal-card {
+    background: #ffffff;
+    border: 1px solid #e1e5e9;
+    border-radius: 12px;
+    padding: 1.1rem 1.2rem;
+}
+
+.account-profile-group {
+    margin-bottom: 1.25rem;
+    padding-bottom: 1.1rem;
+    border-bottom: 1px solid #f1f3f5;
+}
+
+.account-profile-group:last-child {
+    margin-bottom: 0;
+    padding-bottom: 0;
+    border-bottom: none;
+}
+
+.account-profile-group-label {
+    font-size: 13px;
+    font-weight: 800;
+    color: #111827;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin-bottom: 0.85rem;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.account-profile-group-label i {
+    color: #1A365D;
+    font-size: 13px;
+}
+
+.account-profile-row {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 14px;
+}
+
+.account-profile-field label {
+    display: block;
+    font-size: 11px;
+    font-weight: 700;
+    color: #6b7280;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin-bottom: 4px;
+}
+
+.account-profile-field p {
+    margin: 0;
+    font-size: 14px;
+    font-weight: 600;
+    color: #1f2937;
+    line-height: 1.45;
+    word-break: break-word;
+}
+
+.notif-item-category {
+    display: none !important;
+}
+
+:root.dark .aroff-page-footer,
+:root.dark .arfed-page-footer,
+:root.dark .dso-page-footer {
+    background: #172033;
+    border-top-color: #334155;
+}
+
+:root.dark .account-modal-card {
+    background: #1e293b;
+    border-color: #334155;
+}
+
+:root.dark .account-profile-group {
+    border-bottom-color: #334155;
+}
+
+:root.dark .account-profile-group-label,
+:root.dark .account-profile-field p {
+    color: #e2e8f0;
+}
+
+:root.dark .account-profile-field label {
+    color: #94a3b8;
+}
+
+@media (max-width: 1024px) {
+    .main-content {
+        margin-left: 0 !important;
+        width: 100% !important;
+        max-width: 100% !important;
+        box-sizing: border-box;
+    }
+
+    .accounts-page-footer,
+    .pagination-footer,
+    .audit-page-footer,
+    .km-page-pagination,
+    .arfed-page-footer,
+    .aroff-page-footer,
+    .dso-page-footer {
+        left: 0 !important;
+        max-width: 100%;
+        box-sizing: border-box;
+    }
+}
+
+@media (max-width: 991px) {
+    .account-profile-row {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 768px) {
+    .main-content {
+        padding-left: 12px !important;
+        padding-right: 12px !important;
+    }
+
+    .page-header,
+    .page-header-section,
+    .page-header-modern-with-button,
+    .page-header-right,
+    .page-header-actions,
+    .calendar-header-section,
+    .bm-header,
+    .km-page-header,
+    .bl-page-header,
+    .arfed-page-header,
+    .aroff-page-header,
+    .dso-page-header,
+    .filters-row,
+    .accounts-filter-grid {
+        max-width: 100%;
+        min-width: 0;
+    }
+
+    .filter-input,
+    .filter-select,
+    .filter-dropdown,
+    .search-input,
+    .bm-search,
+    .km-search,
+    .km-search-input {
+        max-width: 100%;
+        min-width: 0;
+        box-sizing: border-box;
+    }
+
+    /* Native <select> lists stay ~16px unless forced; match table text on mobile. */
+    select,
+    select.form-select,
+    select.filter-dropdown,
+    select.filter-select,
+    select.km-select,
+    select.kk-barangay-select,
+    select.pagination-rows-select,
+    select.dso-filter-select,
+    select.dso-year-filter,
+    select.dso-term-filter,
+    select.arfed-year-filter,
+    select.arfed-term-filter,
+    select.aroff-year-filter,
+    select.aroff-term-filter,
+    select.calendar-nav-select,
+    select.compose-visibility-select,
+    select.compose-type-select,
+    select.form-input-light,
+    select.kkp-uline-select {
+        font-size: 13px !important;
+        line-height: 1.3 !important;
+        font-family: Inter, system-ui, sans-serif !important;
+    }
+
+    select option,
+    .form-select option,
+    .filter-dropdown option,
+    .filter-select option,
+    .km-select option,
+    .kk-barangay-select option,
+    .pagination-rows-select option,
+    .calendar-nav-select option,
+    .form-input-light option {
+        font-size: 13px !important;
+        line-height: 1.35 !important;
+        font-weight: 400 !important;
+        font-family: Inter, system-ui, sans-serif !important;
+        padding: 3px 8px;
+    }
+
+    .filter-input,
+    .search-input,
+    .search-input-wrap .search-input,
+    .bm-search,
+    .km-search,
+    .km-search-input {
+        font-size: 13px !important;
+        line-height: 1.3 !important;
+    }
+
+    .module-stats-grid,
+    .arfed-stats-row,
+    .aroff-stats-row,
+    .dso-stats-row {
+        display: grid !important;
+        grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+        width: 100%;
+    }
+
+    .module-stats-grid .stat-card,
+    .arfed-stat-card,
+    .aroff-stat-card,
+    .dso-stat-card {
+        min-width: 0 !important;
+        width: auto;
+        flex: none;
+    }
+
+    .table-wrapper table,
+    .table-responsive table,
+    .arfed-table-wrapper table,
+    .aroff-table-wrapper table,
+    .dso-table-wrapper table,
+    .bm-table-wrap table,
+    .km-table-wrapper table,
+    .audit-table-wrap table {
+        min-width: 680px;
+    }
+
+    .account-profile-row {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .aroff-page-footer,
+    .arfed-page-footer,
+    .dso-page-footer {
+        padding: 5px 12px;
+        gap: 0.5rem;
+        flex-wrap: wrap;
+    }
+
+    .modal-content,
+    .modal-overlay .modal-content,
+    .calendar-modal,
+    .calendar-jump-modal,
+    .calendar-confirm-modal {
+        max-width: calc(100vw - 24px);
+        box-sizing: border-box;
+    }
+}
+
+@media (max-width: 480px) {
+    .page-title,
+    .page-title-modern,
+    .calendar-title,
+    .profile-page-title,
+    .km-page-title,
+    .bm-title h1,
+    .bl-page-title,
+    .arfed-page-title,
+    .aroff-page-title,
+    .dso-page-title {
+        font-size: 1.35rem;
+        word-break: break-word;
+    }
+
+    .page-subtitle,
+    .page-subtitle-modern,
+    .calendar-subtitle,
+    .profile-page-sub,
+    .km-page-subtitle,
+    .bl-page-subtitle {
+        font-size: 0.8rem;
+        line-height: 1.4;
+    }
+
+    select,
+    select.form-select,
+    select option,
+    .form-select option {
+        font-size: 12px !important;
+    }
+
+    .filter-input,
+    .search-input,
+    .search-input-wrap .search-input,
+    .bm-search,
+    .km-search,
+    .km-search-input {
+        font-size: 12px !important;
+    }
+
+    .account-profile-row {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 360px) {
+    .main-content {
+        padding-left: 10px !important;
+        padding-right: 10px !important;
+    }
+}

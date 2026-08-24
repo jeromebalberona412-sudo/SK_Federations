@@ -1,0 +1,300 @@
+/* ============================================================
+   Stat Card Component CSS
+   ============================================================ */
+
+/* ── Stats Grid Layout ─────────────────────────────────────── */
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: clamp(8px, 1vw, 16px);
+    margin-bottom: 1.25rem;
+    width: 100%;
+    min-width: 0;
+}
+
+.stats-grid--top,
+.stats-grid--bottom {
+    min-width: 0;
+}
+
+@media (max-width: 900px) {
+    .stats-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 520px) {
+    .stats-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* ── Base card ───────────────────────────────────────────── */
+.stat-card {
+    background: #ffffff;
+    border-radius: 12px;
+    padding: 1.5rem;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    align-items: stretch;
+    min-height: 120px;
+    box-shadow: 0 2px 8px rgba(15, 23, 42, 0.07);
+    border: 1.5px solid #e5e7eb;
+    transition: box-shadow 0.2s ease, transform 0.2s ease;
+    min-width: 0;
+    overflow: hidden;
+}
+
+.stat-card:hover {
+    box-shadow: 0 6px 18px rgba(15, 23, 42, 0.12);
+    transform: translateY(-2px);
+}
+
+/* ── Color variants ───────────────────────────────────────── */
+.stat-card-azure,
+.stat-card-indigo {
+    border-color: #3B82F6;
+}
+
+.stat-card-teal,
+.stat-card-cyan {
+    border-color: #0891b2;
+}
+
+.stat-card-violet {
+    border-color: #7c3aed;
+}
+
+.stat-card-red {
+    border-color: #EF4444;
+}
+
+.stat-card-emerald {
+    border-color: #10b981;
+}
+
+/* ── Top row: number left, icon right ────────────────────── */
+.stat-card-top {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 0.75rem;
+}
+
+/* ── Value (number) - Largest text ───────────────────────── */
+.stat-card-value {
+    font-size: clamp(1.4rem, 1.2vw + 1rem, 2.25rem);
+    font-weight: 900;
+    color: #111827;
+    line-height: 1.1;
+    white-space: normal;
+    overflow: visible;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    flex: 1;
+    min-width: 0;
+    display: block;
+    text-align: left;
+}
+
+/* ── Icon ────────────────────────────────────────────────── */
+.stat-card-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.stat-card-icon svg {
+    width: 24px;
+    height: 24px;
+}
+
+.stat-icon-azure,
+.stat-icon-indigo {
+    background: #dbeafe;
+}
+
+.stat-icon-azure svg,
+.stat-icon-indigo svg {
+    stroke: #2563eb;
+}
+
+.stat-icon-teal,
+.stat-icon-cyan {
+    background: rgba(8, 145, 178, 0.1);
+}
+
+.stat-icon-teal svg,
+.stat-icon-cyan svg {
+    stroke: #0891b2;
+}
+
+.stat-icon-violet {
+    background: rgba(124, 58, 237, 0.1);
+}
+
+.stat-icon-violet svg {
+    stroke: #7c3aed;
+}
+
+.stat-icon-red {
+    background: rgba(239, 68, 68, 0.1);
+}
+
+.stat-icon-red svg {
+    stroke: #EF4444;
+}
+
+.stat-icon-emerald {
+    background: rgba(16, 185, 129, 0.1);
+}
+
+.stat-icon-emerald svg {
+    stroke: #10b981;
+}
+
+/* ── Label - Medium text ─────────────────────────────────── */
+.stat-card-label {
+    font-size: 0.9375rem;
+    font-weight: 600;
+    color: #6b7280;
+    line-height: 1.3;
+    text-align: left;
+    overflow-wrap: break-word;
+    word-wrap: break-word;
+    word-break: break-word;
+    hyphens: auto;
+    width: 100%;
+    margin-bottom: 0.75rem;
+}
+
+@media (max-width: 1200px) {
+    .stat-card {
+        padding: 1.25rem;
+        min-height: 150px;
+    }
+
+    .stat-card-value {
+        font-size: 2.25rem;
+    }
+
+    .stat-card-icon {
+        width: 44px;
+        height: 44px;
+    }
+
+    .stat-card-icon svg {
+        width: 22px;
+        height: 22px;
+    }
+
+    .stat-card-label {
+        font-size: 0.875rem;
+    }
+}
+
+@media (max-width: 992px) {
+    .stat-card {
+        padding: 1.125rem;
+        min-height: 140px;
+    }
+
+    .stat-card-value {
+        font-size: 2rem;
+    }
+
+    .stat-card-icon {
+        width: 40px;
+        height: 40px;
+    }
+
+    .stat-card-icon svg {
+        width: 20px;
+        height: 20px;
+    }
+
+    .stat-card-label {
+        font-size: 0.8125rem;
+    }
+}
+
+@media (max-width: 768px) {
+    .stat-card {
+        padding: 1rem;
+        min-height: 130px;
+    }
+
+    .stat-card-value {
+        font-size: 1.75rem;
+    }
+
+    .stat-card-icon {
+        width: 36px;
+        height: 36px;
+    }
+
+    .stat-card-icon svg {
+        width: 18px;
+        height: 18px;
+    }
+
+    .stat-card-label {
+        font-size: 0.75rem;
+    }
+}
+
+@media (max-width: 576px) {
+    .stat-card {
+        padding: 0.875rem;
+        min-height: 120px;
+    }
+
+    .stat-card-value {
+        font-size: 1.5rem;
+    }
+
+    .stat-card-icon {
+        width: 32px;
+        height: 32px;
+    }
+
+    .stat-card-icon svg {
+        width: 16px;
+        height: 16px;
+    }
+
+    .stat-card-label {
+        font-size: 0.6875rem;
+    }
+}
+
+@media (max-width: 480px) {
+    .stat-card {
+        padding: 0.75rem;
+        min-height: 110px;
+    }
+
+    .stat-card-value {
+        font-size: 1.375rem;
+    }
+
+    .stat-card-icon {
+        width: 28px;
+        height: 28px;
+    }
+
+    .stat-card-icon svg {
+        width: 14px;
+        height: 14px;
+    }
+
+    .stat-card-label {
+        font-size: 0.625rem;
+    }
+}

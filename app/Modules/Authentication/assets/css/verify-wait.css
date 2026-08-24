@@ -1,0 +1,68 @@
+/* ============================================================
+   SK Federations — Email Verify Wait Page
+   Styles specific to /email/verify/wait.
+   Requires: auth-base.css
+   ============================================================ */
+
+/* ── Resend section ── */
+.resend-section {
+    margin-top: 1.5rem; padding-top: 1.5rem;
+    border-top: 1px solid var(--fed-gray-200);
+}
+
+.resend-cooldown {
+    font-size: 0.85rem; color: #dc3545;
+    text-align: center; margin-bottom: 0.75rem;
+    font-weight: 500;
+}
+
+.resend-status {
+    font-size: 0.9rem; border-radius: 10px;
+    padding: 0.75rem 1rem; margin-bottom: 0.75rem;
+    text-align: center;
+}
+.resend-status-success { background: #ecfdf5; color: #047857; border: 1px solid #a7f3d0; }
+.resend-status-error   { background: #fef2f2; color: #b91c1c; border: 1px solid #fecaca; }
+
+/* ── Resend button ── */
+.btn-resend          { background: var(--fed-blue) !important; margin-top: 0; }
+.btn-resend:disabled { opacity: 0.75; cursor: not-allowed; }
+
+.btn-resend-spinner {
+    width: 18px; height: 18px;
+    border: 2.5px solid rgba(255,255,255,0.35);
+    border-top-color: #fff; border-radius: 50%;
+    animation: resend-spin 0.7s linear infinite;
+    display: inline-block; vertical-align: middle; margin-right: 8px;
+}
+@keyframes resend-spin { to { transform: rotate(360deg); } }
+
+.btn-resend.is-loading .btn-resend-label { opacity: 0.85; }
+
+/* ── Success overlay (shown briefly before redirect) ── */
+.success-modal-overlay {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.5);
+    display: none; align-items: center; justify-content: center;
+    z-index: 9999;
+}
+.success-modal-overlay.show { display: flex; }
+
+.success-modal {
+    background: #fff; border-radius: 16px; padding: 40px;
+    max-width: 400px; width: 90%; text-align: center;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+}
+
+.success-modal .check-wrap {
+    width: 100px; height: 100px; border-radius: 50%;
+    background: linear-gradient(135deg, #22c55e, #16a34a);
+    display: grid; place-items: center;
+    margin: 0 auto 24px;
+}
+.success-modal .checkmark {
+    width: 28px; height: 56px;
+    border-right: 6px solid #fff; border-bottom: 6px solid #fff;
+    transform: rotate(45deg);
+    margin-left: 6px; margin-bottom: 6px;
+}

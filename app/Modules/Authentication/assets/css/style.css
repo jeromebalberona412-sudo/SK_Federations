@@ -1,0 +1,881 @@
+/* ============================================
+   SK Federations - Authentication
+   Layout/sizing matches SK Officials design.
+   SK Fed color theme + logo preserved.
+   ============================================ */
+
+:root {
+    --fed-blue: #213F99;
+    --fed-red: #d0242b;
+    --fed-yellow: #F7D31E;
+    --fed-blue-dark: #162d72;
+    --fed-blue-light: #2d52c4;
+    --fed-red-dark: #a81c22;
+    --fed-white: #ffffff;
+    --fed-gray-50: #f8fafc;
+    --fed-gray-100: #f1f5f9;
+    --fed-gray-200: #e2e8f0;
+    --fed-gray-300: #cbd5e1;
+    --fed-gray-400: #94a3b8;
+    --fed-gray-500: #64748b;
+    --fed-gray-600: #475569;
+    --fed-gray-700: #334155;
+    --fed-gray-800: #1e293b;
+    --fed-gray-900: #0f172a;
+    --transition-base: 300ms cubic-bezier(0.4, 0, 0.2, 1);
+    --transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    overflow: hidden;
+    height: 100vh;
+}
+
+html { overflow: hidden; height: 100%; scroll-behavior: smooth; }
+
+@media (max-width: 1024px) {
+    body { overflow-y: auto; overflow-x: hidden; height: auto; }
+    html { overflow-y: auto; overflow-x: hidden; height: auto; }
+}
+
+/* ── Page ── */
+.login-page {
+    min-height: 100vh;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+    background: linear-gradient(135deg, #213F99 0%, #2563eb 100%);
+    overflow: hidden;
+}
+
+@media (max-width: 1024px) {
+    .login-page { height: auto; min-height: 100vh; overflow-y: auto; }
+}
+
+/* ── Background ── */
+.bg-wrapper { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 0; overflow: hidden; }
+
+.bg-image {
+    position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+    background-image: url('/modules/authentication/images/Background.png');
+    background-size: cover; background-position: center; background-repeat: no-repeat;
+    opacity: 0.07;
+    animation: subtleZoom 30s ease-in-out infinite alternate;
+    display: none; /* background image removed */
+}
+
+@keyframes subtleZoom { 0% { transform: scale(1); } 100% { transform: scale(1.03); } }
+
+.gradient-overlay {
+    position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+    background:
+        radial-gradient(circle at 20% 50%, rgba(247, 211, 30, 0.10) 0%, transparent 50%),
+        radial-gradient(circle at 80% 30%, rgba(37, 99, 235, 0.07) 0%, transparent 50%);
+}
+
+.floating-shapes { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; overflow: hidden; }
+
+.shape { position: absolute; border-radius: 50%; filter: blur(120px); opacity: 0.12; animation: floatShape 30s ease-in-out infinite; }
+.shape-1 { width: 600px; height: 600px; background: var(--fed-blue);   top: -10%; left: -10%; animation-delay: 0s; }
+.shape-2 { width: 500px; height: 500px; background: #2563eb;    bottom: -10%; left: 20%; animation-delay: 10s; }
+.shape-3 { width: 400px; height: 400px; background: var(--fed-yellow); top: 30%; right: 10%; animation-delay: 20s; }
+
+@keyframes floatShape {
+    0%, 100% { transform: translate(0, 0); }
+    33% { transform: translate(30px, -30px); }
+    66% { transform: translate(-20px, 20px); }
+}
+
+/* ── Container (matches SK Officials sk-login-container) ── */
+.login-container {
+    position: relative; z-index: 10; flex: 1;
+    display: flex; flex-direction: row; align-items: center;
+    min-height: 100vh; height: 100vh;
+    max-width: 1600px; margin: 0 auto; width: 100%; overflow: hidden;
+}
+
+@media (max-width: 1024px) {
+    .login-container { flex-direction: column; height: auto; min-height: 100vh; overflow-y: visible; padding: 0; }
+}
+
+/* ── LEFT: Logo (matches SK Officials sk-branding-section) ── */
+.logo-container {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 4rem 6rem;
+    text-align: center;
+    animation: fadeInUp 1s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes fadeInUp { from { opacity: 0; transform: translateY(30px); } to { opacity: 1; transform: translateY(0); } }
+
+.logo-glow-wrapper {
+    display: inline-flex; align-items: center; justify-content: center;
+    margin-bottom: 3rem; position: relative;
+}
+
+.logo-glow-wrapper::before {
+    content: ''; position: absolute; width: 300px; height: 300px;
+    background: radial-gradient(circle, rgba(247, 211, 30, 0.22) 0%, rgba(37, 99, 235, 0.15) 50%, transparent 70%);
+    border-radius: 50%; animation: glowPulse 3s ease-in-out infinite;
+}
+
+@keyframes glowPulse { 0%, 100% { transform: scale(1); opacity: 0.5; } 50% { transform: scale(1.1); opacity: 0.9; } }
+
+/* Collaborative Logo Layout - Overlapping/Connected Style */
+.collab-logo-wrapper {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    margin-bottom: 3rem;
+    height: 240px;
+    width: 400px;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.collab-logo-wrapper .logo-glow-wrapper {
+    margin-bottom: 0;
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+}
+
+.collab-logo-wrapper .logo-left {
+    left: 0;
+    z-index: 1;
+}
+
+.collab-logo-wrapper .logo-right {
+    right: 0;
+    z-index: 2;
+}
+
+.collab-logo-wrapper .logo-glow-wrapper::before {
+    width: 280px;
+    height: 280px;
+}
+
+/* Logo: 240px for collaborative display - same size as original */
+.collab-logo {
+    width: 240px;
+    height: 240px;
+    object-fit: cover;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.98);
+    padding: 1rem;
+    border: 5px solid rgba(255, 255, 255, 0.9);
+    position: relative;
+    z-index: 1;
+    animation: logoFloat 4s ease-in-out infinite;
+    filter: drop-shadow(0 20px 40px rgba(33, 63, 153, 0.25));
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
+}
+
+/* Logo: 240px like SK Officials */
+.large-logo {
+    width: 240px; height: 240px; object-fit: cover; border-radius: 50%;
+    background: rgba(255, 255, 255, 0.95); padding: 1rem;
+    border: 4px solid rgba(247, 211, 30, 0.4); position: relative; z-index: 1;
+    animation: logoFloat 4s ease-in-out infinite;
+    filter: drop-shadow(0 20px 40px rgba(247, 211, 30, 0.30));
+}
+
+@keyframes logoFloat { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-12px); } }
+
+/* Title: 5rem like SK Officials */
+.brand-title {
+    font-size: 5rem; font-weight: 900; color: var(--fed-white);
+    letter-spacing: -0.04em; line-height: 1; margin-bottom: 1.5rem;
+    text-shadow: 0 4px 24px rgba(0, 0, 0, 0.3);
+}
+
+/* Subtitle: 1.5rem yellow like SK Officials tagline */
+.brand-subtitle {
+    font-size: 1.5rem; font-weight: 600; color: var(--fed-yellow);
+    letter-spacing: 0.01em; text-shadow: 0 2px 12px rgba(0, 0, 0, 0.3);
+    line-height: 1.6; text-align: center;
+}
+
+/* ── RIGHT: Login Card (matches SK Officials sk-login-section + sk-login-card) ── */
+.login-form-container {
+    width: 580px;
+    display: flex; align-items: center; justify-content: center;
+    padding: 2rem;
+    margin-left: auto; margin-right: 8rem;
+    overflow-y: auto; overflow-x: hidden;
+    animation: slideInRight 1s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes slideInRight { from { opacity: 0; transform: translateX(60px); } to { opacity: 1; transform: translateX(0); } }
+
+.login-form-container::-webkit-scrollbar { width: 6px; }
+.login-form-container::-webkit-scrollbar-track { background: transparent; }
+.login-form-container::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.2); border-radius: 3px; }
+
+.login-card-inner {
+    width: 100%;
+    background: rgba(255, 255, 255, 0.98); backdrop-filter: blur(40px);
+    border-radius: 28px; padding: 2.5rem 3rem;
+    box-shadow: none;
+    border: none;
+    position: relative; overflow: hidden;
+}
+
+/* Shimmer top bar: removed */
+.login-card-inner::before {
+    display: none;
+}
+
+@keyframes shimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
+
+.login-card-inner::after {
+    content: ''; position: absolute; top: -80px; right: -80px; width: 160px; height: 160px;
+    background: radial-gradient(circle, rgba(33, 63, 153, 0.06) 0%, transparent 70%); border-radius: 50%;
+}
+
+/* ── Form Header ── */
+.form-header { margin-bottom: 2rem; }
+
+.form-header h2 {
+    font-size: 2rem; font-weight: 800;
+    background: linear-gradient(135deg, var(--fed-blue-dark) 0%, var(--fed-blue) 100%);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+    margin-bottom: 0.625rem; letter-spacing: -0.03em; line-height: 1.2;
+    display: flex; align-items: center; gap: 0.5rem; flex-wrap: nowrap;
+}
+
+.form-header h2.nowrap { white-space: nowrap; }
+
+.wave-emoji {
+    display: inline-block; font-size: 1.75rem; -webkit-text-fill-color: initial;
+    animation: wave 1.5s ease-in-out infinite; transform-origin: 70% 70%;
+}
+
+@keyframes wave {
+    0%, 100% { transform: rotate(0deg); }
+    10%, 30% { transform: rotate(14deg); }
+    20%, 40% { transform: rotate(-8deg); }
+    50% { transform: rotate(14deg); }
+    60% { transform: rotate(-4deg); }
+    70% { transform: rotate(10deg); }
+    80% { transform: rotate(0deg); }
+}
+
+.form-header p { font-size: 0.95rem; color: var(--fed-gray-600); font-weight: 500; letter-spacing: 0.01em; }
+
+/* ── Form Fields ── */
+.form-group { margin-bottom: 0; display: flex; flex-direction: column; gap: 0.5rem; }
+.login-form { display: flex; flex-direction: column; gap: 1.25rem; }
+
+.form-group label {
+    display: flex; align-items: center; gap: 0.5rem;
+    font-size: 0.95rem; font-weight: 600; color: var(--fed-gray-700); letter-spacing: 0.01em;
+}
+
+.label-icon { width: 18px; height: 18px; color: var(--fed-blue); flex-shrink: 0; }
+
+.form-control {
+    width: 100%; padding: 0.875rem 1.125rem; font-size: 0.95rem;
+    border: 2px solid var(--fed-gray-200); border-radius: 12px;
+    background: var(--fed-white); color: var(--fed-gray-900);
+    transition: all var(--transition-base); font-family: inherit; font-weight: 500;
+    background-image: none !important;
+}
+.form-control:hover { border-color: var(--fed-gray-300); }
+.form-control:focus { outline: none; border-color: var(--fed-blue) !important; box-shadow: 0 0 0 4px rgba(33, 63, 153, 0.12) !important; background-image: none !important; }
+.form-control::placeholder { color: var(--fed-gray-400); font-weight: 400; }
+.form-control:valid, .form-control:invalid { background-image: none !important; box-shadow: none !important; }
+.form-control:not(.is-invalid):focus { border-color: var(--fed-blue) !important; box-shadow: 0 0 0 4px rgba(33, 63, 153, 0.12) !important; }
+.form-control:-webkit-autofill, .form-control:-webkit-autofill:hover, .form-control:-webkit-autofill:focus {
+    -webkit-box-shadow: 0 0 0 30px white inset !important; -webkit-text-fill-color: var(--fed-gray-900) !important;
+    border: 2px solid var(--fed-gray-200) !important; transition: background-color 5000s ease-in-out 0s !important; background-image: none !important;
+}
+.form-control:-webkit-autofill:not(.is-invalid):focus { border-color: var(--fed-blue) !important; -webkit-box-shadow: 0 0 0 4px rgba(33, 63, 153, 0.12), 0 0 0 30px white inset !important; }
+
+.password-input-container { position: relative; }
+.password-input-container .form-control { padding-right: 3.5rem; }
+input[type="password"]::-ms-reveal, input[type="password"]::-ms-clear { display: none !important; }
+input[type="password"]::-webkit-credentials-auto-fill-button, input[type="password"]::-webkit-contacts-auto-fill-button { visibility: hidden !important; display: none !important; }
+
+/* Password Toggle Button */
+.pw-toggle-btn {
+    position: absolute;
+    right: 1rem;
+    top: 50%;
+    transform: translateY(-50%);
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--fed-gray-400);
+    padding: 0.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all var(--transition-base);
+    border-radius: 8px;
+    z-index: 10;
+    width: 40px;
+    height: 40px;
+}
+.pw-toggle-btn:hover {
+    color: var(--fed-blue);
+    background: rgba(33, 63, 153, 0.08);
+}
+.pw-toggle-btn:active {
+    transform: translateY(-50%) scale(0.95);
+}
+.pw-toggle-btn svg {
+    pointer-events: none;
+    width: 22px;
+    height: 22px;
+}
+
+/* Eye icon visibility states */
+.pw-eye {
+    display: block;
+    transition: opacity 0.2s ease;
+}
+.pw-eye-show {
+    opacity: 1;
+}
+.pw-eye-hide {
+    opacity: 0;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+}
+.pw-toggle-btn.pw-visible .pw-eye-show {
+    opacity: 0;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+}
+.pw-toggle-btn.pw-visible .pw-eye-hide {
+    opacity: 1;
+    position: static;
+    transform: none;
+}
+
+.password-toggle {
+    position: absolute; right: 1rem; top: 50%; transform: translateY(-50%);
+    background: none; border: none; cursor: pointer; color: var(--fed-gray-400);
+    padding: 0.5rem; display: flex; align-items: center; justify-content: center;
+    transition: all var(--transition-base); border-radius: 8px; z-index: 10;
+}
+.password-toggle:hover { color: var(--fed-blue); background: rgba(33, 63, 153, 0.08); }
+.password-toggle:active { transform: translateY(-50%) scale(0.95); }
+.password-toggle svg { pointer-events: none; width: 22px; height: 22px; }
+
+.form-control.is-invalid, .form-control.is-invalid:hover, .form-control.is-invalid:focus,
+.form-control.is-invalid:valid, .form-control.is-invalid:-webkit-autofill {
+    border-color: #dc3545 !important; background-image: none !important;
+    -webkit-box-shadow: 0 0 0 30px white inset !important; box-shadow: 0 0 0 4px rgba(220, 53, 69, 0.10) !important;
+}
+
+.invalid-feedback { display: block !important; font-size: 0.8rem; color: #dc3545; margin-top: 0.25rem; font-weight: 500; animation: slideDown 0.3s ease; }
+@keyframes slideDown { from { opacity: 0; transform: translateY(-5px); } to { opacity: 1; transform: translateY(0); } }
+
+/* ── Form Options (remember + forgot) ── */
+.form-options {
+    display: flex !important; justify-content: space-between !important; align-items: center !important;
+    gap: 1rem; margin-top: 0.25rem;
+}
+.form-check { display: flex !important; align-items: center !important; gap: 0.625rem !important; padding-left: 0 !important; margin: 0 !important; cursor: pointer; user-select: none; }
+.form-check-input { margin: 0 !important; float: none !important; cursor: pointer; accent-color: var(--fed-blue); width: 20px; height: 20px; border-radius: 6px; }
+.form-check-label { font-size: 0.95rem; color: var(--fed-gray-600) !important; font-weight: 500; cursor: pointer; padding-left: 0 !important; margin-left: 0 !important; }
+
+.forgot-password {
+    font-size: 0.95rem; color: var(--fed-blue-dark); text-decoration: none;
+    font-weight: 600; transition: all var(--transition-fast); white-space: nowrap; position: relative;
+}
+.forgot-password::after { content: ''; position: absolute; bottom: -2px; left: 0; width: 0; height: 2px; background: #2563eb; transition: width var(--transition-base); }
+.forgot-password:hover { color: #2563eb; }
+.forgot-password:hover::after { width: 100%; }
+
+/* ── Submit Button (matches SK Officials sk-submit-btn sizing) ── */
+.login-btn {
+    width: 100%; padding: 0.875rem 1.5rem; font-size: 1rem; font-weight: 700; color: var(--fed-white);
+    background: linear-gradient(135deg, var(--fed-blue) 0%, #2563eb 100%);
+    border: none; border-radius: 12px; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: all var(--transition-base);
+    box-shadow: 0 8px 24px rgba(33, 63, 153, 0.30);
+    position: relative; overflow: hidden; margin-top: 0.5rem; letter-spacing: 0.02em;
+}
+.login-btn::before { content: ''; position: absolute; top: 0; left: -100%; width: 100%; height: 100%; background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.25), transparent); transition: left 0.6s; }
+.login-btn:hover::before { left: 100%; }
+.login-btn:hover { transform: none; box-shadow: 0 8px 24px rgba(33, 63, 153, 0.30); background: linear-gradient(135deg, var(--fed-blue) 0%, #2563eb 100%); }
+.login-btn:active { transform: none; }
+.login-btn:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+
+.login-btn.loading {
+    pointer-events: none;
+    opacity: 0.9;
+}
+
+.login-btn.loading::before {
+    display: none;
+}
+
+.login-card input[readonly],
+.form-control[readonly] {
+    opacity: 0.7;
+    cursor: not-allowed;
+    background: #f1f5f9;
+}
+button.login-btn.btn-primary,
+button.login-btn.btn-primary:hover,
+button.login-btn.btn-primary:focus,
+button.login-btn.btn-primary:active {
+    background: linear-gradient(135deg, var(--fed-blue) 0%, #2563eb 100%) !important;
+    border: none !important;
+    color: var(--fed-white) !important;
+    box-shadow: 0 8px 24px rgba(33, 63, 153, 0.30) !important;
+    transform: none !important;
+}
+button.login-btn.btn-primary:disabled {
+    opacity: 0.6;
+    transform: none;
+}
+
+/* ── Footer ── */
+.form-footer {
+    margin-top: 2rem; padding-top: 1.5rem;
+    border-top: 1px solid var(--fed-gray-200); text-align: center;
+}
+.form-footer p { font-size: 0.85rem; color: var(--fed-gray-600); font-weight: 500; }
+.form-footer a {
+    font-size: 0.95rem; color: var(--fed-blue-dark); text-decoration: none;
+    font-weight: 600; transition: all var(--transition-fast); position: relative;
+    display: inline-flex; align-items: center; gap: 0.25rem;
+}
+.form-footer a::after { content: ''; position: absolute; bottom: -2px; left: 0; width: 0; height: 2px; background: #2563eb; transition: width var(--transition-base); }
+.form-footer a:hover { color: #2563eb; }
+.form-footer a:hover::after { width: 100%; }
+
+/* Alert (Bootstrap alert override for forgot password status) */
+.alert-info {
+    background: linear-gradient(135deg, rgba(33, 63, 153, 0.08) 0%, rgba(33, 63, 153, 0.12) 100%);
+    color: var(--fed-blue-dark); border: 1.5px solid rgba(33, 63, 153, 0.2);
+    border-radius: 14px; padding: 0.875rem 1.125rem; font-size: 0.9rem; font-weight: 500;
+}
+
+/* ── Responsive (mirrors SK Officials breakpoints) ── */
+@media (max-width: 1200px) {
+    .logo-container { padding: 3rem; }
+    .brand-title { font-size: 4rem; }
+    .login-form-container { width: 500px; padding: 3rem 3rem 3rem 2rem; margin-right: 4rem; }
+}
+
+@media (max-width: 1024px) {
+    .login-container { flex-direction: column; }
+    .logo-container { padding: 4rem 3rem 3rem; flex: none; }
+    .login-form-container { width: 100%; max-width: 580px; margin: 0 auto; padding: 0 3rem 4rem; overflow-y: visible; }
+    .brand-title { font-size: 4rem; }
+    .brand-subtitle { font-size: 1.35rem; max-width: 600px; }
+    .large-logo { width: 200px; height: 200px; }
+    .collab-logo { width: 200px; height: 200px; }
+    .collab-logo-wrapper { height: 200px; width: 340px; }
+    .logo-glow-wrapper::before { width: 260px; height: 260px; }
+    .collab-logo-wrapper .logo-glow-wrapper::before { width: 240px; height: 240px; }
+}
+
+@media (max-width: 768px) {
+    .logo-container { padding: 3rem 2rem 2rem; }
+    .brand-title { font-size: 3rem; }
+    .brand-subtitle { font-size: 1.2rem; }
+    .large-logo { width: 180px; height: 180px; }
+    .collab-logo { width: 180px; height: 180px; }
+    .collab-logo-wrapper { height: 180px; width: 300px; }
+    .logo-glow-wrapper::before { width: 240px; height: 240px; }
+    .collab-logo-wrapper .logo-glow-wrapper::before { width: 220px; height: 220px; }
+    .login-form-container { padding: 0 2rem 3rem; }
+    .login-card-inner { padding: 3rem 2.5rem; border-radius: 28px; }
+    .form-header h2 { font-size: 2.25rem; }
+}
+
+@media (max-width: 640px) {
+    .logo-container { padding: 2.5rem 1.5rem 2rem; }
+    .brand-title { font-size: 2.5rem; }
+    .brand-subtitle { font-size: 1.1rem; }
+    .large-logo { width: 150px; height: 150px; }
+    .collab-logo { width: 150px; height: 150px; }
+    .collab-logo-wrapper { height: 150px; width: 250px; margin-bottom: 2rem; }
+    .logo-glow-wrapper::before { width: 200px; height: 200px; }
+    .collab-logo-wrapper .logo-glow-wrapper::before { width: 180px; height: 180px; }
+    .logo-glow-wrapper { margin-bottom: 2rem; }
+    .login-form-container { padding: 0 1.5rem 2.5rem; }
+    .login-card-inner { padding: 2.5rem 2rem; border-radius: 24px; }
+    .form-header h2 { font-size: 1.75rem; }
+    .form-options { flex-wrap: nowrap; gap: 0.5rem; }
+    .form-check-label, .forgot-password { font-size: 0.85rem; }
+}
+
+@media (max-width: 480px) {
+    .logo-container { padding: 2rem 1.25rem 1.5rem; }
+    .brand-title { font-size: 2rem; }
+    .brand-subtitle { font-size: 1rem; }
+    .large-logo { width: 120px; height: 120px; padding: 0.75rem; }
+    .collab-logo { width: 120px; height: 120px; padding: 0.75rem; }
+    .collab-logo-wrapper { height: 120px; width: 200px; margin-bottom: 1.5rem; }
+    .logo-glow-wrapper::before { width: 160px; height: 160px; }
+    .collab-logo-wrapper .logo-glow-wrapper::before { width: 150px; height: 150px; }
+    .logo-glow-wrapper { margin-bottom: 1.5rem; }
+    .login-form-container { padding: 0 1.25rem 2rem; }
+    .login-card-inner { padding: 2rem 3rem; border-radius: 20px; }
+    .form-header h2 { font-size: 1.5rem; }
+    .form-control { padding: 0.875rem 1rem; font-size: 0.95rem; }
+    .login-btn { padding: 1rem 1.5rem; font-size: 1rem; }
+    .form-options { flex-wrap: nowrap; gap: 0.35rem; justify-content: space-between; align-items: center; }
+    .form-check-label, .forgot-password { font-size: 0.8rem; }
+}
+
+@media screen and (max-width: 768px) {
+    input[type="text"], input[type="email"], input[type="password"], input[type="number"], select, textarea { font-size: 16px !important; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
+}
+
+*:focus-visible { outline: 3px solid var(--fed-yellow); outline-offset: 3px; }
+::selection { background: var(--fed-yellow); color: var(--fed-blue-dark); }
+::-moz-selection { background: var(--fed-yellow); color: var(--fed-blue-dark); }
+.form-control:disabled, .login-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+
+/* Verify wait */
+.verify-wait-message { font-size: 0.95rem; color: #64748b; margin: 1rem 0 1.5rem; text-align: center; line-height: 1.6; }
+.email-highlight { color: #213F99; font-weight: 700; }
+.resend-section { margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px solid #e2e8f0; }
+.resend-cooldown { font-size: 0.85rem; color: #dc3545; text-align: center; margin-bottom: 0.75rem; font-weight: 500; }
+.resend-status { font-size: 0.9rem; border-radius: 10px; padding: 0.75rem 1rem; margin-bottom: 0.75rem; text-align: center; }
+.resend-status-success { background: #ecfdf5; color: #047857; border: 1px solid #a7f3d0; }
+.resend-status-error { background: #fef2f2; color: #b91c1c; border: 1px solid #fecaca; }
+.btn-resend { background: #213F99 !important; margin-top: 0; }
+.btn-resend:disabled { opacity: 0.75; cursor: not-allowed; }
+.btn-resend-spinner { width: 18px; height: 18px; border: 2.5px solid rgba(255,255,255,0.35); border-top-color: #fff; border-radius: 50%; animation: verify-resend-spin 0.7s linear infinite; display: inline-block; vertical-align: middle; margin-right: 8px; }
+.btn-resend.is-loading .btn-resend-label { opacity: 0.85; }
+@keyframes verify-resend-spin { to { transform: rotate(360deg); } }
+.success-modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); display: none; align-items: center; justify-content: center; z-index: 9999; }
+.success-modal-overlay.show { display: flex; }
+.success-modal { background: #fff; border-radius: 16px; padding: 40px; max-width: 400px; width: 90%; text-align: center; box-shadow: 0 20px 60px rgba(0,0,0,0.3); }
+.success-modal .check-wrap { width: 100px; height: 100px; border-radius: 50%; background: linear-gradient(135deg, #22c55e, #16a34a); display: grid; place-items: center; margin: 0 auto 24px; }
+.success-modal .checkmark { width: 28px; height: 56px; border-right: 6px solid #fff; border-bottom: 6px solid #fff; transform: rotate(45deg); margin-left: 6px; margin-bottom: 6px; }
+
+/* ── Password Rules ── */
+.password-rules {
+    list-style: none;
+    padding: 0;
+    margin: 0.75rem 0 0;
+    font-size: 0.8rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+}
+
+.password-rules li {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: var(--fed-gray-500);
+    font-weight: 500;
+    transition: all var(--transition-fast);
+}
+
+.password-rules li::before {
+    content: '○';
+    width: 14px;
+    height: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.7rem;
+    color: var(--fed-gray-400);
+    flex-shrink: 0;
+}
+
+.password-rules li.valid,
+.password-rules li.ok {
+    color: #22c55e;
+}
+
+.password-rules li.valid::before,
+.password-rules li.ok::before {
+    content: '✓';
+    color: #22c55e;
+    font-weight: 700;
+}
+
+.password-rules.active {
+    display: flex;
+}
+
+.back-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    font-size: 0.95rem;
+    color: var(--fed-blue-dark);
+    text-decoration: none;
+    font-weight: 600;
+    transition: all var(--transition-fast);
+    position: relative;
+}
+
+.back-link::after {
+    content: '';
+    position: absolute;
+    bottom: -2px;
+    left: 0;
+    width: 0;
+    height: 2px;
+    background: #2563eb;
+    transition: width var(--transition-base);
+}
+
+.back-link:hover {
+    color: #2563eb;
+}
+
+.back-link:hover::after {
+    width: 100%;
+}
+
+/* ===== Accessibility/UX overrides: disable waving emoji and logo motion ===== */
+/* Remove animation for the wave emoji and make it static */
+.wave-emoji {
+    animation: none !important;
+    transform: none !important;
+    display: inline-block;
+}
+
+/* Prevent logo elements from animating/moving */
+.logo-container,
+.logo-container *,
+.collab-logo-wrapper,
+.collab-logo,
+.large-logo,
+.logo-glow-wrapper,
+.logo-glow-wrapper::before,
+.collab-logo-wrapper .logo-left,
+.collab-logo-wrapper .logo-right {
+    animation: none !important;
+    transition: none !important;
+}
+
+/* Honor users who prefer reduced motion */
+@media (prefers-reduced-motion: reduce) {
+    .logo-container,
+    .logo-container *,
+    .collab-logo,
+    .large-logo,
+    .logo-glow-wrapper,
+    .wave-emoji {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
+}
+
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Cloudflare Turnstile — centered modal overlay (SK Federations)
+   Mirrors the SK Officials / Kabataan turnstile modal exactly,
+   using --fed-* color variables.
+   ───────────────────────────────────────────────────────────────────────────── */
+
+.turnstile-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 8000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 250ms cubic-bezier(0.4, 0, 0.2, 1),
+                visibility 250ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.turnstile-modal.turnstile-modal-visible {
+    opacity: 1;
+    visibility: visible;
+}
+
+.turnstile-modal-backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.72);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    cursor: pointer;
+}
+
+.turnstile-modal-card {
+    position: relative;
+    z-index: 1;
+    background: #ffffff;
+    border-radius: 20px;
+    box-shadow: 0 32px 80px rgba(0, 0, 0, 0.35),
+                0 0 0 1px rgba(255, 255, 255, 0.12);
+    width: 100%;
+    max-width: 420px;
+    overflow: hidden;
+    transform: translateY(24px) scale(0.97);
+    transition: transform 300ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.turnstile-modal.turnstile-modal-visible .turnstile-modal-card {
+    transform: translateY(0) scale(1);
+}
+
+/* Blue/gold accent bar at the top — removed */
+.turnstile-modal-card::before {
+    display: none;
+}
+
+.turnstile-modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    padding: 0.5rem 0.75rem 0;
+}
+
+.turnstile-modal-icon {
+    flex-shrink: 0;
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    background: linear-gradient(135deg, rgba(33,63,153,0.12) 0%, rgba(37,99,235,0.18) 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.turnstile-modal-icon svg {
+    width: 22px;
+    height: 22px;
+    color: var(--fed-blue);
+}
+
+.turnstile-modal-title {
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--fed-gray-900);
+    margin: 0 0 0.25rem;
+    letter-spacing: -0.01em;
+}
+
+.turnstile-modal-subtitle {
+    font-size: 0.825rem;
+    color: var(--fed-gray-600);
+    font-weight: 400;
+    margin: 0;
+    line-height: 1.5;
+}
+
+.turnstile-close-btn {
+    margin-left: auto;
+    flex-shrink: 0;
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0.375rem;
+    border-radius: 8px;
+    color: var(--fed-gray-400);
+    transition: color var(--transition-fast), background var(--transition-fast);
+}
+
+.turnstile-close-btn:hover {
+    color: var(--fed-gray-700);
+    background: var(--fed-gray-200);
+}
+
+.turnstile-close-btn svg { width: 18px; height: 18px; }
+
+.turnstile-modal-body {
+    padding: 0.5rem 1.5rem 1rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-height: 76px;
+}
+
+.turnstile-modal-error {
+    display: none;
+    margin-top: 0.625rem;
+    padding: 0.625rem 0.875rem;
+    border-radius: 10px;
+    background: linear-gradient(135deg, rgba(220,53,69,0.08) 0%, rgba(220,53,69,0.12) 100%);
+    border: 1.5px solid rgba(220,53,69,0.20);
+    color: #b91c1c;
+    font-size: 0.825rem;
+    font-weight: 500;
+    width: 100%;
+    text-align: center;
+}
+
+.turnstile-modal-footer {
+    padding: 0.25rem 1.5rem 1.25rem;
+    text-align: center;
+}
+
+.turnstile-cancel-link {
+    font-size: 0.825rem;
+    color: var(--fed-gray-400);
+    font-weight: 500;
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0.25rem 0.5rem;
+    border-radius: 6px;
+    transition: color var(--transition-fast), background var(--transition-fast);
+}
+
+.turnstile-cancel-link:hover {
+    color: var(--fed-gray-600);
+    background: var(--fed-gray-200);
+}
+
+/* Button while waiting for Turnstile */
+.login-btn.waiting-for-turnstile {
+    opacity: 0.65;
+    cursor: default;
+}
+
+/* Inline field errors (login.js) */
+.fed-field-error {
+    display: none;
+    font-size: 0.8rem;
+    color: #dc3545;
+    margin-top: 0.25rem;
+    font-weight: 500;
+}
+
+@media (max-width: 480px) {
+    .turnstile-modal-card { border-radius: 16px; }
+    .turnstile-modal-header { padding: 1.125rem 1.25rem 0.75rem; }
+    .turnstile-modal-body { padding: 0.5rem 1.25rem 0.75rem; }
+    .turnstile-modal-footer { padding: 0.25rem 1.25rem 1rem; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .turnstile-modal,
+    .turnstile-modal-card {
+        transition: opacity 150ms ease, visibility 150ms ease;
+        transform: none !important;
+    }
+}

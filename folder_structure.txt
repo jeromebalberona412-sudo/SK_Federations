@@ -1,0 +1,22 @@
+sk-federation-login/
+├── public/
+│   ├── css/
+│   │   ├── style.css            # Login page CSS
+│   │   └── dashboard.css        # Dashboard specific CSS
+│   ├── js/
+│   │   ├── script.js            # Login page JS
+│   │   └── dashboard.js         # Dashboard JS (optional)
+│   └── images/
+│       ├── logo.png
+│       ├── background.jpg
+│       └── profile-placeholder.png
+│
+├── resources/
+│   └── views/
+│       ├── auth/
+│       │   └── login.blade.php
+│       └── dashboard/
+│           └── president.blade.php
+│
+└── routes/
+    └── web.php

@@ -1,0 +1,560 @@
+/* ==========================================================================
+   SK OnePortal — Layout module (shared shell + profile page)
+   Load order: dashboard.css → layout.css → profile.css (profile page only)
+   ========================================================================== */
+
+/* ── Sidebar profile block ───────────────────────────────── */
+.sidebar-profile {
+    padding: 18px 16px;
+    gap: 14px;
+    align-items: flex-start;
+}
+
+.sidebar-avatar {
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 3px solid var(--fed-blue, #213F99);
+    flex-shrink: 0;
+    box-shadow: 0 4px 12px rgba(33, 63, 153, 0.18);
+}
+
+.sidebar-user-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.sidebar-user-info .s-name {
+    font-size: 13px;
+    font-weight: 700;
+    line-height: 1.35;
+    color: #1e293b;
+    white-space: normal;
+    overflow: visible;
+    word-break: break-word;
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+}
+
+.sidebar-user-info .s-role {
+    font-size: 11px;
+    margin-top: 3px;
+    color: #64748b;
+    white-space: normal;
+    overflow: visible;
+    word-break: break-word;
+    line-height: 1.35;
+}
+
+.sidebar-user-info .s-meta {
+    font-size: 10px;
+    margin-top: 4px;
+    color: #94a3b8;
+    white-space: normal;
+    overflow: visible;
+    word-break: break-word;
+    line-height: 1.35;
+}
+
+body.sidebar-collapsed .sidebar-avatar {
+    width: 36px;
+    height: 36px;
+    border-width: 2px;
+}
+
+body.sidebar-collapsed .sidebar-profile {
+    justify-content: center;
+    align-items: center;
+    padding: 14px 0;
+    min-height: 0;
+    gap: 0;
+}
+
+@media (min-width: 1025px) {
+    body.sidebar-collapsed .sidebar-user-info {
+        display: none !important;
+    }
+}
+
+@media (max-width: 1024px) {
+    .sidebar-avatar {
+        width: 52px;
+        height: 52px;
+    }
+}
+
+/* ── Sidebar dropdown submenus ───────────────────────────── */
+.menu-dropdown-toggle {
+    justify-content: flex-start;
+}
+
+.menu-dropdown-chevron {
+    margin-left: auto;
+    font-size: 12px !important;
+    width: auto !important;
+    transition: transform 0.3s ease;
+}
+
+.menu-dropdown-chevron.is-open {
+    transform: rotate(180deg);
+}
+
+.sidebar-submenu {
+    max-height: 0;
+    overflow: hidden;
+    padding-left: 8px;
+    margin-left: 10px;
+    transition: max-height 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.sidebar-submenu.is-open {
+    max-height: 520px;
+}
+
+@media (max-width: 1024px) {
+    .sidebar-submenu.is-open {
+        max-height: 640px;
+    }
+}
+
+body:not(.sidebar-collapsed) .sidebar-nav .sidebar-submenu.is-open {
+    display: block;
+}
+
+.menu-item.submenu-item {
+    font-size: 13px;
+    padding-top: 9px;
+    padding-bottom: 9px;
+}
+
+body.sidebar-collapsed .sidebar-submenu {
+    display: none !important;
+}
+
+body.sidebar-collapsed .menu-dropdown-chevron {
+    display: none;
+}
+
+/* ── Profile page shell (body.profile-page) ────────────────── */
+body.profile-page {
+    background: #f3f4f6;
+}
+
+body.profile-page .main-content {
+    background: #f3f4f6;
+    padding: 24px 28px;
+    min-height: calc(100vh - var(--navbar-height, 64px));
+}
+
+body.profile-page .profile-container {
+    width: 100%;
+    max-width: 1180px;
+    margin: 0 auto;
+}
+
+body.profile-page .profile-page-header {
+    margin-bottom: 22px;
+}
+
+body.profile-page .profile-page-title {
+    font-size: 28px;
+    font-weight: 800;
+    color: #111827;
+    letter-spacing: -0.02em;
+}
+
+body.profile-page .profile-page-sub {
+    font-size: 14px;
+    color: #6b7280;
+    margin-top: 4px;
+}
+
+/* Tab bar — SK Federation colors (navy + white, not Officials charcoal/yellow) */
+body.profile-page .profile-tab-bar {
+    display: inline-flex;
+    gap: 8px;
+    margin-bottom: 22px;
+    background: #fff;
+    border-radius: 12px;
+    padding: 6px;
+    box-shadow: 0 2px 8px rgba(15, 23, 42, 0.07);
+    border: 1px solid #e5e7eb;
+    width: fit-content;
+    max-width: 100%;
+}
+
+body.profile-page .profile-tab {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 10px 22px;
+    border-radius: 8px;
+    border: 2px solid transparent;
+    background: #fff;
+    color: #6b7280;
+    font-size: 13px;
+    font-weight: 600;
+    font-family: inherit;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+}
+
+body.profile-page .profile-tab i {
+    font-size: 13px;
+    color: #9ca3af;
+}
+
+body.profile-page .profile-tab:hover {
+    background: #f9fafb;
+    color: #374151;
+}
+
+body.profile-page .profile-tab:hover i {
+    color: #6b7280;
+}
+
+body.profile-page .profile-tab.active {
+    background: #213F99;
+    color: #ffffff;
+    border-color: #213F99;
+    box-shadow: 0 2px 8px rgba(33, 63, 153, 0.28);
+}
+
+body.profile-page .profile-tab.active i {
+    color: #ffffff;
+}
+
+body.profile-page .profile-tab:focus-visible {
+    outline: 2px solid #213F99;
+    outline-offset: 2px;
+}
+
+body.profile-page .profile-tab-content {
+    display: none;
+}
+
+body.profile-page .profile-tab-content.active {
+    display: block;
+    animation: profileTabIn 0.25s ease both;
+}
+
+@keyframes profileTabIn {
+    from {
+        opacity: 0;
+        transform: translateY(8px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Information card */
+body.profile-page .official-card {
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 14px;
+    box-shadow: 0 4px 16px rgba(15, 23, 42, 0.06);
+    overflow: hidden;
+}
+
+body.profile-page .official-details {
+    padding: 24px 28px;
+}
+
+body.profile-page .profile-field-group {
+    margin-bottom: 24px;
+    padding-bottom: 24px;
+    border-bottom: 1px solid #f1f5f9;
+}
+
+body.profile-page .profile-field-group:last-child {
+    margin-bottom: 0;
+    padding-bottom: 0;
+    border-bottom: none;
+}
+
+body.profile-page .profile-field-group-label--bold {
+    font-size: 13px;
+    font-weight: 800;
+    color: #374151;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin-bottom: 14px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+body.profile-page .profile-field-group-label--bold i {
+    color: #213F99;
+}
+
+body.profile-page .profile-field-row {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 16px 20px;
+}
+
+@media (max-width: 900px) {
+    body.profile-page .profile-field-row {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 560px) {
+    body.profile-page .profile-field-row {
+        grid-template-columns: 1fr;
+    }
+}
+
+body.profile-page .profile-field label {
+    font-size: 11px;
+    font-weight: 700;
+    color: #9ca3af;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 4px;
+}
+
+body.profile-page .profile-field p {
+    font-size: 15px;
+    font-weight: 600;
+    color: #111827;
+    margin: 0;
+    padding: 10px 14px;
+    background: #f9fafb;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    min-height: 42px;
+    display: flex;
+    align-items: center;
+}
+
+/* Account settings card */
+body.profile-page .sk-account-settings-section {
+    background: transparent;
+    padding: 0;
+    margin: 0;
+    box-shadow: none;
+    border: none;
+}
+
+body.profile-page .sk-account-settings-section:hover {
+    transform: none;
+    box-shadow: none;
+}
+
+body.profile-page .account-settings-card {
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 14px;
+    box-shadow: 0 4px 16px rgba(15, 23, 42, 0.06);
+    overflow: hidden;
+}
+
+body.profile-page .account-settings-card-header {
+    padding: 18px 24px 14px;
+    border-bottom: 1px solid #e5e7eb;
+    background: #fff;
+}
+
+body.profile-page .account-settings-card-title {
+    font-size: 18px;
+    font-weight: 700;
+    color: #111827;
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+body.profile-page .account-settings-card-title i {
+    color: #6b7280;
+    font-size: 16px;
+}
+
+body.profile-page .account-settings-divider {
+    height: 1px;
+    background: #e5e7eb;
+    margin: 0;
+}
+
+body.profile-page .account-settings-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 18px 24px;
+    flex-wrap: wrap;
+}
+
+body.profile-page .account-settings-info {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    flex: 1;
+    min-width: 0;
+}
+
+body.profile-page .account-settings-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 10px;
+    background: linear-gradient(135deg, #213F99, #2d52b8);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+body.profile-page .account-settings-icon i {
+    color: #F7D31E;
+    font-size: 18px;
+}
+
+body.profile-page .account-settings-label {
+    font-size: 14px;
+    font-weight: 700;
+    color: #111827;
+    margin-bottom: 3px;
+}
+
+body.profile-page .account-settings-desc {
+    font-size: 13px;
+    color: #6b7280;
+    line-height: 1.4;
+    word-break: break-word;
+}
+
+body.profile-page .account-settings-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 10px 20px;
+    min-width: 175px;
+    border: 2px solid #F7D31E;
+    border-radius: 10px;
+    background: #213F99;
+    color: #F7D31E;
+    font-size: 13px;
+    font-weight: 700;
+    font-family: inherit;
+    cursor: pointer;
+    box-shadow: 0 4px 12px rgba(33, 63, 153, 0.25);
+    transition: all 0.2s ease;
+    white-space: nowrap;
+    flex-shrink: 0;
+    text-decoration: none;
+}
+
+body.profile-page .account-settings-btn i {
+    font-size: 13px;
+    color: #F7D31E;
+}
+
+body.profile-page .account-settings-btn:hover {
+    background: #1a3280;
+    color: #F7D31E;
+    transform: translateY(-2px);
+    box-shadow: 0 8px 18px rgba(33, 63, 153, 0.35);
+}
+
+body.profile-page .account-settings-btn--active {
+    background: #1a3280;
+    box-shadow: 0 6px 16px rgba(33, 63, 153, 0.35);
+}
+
+body.profile-page .account-settings-panel {
+    padding: 0 24px 24px;
+    border-top: 1px solid #e5e7eb;
+    background: #fafafa;
+}
+
+body.profile-page .account-settings-panel.is-open,
+body.profile-page .account-settings-panel:not([hidden]) {
+    display: block;
+    animation: profileTabIn 0.25s ease both;
+}
+
+@media (max-width: 768px) {
+    body.profile-page .main-content {
+        padding: 16px;
+        width: 100%;
+        max-width: 100%;
+        box-sizing: border-box;
+    }
+
+    body.profile-page .official-details {
+        padding: 18px 16px;
+    }
+
+    body.profile-page .account-settings-row {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    body.profile-page .account-settings-btn {
+        width: 100%;
+    }
+
+    body.profile-page .profile-tab-bar {
+        display: flex;
+        width: 100%;
+    }
+
+    body.profile-page .profile-tab {
+        flex: 1;
+        min-width: 0;
+        padding: 10px 10px;
+        font-size: 11px;
+        white-space: normal;
+        text-align: center;
+        line-height: 1.3;
+        justify-content: center;
+    }
+}
+
+/* ── Shared table Full Name column header ─────────────────── */
+.table-fullname-label {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    line-height: 1.15;
+}
+
+.table-col-hint {
+    display: block;
+    font-size: 9px;
+    font-weight: 400;
+    text-transform: none;
+    letter-spacing: 0.02em;
+    margin-top: 2px;
+    line-height: 1.2;
+    color: #94a3b8;
+    white-space: nowrap;
+}
+
+.accounts-table thead th .table-col-hint,
+.km-table thead th .table-col-hint,
+.dso-table thead th .table-col-hint,
+.dsf-table thead th .table-col-hint,
+.aroff-table thead th .table-col-hint,
+.arfed-table thead th .table-col-hint,
+.adrkk-table thead th .table-col-hint {
+    color: rgba(255, 255, 255, 0.75);
+}
+
+.accounts-sort-btn--fullname {
+    gap: 8px;
+}
+
+.accounts-sort-btn--fullname .table-col-hint {
+    margin-top: 0;
+}

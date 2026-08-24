@@ -1,0 +1,146 @@
+/* ============================================================
+   SK Federations — Forgot Password / Verify Email Page
+   Dedicated styles. Requires: auth-base.css
+   ============================================================ */
+
+/* ── Card header ── */
+.fpve-header {
+    text-align: center;
+    margin-bottom: 1.75rem;
+}
+
+.fpve-icon-wrap {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    background: rgba(33, 63, 153, 0.08);
+    margin-bottom: 1rem;
+    color: var(--fed-blue);
+}
+
+.fpve-icon-wrap svg {
+    width: 32px;
+    height: 32px;
+}
+
+.fpve-title {
+    font-size: 1.35rem;
+    font-weight: 800;
+    color: #0f172a;
+    letter-spacing: -0.01em;
+    margin: 0 0 0.4rem;
+}
+
+.fpve-subtitle {
+    font-size: 0.875rem;
+    color: #64748b;
+    font-weight: 400;
+    margin: 0;
+    line-height: 1.6;
+}
+
+.fpve-subtitle strong {
+    color: var(--fed-blue);
+    font-weight: 700;
+}
+
+/* ── Status messages ── */
+.fpve-status {
+    border-radius: 12px;
+    padding: 0.75rem 1rem;
+    font-size: 0.875rem;
+    font-weight: 500;
+    text-align: center;
+    margin-bottom: 1rem;
+}
+
+.fpve-status-success {
+    background: rgba(34, 197, 94, 0.08);
+    color: #15803d;
+    border: 1.5px solid rgba(34, 197, 94, 0.2);
+}
+
+.fpve-status-error {
+    background: rgba(220, 53, 69, 0.08);
+    color: #b91c1c;
+    border: 1.5px solid rgba(220, 53, 69, 0.2);
+}
+
+/* ── Resend section ── */
+.fpve-resend-section {
+    margin-top: 1.5rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid var(--fed-gray-200);
+}
+
+.fpve-cooldown {
+    font-size: 0.875rem;
+    color: var(--fed-gray-600);
+    text-align: center;
+    margin-bottom: 0.75rem;
+    font-weight: 500;
+}
+
+.fpve-cooldown strong {
+    color: var(--fed-blue-dark);
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+}
+
+/* ── Resend button ── */
+.fpve-resend-btn {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+}
+
+/* ── Loading spinner inside button ── */
+.fpve-spinner {
+    width: 18px;
+    height: 18px;
+    border: 2.5px solid rgba(255, 255, 255, 0.35);
+    border-top-color: #fff;
+    border-radius: 50%;
+    animation: fpve-spin 0.7s linear infinite;
+    display: inline-block;
+    flex-shrink: 0;
+}
+
+@keyframes fpve-spin {
+    to { transform: rotate(360deg); }
+}
+
+/* ── Accessibility: reduced motion ── */
+@media (prefers-reduced-motion: reduce) {
+    .fpve-spinner { animation-duration: 0.01ms !important; }
+}
+
+/* ── Cancel button ── */
+.fpve-cancel-btn {
+    display: block;
+    width: 100%;
+    margin-top: 0.75rem;
+    padding: 0.75rem 1.5rem;
+    text-align: center;
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: var(--fed-gray-600);
+    background: transparent;
+    border: 2px solid var(--fed-gray-200);
+    border-radius: 12px;
+    text-decoration: none;
+    transition: background var(--transition-fast), color var(--transition-fast), border-color var(--transition-fast);
+    cursor: pointer;
+}
+
+.fpve-cancel-btn:hover {
+    background: var(--fed-gray-100);
+    color: var(--fed-gray-800);
+    border-color: var(--fed-gray-300);
+    text-decoration: none;
+}

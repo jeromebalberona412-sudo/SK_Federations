@@ -1,0 +1,102 @@
+/* ============================================================
+   SK Federations — Login Page
+   Login-specific styles: password toggle, form options,
+   Turnstile modal, loading overlay, field errors.
+   Requires: auth-base.css
+   ============================================================ */
+
+/* ── Form options row (remember me + forgot password) ── */
+.form-options {
+    display: flex !important; justify-content: space-between !important;
+    align-items: center !important; gap: 1rem; margin-top: 0.25rem;
+}
+.form-check {
+    display: flex !important; align-items: center !important;
+    gap: 0.625rem !important; padding-left: 0 !important;
+    margin: 0 !important; cursor: pointer; user-select: none;
+}
+.form-check-input {
+    margin: 0 !important; float: none !important; cursor: pointer;
+    accent-color: var(--fed-blue); width: 20px; height: 20px; border-radius: 6px;
+}
+.form-check-label {
+    font-size: 0.95rem; color: var(--fed-gray-600) !important;
+    font-weight: 500; cursor: pointer;
+    padding-left: 0 !important; margin-left: 0 !important;
+}
+
+.forgot-password {
+    font-size: 0.95rem; color: var(--fed-blue-dark); text-decoration: none;
+    font-weight: 600; transition: all var(--transition-fast);
+    white-space: nowrap; position: relative;
+}
+.forgot-password::after {
+    content: ''; position: absolute; bottom: -2px; left: 0;
+    width: 0; height: 2px; background: #2563eb;
+    transition: width var(--transition-base);
+}
+.forgot-password:hover { color: #2563eb; }
+.forgot-password:hover::after { width: 100%; }
+
+/* ── Password input wrapper ── */
+.password-input-container { position: relative; }
+.password-input-container .form-control { padding-right: 3.5rem; }
+
+input[type="password"]::-ms-reveal,
+input[type="password"]::-ms-clear                           { display: none !important; }
+input[type="password"]::-webkit-credentials-auto-fill-button,
+input[type="password"]::-webkit-contacts-auto-fill-button  { visibility: hidden !important; display: none !important; }
+
+.pw-toggle-btn {
+    position: absolute; right: 1rem; top: 50%; transform: translateY(-50%);
+    background: none; border: none; cursor: pointer;
+    color: var(--fed-gray-400); padding: 0.5rem;
+    display: flex; align-items: center; justify-content: center;
+    transition: all var(--transition-base);
+    border-radius: 8px; z-index: 10; width: 40px; height: 40px;
+}
+.pw-toggle-btn:hover  { color: var(--fed-blue); background: rgba(33,63,153,0.08); }
+.pw-toggle-btn:active { transform: translateY(-50%) scale(0.95); }
+.pw-toggle-btn svg    { pointer-events: none; width: 22px; height: 22px; }
+
+.pw-eye      { display: block; transition: opacity 0.2s ease; }
+.pw-eye-show { opacity: 1; }
+.pw-eye-hide { opacity: 0; position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); }
+.pw-toggle-btn.pw-visible .pw-eye-show { opacity: 0; position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); }
+.pw-toggle-btn.pw-visible .pw-eye-hide { opacity: 1; position: static; transform: none; }
+
+/* ── Inline field errors ── */
+.fed-field-error {
+    display: none; font-size: 0.8rem; color: #dc3545;
+    margin-top: 0.25rem; font-weight: 500;
+}
+
+/* ── Access-denied alert ── */
+.access-denied-alert { border-radius: 12px; }
+
+@media (max-width: 640px) {
+    .form-options    { flex-wrap: nowrap; gap: 0.5rem; }
+    .form-check-label, .forgot-password { font-size: 0.85rem; }
+}
+@media (max-width: 480px) {
+    .form-options    { flex-wrap: nowrap; gap: 0.35rem; justify-content: space-between; align-items: center; }
+    .form-check-label, .forgot-password { font-size: 0.8rem; }
+}
+
+@media (max-width: 480px) {
+    /* Mobile: allow the text to wrap instead of overflowing/clipping */
+    .forgot-password {
+        white-space: normal;
+        line-height: 1.15;
+        max-width: 150px;
+        flex-shrink: 1;
+        word-break: break-word;
+    }
+}
+
+@media (max-width: 360px) {
+    .forgot-password {
+        max-width: 130px;
+        font-size: 0.78rem;
+    }
+}
