@@ -211,6 +211,9 @@ body.sidebar-collapsed .toggle-icon-collapse { display: block; }
     left: auto;
     width: 280px;
     max-width: calc(100vw - 24px);
+    max-height: min(480px, calc(100vh - 72px));
+    display: flex;
+    flex-direction: column;
     background: white;
     border-radius: 14px;
     box-shadow: 0 12px 40px rgba(0,0,0,0.18);
@@ -231,6 +234,7 @@ body.sidebar-collapsed .toggle-icon-collapse { display: block; }
 }
 
 .notif-popover-header {
+    flex-shrink: 0;
     padding: 14px 16px 12px;
     border-bottom: 1px solid rgba(255, 255, 255, 0.12);
     display: flex;
@@ -289,8 +293,14 @@ body.sidebar-collapsed .toggle-icon-collapse { display: block; }
 .notif-mark-all:hover { background: rgba(255,255,255,0.28); }
 
 .notif-list {
-    max-height: 320px;
+    flex: 1 1 auto;
+    min-height: 0;
+    max-height: none;
     overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+    scroll-padding-bottom: 12px;
+    padding-bottom: 8px;
     scrollbar-width: thin;
     scrollbar-color: #e5e7eb transparent;
 }
@@ -307,7 +317,10 @@ body.sidebar-collapsed .toggle-icon-collapse { display: block; }
     cursor: pointer;
     position: relative;
 }
-.notif-item:last-child { border-bottom: none; }
+.notif-item:last-child {
+    border-bottom: none;
+    padding-bottom: 16px;
+}
 .notif-item:hover { background: #f8fafc; }
 .notif-item.notif-unread { background: #eff6ff; }
 .notif-item.notif-unread:hover { background: #dbeafe; }
@@ -365,6 +378,7 @@ body.sidebar-collapsed .toggle-icon-collapse { display: block; }
 .notif-empty p { font-size: 13px; font-weight: 500; margin: 0; }
 
 .notif-popover-footer {
+    flex-shrink: 0;
     padding: 10px 14px 12px;
     border-top: 1px solid #f1f5f9;
     background: #fafbfc;
@@ -1487,7 +1501,7 @@ body.sidebar-collapsed .main-content { margin-left: var(--sidebar-collapsed); }
 
     .notif-popover-header h4 { font-size: 12px; }
     .notif-mark-all { padding: 4px 6px; font-size: 10px; }
-    .notif-list { max-height: 220px; }
+    .notif-popover { max-height: min(420px, calc(100vh - 64px)); }
     .notif-item { padding: 8px 10px; gap: 8px; }
 }
 

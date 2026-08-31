@@ -426,7 +426,7 @@ class CommunityFeedPostController extends Controller
             'parent_id' => $parentId,
             'user_id' => $user->id,
             'user_type' => 'sk_fed',
-            'author_name' => $user->name,
+            'author_name' => Str::limit($user->name, 50, '...'),
             'body' => $request->body,
         ]);
 
@@ -569,8 +569,12 @@ class CommunityFeedPostController extends Controller
             $post->relationLoaded('reactions') ? $post->reactions : collect()
         );
 
-        $authorName = $post->user?->name
-            ?? ($post->is_federation_wide ? 'SK Federation' : ('SK Brgy. '.($post->barangay?->name ?? '')));
+        $authorName = Str::limit(
+            $post->user?->name
+                ?? ($post->is_federation_wide ? 'SK Federation' : ('SK Brgy. '.($post->barangay?->name ?? ''))),
+            50,
+            '...'
+        );
 
         $imageRecords = $post->relationLoaded('images') ? $post->images : collect();
         $imageItems = $imageRecords
@@ -630,7 +634,7 @@ class CommunityFeedPostController extends Controller
         return [
             'id' => $comment->id,
             'parent_id' => $comment->parent_id,
-            'author_name' => $comment->author_name,
+            'author_name' => Str::limit($comment->author_name, 50, '...'),
             'body' => $comment->body,
             'time' => $comment->created_at?->diffForHumans() ?? 'Just now',
             'user_type' => $comment->user_type,
@@ -687,7 +691,7 @@ class CommunityFeedPostController extends Controller
 
     private function resolveReactorName(AnnouncementReaction $reaction): string
     {
-        return $reaction->user?->name ?: 'Member';
+        return Str::limit($reaction->user?->name ?: 'Member', 50, '...');
     }
 
     private function resolveReactorAvatar(AnnouncementReaction $reaction): string

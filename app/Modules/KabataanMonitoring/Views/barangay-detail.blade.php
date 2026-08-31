@@ -246,5 +246,6 @@
     </script>
     <script src="{{ url('/modules/kabataan-monitoring/js/kabataan-monitoring.js') }}?v={{ time() }}"></script>
     <script src="{{ url('/modules/kabataan-monitoring/js/kabataan-monitoring-table.js') }}?v={{ time() }}"></script>
+    <script src="{{ url('/modules/kabataan-monitoring/js/kabataan-monitoring-validation.js') }}?v={{ time() }}"></script>
     <script src="{{ url('/modules/kabataan-monitoring/js/kabataan-monitoring-edit.js') }}?v={{ time() }}"></script>
 @endpush

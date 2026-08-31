@@ -18,6 +18,11 @@ class TurnstileService
         return $siteKey !== '' && $secretKey !== '';
     }
 
+    public function isEnabled(): bool
+    {
+        return $this->isConfigured();
+    }
+
     public function verify(string $token, ?string $remoteIp = null): bool
     {
         if (! $this->isConfigured()) {

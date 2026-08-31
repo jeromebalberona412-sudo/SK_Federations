@@ -36,6 +36,7 @@
     </main>
 
     @include('layout::logout-modal')
+    @include('layout::session-timeout-modal')
 
     @if(!empty($turnoverModal['show']))
         <link rel="stylesheet" href="{{ url('/modules/turnover/css/turnover.css') }}?v={{ $turnoverModal['cssVersion'] }}">
@@ -48,6 +49,12 @@
     <script>
         window.logoutRoute = "{{ route('logout') }}";
         window.loginRoute  = "{{ route('login') }}";
+        window.sessionContinueRoute = "{{ route('skfed.session.continue') }}";
+        window.sessionTimeoutConfig = {
+            timeoutMinutes: {{ max(1, (int) config('session.timeout', 120)) }},
+            warningMinutes: {{ max(0, (int) config('session.timeout_warning_minutes', 5)) }},
+            lastActivityAt: {{ (int) session(\App\Modules\Authentication\Middleware\SessionTimeout::SESSION_KEY, now()->timestamp) }}
+        };
     </script>
     @stack('scripts')
 </body>

@@ -55,6 +55,11 @@ function escapeHtml(text) {
         .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
+function truncateName(text, max = 50) {
+    const s = String(text ?? '').trim();
+    return s.length > max ? s.substring(0, max) + '...' : s;
+}
+
 function notifyPreview(message, type = 'success') {
     if (typeof window.showFeedToast === 'function') {
         window.showFeedToast(message, type);
@@ -165,7 +170,7 @@ function commentLikeInner(type) {
 
 function renderPost() {
     if (!post) return;
-    document.getElementById('cpTitle').textContent = `${post.author_name || 'SK'}'s Post`;
+    document.getElementById('cpTitle').textContent = `${truncateName(post.author_name || 'SK')}'s Post`;
     const images = post.images?.length ? post.images : (post.image_url ? [post.image_url] : []);
     const mediaClass = images.length > 1 ? 'two' : 'one';
     const media = images.length
@@ -178,7 +183,7 @@ function renderPost() {
         <div class="cp-post-head">
             ${safeImg(postAvatar(), 'cp-avatar', post.author_name || '')}
             <div>
-                <div class="cp-author">${escapeHtml(post.author_name || '')}</div>
+                <div class="cp-author">${escapeHtml(truncateName(post.author_name || ''))}</div>
                 <div class="cp-meta">${escapeHtml(post.type || '')} · ${escapeHtml(post.time || '')}</div>
             </div>
         </div>
@@ -261,7 +266,7 @@ function commentHtml(comment, isReply) {
         ${safeImg(avatarUrl(comment), 'cp-comment-avatar', comment.author_name || '')}
         <div class="cp-comment-body">
             <div class="cp-bubble">
-                <span class="cp-bubble-name">${escapeHtml(comment.author_name)}</span>
+                <span class="cp-bubble-name">${escapeHtml(truncateName(comment.author_name))}</span>
                 <span class="cp-bubble-text" id="cp-text-${comment.id}">${escapeHtml(comment.body)}</span>
                 ${badge}
             </div>
@@ -676,7 +681,7 @@ function renderViewer(filter) {
     const rows = (data.reactors || []).filter((r) => filter === 'all' || r.reaction_type === filter);
     const list = document.getElementById('cpViewerList');
     list.innerHTML = rows.length
-        ? rows.map((r) => `<div class="cp-viewer-row"><div class="cp-viewer-avatar-wrap"><img src="${escapeHtml(r.avatar_url)}" alt=""><span class="cp-viewer-emoji">${REACTION_EMOJI[r.reaction_type] || ''}</span></div><span class="cp-viewer-name">${escapeHtml(r.name)}</span></div>`).join('')
+        ? rows.map((r) => `<div class="cp-viewer-row"><div class="cp-viewer-avatar-wrap"><img src="${escapeHtml(r.avatar_url)}" alt=""><span class="cp-viewer-emoji">${REACTION_EMOJI[r.reaction_type] || ''}</span></div><span class="cp-viewer-name">${escapeHtml(truncateName(r.name))}</span></div>`).join('')
         : '<p class="cp-viewer-empty">No reactions yet.</p>';
 }
 

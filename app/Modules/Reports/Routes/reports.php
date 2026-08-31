@@ -21,7 +21,7 @@ Route::get('/modules/reports/{type}/{file}', function (string $type, string $fil
     return response()->file($path, ['Content-Type' => $mimeType]);
 })->where('type', 'css|js')->where('file', '.*');
 
-Route::middleware(['auth', 'verified', 'single.session', 'sk_fed.access', 'trusted.device', 'prevent.back'])
+Route::middleware(['auth', 'session.timeout', 'verified', 'single.session', 'sk_fed.access', 'trusted.device', 'prevent.back'])
     ->group(function () {
         Route::redirect('/reports', '/barangay-monitoring')->name('reports');
         Route::get('/api/reports', [ReportsController::class, 'list'])->name('api.reports.index');

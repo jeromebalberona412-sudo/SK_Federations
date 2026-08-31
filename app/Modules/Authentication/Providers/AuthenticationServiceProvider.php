@@ -11,14 +11,15 @@ use App\Modules\Authentication\Services\LoginSecurityService;
 use App\Modules\Authentication\Services\PasswordResetService;
 use App\Modules\Authentication\Services\SuspiciousLoginService;
 use App\Modules\Authentication\Services\TenantContextService;
-use App\Modules\Authentication\Services\TurnstileService;
 use App\Modules\Authentication\Services\TrustedDeviceService;
+use App\Modules\Authentication\Services\TurnstileAttemptGuard;
+use App\Modules\Authentication\Services\TurnstileService;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\Route;
-use Illuminate\Support\Str;
 use Illuminate\Support\ServiceProvider;
+use Illuminate\Support\Str;
 
 class AuthenticationServiceProvider extends ServiceProvider
 {
@@ -35,6 +36,7 @@ class AuthenticationServiceProvider extends ServiceProvider
         $this->app->singleton(AuthenticationService::class);
         $this->app->singleton(PasswordResetService::class);
         $this->app->singleton(TurnstileService::class);
+        $this->app->singleton(TurnstileAttemptGuard::class);
     }
 
     public function boot(): void

@@ -19,7 +19,19 @@
         if (left !== '' && left === right) {
             return true;
         }
-        return left.indexOf('young adult') !== -1 && right.indexOf('young adult') !== -1;
+        if (left !== '' && right !== '') {
+            if (left.indexOf('young adult') !== -1 && right.indexOf('young adult') !== -1) return true;
+            if ((left === 'person w/ disability' || left === 'person with disability' || left === 'pwd') && (right === 'person w/ disability' || right === 'youth w/ specific needs')) return true;
+            if ((left === 'children in conflict w/ law' || left === 'children in conflict with the law' || left === 'cicl') && (right === 'children in conflict w/ law' || right === 'youth w/ specific needs')) return true;
+            if ((left === 'indigenous people' || left === 'ip') && (right === 'indigenous people' || right === 'youth w/ specific needs')) return true;
+            if (left.indexOf('high school') !== -1 && right.indexOf('high school') !== -1) {
+                if (left.indexOf('level') !== -1 && right.indexOf('level') !== -1) return true;
+                if (left.indexOf('grad') !== -1 && right.indexOf('grad') !== -1) return true;
+            }
+            if ((left.indexOf('no kk assembly') !== -1 || left.indexOf('meeting') !== -1) && right.indexOf('no kk assembly') !== -1) return true;
+            if (left.indexOf('not interested') !== -1 && right.indexOf('not interested') !== -1) return true;
+        }
+        return false;
     }
 
     function formatMiddleNameDisplay(value) {
@@ -277,6 +289,9 @@
                 ? '<i class="fas fa-pen"></i> Edit KK Survey Questionnaire'
                 : '<i class="fas fa-file-alt"></i> KK Survey Questionnaire';
         }
+        if (isEdit && typeof window.initKmEditValidation === 'function') {
+            window.initKmEditValidation(editRoot);
+        }
     }
 
     function bindEditControls() {
@@ -321,6 +336,12 @@
 
     function openEditConfirmModal() {
         if (!editingId || saving) return;
+        var editRoot = document.getElementById('kkProfilingEditRoot');
+        if (typeof window.validateKmEditForm === 'function') {
+            if (!window.validateKmEditForm(editRoot)) {
+                return;
+            }
+        }
         var payload = collectKkProfilingEditPayload();
         if (!payload.last_name || !payload.first_name) {
             alert('First name and last name are required.');

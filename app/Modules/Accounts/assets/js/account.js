@@ -420,16 +420,19 @@ function attachDobAgeAutoFill(form, dobName, ageName) {
     const age = form.querySelector(`[name="${ageName}"]`);
     if (!dob || !age) return;
     const update = () => {
-        if (isSkOfficialsForm(form)) {
-            return;
+        const computed = calculateAge(dob.value);
+        age.value = computed !== null && computed !== undefined ? String(computed) : '';
+        if (age.hasAttribute('readonly') || age.readOnly) {
+            if (age.value) {
+                _markValid(age);
+            } else {
+                _clearErr(age);
+            }
         }
-        age.value = calculateAge(dob.value);
     };
     dob.addEventListener('change', update);
     dob.addEventListener('input', update);
-    if (!isSkOfficialsForm(form)) {
-        update();
-    }
+    update();
 }
 
 function setFormFieldValue(form, name, value) {
@@ -483,20 +486,23 @@ function escapeHtml(value) {
 }
 
 // ── Inline validation helpers (light-theme forms) ─────────────
-const ACCOUNT_TERM_YEARS = 4;
-const SK_OFFICIAL_TERM_YEARS = 3;
-const SK_OFFICIAL_TERM_MAX_YEARS = 4;
-const SK_OFFICIAL_FIRST_TERM_START = '2023-11-30';
-const SK_OFFICIAL_TERM_START_MESSAGE = 'Term start must be November 30 of an SK term year (2023, 2026, 2029, …) under RA 11935. December 1 is not the legal commencement.';
-const SK_OFFICIAL_TERM_END_MESSAGE = 'Term end must be between 3 and 4 years after term start.';
-const SK_OFFICIAL_NAME_MIN = 3;
-const SK_OFFICIAL_NAME_MAX = 50;
-const SK_OFFICIAL_FIRST_NAME_REGEX = /^(?!\s)[A-Z.\-]+(?: [A-Z.\-]+)?$/;
-const SK_OFFICIAL_SUFFIX_OTHER_MAX = 4;
-const SK_OFFICIAL_AGE_MIN = 15;
-const SK_OFFICIAL_AGE_MAX = 30;
+const ACCOUNT_TERM_YEARS = 5;
+const SK_OFFICIAL_TERM_YEARS = 5;
+const SK_OFFICIAL_TERM_START_ADVANCE_DAYS = 30;
+const SK_OFFICIAL_FIRST_TERM_START = '2023-01-01';
+const SK_OFFICIAL_TERM_START_MESSAGE = `Term start date must be on or after ${SK_OFFICIAL_FIRST_TERM_START} and at most ${SK_OFFICIAL_TERM_START_ADVANCE_DAYS} days in the future.`;
+const SK_OFFICIAL_TERM_END_MESSAGE = `Term end date must be exactly ${SK_OFFICIAL_TERM_YEARS} years after term start.`;
+const SK_OFFICIAL_NAME_MIN = 2;
+const SK_OFFICIAL_NAME_MAX = 150;
+const SK_OFFICIAL_NAME_SOFT_MAX = 50;
+/** Letters (and . - ') required before each space; no leading/pure/double spaces. */
+const PERSON_NAME_ONE_SPACE_REGEX = /^(?!\s)[A-Z.\-']+(?: [A-Z.\-']+)*$/;
+const SK_OFFICIAL_FIRST_NAME_REGEX = PERSON_NAME_ONE_SPACE_REGEX;
+const SK_OFFICIAL_SUFFIX_OTHER_MAX = 5;
+const SK_OFFICIAL_AGE_MIN = 18;
+const SK_OFFICIAL_AGE_MAX = 24;
 const SK_OFFICIAL_GMAIL_REGEX = /^[a-z0-9._%+-]{6,30}@gmail\.com$/i;
-const SK_OFFICIAL_MAX_MSG = 'Maximum of 50 characters reached';
+const SK_OFFICIAL_MAX_MSG = 'Maximum of 150 characters reached';
 const BATCH_EMAIL_MAX = 254;
 const BATCH_SK_FED_NAME_MAX = 35;
 const BATCH_LOCATION_MAX = 100;
@@ -573,63 +579,33 @@ function getCurrentYearEndDate() {
     return `${new Date().getFullYear()}-12-31`;
 }
 
-function allowedSkOfficialTermStarts(asOf = new Date()) {
-    const dates = [];
-    const asOfTime = new Date(asOf.getFullYear(), asOf.getMonth(), asOf.getDate()).getTime();
-    for (let year = 2023; ; year += SK_OFFICIAL_TERM_YEARS) {
-        const start = new Date(year, 10, 30);
-        if (start.getTime() > asOfTime) {
-            break;
-        }
-        dates.push(formatLocalDate(start));
+function addDaysToDateString(dateStr, days) {
+    const date = parseLocalDateString(dateStr);
+    if (!date) {
+        return '';
     }
-    return dates;
+    date.setDate(date.getDate() + days);
+    return formatLocalDate(date);
 }
 
-function currentSkOfficialTermStart(asOf = new Date()) {
-    const allowed = allowedSkOfficialTermStarts(asOf);
-    return allowed.length ? allowed[allowed.length - 1] : SK_OFFICIAL_FIRST_TERM_START;
+function maxTermStartDate() {
+    return addDaysToDateString(formatLocalDate(new Date()), SK_OFFICIAL_TERM_START_ADVANCE_DAYS);
 }
 
-function snapToSkOfficialTermStart(dateStr) {
-    const allowed = allowedSkOfficialTermStarts();
-    if (!allowed.length) {
-        return SK_OFFICIAL_FIRST_TERM_START;
-    }
-    if (!dateStr) {
-        return allowed[allowed.length - 1];
-    }
-    let picked = allowed[0];
-    for (const date of allowed) {
-        if (date <= dateStr) {
-            picked = date;
-        } else {
-            break;
-        }
-    }
-    return picked;
-}
-
-function isValidSkOfficialTermStart(dateStr) {
-    return allowedSkOfficialTermStarts().includes(dateStr);
+function currentDefaultTermStart() {
+    return formatLocalDate(new Date());
 }
 
 function skOfficialTermEndForStart(startDateStr) {
     return addYearsToDateString(startDateStr, SK_OFFICIAL_TERM_YEARS);
 }
 
-function getTermStartMinDate(form) {
-    if (form && isSkOfficialsForm(form)) {
-        return SK_OFFICIAL_FIRST_TERM_START;
-    }
-    return getCurrentYearStartDate();
+function getTermStartMinDate() {
+    return SK_OFFICIAL_FIRST_TERM_START;
 }
 
-function getTermStartMaxDate(form) {
-    if (form && isSkOfficialsForm(form)) {
-        return formatLocalDate(new Date());
-    }
-    return getCurrentYearEndDate();
+function getTermStartMaxDate() {
+    return maxTermStartDate();
 }
 
 function addYearsToDateString(dateStr, years) {
@@ -681,8 +657,12 @@ function isSkOfficialsForm(form) {
 }
 
 function processSkOfficialFirstNameInput(input) {
+    return processPersonNameInput(input);
+}
+
+function processPersonNameInput(input) {
     if (!input) return '';
-    let value = input.value.replace(/^\s+/, '').replace(/[^a-zA-Z.\-\s]/g, '').toUpperCase();
+    let value = input.value.replace(/^\s+/, '').replace(/[^a-zA-Z.\-'\s]/g, '').toUpperCase();
     value = value.replace(/\s{2,}/g, ' ');
     if (value.length > SK_OFFICIAL_NAME_MAX) {
         value = value.slice(0, SK_OFFICIAL_NAME_MAX);
@@ -691,14 +671,130 @@ function processSkOfficialFirstNameInput(input) {
     return value;
 }
 
-function processSkOfficialNameInput(input) {
-    if (!input) return '';
-    let value = input.value.replace(/\s+/g, '').replace(/[^a-zA-Z\-']/g, '').toUpperCase();
-    if (value.length > SK_OFFICIAL_NAME_MAX) {
-        value = value.slice(0, SK_OFFICIAL_NAME_MAX);
+let longNameAllowedByField = Object.create(null);
+let pendingLongName = null;
+let longNameWired = false;
+
+function resetLongNameConfirmInput() {
+    const input = document.getElementById('accountsLongNameConfirmInput');
+    const hint = document.getElementById('accountsLongNameConfirmHint');
+    if (input) input.value = '';
+    if (hint) hint.hidden = true;
+}
+
+function syncLongNameConfirmFromTypedYes() {
+    const input = document.getElementById('accountsLongNameConfirmInput');
+    const hint = document.getElementById('accountsLongNameConfirmHint');
+    const typed = (input?.value || '').trim().toLowerCase();
+    const ok = typed === 'yes';
+    if (hint) {
+        hint.hidden = typed === '' || ok;
     }
-    input.value = value;
-    return value;
+    return ok;
+}
+
+function openLongNameModal(el, nextValue, caret) {
+    const modal = document.getElementById('accountsLongNameModal');
+    if (!modal) {
+        longNameAllowedByField[el.name] = true;
+        el.value = nextValue.slice(0, SK_OFFICIAL_NAME_MAX);
+        return;
+    }
+    pendingLongName = { el, value: nextValue.slice(0, SK_OFFICIAL_NAME_MAX), caret };
+    resetLongNameConfirmInput();
+    const title = document.getElementById('accountsLongNameTitle');
+    if (title) {
+        const fieldLabel = el.name === 'first_name'
+            ? 'First name'
+            : (el.name === 'last_name' ? 'Last name' : 'Middle name');
+        title.textContent = `Longer ${fieldLabel.toLowerCase()}`;
+    }
+    modal.hidden = false;
+    document.getElementById('accountsLongNameConfirmInput')?.focus();
+}
+
+function closeLongNameModal() {
+    const modal = document.getElementById('accountsLongNameModal');
+    if (modal) modal.hidden = true;
+    resetLongNameConfirmInput();
+    pendingLongName = null;
+}
+
+function confirmLongNameModal() {
+    if (!syncLongNameConfirmFromTypedYes()) {
+        const hint = document.getElementById('accountsLongNameConfirmHint');
+        if (hint) hint.hidden = false;
+        return;
+    }
+    if (!pendingLongName?.el) {
+        closeLongNameModal();
+        return;
+    }
+    const { el, value, caret } = pendingLongName;
+    longNameAllowedByField[el.name] = true;
+    el.value = value;
+    const pos = Math.min(caret ?? value.length, value.length);
+    try {
+        el.setSelectionRange(pos, pos);
+    } catch (_e) {
+        // ignore
+    }
+    closeLongNameModal();
+    el.focus();
+    if (el.name === 'first_name') _validateSkOfficialFirstName(el, { finalize: false });
+    else if (el.name === 'last_name') _validateSkOfficialLastName(el, { finalize: false });
+    else _validateSkOfficialMiddleName(el, { finalize: false });
+}
+
+function cancelLongNameModal() {
+    if (pendingLongName?.el) {
+        const el = pendingLongName.el;
+        el.value = el.value.slice(0, SK_OFFICIAL_NAME_SOFT_MAX);
+        try {
+            el.setSelectionRange(SK_OFFICIAL_NAME_SOFT_MAX, SK_OFFICIAL_NAME_SOFT_MAX);
+        } catch (_e) {
+            // ignore
+        }
+        el.focus();
+    }
+    closeLongNameModal();
+}
+
+function wireLongNameModal() {
+    if (longNameWired) return;
+    longNameWired = true;
+    document.getElementById('accountsLongNameConfirmInput')?.addEventListener('input', () => {
+        if (syncLongNameConfirmFromTypedYes()) {
+            confirmLongNameModal();
+        }
+    });
+    document.getElementById('accountsLongNameConfirmInput')?.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter') {
+            event.preventDefault();
+            confirmLongNameModal();
+        }
+    });
+    document.getElementById('accountsLongNameCancelBtn')?.addEventListener('click', cancelLongNameModal);
+    document.getElementById('accountsLongNameCloseBtn')?.addEventListener('click', cancelLongNameModal);
+    document.getElementById('accountsLongNameBackdrop')?.addEventListener('click', cancelLongNameModal);
+}
+
+function resetLongNameGate(form) {
+    wireLongNameModal();
+    longNameAllowedByField = Object.create(null);
+    ['first_name', 'middle_name', 'last_name'].forEach((name) => {
+        if (String(form?.querySelector(`[name="${name}"]`)?.value || '').length > SK_OFFICIAL_NAME_SOFT_MAX) {
+            longNameAllowedByField[name] = true;
+        }
+    });
+    pendingLongName = null;
+    const modal = document.getElementById('accountsLongNameModal');
+    if (modal) modal.hidden = true;
+    resetLongNameConfirmInput();
+}
+
+function processSkOfficialNameInput(input) {
+    return processPersonNameInput(input);
 }
 
 function showSkOfficialMaxMessage(input) {
@@ -742,14 +838,20 @@ function setSuffixFieldValue(form, suffixValue) {
     if (!suffixSelect) return;
 
     const raw = String(suffixValue ?? '').trim();
-    const normalized = raw.toUpperCase() === 'NONE' ? 'NONE' : raw;
+    if (!raw || raw.toUpperCase() === 'NONE') {
+        suffixSelect.value = 'NONE';
+        if (otherInput) otherInput.value = '';
+        toggleSuffixOtherField(form);
+        return;
+    }
 
-    if (!normalized || STANDARD_SUFFIX_VALUES.includes(normalized)) {
-        suffixSelect.value = normalized || '';
+    const hasStandard = Array.from(suffixSelect.options).some((opt) => opt.value === raw);
+    if (hasStandard && raw !== '__other__') {
+        suffixSelect.value = raw;
         if (otherInput) otherInput.value = '';
     } else {
         suffixSelect.value = '__other__';
-        if (otherInput) otherInput.value = normalized;
+        if (otherInput) otherInput.value = raw.slice(0, SK_OFFICIAL_SUFFIX_OTHER_MAX);
     }
 
     toggleSuffixOtherField(form);
@@ -766,8 +868,8 @@ function _validateFedSuffix(form) {
             _showErr(otherInput || suffixSelect, 'Other suffix is required');
             return false;
         }
-        if (other.length > SK_OFFICIAL_SUFFIX_OTHER_MAX) {
-            _showErr(otherInput, `Other suffix must not exceed ${SK_OFFICIAL_SUFFIX_OTHER_MAX} characters`);
+        if (other.length < 1 || other.length > SK_OFFICIAL_SUFFIX_OTHER_MAX) {
+            _showErr(otherInput, `Other suffix must be 1–${SK_OFFICIAL_SUFFIX_OTHER_MAX} characters`);
             return false;
         }
         if (/\s/.test(other)) {
@@ -781,18 +883,27 @@ function _validateFedSuffix(form) {
     return true;
 }
 
-function _validateSkOfficialFirstName(input) {
-    const val = processSkOfficialFirstNameInput(input);
+function finalizePersonNameInput(input) {
+    if (!input) return '';
+    const value = processPersonNameInput(input).trim();
+    input.value = value;
+    return value;
+}
+
+function _validateSkOfficialFirstName(input, options = {}) {
+    if (!input) return false;
+    const finalize = options.finalize === true;
+    const val = finalize ? finalizePersonNameInput(input) : processPersonNameInput(input).trim();
     if (!val) {
         _showErr(input, 'First name is required');
         return false;
     }
     if (val.length < SK_OFFICIAL_NAME_MIN) {
-        _showErr(input, 'First name must be at least 3 characters');
+        _showErr(input, 'First name must be at least 2 characters');
         return false;
     }
-    if (!SK_OFFICIAL_FIRST_NAME_REGEX.test(val)) {
-        _showErr(input, 'Letters only, no leading spaces');
+    if (!PERSON_NAME_ONE_SPACE_REGEX.test(val)) {
+        _showErr(input, 'Letters only; need a letter before each space; no pure spaces');
         return false;
     }
     if (showSkOfficialMaxMessage(input)) return false;
@@ -800,14 +911,20 @@ function _validateSkOfficialFirstName(input) {
     return true;
 }
 
-function _validateSkOfficialMiddleName(input) {
-    const val = processSkOfficialNameInput(input);
+function _validateSkOfficialMiddleName(input, options = {}) {
+    if (!input) return true;
+    const finalize = options.finalize === true;
+    const val = finalize ? finalizePersonNameInput(input) : processPersonNameInput(input).trim();
     if (!val) {
         _clearErr(input);
         return true;
     }
     if (val.length < SK_OFFICIAL_NAME_MIN) {
-        _showErr(input, 'Middle name must be at least 3 characters');
+        _showErr(input, 'Middle name must be at least 2 characters when provided');
+        return false;
+    }
+    if (!PERSON_NAME_ONE_SPACE_REGEX.test(val)) {
+        _showErr(input, 'Letters only; need a letter before each space; no pure spaces');
         return false;
     }
     if (showSkOfficialMaxMessage(input)) return false;
@@ -815,14 +932,20 @@ function _validateSkOfficialMiddleName(input) {
     return true;
 }
 
-function _validateSkOfficialLastName(input) {
-    const val = processSkOfficialNameInput(input);
+function _validateSkOfficialLastName(input, options = {}) {
+    if (!input) return false;
+    const finalize = options.finalize === true;
+    const val = finalize ? finalizePersonNameInput(input) : processPersonNameInput(input).trim();
     if (!val) {
         _showErr(input, 'Last name is required');
         return false;
     }
     if (val.length < SK_OFFICIAL_NAME_MIN) {
-        _showErr(input, 'Last name must be at least 3 characters');
+        _showErr(input, 'Last name must be at least 2 characters');
+        return false;
+    }
+    if (!PERSON_NAME_ONE_SPACE_REGEX.test(val)) {
+        _showErr(input, 'Letters only; need a letter before each space; no pure spaces');
         return false;
     }
     if (showSkOfficialMaxMessage(input)) return false;
@@ -837,20 +960,28 @@ function _validateSkOfficialSuffix(form) {
 
     toggleSkOfficialSuffixOther(form);
 
-    if (!suffixSelect.value || suffixSelect.selectedIndex <= 0) {
+    const selected = String(suffixSelect.value || '').trim();
+    // Placeholder only — "None" (NONE) means no suffix and is valid.
+    if (!selected) {
         _showErr(suffixSelect, 'Suffix is required');
         return false;
     }
 
-    if (suffixSelect.value === '__other__') {
-        const other = (otherInput?.value || '').trim().toUpperCase();
-        if (otherInput) otherInput.value = other.replace(/[^A-Z\-'.]/g, '');
+    if (selected === 'NONE' || selected === 'None') {
+        _markValid(suffixSelect);
+        if (otherInput) _clearErr(otherInput);
+        return true;
+    }
+
+    if (selected === '__other__') {
+        const other = (otherInput?.value || '').trim().toUpperCase().replace(/[^A-Z\-'.]/g, '');
+        if (otherInput) otherInput.value = other.slice(0, SK_OFFICIAL_SUFFIX_OTHER_MAX);
         if (!other) {
             _showErr(otherInput || suffixSelect, 'Other suffix is required');
             return false;
         }
-        if (other.length > SK_OFFICIAL_SUFFIX_OTHER_MAX) {
-            _showErr(otherInput, `Other suffix must not exceed ${SK_OFFICIAL_SUFFIX_OTHER_MAX} characters`);
+        if (other.length < 1 || other.length > SK_OFFICIAL_SUFFIX_OTHER_MAX) {
+            _showErr(otherInput, `Other suffix must be 1–${SK_OFFICIAL_SUFFIX_OTHER_MAX} characters`);
             return false;
         }
         if (/\s/.test(other)) {
@@ -983,58 +1114,99 @@ function getSkOfficialBirthdateBounds() {
 }
 
 function applySkOfficialDobConstraints(form) {
-    if (!isSkOfficialsForm(form)) return;
+    // Create only: keep 18–24 picker limits. Edit must allow existing older records.
+    if (!isSkOfficialsManualForm(form)) return;
     const dob = form.querySelector('[name="date_of_birth"]');
     if (!dob) return;
-    dob.removeAttribute('min');
-    dob.max = formatLocalDate(new Date());
+    const bounds = getSkOfficialBirthdateBounds();
+    if (dob.type === 'date') {
+        dob.min = bounds.min;
+        dob.max = bounds.max;
+    } else {
+        dob.setAttribute('data-min-date', bounds.min);
+        dob.setAttribute('data-max-date', bounds.max);
+    }
 }
 
 function _validateSkOfficialBirthdate(form) {
     const dob = form.querySelector('[name="date_of_birth"]');
+    const age = form.querySelector('[name="age"]');
     if (!dob) return true;
 
     const rawValue = dob.value;
     if (!rawValue) {
         _showErr(dob, 'Birthdate is required');
+        if (age) age.value = '';
         return false;
     }
 
     if (dob.type === 'text' && !isStrictUsDateFormat(rawValue)) {
         _showErr(dob, 'Birthdate must use MM/DD/YYYY format');
+        if (age) age.value = '';
         return false;
     }
 
     const val = normalizeDateInputValue(rawValue);
     if (!val) {
         _showErr(dob, 'Birthdate must be a valid date in MM/DD/YYYY format');
+        if (age) age.value = '';
         return false;
     }
 
     const today = formatLocalDate(new Date());
     if (val >= today) {
         _showErr(dob, 'Birthdate must be before today');
+        if (age) age.value = '';
+        return false;
+    }
+
+    const enforceYouthAge = isSkOfficialsManualForm(form);
+    if (enforceYouthAge) {
+        const bounds = getSkOfficialBirthdateBounds();
+        if (val < bounds.min || val > bounds.max) {
+            _showErr(dob, `Birthdate must correspond to age ${SK_OFFICIAL_AGE_MIN}–${SK_OFFICIAL_AGE_MAX}`);
+            if (age) age.value = '';
+            return false;
+        }
+    }
+
+    const computedAge = calculateAge(val);
+    if (age) age.value = computedAge !== null && computedAge !== undefined ? String(computedAge) : '';
+
+    const ageNum = parseInt(String(computedAge || ''), 10);
+    if (Number.isNaN(ageNum) || ageNum < 1 || ageNum > 120) {
+        _showErr(dob, 'Birthdate must produce a valid age');
+        return false;
+    }
+    if (enforceYouthAge && (ageNum < SK_OFFICIAL_AGE_MIN || ageNum > SK_OFFICIAL_AGE_MAX)) {
+        _showErr(dob, `Age must be between ${SK_OFFICIAL_AGE_MIN} and ${SK_OFFICIAL_AGE_MAX}`);
         return false;
     }
 
     _markValid(dob);
+    if (age) _markValid(age);
     return true;
 }
 
-function _validateSkOfficialAge(input) {
+function _validateSkOfficialAge(input, form = null) {
     if (!input) return true;
     const val = String(input.value || '').trim();
     if (!val) {
         _showErr(input, 'Age is required');
         return false;
     }
-    if (!/^\d{1,2}$/.test(val)) {
+    if (!/^\d{1,3}$/.test(val)) {
         _showErr(input, 'Age must be a valid number');
         return false;
     }
     const ageNum = parseInt(val, 10);
-    if (ageNum < SK_OFFICIAL_AGE_MIN || ageNum > SK_OFFICIAL_AGE_MAX) {
+    const enforceYouthAge = form ? isSkOfficialsManualForm(form) : true;
+    if (enforceYouthAge && (ageNum < SK_OFFICIAL_AGE_MIN || ageNum > SK_OFFICIAL_AGE_MAX)) {
         _showErr(input, `Age must be between ${SK_OFFICIAL_AGE_MIN} and ${SK_OFFICIAL_AGE_MAX}`);
+        return false;
+    }
+    if (!enforceYouthAge && (ageNum < 1 || ageNum > 120)) {
+        _showErr(input, 'Age must be a valid number');
         return false;
     }
     _markValid(input);
@@ -1067,12 +1239,12 @@ function validateSkOfficialsManualForm(form) {
     const email = form.querySelector('[name="email"]');
     const contact = form.querySelector('[name="contact_number"]');
 
-    if (!_validateSkOfficialFirstName(first)) valid = false;
-    if (!_validateSkOfficialMiddleName(middle)) valid = false;
-    if (!_validateSkOfficialLastName(last)) valid = false;
+    if (!_validateSkOfficialFirstName(first, { finalize: true })) valid = false;
+    if (!_validateSkOfficialMiddleName(middle, { finalize: true })) valid = false;
+    if (!_validateSkOfficialLastName(last, { finalize: true })) valid = false;
     if (!_validateSkOfficialSuffix(form)) valid = false;
     if (!_validateSkOfficialBirthdate(form)) valid = false;
-    if (age && !_validateSkOfficialAge(age)) valid = false;
+    if (age && !_validateSkOfficialAge(age, form)) valid = false;
     if (!_validateSkOfficialEmail(email)) valid = false;
     if (contact && !_validateContactNumber(contact)) valid = false;
     if (!validateTermRange(form)) valid = false;
@@ -1095,6 +1267,7 @@ function wireSkOfficialsManualValidation(form) {
     if (form.dataset.skValidationWired === '1') return;
     form.dataset.skValidationWired = '1';
 
+    wireLongNameModal();
     applySkOfficialDobConstraints(form);
 
     const nameMap = {
@@ -1106,20 +1279,50 @@ function wireSkOfficialsManualValidation(form) {
     Object.entries(nameMap).forEach(([name, fn]) => {
         const el = form.querySelector(`[name="${name}"]`);
         if (!el) return;
-        el.addEventListener('input', () => fn(el));
-        el.addEventListener('blur', () => fn(el));
+        el.addEventListener('input', () => {
+            const start = el.selectionStart;
+            const before = el.value;
+            let next = before.replace(/^\s+/, '').replace(/[^a-zA-Z.\-'\s]/g, '').toUpperCase().replace(/\s{2,}/g, ' ');
+            const removed = Math.max(0, before.length - next.length);
+            const caret = Math.max(0, (start ?? next.length) - removed);
+
+            if (next.length > SK_OFFICIAL_NAME_MAX) {
+                next = next.slice(0, SK_OFFICIAL_NAME_MAX);
+                el.value = next;
+                try {
+                    el.setSelectionRange(SK_OFFICIAL_NAME_MAX, SK_OFFICIAL_NAME_MAX);
+                } catch (_e) {
+                    // ignore
+                }
+                showSkOfficialMaxMessage(el);
+                return;
+            }
+
+            if (!longNameAllowedByField[name] && next.length > SK_OFFICIAL_NAME_SOFT_MAX) {
+                el.value = next.slice(0, SK_OFFICIAL_NAME_SOFT_MAX);
+                openLongNameModal(el, next, caret);
+                return;
+            }
+
+            el.value = next;
+            try {
+                el.setSelectionRange(Math.min(caret, next.length), Math.min(caret, next.length));
+            } catch (_e) {
+                // ignore
+            }
+            fn(el, { finalize: false });
+        });
+        el.addEventListener('blur', () => fn(el, { finalize: true }));
         el.addEventListener('keydown', (e) => {
-            if (name === 'first_name') {
-                if (e.key === ' ' && (el.value || '').includes(' ')) {
+            if (e.key === ' ') {
+                const current = el.value || '';
+                if (current.length === 0 || /\s$/.test(current)) {
                     e.preventDefault();
                     return;
                 }
-            } else if (e.key === ' ') {
-                e.preventDefault();
-                return;
             }
             const len = (el.value || '').length;
-            if (len >= SK_OFFICIAL_NAME_MAX && !['Backspace', 'Delete', 'ArrowLeft', 'ArrowRight', 'Tab'].includes(e.key) && !e.ctrlKey && !e.metaKey) {
+            if (len >= SK_OFFICIAL_NAME_MAX && !['Backspace', 'Delete', 'ArrowLeft', 'ArrowRight', 'Tab', ' '].includes(e.key) && !e.ctrlKey && !e.metaKey) {
                 e.preventDefault();
                 showSkOfficialMaxMessage(el);
             }
@@ -1160,8 +1363,9 @@ function wireSkOfficialsManualValidation(form) {
 
     const age = form.querySelector('[name="age"]');
     if (age) {
-        age.addEventListener('input', () => _validateSkOfficialAge(age));
-        age.addEventListener('blur', () => _validateSkOfficialAge(age));
+        age.readOnly = true;
+        age.setAttribute('readonly', '');
+        age.setAttribute('tabindex', '-1');
     }
 
     form.querySelectorAll('select[required]').forEach((select) => {
@@ -1202,14 +1406,24 @@ function isTermField(input) {
     return input.name === 'term_start' || input.name === 'term_end';
 }
 
-function _validateNameField(input) {
-    const val = (input.value || '').trim();
+function _validateNameField(input, options = {}) {
+    if (!input) return true;
+    const finalize = options.finalize === true;
+    const val = finalize ? finalizePersonNameInput(input) : processPersonNameInput(input).trim();
     if (input.hasAttribute('required') && !val) {
         _showErr(input, 'This field is required');
         return false;
     }
-    if (val && !/^[A-Z\s\-']+$/.test(val)) {
-        _showErr(input, 'Use uppercase letters only');
+    if (!val) {
+        _clearErr(input);
+        return true;
+    }
+    if (val.length < SK_OFFICIAL_NAME_MIN) {
+        _showErr(input, 'Must be at least 2 characters');
+        return false;
+    }
+    if (!PERSON_NAME_ONE_SPACE_REGEX.test(val)) {
+        _showErr(input, 'Letters only; need a letter before each space; no pure spaces');
         return false;
     }
     _clearErr(input);
@@ -1243,9 +1457,8 @@ function validateTermRange(form) {
     const rawEnd = endInput.value;
     const start = rawStart ? normalizeDateInputValue(rawStart) : '';
     const end = rawEnd ? normalizeDateInputValue(rawEnd) : '';
-    const termStartMin = getTermStartMinDate(form);
-    const termStartMax = getTermStartMaxDate(form);
-    const isOfficialsForm = isSkOfficialsForm(form);
+    const termStartMin = getTermStartMinDate();
+    const termStartMax = getTermStartMaxDate();
 
     let termValid = true;
 
@@ -1277,39 +1490,19 @@ function validateTermRange(form) {
 
     if (!termValid) return false;
     if (start && (start < termStartMin || start > termStartMax)) {
-        _showErr(
-            startInput,
-            isOfficialsForm
-                ? SK_OFFICIAL_TERM_START_MESSAGE
-                : 'Term start date must be within the current year'
-        );
-        return false;
-    }
-    if (isOfficialsForm && start && !isValidSkOfficialTermStart(start)) {
         _showErr(startInput, SK_OFFICIAL_TERM_START_MESSAGE);
         return false;
     }
     if (start && end) {
-        if (isOfficialsForm) {
-            const minEnd = skOfficialTermEndForStart(start);
-            const maxEnd = addYearsToDateString(start, SK_OFFICIAL_TERM_MAX_YEARS);
-            if (end < minEnd || end > maxEnd) {
-                _showErr(endInput, SK_OFFICIAL_TERM_END_MESSAGE);
-                return false;
-            }
-        } else {
-            const requiredEnd = addYearsToDateString(start, ACCOUNT_TERM_YEARS);
-            if (end !== requiredEnd) {
-                _showErr(endInput, `Term end must be exactly ${ACCOUNT_TERM_YEARS} years after term start`);
-                return false;
-            }
+        const requiredEnd = addYearsToDateString(start, ACCOUNT_TERM_YEARS);
+        if (end !== requiredEnd) {
+            _showErr(endInput, SK_OFFICIAL_TERM_END_MESSAGE);
+            return false;
         }
     }
 
-    _clearErr(startInput);
-    _clearErr(endInput);
-    if (start) startInput.classList.add('is-valid');
-    if (end) endInput.classList.add('is-valid');
+    _markValid(startInput);
+    _markValid(endInput);
     return true;
 }
 
@@ -1335,12 +1528,20 @@ function _validateField(input) {
 function applyUppercaseNameInput(input) {
     if (!input) return;
     input.addEventListener('input', () => {
-        input.value = input.value.replace(/[^a-zA-Z\s\-']/g, '').toUpperCase();
+        processPersonNameInput(input);
         if (input.classList.contains('is-invalid')) {
-            _validateNameField(input);
+            _validateNameField(input, { finalize: false });
         }
     });
-    input.addEventListener('blur', () => _validateNameField(input));
+    input.addEventListener('keydown', (e) => {
+        if (e.key === ' ') {
+            const current = input.value || '';
+            if (current.length === 0 || /\s$/.test(current)) {
+                e.preventDefault();
+            }
+        }
+    });
+    input.addEventListener('blur', () => _validateNameField(input, { finalize: true }));
 }
 
 function applyContactNumberInput(input) {
@@ -1421,67 +1622,37 @@ function applyTermDateConstraints(form) {
         return;
     }
 
-    const isOfficialsForm = isSkOfficialsForm(form);
-
-    startInput.min = getTermStartMinDate(form);
-    startInput.max = getTermStartMaxDate(form);
-
-    if (isOfficialsForm) {
-        if (!startInput.value) {
-            startInput.value = form.id === 'editSkOfficialsForm'
-                ? formatDateForTextInput(currentSkOfficialTermStart())
-                : currentSkOfficialTermStart();
-        } else {
-            const normalizedStart = normalizeDateInputValue(startInput.value);
-            if (normalizedStart) {
-                const snappedStart = snapToSkOfficialTermStart(normalizedStart);
-                startInput.value = form.id === 'editSkOfficialsForm'
-                    ? formatDateForTextInput(snappedStart)
-                    : snappedStart;
-            }
-        }
-    }
+    startInput.min = getTermStartMinDate();
+    startInput.max = getTermStartMaxDate();
 
     const alreadyWired = form.dataset.termConstraintsWired === '1';
     const isEditOfficialsTextDates = form.id === 'editSkOfficialsForm';
 
     const syncEndConstraints = () => {
-        if (isOfficialsForm) {
-            const normalizedStart = normalizeDateInputValue(startInput.value);
-            if (normalizedStart) {
-                const snappedStart = snapToSkOfficialTermStart(normalizedStart);
-                startInput.value = form.id === 'editSkOfficialsForm'
-                    ? formatDateForTextInput(snappedStart)
-                    : snappedStart;
-            } else if (form.id === 'addSkOfficialsForm') {
-                startInput.value = currentSkOfficialTermStart();
-            }
-        } else if (startInput.value && (startInput.value < startInput.min || startInput.value > startInput.max)) {
-            startInput.value = '';
-        }
         const effectiveStart = normalizeDateInputValue(startInput.value);
-        if (effectiveStart) {
-            if (isOfficialsForm) {
-                const minEnd = skOfficialTermEndForStart(effectiveStart);
-                const maxEnd = addYearsToDateString(effectiveStart, SK_OFFICIAL_TERM_MAX_YEARS);
-                endInput.min = minEnd;
-                endInput.max = maxEnd;
-                const currentEnd = normalizeDateInputValue(endInput.value);
-                if (!currentEnd || currentEnd < minEnd || currentEnd > maxEnd) {
-                    endInput.value = form.id === 'editSkOfficialsForm'
-                        ? formatDateForTextInput(minEnd)
-                        : minEnd;
-                }
-            } else {
-                const exactEnd = addYearsToDateString(effectiveStart, ACCOUNT_TERM_YEARS);
-                endInput.min = exactEnd;
-                endInput.max = exactEnd;
-                endInput.value = exactEnd;
+        if (!effectiveStart && form.id === 'addSkOfficialsForm') {
+            startInput.value = currentDefaultTermStart();
+        } else if (effectiveStart && (effectiveStart < startInput.min || effectiveStart > startInput.max)) {
+            if (!isEditOfficialsTextDates) {
+                startInput.value = currentDefaultTermStart();
             }
-        } else if (!isEditOfficialsTextDates) {
-            endInput.value = '';
-            endInput.removeAttribute('min');
-            endInput.removeAttribute('max');
+        }
+
+        const syncedStart = normalizeDateInputValue(startInput.value) || currentDefaultTermStart();
+        if (!normalizeDateInputValue(startInput.value) && !isEditOfficialsTextDates) {
+            startInput.value = syncedStart;
+        }
+
+        const exactEnd = addYearsToDateString(syncedStart, ACCOUNT_TERM_YEARS);
+        if (exactEnd) {
+            endInput.min = exactEnd;
+            endInput.max = exactEnd;
+            endInput.value = isEditOfficialsTextDates
+                ? formatDateForTextInput(exactEnd)
+                : exactEnd;
+            if (isEditOfficialsTextDates && startInput.value && normalizeDateInputValue(startInput.value)) {
+                startInput.value = formatDateForTextInput(normalizeDateInputValue(startInput.value));
+            }
         }
         validateTermRange(form);
     };
@@ -1493,22 +1664,13 @@ function applyTermDateConstraints(form) {
         if (!isEditOfficialsTextDates) {
             startInput.addEventListener('input', syncEndConstraints);
         }
-        endInput.addEventListener('change', () => {
-            if (isOfficialsForm) {
-                syncEndConstraints();
-                return;
-            }
-            validateTermRange(form);
-        });
-        if (!isEditOfficialsTextDates) {
-            endInput.addEventListener('input', () => {
-                if (isOfficialsForm) {
-                    syncEndConstraints();
-                }
-            });
-        }
+        endInput.addEventListener('change', () => validateTermRange(form));
         endInput.addEventListener('blur', () => validateTermRange(form));
         form.dataset.termConstraintsWired = '1';
+    }
+
+    if (!startInput.value && !isEditOfficialsTextDates) {
+        startInput.value = currentDefaultTermStart();
     }
     syncEndConstraints();
 }
@@ -1527,6 +1689,14 @@ function initCreateAccountFormDefaults(form) {
     if (contact && (!contact.value || contact.value.length < 2)) {
         contact.value = '09';
     }
+
+    const suffix = form.querySelector('[name="suffix"]');
+    if (suffix && (!suffix.value || suffix.selectedIndex <= 0)) {
+        suffix.value = 'NONE';
+        toggleSuffixOtherField(form);
+    }
+
+    applyTermDateConstraints(form);
 }
 
 function wireCreateAccountForm(form) {
@@ -1585,6 +1755,7 @@ window.openAddSkOfficialsModal = function () {
     }
     toggleModal('addSkOfficialsModal', true);
     initCreateAccountFormDefaults(form);
+    resetLongNameGate(form);
 };
 
 window.closeAddSkOfficialsModal = function () {
@@ -1914,8 +2085,8 @@ const BATCH_REQUIRED_HEADERS = BATCH_TEMPLATE_HEADERS.filter(
 );
 
 const BATCH_MAX_ACCOUNTS = 260;
-const BATCH_OFFICIAL_LAST_NAME_REGEX = /^[A-Z.\-']+$/;
-const BATCH_OFFICIAL_MIDDLE_NAME_REGEX = /^[A-Z.\-']*$/;
+const BATCH_OFFICIAL_LAST_NAME_REGEX = PERSON_NAME_ONE_SPACE_REGEX;
+const BATCH_OFFICIAL_MIDDLE_NAME_REGEX = PERSON_NAME_ONE_SPACE_REGEX;
 const BATCH_SK_OFFICIAL_POSITIONS = ['Chairperson', 'Secretary', 'Treasurer', 'Kagawad'];
 const BATCH_SK_FED_POSITIONS = ['President', 'Vice President', 'Secretary', 'Treasurer', 'PIO', 'Sergeant at Arms'];
 
@@ -2291,18 +2462,24 @@ function normalizeBatchAccountRow(row, role) {
         normalized.email = String(normalized.email).trim().toLowerCase();
     }
 
-    if (role === 'sk_official') {
-        if (normalized.first_name) {
-            normalized.first_name = normalized.first_name.replace(/^\s+/, '').replace(/\s{2,}/g, ' ');
-        }
-        if (normalized.last_name) {
-            normalized.last_name = normalized.last_name.replace(/\s+/g, '');
-        }
-        if (normalized.middle_name) {
-            normalized.middle_name = normalized.middle_name.replace(/\s+/g, '');
-            if (normalized.middle_name === '') {
-                delete normalized.middle_name;
+    if (role === 'sk_official' || role === 'sk_fed') {
+        ['first_name', 'middle_name', 'last_name'].forEach((field) => {
+            if (!normalized[field]) return;
+            normalized[field] = String(normalized[field])
+                .replace(/^\s+/, '')
+                .replace(/\s{2,}/g, ' ')
+                .trim()
+                .toUpperCase();
+            if (field === 'middle_name' && normalized[field] === '') {
+                delete normalized[field];
             }
+        });
+    }
+
+    if (normalized.date_of_birth) {
+        const computedAge = calculateAge(normalized.date_of_birth);
+        if (computedAge !== null && computedAge !== undefined && computedAge !== '') {
+            normalized.age = String(computedAge);
         }
     }
 
@@ -2440,9 +2617,9 @@ function validateBatchAccountRow(row, rowNumber, role, seenEmails, seenFingerpri
         if (
             suffixNorm.suffix === null
             && !['none', 'n/a', 'na', '-'].includes(suffixLower)
-            && String(rawSuffix).trim().length > 10
+            && String(rawSuffix).trim().length > SK_OFFICIAL_SUFFIX_OTHER_MAX
         ) {
-            errors.push({ row: rowNumber, field: 'suffix', error: 'Suffix must not exceed 4 characters.' });
+            errors.push({ row: rowNumber, field: 'suffix', error: `Suffix must not exceed ${SK_OFFICIAL_SUFFIX_OTHER_MAX} characters.` });
         }
     }
 
@@ -2463,31 +2640,31 @@ function validateBatchAccountRow(row, rowNumber, role, seenEmails, seenFingerpri
 
     if (data.first_name) {
         if (data.first_name.length < SK_OFFICIAL_NAME_MIN) {
-            errors.push({ row: rowNumber, field: 'first_name', error: 'First name must be at least 3 characters.' });
+            errors.push({ row: rowNumber, field: 'first_name', error: 'First name must be at least 2 characters.' });
         } else if (data.first_name.length > nameMax) {
             errors.push({ row: rowNumber, field: 'first_name', error: `First name must not exceed ${nameMax} characters.` });
-        } else if (isOfficial && !SK_OFFICIAL_FIRST_NAME_REGEX.test(data.first_name)) {
-            errors.push({ row: rowNumber, field: 'first_name', error: 'First name must use uppercase letters only, with at most one space and no leading spaces.' });
+        } else if (!PERSON_NAME_ONE_SPACE_REGEX.test(data.first_name)) {
+            errors.push({ row: rowNumber, field: 'first_name', error: 'First name must use uppercase letters only; need a letter before each space; no pure spaces.' });
         }
     }
 
     if (data.middle_name) {
         if (data.middle_name.length < SK_OFFICIAL_NAME_MIN) {
-            errors.push({ row: rowNumber, field: 'middle_name', error: 'Middle name must be at least 3 characters when provided.' });
+            errors.push({ row: rowNumber, field: 'middle_name', error: 'Middle name must be at least 2 characters when provided.' });
         } else if (data.middle_name.length > nameMax) {
             errors.push({ row: rowNumber, field: 'middle_name', error: `Middle name must not exceed ${nameMax} characters.` });
-        } else if (isOfficial && !BATCH_OFFICIAL_MIDDLE_NAME_REGEX.test(data.middle_name)) {
-            errors.push({ row: rowNumber, field: 'middle_name', error: 'Middle name must use uppercase letters only, with no spaces.' });
+        } else if (!PERSON_NAME_ONE_SPACE_REGEX.test(data.middle_name)) {
+            errors.push({ row: rowNumber, field: 'middle_name', error: 'Middle name must use uppercase letters only; need a letter before each space; no pure spaces.' });
         }
     }
 
     if (data.last_name) {
         if (data.last_name.length < SK_OFFICIAL_NAME_MIN) {
-            errors.push({ row: rowNumber, field: 'last_name', error: 'Last name must be at least 3 characters.' });
+            errors.push({ row: rowNumber, field: 'last_name', error: 'Last name must be at least 2 characters.' });
         } else if (data.last_name.length > nameMax) {
             errors.push({ row: rowNumber, field: 'last_name', error: `Last name must not exceed ${nameMax} characters.` });
-        } else if (isOfficial && !BATCH_OFFICIAL_LAST_NAME_REGEX.test(data.last_name)) {
-            errors.push({ row: rowNumber, field: 'last_name', error: 'Last name must use uppercase letters only, with no spaces.' });
+        } else if (!PERSON_NAME_ONE_SPACE_REGEX.test(data.last_name)) {
+            errors.push({ row: rowNumber, field: 'last_name', error: 'Last name must use uppercase letters only; need a letter before each space; no pure spaces.' });
         }
     }
 
@@ -2538,6 +2715,15 @@ function validateBatchAccountRow(row, rowNumber, role, seenEmails, seenFingerpri
         const today = formatLocalDate(new Date());
         if (data.date_of_birth >= today) {
             errors.push({ row: rowNumber, field: 'date_of_birth', error: 'Birthdate must be before today.' });
+        } else {
+            const bounds = getSkOfficialBirthdateBounds();
+            if (data.date_of_birth < bounds.min || data.date_of_birth > bounds.max) {
+                errors.push({
+                    row: rowNumber,
+                    field: 'date_of_birth',
+                    error: `Birthdate must correspond to age ${SK_OFFICIAL_AGE_MIN}–${SK_OFFICIAL_AGE_MAX}.`,
+                });
+            }
         }
     }
 
@@ -2559,31 +2745,25 @@ function validateBatchAccountRow(row, rowNumber, role, seenEmails, seenFingerpri
     }
 
     if (data.term_start) {
-        const termStartMin = isOfficial ? SK_OFFICIAL_FIRST_TERM_START : getCurrentYearStartDate();
-        const termStartMax = isOfficial ? formatLocalDate(new Date()) : getCurrentYearEndDate();
-        if (data.term_start < termStartMin || data.term_start > termStartMax || (isOfficial && !isValidSkOfficialTermStart(data.term_start))) {
+        const termStartMin = SK_OFFICIAL_FIRST_TERM_START;
+        const termStartMax = maxTermStartDate();
+        if (data.term_start < termStartMin || data.term_start > termStartMax) {
             errors.push({
                 row: rowNumber,
                 field: 'term_start',
-                error: isOfficial
-                    ? SK_OFFICIAL_TERM_START_MESSAGE
-                    : 'Term start date must be within the current year.',
+                error: SK_OFFICIAL_TERM_START_MESSAGE,
             });
         }
     }
 
     if (data.term_start && data.term_end) {
-        if (isOfficial) {
-            const minEnd = skOfficialTermEndForStart(data.term_start);
-            const maxEnd = addYearsToDateString(data.term_start, SK_OFFICIAL_TERM_MAX_YEARS);
-            if (data.term_end < minEnd || data.term_end > maxEnd) {
-                errors.push({ row: rowNumber, field: 'term_end', error: SK_OFFICIAL_TERM_END_MESSAGE });
-            }
-        } else {
-            const requiredEnd = addYearsToDateString(data.term_start, ACCOUNT_TERM_YEARS);
-            if (data.term_end !== requiredEnd) {
-                errors.push({ row: rowNumber, field: 'term_end', error: `Term end must be exactly ${ACCOUNT_TERM_YEARS} years after term start.` });
-            }
+        const requiredEnd = addYearsToDateString(data.term_start, ACCOUNT_TERM_YEARS);
+        if (data.term_end !== requiredEnd) {
+            errors.push({
+                row: rowNumber,
+                field: 'term_end',
+                error: SK_OFFICIAL_TERM_END_MESSAGE,
+            });
         }
     }
 
@@ -2715,6 +2895,7 @@ function initBatchUploadPanel(prefix, role) {
     }
 
     function revalidateBatchState() {
+        state.parsedRows.forEach((_, rowIndex) => syncBatchAgeFromBirthdate(rowIndex));
         syncMappedAccountsFromParsedRows();
         const missingHeaders = getMissingBatchHeaders(state.parsedHeaders);
         const rowErrors = missingHeaders.length === 0 ? validateMappedRows(state.mappedAccounts, role) : [];
@@ -2882,8 +3063,13 @@ function initBatchUploadPanel(prefix, role) {
                 const placeholder = fieldKey && BATCH_DATE_FIELD_KEYS.has(fieldKey) ? 'MM/DD/YYYY' : '';
                 const colClass = batchPreviewColumnClass(fieldKey);
                 const inputSize = fieldKey === 'email' ? Math.max(28, displayValue.length + 2) : Math.max(12, Math.min(displayValue.length + 2, 24));
+                const isAgeField = fieldKey === 'age';
+                const readOnlyAttr = isAgeField ? ' readonly tabindex="-1"' : '';
+                const titleAttr = isAgeField
+                    ? 'Age is auto-calculated from Birthdate'
+                    : escapeHtml(displayValue);
 
-                return '<td class="' + colClass + '"><input type="text" class="batch-cell-input' + invalidClass + '" data-row-index="' + rowIndex + '" data-col-index="' + colIndex + '" data-field-key="' + escapeHtml(fieldKey || '') + '" value="' + escapeHtml(displayValue) + '" placeholder="' + escapeHtml(placeholder) + '" size="' + inputSize + '" title="' + escapeHtml(displayValue) + '" aria-label="' + escapeHtml(header) + ' row ' + rowNumber + '"></td>';
+                return '<td class="' + colClass + '"><input type="text" class="batch-cell-input' + invalidClass + '" data-row-index="' + rowIndex + '" data-col-index="' + colIndex + '" data-field-key="' + escapeHtml(fieldKey || '') + '" value="' + escapeHtml(displayValue) + '" placeholder="' + escapeHtml(placeholder) + '" size="' + inputSize + '" title="' + titleAttr + '" aria-label="' + escapeHtml(header) + ' row ' + rowNumber + '"' + readOnlyAttr + '></td>';
             }).join('');
 
             const statusText = rowErrors.length > 0
@@ -3009,6 +3195,9 @@ function initBatchUploadPanel(prefix, role) {
         const XLSX = getXlsxLib();
         if (XLSX) {
             const worksheet = XLSX.utils.aoa_to_sheet([BATCH_TEMPLATE_HEADERS, BATCH_TEMPLATE_SAMPLE_ROW]);
+            worksheet['!cols'] = BATCH_TEMPLATE_HEADERS.map((header) => ({
+                wch: Math.max(String(header).length + 6, 18),
+            }));
             const workbook = XLSX.utils.book_new();
             XLSX.utils.book_append_sheet(workbook, worksheet, 'Template');
             const filename = role === 'sk_fed' ? 'sk-federation-batch-template.xlsx' : 'sk-officials-batch-template.xlsx';
@@ -3112,6 +3301,13 @@ function initBatchUploadPanel(prefix, role) {
 
     if (els.dropzone) {
         els.dropzone.addEventListener('click', function () {
+            if (els.fileInput && !els.fileInput.disabled) {
+                els.fileInput.click();
+            }
+        });
+        els.dropzone.addEventListener('keydown', function (e) {
+            if (e.key !== 'Enter' && e.key !== ' ') return;
+            e.preventDefault();
             if (els.fileInput && !els.fileInput.disabled) {
                 els.fileInput.click();
             }
@@ -3612,7 +3808,14 @@ document.addEventListener('DOMContentLoaded', function () {
                 });
             }
 
-            showLoadingOverlay();
+            const submitBtn = document.querySelector(`button[type="submit"][form="${form.id}"]`)
+                || form.querySelector('button[type="submit"]');
+            if (submitBtn) {
+                submitBtn.disabled = true;
+                submitBtn.setAttribute('aria-busy', 'true');
+            }
+            document.body.style.cursor = 'progress';
+
             fetch(`/accounts/${accountId}`, {
                 method: 'PUT',
                 headers: {
@@ -3628,7 +3831,11 @@ document.addEventListener('DOMContentLoaded', function () {
                     return { ok: r.ok, data };
                 })
                 .then(({ ok, data }) => {
-                    hideLoadingOverlay();
+                    if (submitBtn) {
+                        submitBtn.disabled = false;
+                        submitBtn.removeAttribute('aria-busy');
+                    }
+                    document.body.style.cursor = '';
                     if (!ok || !data.success) {
                         if (data.errors) {
                             const firstError = displayFormValidationErrors(form, data.errors)
@@ -3638,14 +3845,22 @@ document.addEventListener('DOMContentLoaded', function () {
                             const invalid = form.querySelector('.is-invalid');
                             if (invalid) invalid.focus();
                         } else {
-                            showAccountToast('Failed to update account. Please try again.', 'error');
+                            showAccountToast(data.message || 'Failed to update account. Please try again.', 'error');
                         }
                         return;
                     }
                     _closeEditByType();
-                    _showEditSuccessByType();
+                    showAccountToast('SK Officials account updated successfully!', 'edit');
+                    window.setTimeout(() => window.location.reload(), 700);
                 })
-                .catch(() => { hideLoadingOverlay(); alert('An unexpected error occurred. Please try again.'); });
+                .catch(() => {
+                    if (submitBtn) {
+                        submitBtn.disabled = false;
+                        submitBtn.removeAttribute('aria-busy');
+                    }
+                    document.body.style.cursor = '';
+                    alert('An unexpected error occurred. Please try again.');
+                });
         });
     }
 
@@ -3654,7 +3869,7 @@ document.addEventListener('DOMContentLoaded', function () {
     if (officialsEditForm) {
         wireCreateAccountForm(officialsEditForm);
         applyTermDateConstraints(officialsEditForm);
-        applySkOfficialDobConstraints(officialsEditForm);
+        // Skip 18–24 DOB clamp on edit so existing accounts can still be saved.
     }
     attachEditSubmit(fedEditForm);
     attachEditSubmit(officialsEditForm);
@@ -3678,10 +3893,12 @@ document.addEventListener('DOMContentLoaded', function () {
             const value = data[_camel(name)] ?? data[name] ?? '';
             setFormFieldValue(form, name, form.id === 'editSkOfficialsForm' ? formatDateForTextInput(value) : value);
         });
-        setSuffixFieldValue(form, data[_camel('suffix')] ?? data.suffix ?? data.suffix ?? '');
+        setSuffixFieldValue(form, data[_camel('suffix')] ?? data.suffix ?? '');
         const statusField = form.querySelector('[name="status"]');
-        if (statusField) statusField.value = 'ACTIVE';
-        applySkOfficialDobConstraints(form);
+        if (statusField) {
+            statusField.value = data.status || data[_camel('status')] || statusField.value || 'ACTIVE';
+        }
+        // Do not re-clamp DOB to 18–24 on edit — existing officials may be older.
         applyTermDateConstraints(form);
         clearAllErrors(form);
     }

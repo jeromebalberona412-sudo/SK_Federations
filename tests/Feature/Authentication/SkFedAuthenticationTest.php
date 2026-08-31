@@ -2,10 +2,11 @@
 
 use App\Modules\Authentication\Models\FeatureFlag;
 use App\Modules\Authentication\Models\TrustedDevice;
-use Illuminate\Auth\Notifications\VerifyEmail;
 use App\Modules\Shared\Models\User;
+use Illuminate\Auth\Notifications\VerifyEmail;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Notification;
+use Illuminate\Support\Facades\URL;
 
 use function Pest\Laravel\assertAuthenticatedAs;
 use function Pest\Laravel\assertGuest;
@@ -227,4 +228,70 @@ it('keeps wait-status pending for fresh verification until email_verified_at cha
             'redirect' => route('dashboard'),
         ]);
     assertAuthenticatedAs($user);
+});
+
+it('logs in and redirects to dashboard when verify link is opened on the same device', function () {
+    FeatureFlag::query()->where('flag_key', 'features.device_verification')->update(['enabled' => false]);
+
+    $tenantId = (int) DB::table('tenants')->where('code', config('sk_fed_auth.tenant_code'))->value('id');
+
+    $user = User::factory()->create([
+        'email' => 'same-device-verify@example.com',
+        'password' => 'Password123!',
+        'tenant_id' => $tenantId,
+        'role' => 'sk_fed',
+        'email_verified_at' => null,
+    ]);
+
+    $pending = [
+        'user_id' => $user->id,
+        'email' => $user->email,
+        'started_at' => now()->subMinute()->toIso8601String(),
+        'expires_at' => now()->addMinutes(15)->toIso8601String(),
+        'requires_fresh_verification' => false,
+        'remember_device' => false,
+    ];
+
+    $url = URL::temporarySignedRoute(
+        'skfed.verification.verify',
+        now()->addMinutes(10),
+        ['id' => $user->id, 'hash' => sha1($user->getEmailForVerification())]
+    );
+
+    $this->withSession(['sk_fed_email_verification_pending' => $pending])
+        ->get($url)
+        ->assertRedirect(route('dashboard'));
+
+    assertAuthenticatedAs($user);
+    expect($user->fresh()->hasVerifiedEmail())->toBeTrue();
+});
+
+it('shows success page with go to login when verify link is opened on another device', function () {
+    FeatureFlag::query()->where('flag_key', 'features.device_verification')->update(['enabled' => false]);
+
+    $tenantId = (int) DB::table('tenants')->where('code', config('sk_fed_auth.tenant_code'))->value('id');
+
+    $user = User::factory()->create([
+        'email' => 'other-device-verify@example.com',
+        'password' => 'Password123!',
+        'tenant_id' => $tenantId,
+        'role' => 'sk_fed',
+        'email_verified_at' => null,
+    ]);
+
+    $url = URL::temporarySignedRoute(
+        'skfed.verification.verify',
+        now()->addMinutes(10),
+        ['id' => $user->id, 'hash' => sha1($user->getEmailForVerification())]
+    );
+
+    get($url)->assertRedirect(route('skfed.verification.success'));
+
+    assertGuest();
+    expect($user->fresh()->hasVerifiedEmail())->toBeTrue();
+
+    get(route('skfed.verification.success'))
+        ->assertOk()
+        ->assertSee('Email verified successfully')
+        ->assertSee('Go to Login');
 });

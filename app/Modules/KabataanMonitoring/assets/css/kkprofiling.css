@@ -136,6 +136,21 @@
     margin-bottom: 8px;
 }
 
+.kkp-form-header-right {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 4px;
+    margin-left: auto;
+}
+
+.kkp-form-annex {
+    font-size: 11px;
+    font-weight: 800;
+    color: #333;
+    letter-spacing: 0.5px;
+}
+
 .kkp-form-title-col {
     flex: 1;
     display: flex;
@@ -159,15 +174,22 @@
     display: flex;
     flex-direction: column;
     gap: 4px;
-    align-items: flex-start;
-    margin-left: auto;
-    margin-right: 10px;
+    align-items: flex-end;
 }
 
 .kkp-hdr-field {
     display: flex;
     align-items: center;
-    gap: 4px;
+    gap: 6px;
+}
+
+.kkp-hdr-field--respondent {
+    align-items: center;
+}
+
+.kkp-hdr-input-auto {
+    min-width: 130px !important;
+    width: auto !important;
 }
 
 .kkp-hdr-label {
@@ -570,6 +592,70 @@
     flex: 1;
     min-width: 0;
     align-items: flex-start;
+}
+
+.kkp-demo-block-options.kkp-youth-class-layout {
+    display: grid !important;
+    grid-template-columns: max-content minmax(0, 1fr) !important;
+    column-gap: 4px !important;
+    row-gap: 0 !important;
+    align-items: end !important;
+    align-content: end !important;
+    width: 100% !important;
+    flex-direction: unset !important;
+    gap: 0 4px !important;
+}
+
+.kkp-youth-class-main {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 1px !important;
+    min-width: 0 !important;
+    grid-column: 1 !important;
+    grid-row: 1 !important;
+}
+
+.kkp-youth-class-main .kkp-chk-lbl {
+    white-space: nowrap !important;
+}
+
+.kkp-youth-class-side {
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: stretch !important;
+    gap: 3px !important;
+    min-width: 0 !important;
+    grid-column: 2 !important;
+    grid-row: 1 !important;
+    align-self: end !important;
+    justify-self: start !important;
+}
+
+.kkp-youth-specific-brace {
+    flex: 0 0 auto !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    font-size: 2.4rem !important;
+    font-weight: 400 !important;
+    line-height: 0.85 !important;
+    color: #222 !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    font-family: Georgia, 'Times New Roman', Times, serif !important;
+    user-select: none !important;
+}
+
+.kkp-youth-specific-options {
+    display: flex !important;
+    flex-direction: column !important;
+    justify-content: center !important;
+    gap: 1px !important;
+    min-width: 0 !important;
+}
+
+.kkp-youth-specific-options .kkp-chk-lbl {
+    white-space: nowrap !important;
 }
 
 .kkp-demo-options-2col {

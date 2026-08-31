@@ -103,7 +103,19 @@
     }
 
     function runTurnstileThenSubmit() {
+        var required = loginForm.dataset.turnstileRequired === '1';
+
+        if (!required) {
+            isSubmitting = true;
+            setSigningIn();
+            loginForm.submit();
+            return Promise.resolve();
+        }
+
         return waitForGate().then(function (gate) {
+            if (gate.challengeIfRequired) {
+                return gate.challengeIfRequired(true);
+            }
             return gate.challenge();
         }).then(function (token) {
             if (!token || String(token).trim() === '') {
@@ -177,8 +189,7 @@
 
         if (!validateFields()) return;
 
-        var turnstileRequired = loginForm.dataset.turnstileEnabled ||
-            (window.FedTurnstileGate && window.FedTurnstileGate.isEnabled());
+        var turnstileRequired = loginForm.dataset.turnstileRequired === '1';
 
         if (!turnstileRequired) {
             isSubmitting = true;
@@ -237,7 +248,7 @@
         }
 
         var serverErrEl = document.getElementById('turnstile-server-error');
-        if (serverErrEl && serverErrEl.textContent.trim()) {
+        if (serverErrEl && serverErrEl.textContent.trim() && loginForm.dataset.turnstileRequired === '1') {
             showFormTurnstileError(serverErrEl.textContent.trim());
         }
 

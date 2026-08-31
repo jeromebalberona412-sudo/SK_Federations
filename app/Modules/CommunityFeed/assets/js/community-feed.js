@@ -164,6 +164,11 @@ function escapeHtml(v) {
     return String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
+function truncateName(text, max = 50) {
+    const s = String(text ?? '').trim();
+    return s.length > max ? s.substring(0, max) + '...' : s;
+}
+
 const LIKE_THUMB_SVG = '<svg viewBox="0 0 20 20" fill="currentColor"><path d="M2 10.5a1.5 1.5 0 113 0v6a1.5 1.5 0 01-3 0v-6zM6 10.333v5.43a2 2 0 001.106 1.79l.05.025A4 4 0 008.943 18h5.416a2 2 0 001.962-1.608l1.2-6A2 2 0 0015.56 8H12V4a2 2 0 00-2-2 1 1 0 00-1 1v.667a4 4 0 01-.8 2.4L6.8 7.933a4 4 0 00-.8 2.4z"/></svg>';
 const REACTION_EMOJI = { like: '👍', love: '❤️', haha: '😂', wow: '😮', sad: '😢', angry: '😡' };
 const REACTION_LABEL = { like: 'Like', love: 'Love', haha: 'Haha', wow: 'Wow', sad: 'Sad', angry: 'Angry' };
@@ -521,7 +526,7 @@ function buildCommentItem(c, postId, isReply) {
         + avatarImg(commentAvatarUrl(c), 'comment-avatar', c.author_name)
         + '<div class="comment-body">'
         + '<div class="comment-bubble">'
-        + '<p class="comment-author">' + escapeHtml(c.author_name) + '</p>'
+        + '<p class="comment-author">' + escapeHtml(truncateName(c.author_name)) + '</p>'
         + '<p class="comment-text">' + escapeHtml(c.body) + '</p>'
         + '</div>'
         + '<div class="comment-meta">'
@@ -693,7 +698,7 @@ function renderReactionViewer(filter) {
             + '<img src="' + escapeHtml(row.avatar_url) + '" alt="">'
             + '<span class="reaction-viewer-emoji">' + (REACTION_EMOJI[row.reaction_type] || '') + '</span>'
             + '</div>'
-            + '<span class="reaction-viewer-name">' + escapeHtml(row.name) + '</span>'
+            + '<span class="reaction-viewer-name">' + escapeHtml(truncateName(row.name)) + '</span>'
             + '</div>';
     }).join('');
 }
@@ -747,7 +752,7 @@ function buildPost(p) {
     return '<div class="post-header">'
         + avatarImg(avatar, 'post-avatar', p.author_name)
         + '<div class="post-info">'
-        + '<h3 class="post-author">' + escapeHtml(p.author_name || 'SK Federation') + (p.barangay_name && !p.is_federation_wide ? ' <small style="font-weight:400;color:#888;">· ' + escapeHtml(p.barangay_name) + '</small>' : '') + '</h3>'
+        + '<h3 class="post-author">' + escapeHtml(truncateName(p.author_name || 'SK Federation')) + (p.barangay_name && !p.is_federation_wide ? ' <small style="font-weight:400;color:#888;">· ' + escapeHtml(p.barangay_name) + '</small>' : '') + '</h3>'
         + '<p class="post-meta"><span class="post-type ' + escapeHtml(p.type || 'update') + '">' + escapeHtml(p.type || 'update') + '</span><span class="post-time">' + escapeHtml(p.time || '') + '</span></p>'
         + '</div>' + optionsHtml + '</div>'
         + '<div class="post-content">'

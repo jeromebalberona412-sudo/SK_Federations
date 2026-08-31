@@ -61,15 +61,15 @@
                         <img src="{{ asset('Images/SK_Federations_logo.jpg') }}" alt="SK Federations Logo" class="collab-logo">
                     </div>
                 </div>
-                <h1 class="brand-title" style="white-space:nowrap;">SK OnePortal</h1>
-                <p class="brand-subtitle" style="white-space:nowrap;">SK Federation Portal &ndash; Santa Cruz, Laguna</p>
+                <h1 class="brand-title">SK OnePortal</h1>
+                <p class="brand-subtitle">SK Federation Portal &ndash; Santa Cruz, Laguna</p>
             </div>
 
             {{-- RIGHT: Login Card --}}
             <div class="login-form-container">
                 <div class="login-card-inner">
                     <div class="form-header">
-                        <p style="font-size:1.35rem;font-weight:800;color:#0f172a;letter-spacing:-0.01em;margin:0;text-align:center;">
+                        <p style="font-size:1.25rem;font-weight:800;color:#0f172a;letter-spacing:-0.01em;margin:0;text-align:center;">
                             Login to your account
                         </p>
                     </div>
@@ -82,6 +82,9 @@
                           @if(config('services.turnstile.enabled') && config('services.turnstile.site_key'))
                               data-turnstile-enabled="true"
                               data-turnstile-sitekey="{{ config('services.turnstile.site_key') }}"
+                              data-turnstile-required="{{ (!empty($turnstileRequired) || session('turnstile_required')) ? '1' : '0' }}"
+                          @else
+                              data-turnstile-required="0"
                           @endif>
                         @csrf
 
@@ -91,6 +94,13 @@
                                 <p style="margin:0.35rem 0 0;">{{ session('access_denied.message') }}</p>
                             </div>
                         @endif
+
+                        @error('session')
+                            <div class="alert alert-warning access-denied-alert" role="alert">
+                                <strong>Session Expired</strong>
+                                <p style="margin:0.35rem 0 0;">{{ $message }}</p>
+                            </div>
+                        @enderror
 
                         @error('auth')
                             <div class="alert alert-danger access-denied-alert" role="alert">

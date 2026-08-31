@@ -12,25 +12,19 @@
     <div class="kkp-responsive-container">
 
     <div class="kkp-form-header">
-        <div class="kkp-form-title-col">
-            <div class="kkp-form-main-title">KK Survey Questionnaire</div>
+        <div class="kkp-form-main-title">KK Survey Questionnaire</div>
+        <div class="kkp-form-header-right">
+            <div class="kkp-form-annex">ANNEX 3</div>
             <div class="kkp-form-header-fields">
-                <div class="kkp-hdr-field">
+                <div class="kkp-hdr-field kkp-hdr-field--respondent">
                     <span class="kkp-hdr-label">Respondent #:</span>
-                    <span class="kkp-hdr-input kkp-hdr-input-readonly kkp-view-value">{{ $form['respondent_number'] }}</span>
+                    <span class="kkp-hdr-input kkp-hdr-input-readonly kkp-hdr-input-auto kkp-view-value">{{ $form['respondent_number'] }}</span>
                 </div>
                 <div class="kkp-hdr-field">
                     <span class="kkp-hdr-label">Date:</span>
                     <span class="kkp-hdr-input kkp-hdr-input-readonly kkp-view-value">{{ $form['date'] }}</span>
                 </div>
             </div>
-        </div>
-        <div class="kkp-form-logo">
-            <img
-                src="{{ $barangayLogoUrl ?? url('/modules/authentication/images/skoneportal_logo.webp') }}"
-                alt="{{ $barangayName }} SK Logo"
-                onerror="this.onerror=null;this.src='{{ url('/modules/authentication/images/skoneportal_logo.webp') }}';"
-            >
         </div>
     </div>
 
@@ -172,17 +166,21 @@
 
         <div class="kkp-demo-col">
             <div class="kkp-demo-block">
-                <div class="kkp-demo-block-label">Youth Classification</div>
-                <div class="kkp-demo-block-options kkp-demo-two-col">
-                    <div class="kkp-demo-left-col">
+                <div class="kkp-demo-block-label">Youth<br>Classification</div>
+                <div class="kkp-demo-block-options kkp-youth-class-layout">
+                    <div class="kkp-youth-class-main">
                         <label class="kkp-chk-lbl kkp-view-chk"><input type="checkbox" class="kkp-sq-chk" disabled {{ $checked('In School Youth', $form['youth_classification']) }}> In school Youth</label>
                         <label class="kkp-chk-lbl kkp-view-chk"><input type="checkbox" class="kkp-sq-chk" disabled {{ $checked('Out of School Youth', $form['youth_classification']) }}> Out of School Youth</label>
                         <label class="kkp-chk-lbl kkp-view-chk"><input type="checkbox" class="kkp-sq-chk" disabled {{ $checked('Working Youth', $form['youth_classification']) }}> Working Youth</label>
+                        <label class="kkp-chk-lbl kkp-view-chk"><input type="checkbox" class="kkp-sq-chk" disabled {{ (in_array(trim((string)$form['youth_classification']), ['Youth w/ Specific Needs', 'Youth with Specific Needs', 'Person w/ Disability', 'Children in Conflict w/ Law', 'Children In Conflict w/ Law', 'Indigenous People'], true) || str_starts_with(trim((string)$form['youth_classification']), 'Youth w/ Specific')) ? 'checked' : '' }}> Youth w/ Specific Needs:</label>
                     </div>
-                    <div class="kkp-demo-right-col">
-                        <label class="kkp-chk-lbl kkp-view-chk"><input type="checkbox" class="kkp-sq-chk" disabled {{ $checked('Person w/ Disability', $form['youth_classification']) }}> Person w/ Disability</label>
-                        <label class="kkp-chk-lbl kkp-view-chk"><input type="checkbox" class="kkp-sq-chk" disabled {{ $checked('Children in Conflict w/ Law', $form['youth_classification']) }}> Children In Conflict w/ Law</label>
-                        <label class="kkp-chk-lbl kkp-view-chk"><input type="checkbox" class="kkp-sq-chk" disabled {{ $checked('Indigenous People', $form['youth_classification']) }}> Indigenous People</label>
+                    <div class="kkp-youth-class-side" aria-label="Youth with specific needs options">
+                        <span class="kkp-youth-specific-brace" aria-hidden="true">{</span>
+                        <div class="kkp-youth-specific-options">
+                            <label class="kkp-chk-lbl kkp-view-chk"><input type="checkbox" class="kkp-sq-chk" disabled {{ $checked('Person w/ Disability', $form['youth_classification']) }}> Person w/ Disability</label>
+                            <label class="kkp-chk-lbl kkp-view-chk"><input type="checkbox" class="kkp-sq-chk" disabled {{ $checked('Children in Conflict w/ Law', $form['youth_classification']) }}> Children In Conflict w/ Law</label>
+                            <label class="kkp-chk-lbl kkp-view-chk"><input type="checkbox" class="kkp-sq-chk" disabled {{ $checked('Indigenous People', $form['youth_classification']) }}> Indigenous People</label>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -197,71 +195,63 @@
                 </div>
             </div>
 
-            <div class="kkp-voter-questions-grid">
-                <div class="kkp-voter-questions-col">
-                    <div class="kkp-demo-block">
-                        <div class="kkp-demo-block-label">Registered SK Voter?</div>
-                        <div class="kkp-demo-block-options">
-                            <label class="kkp-chk-lbl kkp-view-chk"><input type="checkbox" class="kkp-sq-chk" disabled {{ $checked('Yes', $form['sk_voter']) }}> Yes</label>
-                            <label class="kkp-chk-lbl kkp-view-chk"><input type="checkbox" class="kkp-sq-chk" disabled {{ $checked('No', $form['sk_voter']) }}> No</label>
+            <div class="kkp-voter-questions-wrap">
+                <div class="kkp-voter-questions-grid">
+                    <div class="kkp-voter-questions-col">
+                        <div class="kkp-demo-block">
+                            <div class="kkp-demo-block-label">Registered SK Voter?</div>
+                            <div class="kkp-demo-block-options">
+                                <label class="kkp-chk-lbl kkp-view-chk"><input type="checkbox" class="kkp-sq-chk" disabled {{ $checked('Yes', $form['sk_voter']) }}> Yes</label>
+                                <label class="kkp-chk-lbl kkp-view-chk"><input type="checkbox" class="kkp-sq-chk" disabled {{ $checked('No', $form['sk_voter']) }}> No</label>
+                            </div>
+                        </div>
+                        <div class="kkp-demo-block">
+                            <div class="kkp-demo-block-label">Registered National Voter?</div>
+                            <div class="kkp-demo-block-options">
+                                <label class="kkp-chk-lbl kkp-view-chk"><input type="checkbox" class="kkp-sq-chk" disabled {{ $checked('Yes', $form['national_voter']) }}> Yes</label>
+                                <label class="kkp-chk-lbl kkp-view-chk"><input type="checkbox" class="kkp-sq-chk" disabled {{ $checked('No', $form['national_voter']) }}> No</label>
+                            </div>
+                        </div>
+                        <div class="kkp-demo-block kkp-assembly-question">
+                            <div class="kkp-demo-block-label">Have you attended a KK Assembly?</div>
+                            <div class="kkp-demo-block-options">
+                                <label class="kkp-chk-lbl kkp-assembly-chk-yes kkp-view-chk">
+                                    <input type="checkbox" class="kkp-sq-chk" disabled {{ $checked('Yes', $form['kk_assembly']) }}> Yes
+                                    <span class="kkp-assembly-arrow kkp-assembly-arrow--yes {{ strcasecmp((string)($form['kk_assembly'] ?? ''), 'Yes') === 0 ? 'kkp-assembly-arrow--on' : '' }}" aria-hidden="true">→</span>
+                                </label>
+                                <label class="kkp-chk-lbl kkp-assembly-chk-no kkp-view-chk">
+                                    <input type="checkbox" class="kkp-sq-chk" disabled {{ $checked('No', $form['kk_assembly']) }}> No
+                                    <span class="kkp-assembly-arrow kkp-assembly-arrow--no {{ strcasecmp((string)($form['kk_assembly'] ?? ''), 'No') === 0 ? 'kkp-assembly-arrow--on' : '' }}" aria-hidden="true">→</span>
+                                </label>
+                            </div>
                         </div>
                     </div>
-                    <div class="kkp-demo-block">
-                        <div class="kkp-demo-block-label">Registered National Voter?</div>
-                        <div class="kkp-demo-block-options">
-                            <label class="kkp-chk-lbl kkp-view-chk"><input type="checkbox" class="kkp-sq-chk" disabled {{ $checked('Yes', $form['national_voter']) }}> Yes</label>
-                            <label class="kkp-chk-lbl kkp-view-chk"><input type="checkbox" class="kkp-sq-chk" disabled {{ $checked('No', $form['national_voter']) }}> No</label>
+                    <div class="kkp-voter-questions-col">
+                        <div class="kkp-demo-block">
+                            <div class="kkp-demo-block-label">Did you vote last SK?</div>
+                            <div class="kkp-demo-block-options">
+                                <label class="kkp-chk-lbl kkp-view-chk"><input type="checkbox" class="kkp-sq-chk" disabled {{ $checked('Yes', $form['sk_voted']) }}> Yes</label>
+                                <label class="kkp-chk-lbl kkp-view-chk"><input type="checkbox" class="kkp-sq-chk" disabled {{ $checked('No', $form['sk_voted']) }}> No</label>
+                            </div>
                         </div>
-                    </div>
-                    <div class="kkp-demo-block">
-                        <div class="kkp-demo-block-label">Have you attended a KK Assembly?</div>
-                        <div class="kkp-demo-block-options">
-                            <label class="kkp-chk-lbl kkp-view-chk"><input type="checkbox" class="kkp-sq-chk" disabled {{ $checked('Yes', $form['kk_assembly']) }}> Yes</label>
-                            <label class="kkp-chk-lbl kkp-view-chk"><input type="checkbox" class="kkp-sq-chk" disabled {{ $checked('No', $form['kk_assembly']) }}> No</label>
+                        <div class="kkp-demo-block kkp-assembly-followup {{ strcasecmp((string)($form['kk_assembly'] ?? ''), 'Yes') === 0 ? 'kkp-assembly-followup--active' : 'kkp-assembly-followup--inactive' }}">
+                            <div class="kkp-demo-block-label">If Yes, How many times?</div>
+                            <div class="kkp-demo-block-options">
+                                <label class="kkp-chk-lbl kkp-view-chk"><input type="checkbox" class="kkp-sq-chk" disabled {{ $checked('1-2 Times', $form['kk_times']) }}> 1-2 Times</label>
+                                <label class="kkp-chk-lbl kkp-view-chk"><input type="checkbox" class="kkp-sq-chk" disabled {{ $checked('3-4 Times', $form['kk_times']) }}> 3-4 Times</label>
+                                <label class="kkp-chk-lbl kkp-view-chk"><input type="checkbox" class="kkp-sq-chk" disabled {{ $checked('5 and above', $form['kk_times']) }}> 5 and above</label>
+                            </div>
+                        </div>
+                        <div class="kkp-demo-block kkp-assembly-followup {{ strcasecmp((string)($form['kk_assembly'] ?? ''), 'No') === 0 ? 'kkp-assembly-followup--active' : 'kkp-assembly-followup--inactive' }}">
+                            <div class="kkp-demo-block-label">If No, Why?</div>
+                            <div class="kkp-demo-block-options">
+                                <label class="kkp-chk-lbl kkp-view-chk"><input type="checkbox" class="kkp-sq-chk" disabled {{ (strcasecmp((string)($form['kk_reason'] ?? ''), 'There was no KK Assembly Meeting') === 0 || strcasecmp((string)($form['kk_reason'] ?? ''), 'There was no KK Assembly') === 0) ? 'checked' : '' }}> There was no KK Assembly Meeting</label>
+                                <label class="kkp-chk-lbl kkp-view-chk"><input type="checkbox" class="kkp-sq-chk" disabled {{ (strcasecmp((string)($form['kk_reason'] ?? ''), 'Not interested to Attend') === 0 || strcasecmp((string)($form['kk_reason'] ?? ''), 'Not Interested to Attend') === 0) ? 'checked' : '' }}> Not interested to Attend</label>
+                            </div>
                         </div>
                     </div>
                 </div>
-                <div class="kkp-voter-questions-col">
-                    <div class="kkp-demo-block">
-                        <div class="kkp-demo-block-label">Did you vote last SK?</div>
-                        <div class="kkp-demo-block-options">
-                            <label class="kkp-chk-lbl kkp-view-chk"><input type="checkbox" class="kkp-sq-chk" disabled {{ $checked('Yes', $form['sk_voted']) }}> Yes</label>
-                            <label class="kkp-chk-lbl kkp-view-chk"><input type="checkbox" class="kkp-sq-chk" disabled {{ $checked('No', $form['sk_voted']) }}> No</label>
-                        </div>
-                    </div>
-                    <div class="kkp-demo-block">
-                        <div class="kkp-demo-block-label">If Yes, How many times?</div>
-                        <div class="kkp-demo-block-options">
-                            <label class="kkp-chk-lbl kkp-view-chk"><input type="checkbox" class="kkp-sq-chk" disabled {{ $checked('1-2 Times', $form['kk_times']) }}> 1-2 Times</label>
-                            <label class="kkp-chk-lbl kkp-view-chk"><input type="checkbox" class="kkp-sq-chk" disabled {{ $checked('3-4 Times', $form['kk_times']) }}> 3-4 Times</label>
-                            <label class="kkp-chk-lbl kkp-view-chk"><input type="checkbox" class="kkp-sq-chk" disabled {{ $checked('5 and above', $form['kk_times']) }}> 5 and above</label>
-                        </div>
-                    </div>
-                    <div class="kkp-demo-block">
-                        <div class="kkp-demo-block-label">If No, Why?</div>
-                        <div class="kkp-demo-block-options">
-                            <label class="kkp-chk-lbl kkp-view-chk"><input type="checkbox" class="kkp-sq-chk" disabled {{ $checked('There was no KK Assembly Meeting', $form['kk_reason']) }}> There was no KK Assembly Meeting</label>
-                            <label class="kkp-chk-lbl kkp-view-chk"><input type="checkbox" class="kkp-sq-chk" disabled {{ $checked('Not interested to Attend', $form['kk_reason']) }}> Not interested to Attend</label>
-                        </div>
-                    </div>
-                </div>
             </div>
-        </div>
-    </div>
-
-    <div class="kkp-footer-row">
-        <div class="kkp-footer-fb">
-            <div class="kkp-footer-fb-label-col">
-                <span class="kkp-inline-label">FB Account:</span>
-            </div>
-            <div class="kkp-footer-fb-field">
-                <span class="kkp-uline kkp-uline-fb kkp-view-value">{{ $form['facebook_profile_url'] ?? $form['facebook'] ?? '—' }}</span>
-            </div>
-        </div>
-        <div class="kkp-footer-chat">
-            <span class="kkp-inline-label">Willing to join the group chat?</span>
-            <label class="kkp-chk-lbl kkp-view-chk"><input type="checkbox" class="kkp-sq-chk" disabled {{ $checked('Yes', $form['group_chat']) }}> Yes</label>
-            <label class="kkp-chk-lbl kkp-view-chk"><input type="checkbox" class="kkp-sq-chk" disabled {{ $checked('No', $form['group_chat']) }}> No</label>
         </div>
     </div>
 

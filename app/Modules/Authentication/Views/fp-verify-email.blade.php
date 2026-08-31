@@ -42,6 +42,7 @@
          data-login-url="{{ route('login', [], false) }}"
          data-resend-available-at="{{ $resendAvailableAt }}"
          data-cooldown-secs="{{ $resendCooldownSecs }}"
+         data-turnstile-required="{{ (!empty($turnstileRequired) || session('turnstile_required')) ? '1' : '0' }}"
          hidden
          aria-hidden="true"></div>
 

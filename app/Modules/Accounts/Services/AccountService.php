@@ -874,13 +874,17 @@ class AccountService
      */
     protected function resolveStoredAge(array $data): ?int
     {
+        $dateOfBirth = isset($data['date_of_birth']) ? (string) $data['date_of_birth'] : null;
+        $fromDob = $this->deriveAge($dateOfBirth);
+        if ($fromDob !== null) {
+            return $fromDob;
+        }
+
         $rawAge = $data['age'] ?? null;
         if (is_numeric($rawAge)) {
             return (int) $rawAge;
         }
 
-        $dateOfBirth = isset($data['date_of_birth']) ? (string) $data['date_of_birth'] : null;
-
-        return $this->deriveAge($dateOfBirth);
+        return null;
     }
 }

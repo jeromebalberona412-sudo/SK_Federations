@@ -21,12 +21,12 @@ Route::get('/modules/turnover/{type}/{file}', function (string $type, string $fi
     return response()->file($path, ['Content-Type' => $mimeType]);
 })->where('type', 'css|js')->where('file', '.*');
 
-Route::middleware(['auth', 'verified', 'single.session', 'sk_fed.access', 'trusted.device', 'prevent.back', 'turnover.waiting', 'turnover.term.lock'])
+Route::middleware(['auth', 'session.timeout', 'verified', 'single.session', 'sk_fed.access', 'trusted.device', 'prevent.back', 'turnover.waiting', 'turnover.term.lock'])
     ->group(function () {
         Route::get('/turnover/waiting', [TurnoverController::class, 'waiting'])->name('turnover.waiting');
     });
 
-Route::middleware(['auth', 'verified', 'single.session', 'sk_fed.access', 'trusted.device', 'prevent.back', 'turnover.waiting', 'turnover.term.lock', 'turnover.leadership'])
+Route::middleware(['auth', 'session.timeout', 'verified', 'single.session', 'sk_fed.access', 'trusted.device', 'prevent.back', 'turnover.waiting', 'turnover.term.lock', 'turnover.leadership'])
     ->group(function () {
         Route::get('/turnover', fn () => redirect()->route('dashboard'))->name('turnover.index');
         Route::get('/turnover/status', [TurnoverController::class, 'status'])->name('turnover.status');

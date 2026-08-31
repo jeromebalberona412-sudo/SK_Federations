@@ -21,7 +21,7 @@ Route::get('/modules/calendar/{type}/{file}', function (string $type, string $fi
     return response()->file($path, ['Content-Type' => $mimeType]);
 })->where('type', 'css|js')->where('file', '.*');
 
-Route::middleware(['auth', 'verified', 'single.session', 'sk_fed.access', 'trusted.device', 'prevent.back'])
+Route::middleware(['auth', 'session.timeout', 'verified', 'single.session', 'sk_fed.access', 'trusted.device', 'prevent.back'])
     ->group(function () {
         Route::get('/calendar', [CalendarController::class, 'page'])->name('calendar');
         Route::get('/api/calendar/notes', [CalendarController::class, 'index'])->name('api.calendar.notes.index');

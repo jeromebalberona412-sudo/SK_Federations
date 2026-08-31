@@ -171,11 +171,11 @@
 .km-export-btn {
     display: inline-flex; align-items: center; gap: 6px;
     padding: 8px 16px; font-size: 13px; font-weight: 600;
-    background: linear-gradient(135deg, var(--km-blue), var(--km-red));
+    background: #16a34a;
     color: #fff; border: none; border-radius: 8px; cursor: pointer;
-    transition: opacity 0.2s;
+    transition: background 0.15s, opacity 0.2s;
 }
-.km-export-btn:hover { opacity: 0.88; }
+.km-export-btn:hover { background: #15803d; opacity: 0.95; }
 
 /* ── Filters ── */
 .km-filter-row {
@@ -738,11 +738,11 @@
 }
 
 .km-export-btn--csv {
-    background: #2563eb;
+    background: #16a34a;
 }
 
 .km-export-btn--csv:hover {
-    background: #1d4ed8;
+    background: #15803d;
 }
 
 .km-batch-print-btn {

@@ -58,8 +58,8 @@
                         <img src="{{ asset('Images/SK_Federations_logo.jpg') }}" alt="SK Federations Logo" class="collab-logo">
                     </div>
                 </div>
-                <h1 class="brand-title" style="white-space:nowrap;">SK OnePortal</h1>
-                <p class="brand-subtitle" style="white-space:nowrap;">SK Federation Portal &ndash; Santa Cruz, Laguna</p>
+                <h1 class="brand-title">SK OnePortal</h1>
+                <p class="brand-subtitle">SK Federation Portal &ndash; Santa Cruz, Laguna</p>
             </div>
 
             {{-- RIGHT: Forgot Password Card --}}
@@ -67,8 +67,8 @@
                 <div class="login-card-inner">
 
                     {{-- Card header: centered bold title --}}
-                    <div class="form-header" style="text-align:center;margin-bottom:1.75rem;">
-                        <p style="font-size:1.35rem;font-weight:800;color:#0f172a;letter-spacing:-0.01em;margin:0 0 0.5rem;">
+                    <div class="form-header" style="text-align:center;margin-bottom:1.25rem;">
+                        <p style="font-size:1.25rem;font-weight:800;color:#0f172a;letter-spacing:-0.01em;margin:0 0 0.4rem;">
                             Forgot Password
                         </p>
                         <p style="font-size:0.875rem;color:#64748b;font-weight:400;margin:0;line-height:1.55;">
@@ -92,6 +92,7 @@
                           action="{{ route('password.email', [], false) }}"
                           data-email-sent="0"
                           data-cooldown-key=""
+                          data-turnstile-required="{{ (!empty($turnstileRequired) || session('turnstile_required')) ? '1' : '0' }}"
                           novalidate>
                         @csrf
 
@@ -115,10 +116,7 @@
                                 value="{{ old('email') }}"
                                 autofocus
                             >
-                            <div class="invalid-feedback" id="email-error"
-                                 @if(!$errors->has('email')) hidden @endif>
-                                {{ $errors->first('email') }}
-                            </div>
+                            <div class="invalid-feedback" id="email-error" hidden></div>
                         </div>
 
                         <button type="submit" class="login-btn btn btn-primary w-100" id="submitBtn">

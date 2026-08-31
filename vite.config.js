@@ -40,6 +40,10 @@ export default defineConfig({
                 'app/Modules/Authentication/assets/css/forgot-password.css',
                 'app/Modules/Authentication/assets/js/forgot-password.js',
 
+                // ── Authentication — Set New Password ─────────────────────
+                'app/Modules/Authentication/assets/css/reset-password.css',
+                'app/Modules/Authentication/assets/js/reset-password.js',
+
                 // ── Authentication — Forgot Password / Verify Email ────────
                 'app/Modules/Authentication/assets/css/fp-verify-email.css',
                 'app/Modules/Authentication/assets/js/fp-verify-email.js',

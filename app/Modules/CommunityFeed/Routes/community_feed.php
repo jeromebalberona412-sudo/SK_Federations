@@ -27,7 +27,7 @@ Route::get('/modules/community-feed/{type}/{file}', function ($type, $file) {
     return response()->file($path, ['Content-Type' => $mimeType]);
 })->where('type', 'css|js|images')->where('file', '.*');
 
-Route::middleware(['auth', 'verified', 'single.session', 'sk_fed.access', 'trusted.device', 'prevent.back'])
+Route::middleware(['auth', 'session.timeout', 'verified', 'single.session', 'sk_fed.access', 'trusted.device', 'prevent.back'])
     ->group(function () {
         // Views
         Route::get('/community-feed', [CommunityFeedController::class, 'index'])->name('community-feed');

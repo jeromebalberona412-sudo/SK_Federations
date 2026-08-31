@@ -433,11 +433,35 @@
         isEnabled: isEnabled,
         isOpen: isModalOpen,
         challenge: challenge,
+        challengeIfRequired: function (required) {
+            if (!isEnabled() || !required) {
+                return Promise.resolve('');
+            }
+            return challenge();
+        },
         cancel: function () {
             rejectPending(MSG.cancelled);
         },
         injectToken: injectToken,
         submitForm: submitForm,
+        submitFormIfRequired: function (form) {
+            var required = Boolean(form && form.getAttribute('data-turnstile-required') === '1');
+            if (!isEnabled() || !required) {
+                injectToken(form, '');
+                HTMLFormElement.prototype.submit.call(form);
+                return Promise.resolve();
+            }
+            return challenge().then(function (token) {
+                injectToken(form, token);
+                HTMLFormElement.prototype.submit.call(form);
+            });
+        },
+        setFormRequired: function (form, required) {
+            if (!form) {
+                return;
+            }
+            form.setAttribute('data-turnstile-required', required ? '1' : '0');
+        },
         hasValidToken: hasValidToken,
         messages: MSG,
     };
@@ -465,6 +489,9 @@
     };
 
     window.fedTurnstileSubmitForm = function (form) {
+        if (form && form.hasAttribute('data-turnstile-required')) {
+            return window.FedTurnstileGate.submitFormIfRequired(form);
+        }
         if (window.FedTurnstileGate && window.FedTurnstileGate.submitForm) {
             return window.FedTurnstileGate.submitForm(form);
         }

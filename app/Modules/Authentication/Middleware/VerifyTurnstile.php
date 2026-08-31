@@ -2,7 +2,7 @@
 
 namespace App\Modules\Authentication\Middleware;
 
-use App\Modules\Authentication\Services\TurnstileService;
+use App\Modules\Authentication\Services\TurnstileAttemptGuard;
 use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
@@ -10,27 +10,30 @@ use Illuminate\Validation\ValidationException;
 class VerifyTurnstile
 {
     public function __construct(
-        protected TurnstileService $turnstileService,
+        protected TurnstileAttemptGuard $turnstileGuard,
     ) {}
 
     public function handle(Request $request, Closure $next): mixed
     {
-        if (! $this->turnstileService->isConfigured()) {
-            return $next($request);
-        }
+        $fail = $this->turnstileGuard->enforce(
+            TurnstileAttemptGuard::ACTION_FORGOT_PASSWORD,
+            $request,
+        );
 
-        $responseToken = trim((string) $request->input('cf-turnstile-response', ''));
+        if ($fail !== null) {
+            $request->session()->flash('turnstile_required', true);
 
-        if ($responseToken === '') {
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'ok' => false,
+                    'message' => $fail,
+                    'turnstile_required' => true,
+                ], 422);
+            }
+
             throw ValidationException::withMessages([
-                'cf-turnstile-response' => 'Please complete the Cloudflare verification first.',
-            ]);
-        }
-
-        if (! $this->turnstileService->verify($responseToken, $request->ip())) {
-            throw ValidationException::withMessages([
-                'cf-turnstile-response' => 'Cloudflare verification failed. Please try again.',
-            ]);
+                'cf-turnstile-response' => $fail,
+            ])->redirectTo(url()->previous() ?: route('password.request'));
         }
 
         return $next($request);

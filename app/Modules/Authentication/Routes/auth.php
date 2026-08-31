@@ -71,11 +71,12 @@ Route::middleware('guest')->group(function () {
 // Compatibility fallback: if a stale client hits GET /logout, avoid 405 and perform logout safely.
 Route::middleware('auth')->get('/logout', [AuthController::class, 'logout'])->name('logout.fallback');
 
-Route::middleware(['auth', 'single.session'])->group(function () {
+Route::middleware(['auth', 'session.timeout', 'single.session'])->group(function () {
     Route::post('/heartbeat', [AuthController::class, 'heartbeat'])->name('skfed.heartbeat');
+    Route::post('/session/continue', [AuthController::class, 'continueSession'])->name('skfed.session.continue');
 });
 
-Route::middleware(['auth', 'verified', 'single.session', 'sk_fed.access', 'trusted.device', 'prevent.back'])->group(function () {
+Route::middleware(['auth', 'session.timeout', 'verified', 'single.session', 'sk_fed.access', 'trusted.device', 'prevent.back'])->group(function () {
     Route::get('/change-password', [AuthController::class, 'showChangePassword'])->name('password.change');
     Route::get('/change-password', [AuthController::class, 'showChangePassword'])->name('change-password');
     Route::post('/change-password', [AuthController::class, 'updatePassword'])->name('password.change.update');

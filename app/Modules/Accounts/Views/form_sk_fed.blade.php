@@ -44,24 +44,23 @@
                     <div class="form-grid">
                         <div class="form-group-light">
                             <label class="form-label-light required">First Name</label>
-                            <input type="text" id="first_name" name="first_name" class="form-input-light input-uppercase" placeholder="FIRST NAME" required autocomplete="off" style="text-transform:uppercase;">
+                            <input type="text" id="first_name" name="first_name" class="form-input-light input-uppercase" placeholder="" required autocomplete="off" style="text-transform:uppercase;">
                             <span class="form-error-light"></span>
                         </div>
                         <div class="form-group-light">
                             <label class="form-label-light">Middle Name</label>
-                            <input type="text" id="middle_name" name="middle_name" class="form-input-light input-uppercase" placeholder="MIDDLE NAME" maxlength="100" autocomplete="off" style="text-transform:uppercase;">
+                            <input type="text" id="middle_name" name="middle_name" class="form-input-light input-uppercase" placeholder="" maxlength="100" autocomplete="off" style="text-transform:uppercase;">
                             <span class="form-error-light"></span>
                         </div>
                         <div class="form-group-light">
                             <label class="form-label-light required">Last Name</label>
-                            <input type="text" id="last_name" name="last_name" class="form-input-light input-uppercase" placeholder="LAST NAME" required autocomplete="off" style="text-transform:uppercase;">
+                            <input type="text" id="last_name" name="last_name" class="form-input-light input-uppercase" placeholder="" required autocomplete="off" style="text-transform:uppercase;">
                             <span class="form-error-light"></span>
                         </div>
                         <div class="form-group-light">
                             <label class="form-label-light">Suffix</label>
                             <select id="suffix" name="suffix" class="form-input-light">
-                                <option value="" disabled selected>Select Suffix</option>
-                                <option value="">None</option>
+                                <option value="NONE" selected>None</option>
                                 <option value="Jr.">Jr.</option>
                                 <option value="Sr.">Sr.</option>
                                 <option value="II">II</option>
@@ -93,7 +92,7 @@
                         </div>
                         <div class="form-group-light">
                             <label class="form-label-light required">Age</label>
-                            <input type="number" id="age" name="age" class="form-input-light" min="0" max="150" readonly>
+                            <input type="number" id="age" name="age" class="form-input-light" min="18" max="24" readonly>
                             <span class="form-error-light"></span>
                         </div>
                         <div class="form-group-light">
@@ -305,7 +304,7 @@
                         </div>
                         <div class="form-group-light">
                             <label for="edit_age" class="form-label-light required">Age</label>
-                            <input type="number" id="edit_age" name="age" class="form-input-light" min="0" max="150" readonly>
+                            <input type="number" id="edit_age" name="age" class="form-input-light" min="18" max="24" readonly>
                             <span class="form-error-light"></span>
                         </div>
                     </div>

@@ -135,7 +135,7 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     function runTurnstileThenSubmit() {
-        const turnstileRequired = window.FedTurnstileGate && window.FedTurnstileGate.isEnabled();
+        const turnstileRequired = form.dataset.turnstileRequired === '1';
 
         if (!turnstileRequired) {
             submitInProgress = true;

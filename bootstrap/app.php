@@ -1,5 +1,16 @@
 <?php
 
+use App\Http\Middleware\PreventBackHistory;
+use App\Modules\Authentication\Middleware\EnsureSingleSession;
+use App\Modules\Authentication\Middleware\EnsureSkFedAccess;
+use App\Modules\Authentication\Middleware\EnsureTrustedDevice;
+use App\Modules\Authentication\Middleware\SessionTimeout;
+use App\Modules\Authentication\Middleware\VerifyTurnstile;
+use App\Modules\Shared\Middleware\EnsureConsistentHost;
+use App\Modules\Turnover\Middleware\EnsureFederationLeadershipForTurnover;
+use App\Modules\Turnover\Middleware\EnsureTurnoverTermLock;
+use App\Modules\Turnover\Middleware\EnsureTurnoverWaitingOnly;
+use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -11,23 +22,24 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
-        $middleware->prependToGroup('web', \App\Modules\Shared\Middleware\EnsureConsistentHost::class);
+        $middleware->prependToGroup('web', EnsureConsistentHost::class);
 
         $middleware->alias([
-            'sk_fed.access' => \App\Modules\Authentication\Middleware\EnsureSkFedAccess::class,
-            'trusted.device' => \App\Modules\Authentication\Middleware\EnsureTrustedDevice::class,
-            'single.session' => \App\Modules\Authentication\Middleware\EnsureSingleSession::class,
-            'turnstile' => \App\Modules\Authentication\Middleware\VerifyTurnstile::class,
-            'prevent.back' => \App\Http\Middleware\PreventBackHistory::class,
-            'turnover.waiting' => \App\Modules\Turnover\Middleware\EnsureTurnoverWaitingOnly::class,
-            'turnover.leadership' => \App\Modules\Turnover\Middleware\EnsureFederationLeadershipForTurnover::class,
-            'turnover.term.lock' => \App\Modules\Turnover\Middleware\EnsureTurnoverTermLock::class,
+            'sk_fed.access' => EnsureSkFedAccess::class,
+            'trusted.device' => EnsureTrustedDevice::class,
+            'single.session' => EnsureSingleSession::class,
+            'session.timeout' => SessionTimeout::class,
+            'turnstile' => VerifyTurnstile::class,
+            'prevent.back' => PreventBackHistory::class,
+            'turnover.waiting' => EnsureTurnoverWaitingOnly::class,
+            'turnover.leadership' => EnsureFederationLeadershipForTurnover::class,
+            'turnover.term.lock' => EnsureTurnoverTermLock::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
-        $exceptions->render(function (\Illuminate\Database\QueryException $e, $request) {
+        $exceptions->render(function (QueryException $e, $request) {
             $errorMessage = $e->getMessage();
-            
+
             // Check if it's a connection error
             if (
                 str_contains($errorMessage, 'could not translate host name') ||

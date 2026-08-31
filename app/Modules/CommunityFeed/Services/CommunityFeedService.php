@@ -155,7 +155,7 @@ class CommunityFeedService
                 ['name', 'asc'],
             ])
             ->map(fn (array $official) => [
-                'name' => $official['name'],
+                'name' => Str::limit($official['name'], 50, '...'),
                 'role' => $official['role'],
                 'initials' => $official['initials'],
                 'logo_url' => $official['logo_url'],
@@ -226,7 +226,7 @@ class CommunityFeedService
                     'type_class' => in_array($type, ['event', 'announcement', 'activity', 'program', 'update'], true)
                         ? $type
                         : 'update',
-                    'author' => $post->user?->name ?: ('SK Brgy. '.($post->barangay?->name ?? '')),
+                    'author' => Str::limit($post->user?->name ?: ('SK Brgy. '.($post->barangay?->name ?? '')), 50, '...'),
                     'posted_at' => $post->created_at?->diffForHumans() ?? '',
                     'title' => $post->title ?: 'Barangay Update',
                     'text' => $post->body,

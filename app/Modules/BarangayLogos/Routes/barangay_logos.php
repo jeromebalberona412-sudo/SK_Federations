@@ -12,7 +12,7 @@ Route::get('/modules/barangay-logos/{type}/{file}', function (string $type, stri
 
     $mimeTypes = [
         'css' => 'text/css',
-        'js'  => 'application/javascript',
+        'js' => 'application/javascript',
     ];
 
     $extension = pathinfo($file, PATHINFO_EXTENSION);
@@ -21,7 +21,7 @@ Route::get('/modules/barangay-logos/{type}/{file}', function (string $type, stri
     return response()->file($path, ['Content-Type' => $mimeType]);
 })->where('type', 'css|js')->where('file', '.*');
 
-Route::middleware(['auth', 'verified', 'single.session', 'sk_fed.access', 'trusted.device', 'prevent.back'])
+Route::middleware(['auth', 'session.timeout', 'verified', 'single.session', 'sk_fed.access', 'trusted.device', 'prevent.back'])
     ->group(function () {
         Route::get('/barangay-logos', [BarangayLogoController::class, 'index'])->name('barangay-logos.index');
         Route::post('/barangay-logos/upload', [BarangayLogoController::class, 'upload'])->name('barangay-logos.upload');

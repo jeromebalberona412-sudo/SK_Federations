@@ -3,26 +3,19 @@
     <div class="kkp-paper kk-view-paper kk-profiling-form-scroll" id="kkEditFormScroll">
                     {{-- PAPER FORM HEADER --}}
                     <div class="kkp-form-header">
-                        <div class="kkp-form-title-col">
-                            <div class="kkp-form-main-title">KK Survey Questionnaire</div>
+                        <div class="kkp-form-main-title">KK Survey Questionnaire</div>
+                        <div class="kkp-form-header-right">
+                            <div class="kkp-form-annex">ANNEX 3</div>
                             <div class="kkp-form-header-fields">
-                                <div class="kkp-hdr-field">
+                                <div class="kkp-hdr-field kkp-hdr-field--respondent">
                                     <span class="kkp-hdr-label">Respondent #:</span>
-                                    <input type="text" id="kkEditRespondentNumber" class="kkp-hdr-input kkp-hdr-input-readonly" value="Auto-assigned on save" readonly tabindex="-1">
+                                    <input type="text" id="kkEditRespondentNumber" class="kkp-hdr-input kkp-hdr-input-readonly kkp-hdr-input-auto" value="Auto-assigned on save" readonly tabindex="-1">
                                 </div>
                                 <div class="kkp-hdr-field">
                                     <label class="kkp-hdr-label" for="kkEditDate">Date:</label>
                                     <input type="text" id="kkEditDate" class="kkp-hdr-input kkp-hdr-input-readonly" readonly tabindex="-1">
                                 </div>
                             </div>
-                        </div>
-                        <div class="kkp-form-logo">
-                            <img
-                                id="kkEditBarangayLogo"
-                                src="{{ url('/modules/authentication/images/skoneportal_logo.webp') }}"
-                                alt="Barangay SK Logo"
-                                onerror="this.onerror=null;this.src='{{ url('/modules/authentication/images/skoneportal_logo.webp') }}';"
-                            >
                         </div>
                     </div>
 
@@ -201,17 +194,24 @@
                         {{-- RIGHT COLUMN --}}
                         <div class="kkp-demo-col">
                             <div class="kkp-demo-block">
-                                <div class="kkp-demo-block-label">Youth Classification</div>
-                                <div class="kkp-demo-block-options">
-                                    <label class="kkp-chk-lbl"><input type="checkbox" class="kkp-sq-chk" name="kkEditYouthClassification" value="In School Youth" onchange="kkEditSingleCheck(this,'kkEditYouthClassification')"> In school Youth</label>
-                                    <label class="kkp-chk-lbl"><input type="checkbox" class="kkp-sq-chk" name="kkEditYouthClassification" value="Out of School Youth" onchange="kkEditSingleCheck(this,'kkEditYouthClassification')"> Out of School Youth</label>
-                                    <label class="kkp-chk-lbl"><input type="checkbox" class="kkp-sq-chk" name="kkEditYouthClassification" value="Working Youth" onchange="kkEditSingleCheck(this,'kkEditYouthClassification')"> Working Youth</label>
-                                    <label class="kkp-chk-lbl"><input type="checkbox" class="kkp-sq-chk" name="kkEditYouthClassification" value="Youth w/ Specific Needs" onchange="kkEditSingleCheck(this,'kkEditYouthClassification')"> Youth w/ Specific needs:</label>
-                                    <label class="kkp-chk-lbl kkp-chk-indent"><input type="checkbox" class="kkp-sq-chk" name="kkEditYouthClassification" value="Person w/ Disability" onchange="kkEditSingleCheck(this,'kkEditYouthClassification')"> Person w/ Disability</label>
-                                    <label class="kkp-chk-lbl kkp-chk-indent"><input type="checkbox" class="kkp-sq-chk" name="kkEditYouthClassification" value="Children in Conflict w/ Law" onchange="kkEditSingleCheck(this,'kkEditYouthClassification')"> Children In Conflict w/ Law</label>
-                                    <label class="kkp-chk-lbl kkp-chk-indent"><input type="checkbox" class="kkp-sq-chk" name="kkEditYouthClassification" value="Indigenous People" onchange="kkEditSingleCheck(this,'kkEditYouthClassification')"> Indigenous People</label>
+                                <div class="kkp-demo-block-label">Youth<br>Classification</div>
+                                <div class="kkp-demo-block-options kkp-youth-class-layout">
+                                    <div class="kkp-youth-class-main">
+                                        <label class="kkp-chk-lbl"><input type="checkbox" class="kkp-sq-chk" name="kkEditYouthClassification" value="In School Youth" onchange="kkEditSingleCheck(this,'kkEditYouthClassification')"> In school Youth</label>
+                                        <label class="kkp-chk-lbl"><input type="checkbox" class="kkp-sq-chk" name="kkEditYouthClassification" value="Out of School Youth" onchange="kkEditSingleCheck(this,'kkEditYouthClassification')"> Out of School Youth</label>
+                                        <label class="kkp-chk-lbl"><input type="checkbox" class="kkp-sq-chk" name="kkEditYouthClassification" value="Working Youth" onchange="kkEditSingleCheck(this,'kkEditYouthClassification')"> Working Youth</label>
+                                        <label class="kkp-chk-lbl"><input type="checkbox" class="kkp-sq-chk" name="kkEditYouthClassification" value="Youth w/ Specific Needs" onchange="kkEditSingleCheck(this,'kkEditYouthClassification')"> Youth w/ Specific Needs:</label>
+                                    </div>
+                                    <div class="kkp-youth-class-side" aria-label="Youth with specific needs options">
+                                        <span class="kkp-youth-specific-brace" aria-hidden="true">{</span>
+                                        <div class="kkp-youth-specific-options">
+                                            <label class="kkp-chk-lbl"><input type="checkbox" class="kkp-sq-chk" name="kkEditYouthClassification" value="Person w/ Disability" onchange="kkEditSingleCheck(this,'kkEditYouthClassification')"> Person w/ Disability</label>
+                                            <label class="kkp-chk-lbl"><input type="checkbox" class="kkp-sq-chk" name="kkEditYouthClassification" value="Children in Conflict w/ Law" onchange="kkEditSingleCheck(this,'kkEditYouthClassification')"> Children In Conflict w/ Law</label>
+                                            <label class="kkp-chk-lbl"><input type="checkbox" class="kkp-sq-chk" name="kkEditYouthClassification" value="Indigenous People" onchange="kkEditSingleCheck(this,'kkEditYouthClassification')"> Indigenous People</label>
+                                        </div>
+                                    </div>
+                                    <input type="hidden" id="kkEditYouthClassification" value="">
                                 </div>
-                                <input type="hidden" id="kkEditYouthClassification" value="">
                             </div>
 
                             <div class="kkp-demo-block">
@@ -290,24 +290,6 @@
                                     </div>
                                 </div>
                             </div>
-                        </div>
-                    </div>
-
-                    {{-- FOOTER: FB Account + Group Chat (with spacing) --}}
-                    <div class="kkp-footer-row">
-                        <div class="kkp-footer-fb">
-                            <div class="kkp-footer-fb-label-col">
-                                <label class="kkp-inline-label" for="kkEditFacebookAccount">FB Account:</label>
-                            </div>
-                            <div class="kkp-footer-fb-field">
-                                <input type="text" id="kkEditFacebookAccount" class="kkp-uline kkp-uline-fb" placeholder=" ">
-                            </div>
-                        </div>
-                        <div class="kkp-footer-chat">
-                            <span class="kkp-inline-label">Willing to join the group chat?</span>
-                            <label class="kkp-chk-lbl"><input type="checkbox" class="kkp-sq-chk" name="kkEditWillingToJoinGroupChat" value="Yes" onchange="kkEditSingleCheck(this,'kkEditWillingToJoinGroupChat')"> Yes</label>
-                            <label class="kkp-chk-lbl"><input type="checkbox" class="kkp-sq-chk" name="kkEditWillingToJoinGroupChat" value="No" onchange="kkEditSingleCheck(this,'kkEditWillingToJoinGroupChat')"> No</label>
-                            <input type="hidden" id="kkEditWillingToJoinGroupChat" value="">
                         </div>
                     </div>
 

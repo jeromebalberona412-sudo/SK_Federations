@@ -4,7 +4,7 @@ use App\Modules\BarangayMonitoring\Controllers\BarangayMonitoringController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/modules/barangay-monitoring/{type}/{file}', function ($type, $file) {
-    $path = __DIR__ . "/../assets/{$type}/{$file}";
+    $path = __DIR__."/../assets/{$type}/{$file}";
 
     if (! file_exists($path)) {
         abort(404);
@@ -26,7 +26,7 @@ Route::get('/modules/barangay-monitoring/{type}/{file}', function ($type, $file)
     return response()->file($path, ['Content-Type' => $mimeType]);
 })->where('type', 'css|js|images')->where('file', '.*');
 
-Route::middleware(['auth', 'verified', 'single.session', 'sk_fed.access', 'trusted.device', 'prevent.back'])
+Route::middleware(['auth', 'session.timeout', 'verified', 'single.session', 'sk_fed.access', 'trusted.device', 'prevent.back'])
     ->group(function () {
         Route::get('/barangay-monitoring', [BarangayMonitoringController::class, 'index'])->name('barangay-monitoring');
         Route::get('/barangay-monitoring/{barangay}', [BarangayMonitoringController::class, 'show'])->name('barangay-monitoring.show');

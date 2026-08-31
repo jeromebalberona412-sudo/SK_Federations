@@ -7,12 +7,18 @@
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
-    <title>Set New Password</title>
+    <meta name="csrf-token" content="{{ csrf_token() }}">
+    <title>Set New Password - SK OnePortal</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="{{ url('/modules/authentication/css/style.css') }}" rel="stylesheet">
+    @vite([
+        'app/Modules/Authentication/assets/css/auth-base.css',
+        'app/Modules/Authentication/assets/css/login.css',
+        'app/Modules/Authentication/assets/css/reset-password.css',
+        'app/Modules/Authentication/assets/js/reset-password.js',
+    ])
     <link rel="stylesheet" href="{{ url('/shared/css/loading.css') }}">
 </head>
-<body>
+<body class="auth-page-reset">
     <script>
         (function() {
             @auth
@@ -26,7 +32,6 @@
     </script>
 
     <div class="login-page">
-        {{-- Background --}}
         <div class="bg-wrapper">
             <div class="bg-image"></div>
             <div class="gradient-overlay"></div>
@@ -37,46 +42,44 @@
             </div>
         </div>
 
-        {{-- Main Split Layout --}}
         <div class="login-container">
-
-            {{-- LEFT: Logo & Branding --}}
             <div class="logo-container">
                 <div class="collab-logo-wrapper">
                     <div class="logo-glow-wrapper logo-left">
-                        <img src="{{ url('/modules/authentication/images/skoneportal_logo.webp') }}"
-                             alt="SK OnePortal Logo"
-                             class="collab-logo">
+                        <img src="{{ asset('Images/SK_OnePortal_logo.png') }}" alt="SK OnePortal Logo" class="collab-logo">
                     </div>
                     <div class="logo-glow-wrapper logo-right">
-                        <img src="{{ url('/modules/authentication/images/Sk_Fed_logo.png') }}"
-                             alt="SK Federations Logo"
-                             class="collab-logo">
+                        <img src="{{ asset('Images/SK_Federations_logo.jpg') }}" alt="SK Federations Logo" class="collab-logo">
                     </div>
                 </div>
                 <h1 class="brand-title">SK OnePortal</h1>
-                <p class="brand-subtitle">SK Federation Portal – Santa Cruz, Laguna</p>
+                <p class="brand-subtitle">SK Federation Portal &ndash; Santa Cruz, Laguna</p>
             </div>
 
-            {{-- RIGHT: Reset Password Card --}}
             <div class="login-form-container">
                 <div class="login-card-inner">
-                    <div class="form-header" style="text-align:center;margin-bottom:1.75rem;">
-                        <p style="font-size:1.35rem;font-weight:800;color:#0f172a;letter-spacing:-0.01em;margin:0 0 0.5rem;">
+                    <div class="form-header" style="text-align:center;margin-bottom:1.35rem;">
+                        <p style="font-size:1.3rem;font-weight:800;color:#0f172a;letter-spacing:-0.01em;margin:0 0 0.4rem;">
                             Set New Password
                         </p>
-                        <p style="font-size:0.875rem;color:#64748b;font-weight:400;margin:0;line-height:1.55;">
+                        <p style="font-size:0.9rem;color:#64748b;font-weight:400;margin:0;line-height:1.5;">
                             Create a new secure password for your account.
                         </p>
                     </div>
 
                     @if ($errors->has('email') || $errors->has('reset'))
-                        <div class="alert alert-danger" role="alert" style="margin-bottom: 20px; border-radius: 12px; border: 1px solid #f87171;">
+                        <div class="alert alert-danger" role="alert" style="margin-bottom: 16px; border-radius: 12px;">
                             {{ $errors->first('email') ?: $errors->first('reset') }}
                         </div>
                     @endif
 
-                    <form id="reset-password-form" method="POST" action="{{ route('password.update', [], false) }}" class="login-form" data-password-min-length="{{ (int) config('sk_fed_auth.password_reset.password.min_length', 8) }}" data-password-max-length="{{ (int) config('sk_fed_auth.password_reset.password.max_length', 64) }}" novalidate>
+                    <form id="reset-password-form"
+                          method="POST"
+                          action="{{ route('password.update', [], false) }}"
+                          class="login-form"
+                          data-password-min-length="{{ (int) config('sk_fed_auth.password_reset.password.min_length', 8) }}"
+                          data-password-max-length="{{ (int) config('sk_fed_auth.password_reset.password.max_length', 64) }}"
+                          novalidate>
                         @csrf
                         <input type="hidden" name="token" value="{{ old('token', $token) }}">
                         <input type="hidden" name="email" value="{{ old('email', $email) }}">
@@ -162,151 +165,20 @@
                             <div class="invalid-feedback d-block" id="confirm-password-error" style="display: none;"></div>
                         </div>
 
-                        <button type="submit" class="login-btn btn btn-primary w-100">
+                        <button type="submit" class="login-btn btn btn-primary w-100" id="resetSubmitBtn">
                             Set New Password
                         </button>
                     </form>
 
                     <div class="form-footer">
-                        <a href="{{ route('login', [], false) }}">
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align: middle; margin-right: 4px;">
-                                <path d="M19 12H5M12 19l-7-7 7-7"/>
-                            </svg>
-                            Back to login
-                        </a>
+                        <a href="{{ route('login', [], false) }}" id="resetBackToLogin">Back to login</a>
                     </div>
                 </div>
             </div>
-
         </div>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="{{ url('/shared/js/loading.js') }}"></script>
-    <script>
-        const resetPasswordForm = document.getElementById('reset-password-form');
-        const newPasswordInput = document.getElementById('new-password');
-        const confirmPasswordInput = document.getElementById('confirm-password');
-        const newPasswordError = document.getElementById('new-password-error');
-        const confirmPasswordError = document.getElementById('confirm-password-error');
-        const passwordRules = document.getElementById('passwordRules');
-
-        function clearError(input, errorElement) {
-            input.classList.remove('is-invalid');
-            errorElement.style.display = 'none';
-            errorElement.textContent = '';
-        }
-
-        function showError(input, errorElement, message) {
-            input.classList.add('is-invalid');
-            errorElement.textContent = message;
-            errorElement.style.display = 'block';
-        }
-
-        function validatePasswordStrength(password) {
-            const minLength = Number.parseInt(resetPasswordForm.dataset.passwordMinLength || '8', 10);
-
-            return {
-                isValid: password.length >= minLength
-                    && /[a-z]/.test(password)
-                    && /[A-Z]/.test(password)
-                    && /\d/.test(password)
-                    && /[^A-Za-z0-9]/.test(password),
-                hasMinLength: password.length >= minLength,
-                hasLowerCase: /[a-z]/.test(password),
-                hasUpperCase: /[A-Z]/.test(password),
-                hasNumber: /\d/.test(password),
-                hasSpecial: /[^A-Za-z0-9]/.test(password),
-            };
-        }
-
-        function updatePasswordRules(password) {
-            if (!passwordRules) {
-                return;
-            }
-
-            const state = validatePasswordStrength(password);
-            [
-                { id: 'rule-length', ok: state.hasMinLength },
-                { id: 'rule-lowercase', ok: state.hasLowerCase },
-                { id: 'rule-uppercase', ok: state.hasUpperCase },
-                { id: 'rule-number', ok: state.hasNumber },
-                { id: 'rule-special', ok: state.hasSpecial },
-            ].forEach(function (rule) {
-                const node = document.getElementById(rule.id);
-                if (node) {
-                    node.classList.toggle('ok', rule.ok);
-                    node.classList.toggle('valid', rule.ok);
-                }
-            });
-
-            const showRules = password.length > 0 && !state.isValid;
-            passwordRules.hidden = !showRules;
-            passwordRules.classList.toggle('active', showRules);
-        }
-
-        newPasswordInput.addEventListener('input', function() {
-            clearError(this, newPasswordError);
-            updatePasswordRules(this.value);
-        });
-
-        confirmPasswordInput.addEventListener('input', function() {
-            clearError(this, confirmPasswordError);
-        });
-
-        resetPasswordForm.addEventListener('submit', function(e) {
-            const maxLength = Number.parseInt(resetPasswordForm.dataset.passwordMaxLength || '64', 10);
-            const strength = validatePasswordStrength(newPasswordInput.value);
-            let isValid = true;
-
-            clearError(newPasswordInput, newPasswordError);
-            clearError(confirmPasswordInput, confirmPasswordError);
-
-            if (!strength.isValid) {
-                e.preventDefault();
-                showError(newPasswordInput, newPasswordError, 'Please meet all password requirements.');
-                updatePasswordRules(newPasswordInput.value);
-                isValid = false;
-            } else if (newPasswordInput.value.length > maxLength) {
-                e.preventDefault();
-                showError(newPasswordInput, newPasswordError, 'Password must not exceed ' + maxLength + ' characters.');
-                isValid = false;
-            }
-
-            if (confirmPasswordInput.value !== newPasswordInput.value) {
-                e.preventDefault();
-                showError(confirmPasswordInput, confirmPasswordError, 'Passwords do not match.');
-                isValid = false;
-            }
-
-            if (isValid) {
-                LoadingScreen.show('Resetting Password', 'Please wait...');
-            }
-        });
-
-        // Password visibility toggle
-        document.getElementById('newPwToggleBtn').addEventListener('click', function() {
-            const show = newPasswordInput.type === 'password';
-            newPasswordInput.type = show ? 'text' : 'password';
-            this.setAttribute('aria-label', show ? 'Hide password' : 'Show password');
-            this.classList.toggle('pw-visible', show);
-        });
-
-        document.getElementById('confirmPwToggleBtn').addEventListener('click', function() {
-            const show = confirmPasswordInput.type === 'password';
-            confirmPasswordInput.type = show ? 'text' : 'password';
-            this.setAttribute('aria-label', show ? 'Hide password' : 'Show password');
-            this.classList.toggle('pw-visible', show);
-        });
-
-        // Show loading on back to login
-        document.querySelector('.form-footer a').addEventListener('click', function(e) {
-            e.preventDefault();
-            LoadingScreen.show('Redirecting', 'Taking you to login...');
-            setTimeout(() => {
-                window.location.href = this.href;
-            }, 300);
-        });
-    </script>
 </body>
 </html>

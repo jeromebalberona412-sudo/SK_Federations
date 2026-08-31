@@ -7,18 +7,20 @@ use Carbon\CarbonInterface;
 
 final class SkOfficialTermDates
 {
-    public const FIRST_START = '2023-11-30';
+    public const FIRST_START = '2023-01-01';
 
-    public const TERM_YEARS = 3;
-    public const MAX_TERM_YEARS = 4;
+    public const TERM_YEARS = 5;
 
-    public const MONTH = 11;
+    public const START_ADVANCE_DAYS = 30;
 
-    public const DAY = 30;
-
-    public static function firstStart(): Carbon
+    public static function defaultStart(?CarbonInterface $asOf = null): string
     {
-        return Carbon::create(2023, self::MONTH, self::DAY)->startOfDay();
+        return ($asOf ?? Carbon::now())->copy()->startOfDay()->toDateString();
+    }
+
+    public static function defaultEnd(?CarbonInterface $asOf = null): string
+    {
+        return self::termEndForStart(self::defaultStart($asOf))->toDateString();
     }
 
     public static function termEndForStart(CarbonInterface|string $start): Carbon
@@ -26,58 +28,24 @@ final class SkOfficialTermDates
         return Carbon::parse($start)->startOfDay()->addYears(self::TERM_YEARS);
     }
 
-    /**
-     * SK term starts every 3 years on November 30, beginning 2023-11-30 (RA 11935).
-     *
-     * @return list<string>
-     */
-    public static function allowedStartDates(?CarbonInterface $asOf = null): array
+    public static function maxStart(?CarbonInterface $asOf = null): string
     {
-        $asOf = ($asOf ?? Carbon::now())->copy()->startOfDay();
-        $dates = [];
-        $cursor = self::firstStart();
-
-        while ($cursor->lte($asOf)) {
-            $dates[] = $cursor->toDateString();
-            $cursor = $cursor->copy()->addYears(self::TERM_YEARS);
-        }
-
-        return $dates;
+        return ($asOf ?? Carbon::now())->copy()->startOfDay()->addDays(self::START_ADVANCE_DAYS)->toDateString();
     }
 
     public static function currentStart(?CarbonInterface $asOf = null): string
     {
-        $allowed = self::allowedStartDates($asOf);
-
-        if ($allowed === []) {
-            return self::FIRST_START;
-        }
-
-        return (string) $allowed[array_key_last($allowed)];
-    }
-
-    public static function isValidStart(string $date, ?CarbonInterface $asOf = null): bool
-    {
-        return in_array($date, self::allowedStartDates($asOf), true);
-    }
-
-    public static function isValidPair(string $start, string $end, ?CarbonInterface $asOf = null): bool
-    {
-        if (! self::isValidStart($start, $asOf)) {
-            return false;
-        }
-
-        return $end === self::termEndForStart($start)->toDateString();
+        return self::defaultStart($asOf);
     }
 
     public static function startRuleMessage(): string
     {
-        return 'Term start must be November 30 of an SK term year (2023, 2026, 2029, …) under RA 11935. December 1 is not the legal commencement.';
+        return 'Term start date must be on or after '.self::FIRST_START.' and at most '.self::START_ADVANCE_DAYS.' days in the future.';
     }
 
     public static function endRuleMessage(): string
     {
-        return 'Term end must be between 3 and 4 years after the term start date.';
+        return 'Term end date must be exactly '.self::TERM_YEARS.' years after the term start date.';
     }
 
     /**
@@ -95,7 +63,10 @@ final class SkOfficialTermDates
             return [];
         }
 
-        if (! self::isValidStart($startDate, $asOf)) {
+        $asOfDay = ($asOf ?? Carbon::now())->copy()->startOfDay();
+        $maxStart = self::maxStart($asOfDay);
+
+        if ($startDate < self::FIRST_START || $startDate > $maxStart) {
             return ['term_start' => self::startRuleMessage()];
         }
 
@@ -109,10 +80,8 @@ final class SkOfficialTermDates
             return [];
         }
 
-        $minimumEnd = self::termEndForStart($startDate)->toDateString();
-        $maximumEnd = Carbon::parse($startDate)->startOfDay()->addYears(self::MAX_TERM_YEARS)->toDateString();
-
-        if ($endDate < $minimumEnd || $endDate > $maximumEnd) {
+        $requiredEnd = self::termEndForStart($startDate)->toDateString();
+        if ($endDate !== $requiredEnd) {
             return ['term_end' => self::endRuleMessage()];
         }
 

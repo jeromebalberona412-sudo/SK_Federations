@@ -39,9 +39,7 @@ class StoreAccountRequest extends FormRequest
         foreach (['first_name', 'last_name', 'middle_name'] as $field) {
             if ($this->filled($field)) {
                 $value = mb_strtoupper(trim((string) $this->input($field)), 'UTF-8');
-                if ($this->input('role') === User::ROLE_SK_OFFICIAL && $field !== 'first_name') {
-                    $value = preg_replace('/\s+/u', '', $value) ?? $value;
-                }
+                $value = preg_replace('/\s+/u', ' ', $value) ?? $value;
                 $this->merge([$field => $value]);
             }
         }
@@ -74,6 +72,16 @@ class StoreAccountRequest extends FormRequest
             }
         }
 
+        if ($this->filled('date_of_birth')) {
+            try {
+                $this->merge([
+                    'age' => Carbon::parse((string) $this->input('date_of_birth'))->age,
+                ]);
+            } catch (\Throwable) {
+                // Keep submitted age; validation will catch invalid DOB.
+            }
+        }
+
         if (! $this->filled('status')) {
             $this->merge(['status' => User::STATUS_ACTIVE]);
         }
@@ -88,22 +96,21 @@ class StoreAccountRequest extends FormRequest
 
         $isOfficial = $this->input('role') === User::ROLE_SK_OFFICIAL;
         $isFederation = $this->input('role') === User::ROLE_SK_FED;
-        $currentYear = Carbon::now()->year;
-        $termStartMin = $isOfficial ? SkOfficialTermDates::FIRST_START : "{$currentYear}-01-01";
-        $termStartMax = $isOfficial ? Carbon::now()->toDateString() : "{$currentYear}-12-31";
-        $ageMin = 15;
-        $ageMax = 30;
+        $termStartMin = SkOfficialTermDates::FIRST_START;
+        $termStartMax = SkOfficialTermDates::maxStart();
+        $ageMin = 18;
+        $ageMax = 24;
 
-        $nameRules = $isOfficial
-            ? ['required', 'string', 'min:3', 'max:50', 'regex:/^(?!\s)[A-Z.\-]+(?: [A-Z.\-]+)?$/u']
-            : ['required', 'string', 'max:100', 'regex:/^[A-Z\s\-\']+$/u'];
+        $nameMin = $isOfficial ? 2 : 3;
+        $nameMax = $isOfficial ? 150 : 100;
+        $nameRules = ['required', 'string', 'min:'.$nameMin, 'max:'.$nameMax, 'regex:/^(?!\s)[A-Z.\-\']+(?: [A-Z.\-\']+)*$/u'];
+        $middleNameRules = ['nullable', 'string', 'min:'.$nameMin, 'max:'.$nameMax, 'regex:/^(?!\s)[A-Z.\-\']+(?: [A-Z.\-\']+)*$/u'];
 
-        $middleNameRules = $isOfficial
-            ? ['nullable', 'string', 'min:3', 'max:50', 'regex:/^[A-Z\-\']+$/u']
-            : ['nullable', 'string', 'max:100', 'regex:/^[A-Z\s\-\']*$/u'];
+        $dobMax = Carbon::today()->subYears($ageMin)->toDateString();
+        $dobMin = Carbon::today()->subYears($ageMax)->toDateString();
 
         $dateOfBirthRules = ($isOfficial || $isFederation)
-            ? ['required', 'date', 'before:today']
+            ? ['required', 'date', 'before:today', 'after_or_equal:'.$dobMin, 'before_or_equal:'.$dobMax]
             : [$requiresDemographics ? 'required' : 'nullable', 'date', 'before:today'];
 
         $ageRules = ($isOfficial || $isFederation)
@@ -133,7 +140,7 @@ class StoreAccountRequest extends FormRequest
                 'nullable',
                 'string',
                 'min:1',
-                'max:4',
+                'max:5',
                 'regex:/^\S+$/u',
             ],
             'sex' => [$requiresDemographics ? 'required' : 'nullable', Rule::in(['Male', 'Female']), 'not_in:'],
@@ -170,8 +177,8 @@ class StoreAccountRequest extends FormRequest
                 $suffix = $this->input('suffix');
                 $allowedSuffixes = ['Jr.', 'Sr.', 'II', 'III', 'IV', 'V'];
                 if ($suffix !== null && $suffix !== '' && $suffix !== '__other__' && $suffix !== 'NONE' && ! in_array($suffix, $allowedSuffixes, true)) {
-                    if (strlen((string) $suffix) < 1 || strlen((string) $suffix) > 4 || preg_match('/\s/u', (string) $suffix)) {
-                        $validator->errors()->add('suffix_other', 'Other suffix must be 1-4 characters with no spaces.');
+                    if (strlen((string) $suffix) < 1 || strlen((string) $suffix) > 5 || preg_match('/\s/u', (string) $suffix)) {
+                        $validator->errors()->add('suffix_other', 'Other suffix must be 1-5 characters with no spaces.');
                     }
                 }
             }
@@ -183,26 +190,8 @@ class StoreAccountRequest extends FormRequest
                 return;
             }
 
-            if ($this->input('role') === User::ROLE_SK_OFFICIAL) {
-                foreach (SkOfficialTermDates::errorsFor($termStart, $termEnd) as $field => $message) {
-                    $validator->errors()->add($field, $message);
-                }
-
-                return;
-            }
-
-            try {
-                $start = Carbon::parse($termStart)->startOfDay();
-                $end = Carbon::parse($termEnd)->startOfDay();
-            } catch (\Throwable) {
-                return;
-            }
-
-            if ($end->ne($start->copy()->addYears(4))) {
-                $validator->errors()->add(
-                    'term_end',
-                    'Term end date must be exactly 4 years after the term start date.'
-                );
+            foreach (SkOfficialTermDates::errorsFor($termStart, $termEnd) as $field => $message) {
+                $validator->errors()->add($field, $message);
             }
         });
     }
@@ -216,34 +205,31 @@ class StoreAccountRequest extends FormRequest
             'email.unique' => 'This email is already taken.',
             'email.required' => 'Email address is required.',
             'email.email' => 'Please enter a valid email address.',
-            'first_name.regex' => 'First name must use uppercase letters only, with at most one space and no leading spaces.',
-            'first_name.min' => 'First name must be at least 3 characters.',
-            'first_name.max' => 'First name must not exceed 50 characters.',
-            'last_name.regex' => 'Last name must use uppercase letters only, with no spaces.',
-            'last_name.min' => 'Last name must be at least 3 characters.',
-            'last_name.max' => 'Last name must not exceed 50 characters.',
-            'middle_name.regex' => 'Middle name must use uppercase letters only, with no spaces.',
-            'middle_name.min' => 'Middle name must be at least 3 characters when provided.',
-            'middle_name.max' => 'Middle name must not exceed 50 characters.',
+            'first_name.regex' => 'First name must use uppercase letters only; need a letter before each space; no pure spaces.',
+            'first_name.min' => 'First name must be at least 2 characters.',
+            'first_name.max' => 'First name must not exceed 150 characters.',
+            'last_name.regex' => 'Last name must use uppercase letters only; need a letter before each space; no pure spaces.',
+            'last_name.min' => 'Last name must be at least 2 characters.',
+            'last_name.max' => 'Last name must not exceed 150 characters.',
+            'middle_name.regex' => 'Middle name must use uppercase letters only; need a letter before each space; no pure spaces.',
+            'middle_name.min' => 'Middle name must be at least 2 characters when provided.',
+            'middle_name.max' => 'Middle name must not exceed 150 characters.',
             'email.regex' => 'Email must be a @gmail.com address with 6-30 characters before @.',
             'date_of_birth.before' => 'Birthdate must be before today.',
-            'age.min' => 'Age must be at least 15.',
-            'age.max' => 'Age must not exceed 30.',
+            'date_of_birth.after_or_equal' => 'Birthdate must correspond to age 18–24 only.',
+            'date_of_birth.before_or_equal' => 'Birthdate must correspond to age 18–24 only.',
+            'age.min' => 'Age must be at least 18.',
+            'age.max' => 'Age must not exceed 24.',
             'suffix_other.regex' => 'Other suffix must not contain spaces.',
-            'suffix_other.max' => 'Other suffix must not exceed 4 characters.',
+            'suffix_other.min' => 'Other suffix must be at least 1 character.',
+            'suffix_other.max' => 'Other suffix must not exceed 5 characters.',
             'contact_number.regex' => 'Contact number must be 11 digits starting with 09.',
             'region.in' => 'Region must be IV-A CALABARZON.',
             'province.in' => 'Province must be Laguna.',
             'municipality.in' => 'Municipality must be Santa Cruz.',
-            'term_start.after_or_equal' => $this->input('role') === User::ROLE_SK_OFFICIAL
-                ? SkOfficialTermDates::startRuleMessage()
-                : 'Term start date must be within the current year.',
-            'term_start.before_or_equal' => $this->input('role') === User::ROLE_SK_OFFICIAL
-                ? 'Term start date cannot be in the future. Use the current SK term that began on November 30.'
-                : 'Term start date must be within the current year.',
-            'term_end.after' => $this->input('role') === User::ROLE_SK_OFFICIAL
-                ? SkOfficialTermDates::endRuleMessage()
-                : 'Term end date must be exactly 4 years after the term start date.',
+            'term_start.after_or_equal' => SkOfficialTermDates::startRuleMessage(),
+            'term_start.before_or_equal' => SkOfficialTermDates::startRuleMessage(),
+            'term_end.after' => SkOfficialTermDates::endRuleMessage(),
         ];
     }
 }

@@ -21,7 +21,7 @@ Route::get('/modules/accounts/{type}/{file}', function (string $type, string $fi
     return response()->file($path, ['Content-Type' => $mimeType]);
 })->where('type', 'css|js')->where('file', '.*');
 
-Route::middleware(['auth', 'verified', 'single.session', 'sk_fed.access', 'trusted.device', 'prevent.back'])
+Route::middleware(['auth', 'session.timeout', 'verified', 'single.session', 'sk_fed.access', 'trusted.device', 'prevent.back'])
     ->group(function () {
         Route::get('/manage-account', [AdminAccountController::class, 'indexFederation'])->name('accounts.manage');
 

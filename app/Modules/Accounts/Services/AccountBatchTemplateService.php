@@ -210,7 +210,7 @@ class AccountBatchTemplateService
             mkdir($directory, 0755, true);
         }
 
-        $zip = new \ZipArchive();
+        $zip = new \ZipArchive;
         if ($zip->open($path, \ZipArchive::CREATE | \ZipArchive::OVERWRITE) !== true) {
             abort(500, 'Unable to generate batch template file.');
         }
@@ -224,6 +224,13 @@ class AccountBatchTemplateService
         $sharedIndex = 0;
         $indexMap = [];
         $sheetRows = '';
+        $colsXml = '<cols>';
+
+        foreach ($headers as $columnIndex => $header) {
+            $headerLength = max(18, mb_strlen((string) $header) + 6);
+            $colsXml .= '<col min="'.($columnIndex + 1).'" max="'.($columnIndex + 1).'" width="'.$headerLength.'" customWidth="1"/>';
+        }
+        $colsXml .= '</cols>';
 
         foreach ($rows as $rowNumber => $rowValues) {
             $sheetCells = '';
@@ -262,6 +269,7 @@ class AccountBatchTemplateService
             .'<sheets><sheet name="Template" sheetId="1" r:id="rId1"/></sheets></workbook>');
         $zip->addFromString('xl/worksheets/sheet1.xml', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
             .'<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
+            .$colsXml
             .'<sheetData>'.$sheetRows.'</sheetData></worksheet>');
         $zip->addFromString('xl/sharedStrings.xml', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
             .'<sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" count="'.$sharedIndex.'" uniqueCount="'.$sharedIndex.'">'

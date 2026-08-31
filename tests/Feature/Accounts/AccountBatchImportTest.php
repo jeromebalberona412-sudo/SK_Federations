@@ -26,7 +26,7 @@ it('validates batch rows using simplified officials template rules', function ()
             'date_of_birth' => '2000-01-01',
             'contact_number' => '09171234567',
             'term_start' => '2023-11-30',
-            'term_end' => '2026-11-30',
+            'term_end' => '2028-11-30',
         ],
     ], User::ROLE_SK_OFFICIAL);
 
@@ -49,7 +49,7 @@ it('normalizes valid officials batch rows with strict template validation', func
         'barangay' => 'San Roque',
         'position' => 'Chairperson',
         'term_start' => '2023-11-30',
-        'term_end' => '2026-11-30',
+        'term_end' => '2028-11-30',
     ], User::ROLE_SK_OFFICIAL, true);
 
     expect($row['email'])->toContain('@gmail.com')
@@ -117,7 +117,7 @@ it('rejects duplicate emails during batch validation', function () {
             'date_of_birth' => '2005-05-10',
             'contact_number' => '09179876543',
             'term_start' => '2023-11-30',
-            'term_end' => '2026-11-30',
+            'term_end' => '2028-11-30',
         ],
     ], User::ROLE_SK_OFFICIAL);
 
@@ -145,13 +145,13 @@ it('parses excel serials, us dates, and numeric age without dropping valid value
         'province' => 'Laguna',
         'municipality' => 'Santa Cruz',
         'term_start' => (int) $excelEpoch->diffInDays(Carbon\Carbon::create(2023, 11, 30)->startOfDay()),
-        'term_end' => '11/30/2026',
+        'term_end' => '11/30/2028',
     ], User::ROLE_SK_OFFICIAL, true);
 
     expect($row['date_of_birth'])->toBe('2008-07-02')
         ->and($row['age'])->toBe(18)
         ->and($row['term_start'])->toBe('2023-11-30')
-        ->and($row['term_end'])->toBe('2026-11-30')
+        ->and($row['term_end'])->toBe('2028-11-30')
         ->and($row['email'])->toBe('paulatalabis5@gmail.com')
         ->and($row['position'])->toBe('Treasurer');
 });
@@ -176,13 +176,13 @@ it('parses datetime objects and mm/dd/yyyy strings for officials batch dates', f
         'province' => 'Laguna',
         'municipality' => 'Santa Cruz',
         'term_start' => '11/30/2023',
-        'term_end' => new DateTimeImmutable('2026-11-30'),
+        'term_end' => new DateTimeImmutable('2028-11-30'),
     ], User::ROLE_SK_OFFICIAL, true);
 
     expect($row['date_of_birth'])->toBe('2007-03-15')
         ->and($row['age'])->toBe(19)
         ->and($row['term_start'])->toBe('2023-11-30')
-        ->and($row['term_end'])->toBe('2026-11-30');
+        ->and($row['term_end'])->toBe('2028-11-30');
 });
 
 it('reports an age mismatch instead of dropping the uploaded age', function () {
@@ -206,7 +206,7 @@ it('reports an age mismatch instead of dropping the uploaded age', function () {
             'province' => 'Laguna',
             'municipality' => 'Santa Cruz',
             'term_start' => '11/30/2023',
-            'term_end' => '11/30/2026',
+            'term_end' => '11/30/2028',
         ],
     ], User::ROLE_SK_OFFICIAL);
 

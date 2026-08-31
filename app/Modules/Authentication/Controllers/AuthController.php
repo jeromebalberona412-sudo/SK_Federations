@@ -2,10 +2,12 @@
 
 namespace App\Modules\Authentication\Controllers;
 
+use App\Modules\Authentication\Middleware\SessionTimeout;
 use App\Modules\Authentication\Services\AuthenticationService;
 use App\Modules\Authentication\Services\EmailVerificationDeviceService;
 use App\Modules\Authentication\Services\PasswordResetService;
 use App\Modules\Authentication\Services\TenantContextService;
+use App\Modules\Authentication\Services\TurnstileAttemptGuard;
 use App\Modules\Profile\Services\PasswordChangeService;
 use App\Modules\Shared\Controllers\Controller;
 use App\Modules\Shared\Models\User;
@@ -30,11 +32,17 @@ class AuthController extends Controller
         protected PasswordResetService $passwordResetService,
         protected EmailVerificationDeviceService $emailVerificationDeviceService,
         protected PasswordChangeService $passwordChangeService,
+        protected TurnstileAttemptGuard $turnstileGuard,
     ) {}
 
-    public function showLogin(): View
+    public function showLogin(Request $request): View
     {
-        return view('authentication::login');
+        return view('authentication::login', [
+            'turnstileRequired' => $this->turnstileGuard->isRequired(
+                TurnstileAttemptGuard::ACTION_SIGNIN,
+                $request
+            ) || (bool) $request->session()->get('turnstile_required', false),
+        ]);
     }
 
     public function showVerifyNotice(Request $request): View|RedirectResponse
@@ -208,6 +216,18 @@ class AuthController extends Controller
         return response()->json([
             'ok' => true,
             'timestamp' => now()->toIso8601String(),
+        ]);
+    }
+
+    public function continueSession(Request $request): JsonResponse
+    {
+        return response()->json([
+            'ok' => true,
+            'last_activity_at' => (int) $request->session()->get(
+                SessionTimeout::SESSION_KEY,
+                now()->getTimestamp()
+            ),
+            'timeout_minutes' => max(1, (int) config('session.timeout', 120)),
         ]);
     }
 
@@ -426,15 +446,23 @@ class AuthController extends Controller
         event(new Verified($user));
 
         $pending = $request->session()->get('sk_fed_email_verification_pending');
+        $sameDevice = is_array($pending) && (int) ($pending['user_id'] ?? 0) === (int) $user->getKey();
 
-        if (! is_array($pending) || (int) ($pending['user_id'] ?? 0) !== (int) $user->getKey()) {
-            $pending = ['remember_device' => false];
+        // Same device that started login verification → finish login and go to dashboard.
+        // Other device (email opened elsewhere) → success page with Go to Login only.
+        if ($sameDevice) {
+            $this->authenticationService->completeEmailVerificationLogin($user, $request, $pending);
+            $this->clearVerificationSession($request, $pending);
+
+            $request->session()->put(
+                SessionTimeout::SESSION_KEY,
+                now()->getTimestamp()
+            );
+
+            return redirect()->route('dashboard');
         }
 
-        $this->authenticationService->completeEmailVerificationLogin($user, $request, $pending);
-        $this->clearVerificationSession($request, is_array($pending) ? $pending : null);
-
-        return redirect()->route('dashboard');
+        return redirect()->route('skfed.verification.success');
     }
 
     public function logout(Request $request): RedirectResponse
@@ -453,9 +481,14 @@ class AuthController extends Controller
         return redirect()->route('login');
     }
 
-    public function showForgotPassword(): View
+    public function showForgotPassword(Request $request): View
     {
-        return view('authentication::forgot-password');
+        return view('authentication::forgot-password', [
+            'turnstileRequired' => $this->turnstileGuard->isRequired(
+                TurnstileAttemptGuard::ACTION_FORGOT_PASSWORD,
+                $request
+            ) || (bool) $request->session()->get('turnstile_required', false),
+        ]);
     }
 
     /**
@@ -476,14 +509,14 @@ class AuthController extends Controller
         // Accept state from either the session flash (first arrival) or the
         // persistent session key (subsequent refreshes).
         if (session('password_reset_sent')) {
-            $email  = (string) session('password_reset_email', '');
+            $email = (string) session('password_reset_email', '');
             $sentAt = now();
 
             $state = [
-                'email'               => $email,
-                'sent_at'             => $sentAt->toIso8601String(),
+                'email' => $email,
+                'sent_at' => $sentAt->toIso8601String(),
                 'resend_available_at' => $sentAt->copy()->addSeconds(60)->toIso8601String(),
-                'expires_at'          => $sentAt->copy()->addHours(2)->toIso8601String(),
+                'expires_at' => $sentAt->copy()->addHours(2)->toIso8601String(),
             ];
 
             $request->session()->put('sk_fed_fp_verify', $state);
@@ -499,6 +532,7 @@ class AuthController extends Controller
         $expiresAt = Carbon::parse((string) ($state['expires_at'] ?? now()->toIso8601String()));
         if ($expiresAt->isPast()) {
             $request->session()->forget('sk_fed_fp_verify');
+
             return redirect()->route('password.request')
                 ->withErrors(['email' => 'Your password reset session has expired. Please start again.']);
         }
@@ -506,9 +540,13 @@ class AuthController extends Controller
         $resendAvailableAt = Carbon::parse((string) ($state['resend_available_at'] ?? now()->toIso8601String()));
 
         return view('authentication::fp-verify-email', [
-            'email'              => (string) $state['email'],
-            'resendAvailableAt'  => $resendAvailableAt->toIso8601String(),
+            'email' => (string) $state['email'],
+            'resendAvailableAt' => $resendAvailableAt->toIso8601String(),
             'resendCooldownSecs' => max(0, (int) now()->diffInSeconds($resendAvailableAt, false)),
+            'turnstileRequired' => $this->turnstileGuard->isRequired(
+                TurnstileAttemptGuard::ACTION_FORGOT_PASSWORD,
+                $request
+            ) || (bool) $request->session()->get('turnstile_required', false),
         ]);
     }
 
@@ -525,30 +563,43 @@ class AuthController extends Controller
 
         if (! is_array($state) || empty($state['email'])) {
             return response()->json([
-                'ok'      => false,
+                'ok' => false,
                 'message' => 'No active password reset session. Please start again.',
+                'turnstile_required' => $this->turnstileGuard->isRequired(
+                    TurnstileAttemptGuard::ACTION_FORGOT_PASSWORD,
+                    $request
+                ),
             ], 404);
         }
 
         $expiresAt = Carbon::parse((string) ($state['expires_at'] ?? now()->toIso8601String()));
         if ($expiresAt->isPast()) {
             $request->session()->forget('sk_fed_fp_verify');
+
             return response()->json([
-                'ok'      => false,
+                'ok' => false,
                 'message' => 'Your password reset session has expired. Please start again.',
                 'expired' => true,
+                'turnstile_required' => $this->turnstileGuard->isRequired(
+                    TurnstileAttemptGuard::ACTION_FORGOT_PASSWORD,
+                    $request
+                ),
             ], 410);
         }
 
         $resendAvailableAt = Carbon::parse((string) ($state['resend_available_at'] ?? now()->toIso8601String()));
-        $remainingSecs     = (int) now()->diffInSeconds($resendAvailableAt, false);
+        $remainingSecs = (int) now()->diffInSeconds($resendAvailableAt, false);
 
         if ($remainingSecs > 0) {
             return response()->json([
-                'ok'                 => false,
-                'message'            => "Please wait {$remainingSecs} seconds before resending.",
+                'ok' => false,
+                'message' => "Please wait {$remainingSecs} seconds before resending.",
                 'resend_available_at' => $resendAvailableAt->toIso8601String(),
                 'cooldown_remaining' => $remainingSecs,
+                'turnstile_required' => $this->turnstileGuard->isRequired(
+                    TurnstileAttemptGuard::ACTION_FORGOT_PASSWORD,
+                    $request
+                ),
             ], 429);
         }
 
@@ -556,30 +607,48 @@ class AuthController extends Controller
         try {
             $this->passwordResetService->sendResetLink($request, (string) $state['email']);
         } catch (ValidationException $exception) {
+            $attempt = $this->turnstileGuard->recordRequest(
+                TurnstileAttemptGuard::ACTION_FORGOT_PASSWORD,
+                $request
+            );
+
             return response()->json([
-                'ok'      => false,
+                'ok' => false,
                 'message' => $exception->errors()['email'][0] ?? 'Unable to send reset link.',
+                'turnstile_required' => (bool) $attempt['turnstile_required'],
             ], 422);
         } catch (\Throwable $e) {
             report($e);
+            $attempt = $this->turnstileGuard->recordRequest(
+                TurnstileAttemptGuard::ACTION_FORGOT_PASSWORD,
+                $request
+            );
+
             return response()->json([
-                'ok'      => false,
+                'ok' => false,
                 'message' => 'Unable to send the reset link right now. Please try again.',
+                'turnstile_required' => (bool) $attempt['turnstile_required'],
             ], 500);
         }
+
+        $attempt = $this->turnstileGuard->recordRequest(
+            TurnstileAttemptGuard::ACTION_FORGOT_PASSWORD,
+            $request
+        );
 
         $newResendAvailableAt = now()->addSeconds(60);
 
         // Persist updated cooldown
         $state['resend_available_at'] = $newResendAvailableAt->toIso8601String();
-        $state['sent_at']             = now()->toIso8601String();
+        $state['sent_at'] = now()->toIso8601String();
         $request->session()->put('sk_fed_fp_verify', $state);
 
         return response()->json([
-            'ok'                 => true,
-            'message'            => 'A new password reset link has been sent to your email.',
+            'ok' => true,
+            'message' => 'A new password reset link has been sent to your email.',
             'resend_available_at' => $newResendAvailableAt->toIso8601String(),
             'cooldown_remaining' => 60,
+            'turnstile_required' => (bool) $attempt['turnstile_required'],
         ]);
     }
 
@@ -598,13 +667,27 @@ class AuthController extends Controller
         try {
             $this->passwordResetService->sendResetLink($request, (string) $validated['email']);
         } catch (ValidationException $exception) {
-            return back()->withErrors($exception->errors())->withInput();
+            $attempt = $this->turnstileGuard->recordRequest(
+                TurnstileAttemptGuard::ACTION_FORGOT_PASSWORD,
+                $request
+            );
+
+            return back()
+                ->withErrors($exception->errors())
+                ->withInput()
+                ->with('turnstile_required', (bool) $attempt['turnstile_required']);
         }
+
+        $attempt = $this->turnstileGuard->recordRequest(
+            TurnstileAttemptGuard::ACTION_FORGOT_PASSWORD,
+            $request
+        );
 
         return redirect()->route('password.verify-email')
             ->with('status', 'A password reset link has been sent to your email address.')
             ->with('password_reset_sent', true)
-            ->with('password_reset_email', (string) $validated['email']);
+            ->with('password_reset_email', (string) $validated['email'])
+            ->with('turnstile_required', (bool) $attempt['turnstile_required']);
     }
 
     public function showResetPassword(Request $request, string $token): View|RedirectResponse

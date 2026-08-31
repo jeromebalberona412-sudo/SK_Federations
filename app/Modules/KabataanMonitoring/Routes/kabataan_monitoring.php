@@ -4,7 +4,7 @@ use App\Modules\KabataanMonitoring\Controllers\KabataanMonitoringController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/modules/kabataan-monitoring/{type}/{file}', function ($type, $file) {
-    $path = __DIR__ . "/../assets/{$type}/{$file}";
+    $path = __DIR__."/../assets/{$type}/{$file}";
 
     if (! file_exists($path)) {
         abort(404);
@@ -26,7 +26,7 @@ Route::get('/modules/kabataan-monitoring/{type}/{file}', function ($type, $file)
     return response()->file($path, ['Content-Type' => $mimeType]);
 })->where('type', 'css|js|images')->where('file', '.*');
 
-Route::middleware(['auth', 'verified', 'single.session', 'sk_fed.access', 'trusted.device', 'prevent.back'])
+Route::middleware(['auth', 'session.timeout', 'verified', 'single.session', 'sk_fed.access', 'trusted.device', 'prevent.back'])
     ->group(function () {
         Route::get('/kabataan-monitoring', [KabataanMonitoringController::class, 'index'])->name('kabataan-monitoring');
         Route::get('/api/kabataan-monitoring', [KabataanMonitoringController::class, 'data'])->name('api.kabataan-monitoring.index');

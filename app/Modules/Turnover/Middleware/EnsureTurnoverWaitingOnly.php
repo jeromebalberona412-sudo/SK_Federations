@@ -16,6 +16,7 @@ class EnsureTurnoverWaitingOnly
         'logout',
         'logout.fallback',
         'skfed.heartbeat',
+        'skfed.session.continue',
         'password.change',
         'password.change.update',
         'change-password',

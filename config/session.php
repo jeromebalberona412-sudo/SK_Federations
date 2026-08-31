@@ -1,7 +1,5 @@
 <?php
 
-use Illuminate\Support\Str;
-
 return [
 
     /*
@@ -33,6 +31,31 @@ return [
     */
 
     'lifetime' => (int) env('SESSION_LIFETIME', 120),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Authenticated Inactivity Timeout (minutes)
+    |--------------------------------------------------------------------------
+    |
+    | Separate from session lifetime. Tracks last authenticated user activity
+    | and forces logout after this many idle minutes, even if SESSION_LIFETIME
+    | has not elapsed. Keep SESSION_LIFETIME >= SESSION_TIMEOUT.
+    |
+    */
+
+    'timeout' => (int) env('SESSION_TIMEOUT', 120),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Inactivity Warning Lead Time (minutes)
+    |--------------------------------------------------------------------------
+    |
+    | Optional UI warning before the inactivity timeout. Set to 0 to disable.
+    | The server-side timeout middleware remains authoritative.
+    |
+    */
+
+    'timeout_warning_minutes' => (int) env('SESSION_TIMEOUT_WARNING_MINUTES', 5),
 
     'expire_on_close' => env('SESSION_EXPIRE_ON_CLOSE', false),
 

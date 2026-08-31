@@ -155,9 +155,9 @@ class BatchAccountImportService
         $municipality = trim($this->stringValue($row, ['municipality']) ?: 'Santa Cruz');
         $barangayName = mb_strtoupper($this->stringValue($row, ['barangay', 'barangay_name', 'barangay name']), 'UTF-8');
 
-        if ($role === User::ROLE_SK_OFFICIAL) {
-            $lastName = preg_replace('/\s+/u', '', $lastName) ?? $lastName;
-            $firstName = preg_replace('/\s{2,}/u', ' ', trim($firstName)) ?? $firstName;
+        if ($role === User::ROLE_SK_OFFICIAL || $role === User::ROLE_SK_FED) {
+            $firstName = preg_replace('/\s+/u', ' ', trim($firstName)) ?? $firstName;
+            $lastName = preg_replace('/\s+/u', ' ', trim($lastName)) ?? $lastName;
         }
         $email = strtolower($this->stringValue($row, ['email', 'email address']));
         $barangayId = $this->resolveBarangayId(
@@ -181,11 +181,11 @@ class BatchAccountImportService
 
         if (! $strictDemographics) {
             if ($termStart === null) {
-                $termStart = now()->startOfYear()->toDateString();
+                $termStart = SkOfficialTermDates::currentStart();
             }
 
             if ($termEnd === null) {
-                $termEnd = Carbon::parse($termStart)->addYears(3)->toDateString();
+                $termEnd = SkOfficialTermDates::termEndForStart($termStart)->toDateString();
             }
         }
 
@@ -201,12 +201,19 @@ class BatchAccountImportService
 
         $middleNameRaw = $this->stringValue($row, ['middle_name', 'middle name']);
         $middleName = $middleNameRaw !== '' ? mb_strtoupper($middleNameRaw, 'UTF-8') : null;
-        if ($role === User::ROLE_SK_OFFICIAL && $middleName !== null) {
-            $middleName = preg_replace('/\s+/u', '', $middleName) ?? $middleName;
+        if ($middleName !== null) {
+            $middleName = preg_replace('/\s+/u', ' ', trim($middleName)) ?? $middleName;
             $middleName = $middleName !== '' ? $middleName : null;
         }
 
         $age = $this->intValue($row, ['age']);
+        if ($dateOfBirth !== null) {
+            try {
+                $age = Carbon::parse($dateOfBirth)->age;
+            } catch (\Throwable) {
+                // Keep parsed age from the sheet when DOB cannot be computed.
+            }
+        }
 
         $data = [
             'first_name' => $firstName,
@@ -247,51 +254,44 @@ class BatchAccountImportService
     {
         $errors = [];
         $isOfficial = $role === User::ROLE_SK_OFFICIAL;
-        $firstNamePattern = $isOfficial ? '/^(?!\s)[A-Z.\-]+(?: [A-Z.\-]+)?$/u' : '/^[A-Z\s\-\']+$/u';
-        $namePattern = $isOfficial ? '/^[A-Z\-\']+$/u' : '/^[A-Z\s\-\']+$/u';
-        $middlePattern = $isOfficial ? '/^[A-Z\-\']*$/u' : '/^[A-Z\s\-\']*$/u';
-        $nameMax = $isOfficial ? 50 : 35;
+        $namePattern = '/^(?!\s)[A-Z.\-\']+(?: [A-Z.\-\']+)*$/u';
+        $nameMax = $isOfficial ? 150 : 35;
+        $nameMin = $isOfficial ? 2 : 3;
 
         if ($data['first_name'] === '') {
             $errors[] = 'First name is required.';
-        } elseif (mb_strlen($data['first_name']) < 3) {
-            $errors[] = 'First name must be at least 3 characters.';
+        } elseif (mb_strlen($data['first_name']) < $nameMin) {
+            $errors[] = 'First name must be at least '.$nameMin.' characters.';
         } elseif (mb_strlen($data['first_name']) > $nameMax) {
             $errors[] = 'First name must not exceed '.$nameMax.' characters.';
-        } elseif (! preg_match($firstNamePattern, $data['first_name'])) {
-            $errors[] = $isOfficial
-                ? 'First name must use uppercase letters only, with at most one space and no leading spaces.'
-                : 'First name must use uppercase letters only.';
+        } elseif (! preg_match($namePattern, $data['first_name'])) {
+            $errors[] = 'First name must use uppercase letters only; need a letter before each space; no pure spaces.';
         }
 
-        if ($data['middle_name'] !== null && mb_strlen((string) $data['middle_name']) > 0 && mb_strlen((string) $data['middle_name']) < 3) {
-            $errors[] = 'Middle name must be at least 3 characters when provided.';
+        if ($data['middle_name'] !== null && mb_strlen((string) $data['middle_name']) > 0 && mb_strlen((string) $data['middle_name']) < $nameMin) {
+            $errors[] = 'Middle name must be at least '.$nameMin.' characters when provided.';
         } elseif ($data['middle_name'] !== null && mb_strlen((string) $data['middle_name']) > $nameMax) {
             $errors[] = 'Middle name must not exceed '.$nameMax.' characters.';
-        } elseif ($data['middle_name'] !== null && ! preg_match($middlePattern, (string) $data['middle_name'])) {
-            $errors[] = $isOfficial
-                ? 'Middle name must use uppercase letters only, with no spaces.'
-                : 'Middle name must use uppercase letters only.';
+        } elseif ($data['middle_name'] !== null && ! preg_match($namePattern, (string) $data['middle_name'])) {
+            $errors[] = 'Middle name must use uppercase letters only; need a letter before each space; no pure spaces.';
         }
 
         if ($data['last_name'] === '') {
             $errors[] = 'Last name is required.';
-        } elseif (mb_strlen($data['last_name']) < 3) {
-            $errors[] = 'Last name must be at least 3 characters.';
+        } elseif (mb_strlen($data['last_name']) < $nameMin) {
+            $errors[] = 'Last name must be at least '.$nameMin.' characters.';
         } elseif (mb_strlen($data['last_name']) > $nameMax) {
             $errors[] = 'Last name must not exceed '.$nameMax.' characters.';
         } elseif (! preg_match($namePattern, $data['last_name'])) {
-            $errors[] = $isOfficial
-                ? 'Last name must use uppercase letters only, with no spaces.'
-                : 'Last name must use uppercase letters only.';
+            $errors[] = 'Last name must use uppercase letters only; need a letter before each space; no pure spaces.';
         }
 
         if ($strictDemographics && trim((string) ($data['suffix_input'] ?? '')) === '') {
             $errors[] = 'Suffix is required.';
         }
 
-        if ($data['suffix'] !== null && mb_strlen((string) $data['suffix']) > 4) {
-            $errors[] = 'Suffix must not exceed 4 characters.';
+        if ($data['suffix'] !== null && mb_strlen((string) $data['suffix']) > 5) {
+            $errors[] = 'Suffix must not exceed 5 characters.';
         }
 
         if ($data['email'] === '' || ! filter_var($data['email'], FILTER_VALIDATE_EMAIL)) {
@@ -331,12 +331,20 @@ class BatchAccountImportService
 
             if ($data['date_of_birth'] === null) {
                 $errors[] = 'Birthdate is required.';
-            } elseif (Carbon::parse($data['date_of_birth'])->isFuture()) {
-                $errors[] = 'Birthdate must be before today.';
+            } else {
+                $dob = Carbon::parse($data['date_of_birth'])->startOfDay();
+                if ($dob->isFuture() || $dob->greaterThanOrEqualTo(Carbon::today())) {
+                    $errors[] = 'Birthdate must be before today.';
+                } else {
+                    $ageFromDob = $dob->age;
+                    if ($ageFromDob < 18 || $ageFromDob > 24) {
+                        $errors[] = 'Birthdate must correspond to age 18–24 only.';
+                    }
+                }
             }
 
-            if ($data['age'] === null || (int) $data['age'] < 15 || (int) $data['age'] > 30) {
-                $errors[] = 'Age must be between 15 and 30.';
+            if ($data['age'] === null || (int) $data['age'] < 18 || (int) $data['age'] > 24) {
+                $errors[] = 'Age must be between 18 and 24.';
             }
 
             if ($data['contact_number'] === '') {
@@ -355,19 +363,10 @@ class BatchAccountImportService
         }
 
         if ($data['term_start'] !== null && $data['term_end'] !== null) {
-            if ($isOfficial) {
-                $errors = array_merge($errors, array_values(SkOfficialTermDates::errorsFor(
-                    $data['term_start'],
-                    $data['term_end']
-                )));
-            } else {
-                $start = Carbon::parse($data['term_start']);
-                $end = Carbon::parse($data['term_end']);
-
-                if ($end->ne($start->copy()->addYears(4))) {
-                    $errors[] = 'Term end date must be exactly 4 years after the term start date.';
-                }
-            }
+            $errors = array_merge($errors, array_values(SkOfficialTermDates::errorsFor(
+                $data['term_start'],
+                $data['term_end']
+            )));
         }
 
         if ($errors !== []) {
@@ -565,7 +564,7 @@ class BatchAccountImportService
             'iii' => 'III',
             'iv' => 'IV',
             'v' => 'V',
-            default => mb_strlen($normalized) <= 4 ? mb_strtoupper($normalized, 'UTF-8') : null,
+            default => mb_strlen($normalized) <= 5 ? mb_strtoupper($normalized, 'UTF-8') : null,
         };
     }
 

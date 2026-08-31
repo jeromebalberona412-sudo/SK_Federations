@@ -236,10 +236,10 @@
                         <div class="check-wrap" aria-hidden="true">
                             <span class="checkmark"></span>
                         </div>
-                        <h2>Verified successfully</h2>
-                        <p>Your SK Federation account is now verified. Return to sign in on your device.</p>
+                        <h2>Email verified successfully</h2>
+                        <p>Your SK Federation account email has been verified. You can now sign in on your device.</p>
                         <div class="success-actions">
-                            <a href="{{ route('login', [], false) }}" class="return-login-btn">Go to Sign In</a>
+                            <a href="{{ route('login', [], false) }}" class="return-login-btn">Go to Login</a>
                         </div>
                     </div>
                 </div>

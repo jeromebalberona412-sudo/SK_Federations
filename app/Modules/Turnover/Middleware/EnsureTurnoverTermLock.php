@@ -22,6 +22,7 @@ class EnsureTurnoverTermLock
         'logout',
         'logout.fallback',
         'skfed.heartbeat',
+        'skfed.session.continue',
     ];
 
     /**
@@ -36,8 +37,7 @@ class EnsureTurnoverTermLock
 
     public function __construct(
         private readonly FederationTermDetectionService $termDetectionService,
-    ) {
-    }
+    ) {}
 
     public function handle(Request $request, Closure $next): Response
     {

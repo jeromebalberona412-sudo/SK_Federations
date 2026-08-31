@@ -3,7 +3,7 @@
 namespace App\Modules\Authentication\Services;
 
 use App\Modules\Authentication\Jobs\RecordPostLoginActivityJob;
-use App\Modules\Authentication\Notifications\NewLocationLoginNotification;
+use App\Modules\Authentication\Middleware\SessionTimeout;
 use App\Modules\Shared\Models\User;
 use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Http\Request;
@@ -206,6 +206,10 @@ class AuthenticationService
         $this->recordLoginAndClearLockout($user, (string) $request->ip());
 
         $this->claimCurrentSession($user, $request);
+        $request->session()->put(
+            SessionTimeout::SESSION_KEY,
+            now()->getTimestamp()
+        );
         $this->emailVerificationDeviceService->markVerifiedDeviceFromPending($user, $pending);
 
         try {

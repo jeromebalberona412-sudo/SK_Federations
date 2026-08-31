@@ -470,4 +470,212 @@ document.addEventListener('DOMContentLoaded', function () {
             }
         });
     }
+
+    initSessionTimeoutWarning();
+    initSessionExpiredFetchGuard();
 });
+
+function getCsrfToken() {
+    var csrfMeta = document.querySelector('meta[name="csrf-token"]');
+    return csrfMeta ? csrfMeta.getAttribute('content') : '';
+}
+
+function redirectToLoginAfterExpiry() {
+    var loginUrl = window.loginRoute || '/login';
+    window.location.replace(loginUrl);
+}
+
+function initSessionExpiredFetchGuard() {
+    if (window.__skFedSessionFetchPatched) {
+        return;
+    }
+    window.__skFedSessionFetchPatched = true;
+
+    var originalFetch = window.fetch.bind(window);
+
+    window.fetch = function (input, init) {
+        return originalFetch(input, init).then(function (response) {
+            if (response.status !== 401) {
+                return response;
+            }
+
+            var requestUrl = typeof input === 'string' ? input : (input && input.url ? input.url : '');
+            if (requestUrl && (requestUrl.indexOf('/login') !== -1 || requestUrl.indexOf('/csrf-token') !== -1)) {
+                return response;
+            }
+
+            return response.clone().json().then(function (payload) {
+                if (payload && payload.session_expired) {
+                    redirectToLoginAfterExpiry();
+                }
+                return response;
+            }).catch(function () {
+                return response;
+            });
+        });
+    };
+}
+
+function initSessionTimeoutWarning() {
+    var config = window.sessionTimeoutConfig || {};
+    var timeoutMinutes = Number(config.timeoutMinutes || 0);
+    var warningMinutes = Number(config.warningMinutes || 0);
+    var lastActivityAt = Number(config.lastActivityAt || 0);
+    var modal = document.getElementById('sessionTimeoutModal');
+
+    if (!modal || !timeoutMinutes || warningMinutes <= 0 || warningMinutes >= timeoutMinutes || !lastActivityAt) {
+        return;
+    }
+
+    var warningTimer = null;
+    var expireTimer = null;
+    var warningShown = false;
+    var continueBtn = document.getElementById('sessionTimeoutContinueBtn');
+    var logoutBtn = document.getElementById('sessionTimeoutLogoutBtn');
+    var messageEl = document.getElementById('sessionTimeoutMessage');
+
+    function clearTimers() {
+        if (warningTimer) {
+            clearTimeout(warningTimer);
+            warningTimer = null;
+        }
+        if (expireTimer) {
+            clearTimeout(expireTimer);
+            expireTimer = null;
+        }
+    }
+
+    function hideWarning() {
+        warningShown = false;
+        modal.classList.remove('show');
+        modal.setAttribute('aria-hidden', 'true');
+        modal.hidden = true;
+        document.body.style.overflow = '';
+    }
+
+    function showWarning(secondsRemaining) {
+        if (warningShown) {
+            return;
+        }
+        warningShown = true;
+        var minutesLeft = Math.max(1, Math.ceil(secondsRemaining / 60));
+        if (messageEl) {
+            messageEl.textContent = 'Your session will expire in ' + minutesLeft + ' minute' + (minutesLeft === 1 ? '' : 's') + ' due to inactivity.';
+        }
+        modal.hidden = false;
+        modal.classList.add('show');
+        modal.setAttribute('aria-hidden', 'false');
+        document.body.style.overflow = 'hidden';
+    }
+
+    function scheduleFrom(activityTimestamp) {
+        clearTimers();
+        hideWarning();
+
+        var nowSec = Math.floor(Date.now() / 1000);
+        var timeoutAt = activityTimestamp + (timeoutMinutes * 60);
+        var warnAt = timeoutAt - (warningMinutes * 60);
+        var msUntilWarn = (warnAt - nowSec) * 1000;
+        var msUntilExpire = (timeoutAt - nowSec) * 1000;
+
+        if (msUntilExpire <= 0) {
+            forceServerSessionCheck();
+            return;
+        }
+
+        if (msUntilWarn <= 0) {
+            showWarning(Math.max(1, Math.floor(msUntilExpire / 1000)));
+        } else {
+            warningTimer = setTimeout(function () {
+                showWarning(warningMinutes * 60);
+            }, msUntilWarn);
+        }
+
+        expireTimer = setTimeout(function () {
+            forceServerSessionCheck();
+        }, msUntilExpire);
+    }
+
+    function forceServerSessionCheck() {
+        var continueUrl = window.sessionContinueRoute || '/session/continue';
+        fetch(continueUrl, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                'X-CSRF-TOKEN': getCsrfToken() || '',
+                'X-Requested-With': 'XMLHttpRequest',
+            },
+            credentials: 'same-origin',
+        }).catch(function () {
+            // Ignore network errors; redirect anyway.
+        }).finally(function () {
+            redirectToLoginAfterExpiry();
+        });
+    }
+
+    function continueSession() {
+        var continueUrl = window.sessionContinueRoute || '/session/continue';
+        if (continueBtn) {
+            continueBtn.disabled = true;
+        }
+
+        fetch(continueUrl, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                'X-CSRF-TOKEN': getCsrfToken() || '',
+                'X-Requested-With': 'XMLHttpRequest',
+            },
+            credentials: 'same-origin',
+        }).then(function (response) {
+            if (!response.ok) {
+                throw new Error('continue_failed');
+            }
+            return response.json();
+        }).then(function (data) {
+            var refreshed = Number(data && data.last_activity_at ? data.last_activity_at : Math.floor(Date.now() / 1000));
+            window.sessionTimeoutConfig.lastActivityAt = refreshed;
+            scheduleFrom(refreshed);
+            try {
+                localStorage.setItem('sk_fed_session_activity', String(refreshed));
+            } catch (e) {
+                // Ignore storage errors.
+            }
+        }).catch(function () {
+            redirectToLoginAfterExpiry();
+        }).finally(function () {
+            if (continueBtn) {
+                continueBtn.disabled = false;
+            }
+        });
+    }
+
+    if (continueBtn) {
+        continueBtn.addEventListener('click', continueSession);
+    }
+    if (logoutBtn) {
+        logoutBtn.addEventListener('click', function () {
+            if (typeof window.confirmLogout === 'function') {
+                window.confirmLogout();
+            } else {
+                redirectToLoginAfterExpiry();
+            }
+        });
+    }
+
+    window.addEventListener('storage', function (event) {
+        if (event.key !== 'sk_fed_session_activity' || !event.newValue) {
+            return;
+        }
+        var synced = Number(event.newValue);
+        if (!synced) {
+            return;
+        }
+        window.sessionTimeoutConfig.lastActivityAt = synced;
+        scheduleFrom(synced);
+    });
+
+    scheduleFrom(lastActivityAt);
+}

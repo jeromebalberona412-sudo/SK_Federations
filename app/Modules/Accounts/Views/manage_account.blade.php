@@ -195,7 +195,9 @@
                                     @endif
                                 </td>
                                 @endif
-                                <td class="td-name">{{ $displayName }}</td>
+                                <td class="td-name" title="{{ $displayName }}">
+                                    <span class="account-name-text">{{ $displayName }}</span>
+                                </td>
                                 <td class="td-email">{{ $account->email }}</td>
                                 <td class="td-barangay">{{ $account->barangay?->name ?? '—' }}</td>
                                 <td class="td-position">
@@ -274,6 +276,7 @@
 @endif
 @include('accounts::view_account')
 @include('accounts::delete_account_modal')
+@include('accounts::long_name_modal')
 
 <div id="accountToast" role="status" aria-live="polite"><span id="accountToastMsg">Account successfully created!</span></div>
 <div id="accountToastEdit" role="status" aria-live="polite"><span id="accountToastEditMsg">Account updated successfully!</span></div>

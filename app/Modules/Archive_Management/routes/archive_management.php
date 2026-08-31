@@ -1,7 +1,7 @@
 <?php
 
-use App\Modules\Archive_Management\Controllers\DeletedPostsArchiveController;
 use App\Modules\Archive_Management\Controllers\DeletedArchiveController;
+use App\Modules\Archive_Management\Controllers\DeletedPostsArchiveController;
 use App\Modules\Archive_Management\Controllers\TermRecordsArchiveController;
 use Illuminate\Support\Facades\Route;
 
@@ -23,7 +23,7 @@ Route::get('/modules/archive-management/{type}/{file}', function (string $type, 
     return response()->file($path, ['Content-Type' => $mimeType]);
 })->where('type', 'css|js')->where('file', '.*');
 
-Route::middleware(['auth', 'verified', 'single.session', 'sk_fed.access', 'trusted.device', 'prevent.back'])
+Route::middleware(['auth', 'session.timeout', 'verified', 'single.session', 'sk_fed.access', 'trusted.device', 'prevent.back'])
     ->group(function () {
         Route::get('/manage-archive/sk-federation-records', function () {
             return view('archive-management::SK_Federation_Records');

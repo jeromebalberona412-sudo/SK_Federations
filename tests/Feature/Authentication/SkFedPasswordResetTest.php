@@ -4,6 +4,7 @@ use App\Modules\Authentication\Models\FeatureFlag;
 use App\Modules\Authentication\Notifications\SkFedResetPasswordNotification;
 use App\Modules\Authentication\Services\TurnstileService;
 use App\Modules\Shared\Models\User;
+use App\Modules\Turnover\Notifications\TurnoverForgotPasswordSetupNotification;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Http;
@@ -184,8 +185,9 @@ it('rejects forgot password submission when turnstile verification fails', funct
 
     config()->set('services.turnstile.enabled', true);
 
-    $mock = \Mockery::mock(TurnstileService::class);
+    $mock = Mockery::mock(TurnstileService::class);
     $mock->shouldReceive('isConfigured')->andReturnTrue();
+    $mock->shouldReceive('isEnabled')->andReturnTrue();
     $mock->shouldReceive('verify')->once()->andReturnFalse();
     app()->instance(TurnstileService::class, $mock);
 
@@ -319,7 +321,7 @@ it('sends a password reset link for an incoming turnover officer awaiting setup'
 
     Notification::assertSentTo(
         $user,
-        \App\Modules\Turnover\Notifications\TurnoverForgotPasswordSetupNotification::class,
+        TurnoverForgotPasswordSetupNotification::class,
     );
 });
 

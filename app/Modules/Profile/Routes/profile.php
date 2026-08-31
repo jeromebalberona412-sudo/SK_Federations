@@ -21,7 +21,7 @@ Route::get('/modules/profile/{type}/{file}', function ($type, $file) {
     return response()->file($path, ['Content-Type' => $mimeType]);
 })->where('type', 'css|js')->where('file', '.*');
 
-$profileMiddleware = ['auth', 'verified', 'single.session', 'sk_fed.access', 'trusted.device', 'prevent.back'];
+$profileMiddleware = ['auth', 'session.timeout', 'verified', 'single.session', 'sk_fed.access', 'trusted.device', 'prevent.back'];
 
 Route::middleware($profileMiddleware)->group(function () {
     Route::get('/profile', [ProfileController::class, 'index'])->name('profile');

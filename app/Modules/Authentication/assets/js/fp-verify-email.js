@@ -144,22 +144,26 @@
             clearStatus();
 
             try {
+                let required = dataEl.dataset.turnstileRequired === '1';
                 let turnstileToken = '';
-                if (window.fedTurnstileChallenge) {
-                    try {
-                        turnstileToken = await window.fedTurnstileChallenge();
-                    } catch {
-                        if (resendSpinner) resendSpinner.hidden = true;
-                        enableResend();
-                        return;
-                    }
-                } else if (window.FedTurnstileGate && window.FedTurnstileGate.challenge) {
-                    try {
-                        turnstileToken = await window.FedTurnstileGate.challenge();
-                    } catch {
-                        if (resendSpinner) resendSpinner.hidden = true;
-                        enableResend();
-                        return;
+
+                if (required) {
+                    if (window.fedTurnstileChallenge) {
+                        try {
+                            turnstileToken = await window.fedTurnstileChallenge();
+                        } catch {
+                            if (resendSpinner) resendSpinner.hidden = true;
+                            enableResend();
+                            return;
+                        }
+                    } else if (window.FedTurnstileGate && window.FedTurnstileGate.challenge) {
+                        try {
+                            turnstileToken = await window.FedTurnstileGate.challenge();
+                        } catch {
+                            if (resendSpinner) resendSpinner.hidden = true;
+                            enableResend();
+                            return;
+                        }
                     }
                 }
 
@@ -179,6 +183,14 @@
                 });
 
                 const data = await response.json().catch(() => ({}));
+
+                if (typeof data.turnstile_required !== 'undefined') {
+                    dataEl.dataset.turnstileRequired = data.turnstile_required ? '1' : '0';
+                }
+
+                if (response.status === 422 && data.message && /security verification|turnstile|cloudflare/i.test(String(data.message))) {
+                    dataEl.dataset.turnstileRequired = '1';
+                }
 
                 if (response.status === 410 || data.expired) {
                     showStatus('Your session has expired. Redirecting...', 'error');

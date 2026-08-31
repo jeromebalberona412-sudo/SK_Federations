@@ -21,7 +21,7 @@ Route::get('/modules/notifications/{type}/{file}', function (string $type, strin
     return response()->file($path, ['Content-Type' => $mimeType]);
 })->where('type', 'css|js')->where('file', '.*');
 
-Route::middleware(['auth', 'verified', 'single.session', 'sk_fed.access', 'trusted.device', 'prevent.back'])
+Route::middleware(['auth', 'session.timeout', 'verified', 'single.session', 'sk_fed.access', 'trusted.device', 'prevent.back'])
     ->group(function (): void {
         Route::get('/notifications', [NotificationController::class, 'index'])
             ->name('notifications.index');
