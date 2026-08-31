@@ -187,6 +187,31 @@ function initializeCalendar() {
         return !!(note && (note.title || note.content));
     }
 
+    function handleDayClick(dateKey, day, monthName, year, monthIndex) {
+        const note = notes[dateKey];
+        const hasNote = !!(note && (note.title || note.content));
+        const pastDate = isPastDate(year, monthIndex, day);
+        const isPastYear = year < currentYear;
+        const isNextYear = year > currentYear;
+
+        if (!hasNote) {
+            if (pastDate) {
+                showToast('No past dates to add note.', 'error');
+                return;
+            }
+
+            if (!canModifyNote(year)) {
+                showToast(
+                    isPastYear ? 'Cannot add notes to past years.' : 'Cannot add notes to next year or beyond.',
+                    'error'
+                );
+                return;
+            }
+        }
+
+        openEditor(dateKey, day, monthName, year, monthIndex);
+    }
+
     async function loadNotes() {
         if (isLoadingNotes) return;
         isLoadingNotes = true;
@@ -283,7 +308,12 @@ function initializeCalendar() {
             if (isTodayCell) cell.classList.add('is-today');
             if (hasNote) cell.classList.add('has-notes');
             if (isPast || isPastYear || isNextYear) cell.classList.add('is-past');
-            if (isPast && !hasNote) cell.classList.add('is-disabled');
+            if (!hasNote && (isPast || isPastYear || isNextYear)) {
+                cell.classList.add('is-disabled');
+            }
+            if (hasNote && !canEdit) {
+                cell.classList.add('is-view-only');
+            }
 
             const dayNumber = document.createElement('div');
             dayNumber.className = 'calendar-day-number';
@@ -311,7 +341,23 @@ function initializeCalendar() {
             }
             cell.appendChild(addLabel);
 
-            cell.addEventListener('click', () => openEditor(dateKey, day, monthName, year, monthIndex));
+            cell.setAttribute('role', 'button');
+            cell.setAttribute('tabindex', hasNote || (!isPast && canModifyNote(year)) ? '0' : '-1');
+            cell.setAttribute(
+                'aria-label',
+                hasNote && !canEdit
+                    ? `View note for ${monthName} ${day}, ${year}`
+                    : !hasNote && (isPast || isPastYear || isNextYear)
+                        ? `Past date ${monthName} ${day}, ${year}. Notes cannot be added.`
+                        : `${hasNote ? 'Edit' : 'Add'} note for ${monthName} ${day}, ${year}`
+            );
+            cell.addEventListener('click', () => handleDayClick(dateKey, day, monthName, year, monthIndex));
+            cell.addEventListener('keydown', (event) => {
+                if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault();
+                    handleDayClick(dateKey, day, monthName, year, monthIndex);
+                }
+            });
             grid.appendChild(cell);
         }
     }
@@ -492,21 +538,6 @@ function initializeCalendar() {
 
         const note = notes[dateKey];
         const hasNote = note && (note.title || note.content);
-        const pastDate = isPastDate(year, monthIndex, day);
-
-        if (!hasNote && pastDate) {
-            showToast('No past dates to add note.', 'error');
-            return;
-        }
-
-        if (!hasNote && !canModifyNote(year)) {
-            if (year < currentYear) {
-                showToast('Cannot add notes to past years.', 'error');
-            } else {
-                showToast('Cannot add notes to next year or beyond.', 'error');
-            }
-            return;
-        }
 
         let backdropEl = document.querySelector('.calendar-modal-backdrop');
         if (!backdropEl) {

@@ -291,6 +291,14 @@
     transform: none;
 }
 
+.calendar-day.is-view-only {
+    cursor: pointer;
+}
+
+.calendar-day.is-view-only .calendar-day-add {
+    color: #4f46e5;
+}
+
 
 .calendar-day-number {
     font-size: 14px;
