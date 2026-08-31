@@ -25,27 +25,37 @@ class DeletedPostsArchiveController extends Controller
 
     public function data(Request $request): JsonResponse
     {
-        $query = Announcement::query()
-            ->archived()
-            ->federationWide()
-            ->with(['user', 'barangay', 'images'])
-            ->orderByDesc('archived_at');
+        $pageCache = app(\App\Services\SkFedPageCache::class);
+        $parts = [
+            'page' => (int) $request->query('page', 1),
+            'search' => trim((string) $request->query('search', '')),
+        ];
 
-        if ($search = trim((string) $request->query('search', ''))) {
-            $query->where(function ($q) use ($search) {
-                $q->where('title', 'ilike', '%'.$search.'%')
-                    ->orWhere('body', 'ilike', '%'.$search.'%');
-            });
-        }
+        $payload = $pageCache->remember('archive.deleted_posts', function () use ($request) {
+            $query = Announcement::query()
+                ->archived()
+                ->federationWide()
+                ->with(['user', 'barangay', 'images'])
+                ->orderByDesc('archived_at');
 
-        $posts = $query->paginate(12);
+            if ($search = trim((string) $request->query('search', ''))) {
+                $query->where(function ($q) use ($search) {
+                    $q->where('title', 'ilike', '%'.$search.'%')
+                        ->orWhere('body', 'ilike', '%'.$search.'%');
+                });
+            }
 
-        return response()->json([
-            'data' => collect($posts->items())->map(fn (Announcement $post) => $this->formatArchivedPost($post)),
-            'current_page' => $posts->currentPage(),
-            'last_page' => $posts->lastPage(),
-            'total' => $posts->total(),
-        ]);
+            $posts = $query->paginate(12);
+
+            return [
+                'data' => collect($posts->items())->map(fn (Announcement $post) => $this->formatArchivedPost($post))->values()->all(),
+                'current_page' => $posts->currentPage(),
+                'last_page' => $posts->lastPage(),
+                'total' => $posts->total(),
+            ];
+        }, $parts);
+
+        return response()->json($payload)->header('Cache-Control', 'private, max-age=60');
     }
 
     public function restore(int $id): JsonResponse
@@ -59,6 +69,9 @@ class DeletedPostsArchiveController extends Controller
         }
 
         $this->archiveService->restore($post);
+
+        app(\App\Services\SkFedPageCache::class)->bump('archive.deleted_posts');
+        app(\App\Services\SkFedPageCache::class)->bump('community.feed');
 
         return response()->json(['success' => true, 'message' => 'Post restored successfully.']);
     }
@@ -74,6 +87,8 @@ class DeletedPostsArchiveController extends Controller
         }
 
         $this->archiveService->permanentlyDelete($post);
+
+        app(\App\Services\SkFedPageCache::class)->bump('archive.deleted_posts');
 
         return response()->json(['success' => true, 'message' => 'Post permanently deleted.']);
     }

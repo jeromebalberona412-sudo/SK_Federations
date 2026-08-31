@@ -10,6 +10,7 @@ use App\Modules\BarangayLogos\Services\CloudinaryService;
 use App\Modules\Profile\Models\Barangay;
 use App\Modules\Shared\Controllers\Controller;
 use App\Services\BarangayLogoUrlService;
+use App\Services\SkFedPageCache;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -31,25 +32,30 @@ class BarangayLogoController extends Controller
     {
         $user = $request->user();
         $tenantId = $this->resolveTenantId();
+        $pageCache = app(SkFedPageCache::class);
 
-        $barangays = Barangay::query()
-            ->where('tenant_id', $tenantId)
-            ->orderBy('name')
-            ->get();
+        $payload = $pageCache->remember('barangay.logos.index', function () use ($tenantId) {
+            $barangays = Barangay::query()
+                ->where('tenant_id', $tenantId)
+                ->orderBy('name')
+                ->get();
 
-        $logos = BarangayLogo::query()
-            ->where('tenant_id', $tenantId)
-            ->get()
-            ->keyBy('barangay_id');
+            $logos = BarangayLogo::query()
+                ->where('tenant_id', $tenantId)
+                ->get()
+                ->keyBy('barangay_id');
 
-        foreach ($logos as $logo) {
-            $logo->url = $this->logoUrls->resolve($logo->barangay_id) ?? $logo->url;
-        }
+            foreach ($logos as $logo) {
+                $logo->url = $this->logoUrls->resolve($logo->barangay_id) ?? $logo->url;
+            }
+
+            return compact('barangays', 'logos');
+        }, ['tenant' => $tenantId]);
 
         return view('barangay_logos::barangay-logos', [
             'user'         => $user,
-            'barangays'    => $barangays,
-            'logos'        => $logos,
+            'barangays'    => $payload['barangays'],
+            'logos'        => $payload['logos'],
             'logosVisible' => true,
         ]);
     }
@@ -102,6 +108,9 @@ class BarangayLogoController extends Controller
                 resourceId: (string) $logo->id,
             );
 
+            app(SkFedPageCache::class)->bump('barangay.logos.index');
+            app(SkFedPageCache::class)->bump('barangay.monitoring.index');
+
             return response()->json([
                 'id'  => $logo->id,
                 'url' => $this->logoUrls->resolve($barangayId),
@@ -128,6 +137,9 @@ class BarangayLogoController extends Controller
         try {
             $this->cloudinary->delete($logo->cloudinary_public_id);
             $logo->delete();
+
+            app(SkFedPageCache::class)->bump('barangay.logos.index');
+            app(SkFedPageCache::class)->bump('barangay.monitoring.index');
 
             return response()->json(['message' => 'Logo removed.']);
         } catch (Throwable $e) {

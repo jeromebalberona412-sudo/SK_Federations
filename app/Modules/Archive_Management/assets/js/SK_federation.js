@@ -68,6 +68,32 @@ async function loadArfedRecords() {
         year: arfedYearFilter,
         term: arfedTermFilter,
     });
+    const cacheKey = 'sk_fed_sk_federation_records_v1_' + params.toString();
+    const cached = window.SkLocalCache?.get(cacheKey);
+    const paint = (payload) => {
+        arfedRecords = payload.data || [];
+        arfedFiltered = [...arfedRecords];
+        populateArfedFilters(payload.filters || {});
+        const pages = Math.max(1, Math.ceil(arfedFiltered.length / arfedPerPage) || 1);
+        if (arfedCurrentPage > pages) arfedCurrentPage = pages;
+        renderArfedTable();
+    };
+
+    if (cached?.payload) {
+        paint(cached.payload);
+        if (window.SkLocalCache.isFresh(cached, 5 * 60 * 1000)) {
+            arfedIsLoading = false;
+            fetch(`${ARFED_API.data}?${params.toString()}`, { headers: { Accept: 'application/json' } })
+                .then((response) => response.json().then((payload) => ({ ok: response.ok, payload })))
+                .then(({ ok, payload }) => {
+                    if (!ok) return;
+                    window.SkLocalCache?.set(cacheKey, payload);
+                    paint(payload);
+                })
+                .catch(() => {});
+            return;
+        }
+    }
 
     try {
         const response = await fetch(`${ARFED_API.data}?${params.toString()}`, {
@@ -76,18 +102,14 @@ async function loadArfedRecords() {
         const payload = await response.json();
         if (!response.ok) throw new Error('Failed to load archived records.');
 
-        arfedRecords = payload.data || [];
-        arfedFiltered = [...arfedRecords];
-        populateArfedFilters(payload.filters || {});
-        const pages = Math.max(1, Math.ceil(arfedFiltered.length / arfedPerPage) || 1);
-        if (arfedCurrentPage > pages) {
-            arfedCurrentPage = pages;
-        }
-        renderArfedTable();
+        window.SkLocalCache?.set(cacheKey, payload);
+        paint(payload);
     } catch (error) {
-        arfedRecords = [];
-        arfedFiltered = [];
-        renderArfedTable();
+        if (!cached?.payload) {
+            arfedRecords = [];
+            arfedFiltered = [];
+            renderArfedTable();
+        }
     } finally {
         arfedIsLoading = false;
     }

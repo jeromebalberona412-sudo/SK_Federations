@@ -180,12 +180,16 @@ class BatchAccountImportService
         ]));
 
         if (! $strictDemographics) {
+            $leadershipDefaults = SkOfficialTermDates::leadershipDefaults($this->tenantId);
+
             if ($termStart === null) {
-                $termStart = SkOfficialTermDates::currentStart();
+                $termStart = $leadershipDefaults['term_start'];
             }
 
             if ($termEnd === null) {
-                $termEnd = SkOfficialTermDates::termEndForStart($termStart)->toDateString();
+                $termEnd = ($termStart === $leadershipDefaults['term_start'])
+                    ? $leadershipDefaults['term_end']
+                    : SkOfficialTermDates::termEndForStart($termStart)->toDateString();
             }
         }
 

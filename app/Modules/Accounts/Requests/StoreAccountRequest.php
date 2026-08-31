@@ -190,7 +190,10 @@ class StoreAccountRequest extends FormRequest
                 return;
             }
 
-            foreach (SkOfficialTermDates::errorsFor($termStart, $termEnd) as $field => $message) {
+            $tenantId = (int) ($this->user()?->tenant_id ?? 0);
+            $leadership = $tenantId > 0 ? SkOfficialTermDates::leadershipDefaults($tenantId) : null;
+
+            foreach (SkOfficialTermDates::errorsFor($termStart, $termEnd, null, $leadership) as $field => $message) {
                 $validator->errors()->add($field, $message);
             }
         });

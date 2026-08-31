@@ -11,9 +11,16 @@
 @endpush
 
 @push('styles')
-    <link rel="stylesheet" href="{{ url('/modules/kabataan-monitoring/css/kabataan-monitoring.css') }}?v={{ time() }}">
-    <link rel="stylesheet" href="{{ url('/modules/kabataan-monitoring/css/kk-profiling-form.css') }}?v={{ time() }}">
-    <link rel="stylesheet" href="{{ url('/modules/kabataan-monitoring/css/kk-questionnaire-view.css') }}?v={{ time() }}">
+    @php
+        $kmCssV = @filemtime(app_path('Modules/KabataanMonitoring/assets/css/kabataan-monitoring.css')) ?: time();
+        $kkpCssV = @filemtime(app_path('Modules/KabataanMonitoring/assets/css/kkprofiling.css')) ?: time();
+        $kkpFormCssV = @filemtime(app_path('Modules/KabataanMonitoring/assets/css/kk-profiling-form.css')) ?: time();
+        $kkpViewCssV = @filemtime(app_path('Modules/KabataanMonitoring/assets/css/kk-questionnaire-view.css')) ?: time();
+    @endphp
+    <link rel="stylesheet" href="{{ url('/modules/kabataan-monitoring/css/kabataan-monitoring.css') }}?v={{ $kmCssV }}">
+    <link rel="stylesheet" href="{{ url('/modules/kabataan-monitoring/css/kkprofiling.css') }}?v={{ $kkpCssV }}">
+    <link rel="stylesheet" href="{{ url('/modules/kabataan-monitoring/css/kk-profiling-form.css') }}?v={{ $kkpFormCssV }}">
+    <link rel="stylesheet" href="{{ url('/modules/kabataan-monitoring/css/kk-questionnaire-view.css') }}?v={{ $kkpViewCssV }}">
 @endpush
 
 @section('content')
@@ -67,16 +74,18 @@
         </div>
 
         <div class="km-filter-bar-actions">
-            <button type="button" class="km-export-btn km-export-btn--csv" id="km-export-csv-btn">
-                <i class="fas fa-file-csv"></i> CSV
-            </button>
-            <button type="button" class="km-batch-print-btn" id="km-batch-print-btn" disabled>
-                <i class="fas fa-print"></i> Batch Print
-            </button>
-            <button type="button" class="km-btn km-btn--add-record" id="km-add-kk-record-btn">
-                <i class="fas fa-plus" aria-hidden="true"></i>
-                Add KK Record
-            </button>
+            <div class="km-filter-bar-actions-right">
+                <button type="button" class="km-btn km-btn--add-record" id="km-add-kk-record-btn">
+                    <i class="fas fa-plus" aria-hidden="true"></i>
+                    Add KK Record
+                </button>
+                <button type="button" class="km-export-btn km-export-btn--csv" id="km-export-csv-btn">
+                    <i class="fas fa-file-csv"></i> CSV
+                </button>
+                <button type="button" class="km-batch-print-btn" id="km-batch-print-btn" disabled>
+                    <i class="fas fa-print"></i> Batch Print
+                </button>
+            </div>
         </div>
     </section>
 
@@ -182,13 +191,13 @@
         </div>
         <div class="km-delete-body">
             <p>This will remove <strong id="kmDeleteName">this record</strong> from Kabataan Monitoring. Type <strong>DELETE</strong> to continue.</p>
-            <label class="km-type-confirm-label" for="kmDeleteDELETEInput">DELETEation</label>
-            <input type="text" id="kmDeleteDELETEInput" class="km-type-confirm-input" placeholder="type DELETE to delete" autocomplete="off" autocapitalize="none" spellcheck="false">
-            <p class="km-type-confirm-hint" id="kmDeleteDELETEHint" hidden>Please type “DELETE” to continue.</p>
+            <label class="km-type-confirm-label" for="kmDeleteConfirmInput">Confirmation</label>
+            <input type="text" id="kmDeleteConfirmInput" class="km-type-confirm-input" placeholder="type DELETE to delete" autocomplete="off" autocapitalize="none" spellcheck="false">
+            <p class="km-type-confirm-hint" id="kmDeleteConfirmHint" hidden>Please type “DELETE” to continue (any capitalization is fine).</p>
         </div>
         <div class="km-delete-footer">
             <button type="button" class="km-kkp-btn-close" data-km-delete-close>Cancel</button>
-            <button type="button" class="km-btn-delete-confirm" id="kmDeleteDELETEBtn" disabled>Delete Record</button>
+            <button type="button" class="km-btn-delete-confirm" id="kmDeleteConfirmBtn" disabled>Delete Record</button>
         </div>
     </div>
 </div>
@@ -208,26 +217,26 @@
         </div>
         <div class="km-delete-footer">
             <button type="button" class="km-kkp-btn-close" data-km-export-close>Cancel</button>
-            <button type="button" class="km-export-btn km-export-btn--csv" id="kmExportDELETECsvBtn">Export CSV</button>
+            <button type="button" class="km-export-btn km-export-btn--csv" id="kmExportConfirmCsvBtn">Export CSV</button>
         </div>
     </div>
 </div>
-<div class="km-kkp-modal" id="kmEditDELETEModal">
+<div class="km-kkp-modal" id="kmEditConfirmModal">
     <div class="km-kkp-modal-overlay" data-km-edit-confirm-close></div>
-    <div class="km-delete-dialog" role="dialog" aria-modal="true" aria-labelledby="kmEditDELETETitle">
+    <div class="km-delete-dialog" role="dialog" aria-modal="true" aria-labelledby="kmEditConfirmTitle">
         <div class="km-delete-header">
-            <h3 id="kmEditDELETETitle">Save Changes?</h3>
+            <h3 id="kmEditConfirmTitle">Save Changes?</h3>
             <button type="button" class="km-kkp-modal-control-btn km-kkp-modal-close" data-km-edit-confirm-close aria-label="Close">&times;</button>
         </div>
         <div class="km-delete-body">
-            <p id="kmEditDELETEMessage">Are you sure you want to edit this KK Profiling record? Type <strong>yes</strong> to confirm.</p>
-            <label class="km-type-confirm-label" for="kmEditDELETEInput">DELETEation</label>
-            <input type="text" id="kmEditDELETEInput" class="km-type-confirm-input" placeholder="type yes" autocomplete="off" autocapitalize="none" spellcheck="false">
-            <p class="km-type-confirm-hint" id="kmEditDELETEHint" hidden>Please type “yes” to continue.</p>
+            <p id="kmEditConfirmMessage">Are you sure you want to edit this KK Profiling record? Type <strong>yes</strong> to confirm.</p>
+            <label class="km-type-confirm-label" for="kmEditConfirmInput">Confirmation</label>
+            <input type="text" id="kmEditConfirmInput" class="km-type-confirm-input" placeholder="type yes" autocomplete="off" autocapitalize="none" spellcheck="false">
+            <p class="km-type-confirm-hint" id="kmEditConfirmHint" hidden>Please type “yes” to continue.</p>
         </div>
         <div class="km-delete-footer">
             <button type="button" class="km-kkp-btn-close" data-km-edit-confirm-close>Cancel</button>
-            <button type="button" class="km-kkp-btn-save" id="kmEditDELETEBtn" disabled>DELETE</button>
+            <button type="button" class="km-kkp-btn-save" id="kmEditConfirmBtn" disabled>Save Changes</button>
         </div>
     </div>
 </div>
@@ -237,14 +246,25 @@
 @endsection
 
 @push('scripts')
+    @php
+        $kmJsV = @filemtime(app_path('Modules/KabataanMonitoring/assets/js/kabataan-monitoring.js')) ?: time();
+        $kmTableJsV = @filemtime(app_path('Modules/KabataanMonitoring/assets/js/kabataan-monitoring-table.js')) ?: time();
+        $kmValJsV = @filemtime(app_path('Modules/KabataanMonitoring/assets/js/kabataan-monitoring-validation.js')) ?: time();
+        $kmEditJsV = @filemtime(app_path('Modules/KabataanMonitoring/assets/js/kabataan-monitoring-edit.js')) ?: time();
+        $kmUploadJsV = @filemtime(app_path('Modules/KabataanMonitoring/assets/js/kabataan-monitoring-upload.js')) ?: time();
+        $cacheJsV = @filemtime(public_path('shared/js/local-data-cache.js')) ?: time();
+    @endphp
     <script>
         window.kmPageMode = 'barangay-detail';
         window.kmBarangay = @json($barangay);
         window.kmPurokZones = @json($purokZones ?? []);
+        window.kmInitialPayload = {
+            data: @json($initialRecords ?? []),
+            years: @json($registrationYears ?? []),
+        };
         window.kmConfig = {
             dataUrl: @json(route('api.kabataan-monitoring.index')),
             storeUrl: @json(route('api.kabataan-monitoring.store')),
-            batchUploadUrl: @json(route('api.kabataan-monitoring.batch-upload')),
             questionnaireUrl: @json(url('/api/kabataan-monitoring/__ID__/questionnaire')),
             editUrl: @json(url('/api/kabataan-monitoring/__ID__/edit')),
             updateUrl: @json(url('/api/kabataan-monitoring/__ID__')),
@@ -253,9 +273,10 @@
             csrfToken: @json(csrf_token()),
         };
     </script>
-    <script src="{{ url('/modules/kabataan-monitoring/js/kabataan-monitoring.js') }}?v={{ time() }}"></script>
-    <script src="{{ url('/modules/kabataan-monitoring/js/kabataan-monitoring-table.js') }}?v={{ time() }}"></script>
-    <script src="{{ url('/modules/kabataan-monitoring/js/kabataan-monitoring-validation.js') }}?v={{ time() }}"></script>
-    <script src="{{ url('/modules/kabataan-monitoring/js/kabataan-monitoring-edit.js') }}?v={{ time() }}"></script>
-    <script src="{{ url('/modules/kabataan-monitoring/js/kabataan-monitoring-upload.js') }}?v={{ time() }}"></script>
+    <script src="{{ url('/shared/js/local-data-cache.js') }}?v={{ $cacheJsV }}"></script>
+    <script src="{{ url('/modules/kabataan-monitoring/js/kabataan-monitoring.js') }}?v={{ $kmJsV }}"></script>
+    <script src="{{ url('/modules/kabataan-monitoring/js/kabataan-monitoring-table.js') }}?v={{ $kmTableJsV }}"></script>
+    <script src="{{ url('/modules/kabataan-monitoring/js/kabataan-monitoring-validation.js') }}?v={{ $kmValJsV }}"></script>
+    <script src="{{ url('/modules/kabataan-monitoring/js/kabataan-monitoring-edit.js') }}?v={{ $kmEditJsV }}"></script>
+    <script src="{{ url('/modules/kabataan-monitoring/js/kabataan-monitoring-upload.js') }}?v={{ $kmUploadJsV }}"></script>
 @endpush

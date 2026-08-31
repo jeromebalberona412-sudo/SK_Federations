@@ -196,11 +196,11 @@ function initializeCalendar() {
         isLoadingNotes = true;
         const year = current.getFullYear();
         const month = current.getMonth() + 1;
-
-        try {
-            const json = await calendarApiFetch(`/api/calendar/notes?year=${year}&month=${month}`);
+        const cacheKey = `sk_fed_calendar_notes_v1_${year}_${month}`;
+        const cached = window.SkLocalCache?.get(cacheKey);
+        const applyNotes = (payload) => {
             Object.keys(notes).forEach((k) => delete notes[k]);
-            (json.data || []).forEach((note) => {
+            (payload?.data || []).forEach((note) => {
                 const key = isoToDateKey(note.note_date);
                 notes[key] = {
                     id: note.id,
@@ -208,8 +208,31 @@ function initializeCalendar() {
                     content: note.content,
                 };
             });
+            render();
+        };
+
+        if (cached?.payload) {
+            applyNotes(cached.payload);
+            if (window.SkLocalCache.isFresh(cached, 5 * 60 * 1000)) {
+                isLoadingNotes = false;
+                calendarApiFetch(`/api/calendar/notes?year=${year}&month=${month}`)
+                    .then((json) => {
+                        window.SkLocalCache?.set(cacheKey, json);
+                        applyNotes(json);
+                    })
+                    .catch(() => {});
+                return;
+            }
+        }
+
+        try {
+            const json = await calendarApiFetch(`/api/calendar/notes?year=${year}&month=${month}`);
+            window.SkLocalCache?.set(cacheKey, json);
+            applyNotes(json);
         } catch (err) {
-            showToast(err.message || 'Failed to load calendar notes.', 'error');
+            if (!cached?.payload) {
+                showToast(err.message || 'Failed to load calendar notes.', 'error');
+            }
         } finally {
             isLoadingNotes = false;
             render();
@@ -604,6 +627,7 @@ function initializeCalendar() {
 
             try {
                 await calendarApiFetch(`/api/calendar/notes/${noteId}`, { method: 'DELETE' });
+                window.SkLocalCache?.clearByPrefix('sk_fed_calendar_notes_v1_');
                 delete notes[dateKey];
                 hide();
                 await loadNotes();
@@ -679,6 +703,7 @@ function initializeCalendar() {
                     title: saved.title,
                     content: saved.content,
                 };
+                window.SkLocalCache?.clearByPrefix('sk_fed_calendar_notes_v1_');
                 originalNote = { title, content };
                 switchToViewMode();
                 render();

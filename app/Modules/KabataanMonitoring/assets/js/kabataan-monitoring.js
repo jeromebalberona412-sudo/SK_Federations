@@ -285,13 +285,86 @@
         }).join('');
     }
 
-    async function loadRecords() {
+    async function loadRecords(options) {
         if (!config.dataUrl) {
             return;
         }
 
+        var force = options && options.force === true;
+        var cacheKey = 'km_kabataan_records_v2_' + String(window.kmBarangay || 'all').toLowerCase();
+        var ttlMs = 10 * 60 * 1000;
+
+        function applyPayload(payload) {
+            records.length = 0;
+            (payload.data || []).forEach(function (item) {
+                records.push(item);
+            });
+            return payload.years || [];
+        }
+
+        // Instant paint: prefer fresh local cache (revisit), then server-embedded payload.
+        if (!force && window.SkLocalCache) {
+            var cachedFirst = window.SkLocalCache.get(cacheKey);
+            if (cachedFirst && cachedFirst.payload && window.SkLocalCache.isFresh(cachedFirst, ttlMs)) {
+                var yearsFromFreshCache = applyPayload(cachedFirst.payload);
+                // Soft revalidate in background without blocking UI.
+                fetchAndStore(cacheKey, false).then(function () {
+                    if (window.kmPageMode === 'barangay-detail') {
+                        populateBarangayYearFilter();
+                        populatePurokFilter();
+                        renderBarangayDetail();
+                    }
+                }).catch(function () {});
+                window.kmInitialPayload = null;
+                return yearsFromFreshCache;
+            }
+        }
+
+        if (!force && window.kmInitialPayload && Array.isArray(window.kmInitialPayload.data)) {
+            var initialYears = applyPayload(window.kmInitialPayload);
+            if (window.SkLocalCache) {
+                window.SkLocalCache.set(cacheKey, {
+                    data: window.kmInitialPayload.data || [],
+                    years: window.kmInitialPayload.years || [],
+                });
+            }
+            // Clear so later force-refresh does not reuse a stale embedded snapshot.
+            window.kmInitialPayload = null;
+            // Soft revalidate later (server already gave us a fresh snapshot).
+            setTimeout(function () {
+                fetchAndStore(cacheKey, false).catch(function () {});
+            }, 2500);
+            return initialYears;
+        }
+
+        if (!force && window.SkLocalCache) {
+            var cached = window.SkLocalCache.get(cacheKey);
+            if (cached && cached.payload) {
+                var yearsFromCache = applyPayload(cached.payload);
+                // Stale cache: show immediately, refresh in background.
+                fetchAndStore(cacheKey, false).then(function () {
+                    if (window.kmPageMode === 'barangay-detail') {
+                        populateBarangayYearFilter();
+                        populatePurokFilter();
+                        renderBarangayDetail();
+                    }
+                }).catch(function () {});
+                return yearsFromCache;
+            }
+        }
+
+        return fetchAndStore(cacheKey, true);
+    }
+
+    async function fetchAndStore(cacheKey, throwOnError) {
         try {
-            const response = await fetch(config.dataUrl, {
+            var fetchUrl = config.dataUrl;
+            if (window.kmPageMode === 'barangay-detail' && window.kmBarangay) {
+                fetchUrl += (fetchUrl.indexOf('?') === -1 ? '?' : '&')
+                    + 'barangay=' + encodeURIComponent(window.kmBarangay);
+            }
+
+            const response = await fetch(fetchUrl, {
                 headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
                 credentials: 'same-origin',
             });
@@ -305,9 +378,18 @@
             (payload.data || []).forEach(function (item) {
                 records.push(item);
             });
+            if (window.SkLocalCache) {
+                window.SkLocalCache.set(cacheKey, {
+                    data: payload.data || [],
+                    years: payload.years || [],
+                });
+            }
             return payload.years || [];
         } catch (error) {
             console.error(error);
+            if (throwOnError) {
+                return [];
+            }
             return [];
         }
     }
@@ -647,7 +729,7 @@
         var hint = document.getElementById('kmDeleteConfirmHint');
         var button = document.getElementById('kmDeleteConfirmBtn');
         if (!input || !button) return;
-        var matched = input.value.trim().toLowerCase() === 'DELETE';
+        var matched = input.value.trim().toLowerCase() === 'delete';
         button.disabled = !matched;
         if (hint) hint.hidden = matched || input.value.trim() === '';
     }
@@ -677,9 +759,9 @@
         syncDeleteConfirmState();
     }
 
-    async function DELETEKmDelete() {
+    async function confirmKmDelete() {
         if (!pendingDeleteRecord || !pendingDeleteRecord.id) return;
-        if (document.getElementById('kmDeleteConfirmInput')?.value.trim().toLowerCase() !== 'DELETE') return;
+        if (document.getElementById('kmDeleteConfirmInput')?.value.trim().toLowerCase() !== 'delete') return;
 
         var button = document.getElementById('kmDeleteConfirmBtn');
         var urlTemplate = (window.kmConfig && window.kmConfig.destroyUrl) || '';
@@ -716,6 +798,10 @@
             if (typeof window.kmInvalidateModalCache === 'function') {
                 window.kmInvalidateModalCache(deletedId);
             }
+            if (window.SkLocalCache) {
+                window.SkLocalCache.clearByPrefix('km_kabataan_records_v2_');
+                window.SkLocalCache.clearByPrefix('km_kabataan_records_v1_');
+            }
             populateBarangayYearFilter();
             populatePurokFilter();
             renderBarangayDetail();
@@ -735,11 +821,11 @@
         input?.addEventListener('keydown', function (event) {
             if (event.key === 'Enter') {
                 event.preventDefault();
-                DELETEKmDelete();
+                confirmKmDelete();
             }
         });
         document.getElementById('kmDeleteConfirmBtn')?.addEventListener('click', function () {
-            DELETEKmDelete();
+            confirmKmDelete();
         });
         document.querySelectorAll('[data-km-delete-close]').forEach(function (btn) {
             btn.addEventListener('click', closeKmDeleteModal);
@@ -918,8 +1004,13 @@
         return dash(label);
     }
 
-    window.kmReloadRecords = function () {
-        return loadRecords().then(function () {
+    window.kmReloadRecords = function (options) {
+        var force = !(options && options.force === false);
+        if (force && window.SkLocalCache) {
+            window.SkLocalCache.clearByPrefix('km_kabataan_records_v2_');
+            window.SkLocalCache.clearByPrefix('km_kabataan_records_v1_');
+        }
+        return loadRecords({ force: force }).then(function () {
             populateBarangayYearFilter();
             populatePurokFilter();
             renderBarangayDetail();
@@ -1125,7 +1216,7 @@
         var recordId = profile.id || profile.slug;
         var cached = modalCache[String(recordId)];
         if (cached && cached.html) {
-            container.innerHTML = '<div class="kk-qs-scroll-wrapper">' + cached.html + '</div>';
+            container.innerHTML = window.kmWrapKkQuestionnaireHtml(cached.html);
         } else {
             container.innerHTML = '<p class="km-kkp-loading">Loading questionnaire...</p>';
         }
@@ -1140,11 +1231,13 @@
             resizeBtn.setAttribute('aria-label', 'Maximize');
         }
         document.body.style.overflow = 'hidden';
+        window.kmScheduleKkFormScale();
 
         window.kmFetchModalPayload(recordId)
             .then(function(data) {
                 var html = (data && data.html) || '<p class="km-kkp-loading">No questionnaire data found.</p>';
-                container.innerHTML = '<div class="kk-qs-scroll-wrapper">' + html + '</div>';
+                container.innerHTML = window.kmWrapKkQuestionnaireHtml(html);
+                window.kmScheduleKkFormScale();
             })
             .catch(function() {
                 if (!cached) {
@@ -1181,7 +1274,102 @@
             resizeBtn.title = isFullscreen ? 'Restore Down' : 'Maximize';
             resizeBtn.setAttribute('aria-label', isFullscreen ? 'Restore Down' : 'Maximize');
         }
+        window.kmScheduleKkFormScale();
     };
+
+    window.kmWrapKkQuestionnaireHtml = function(html) {
+        return (
+            '<div class="kk-qs-scroll-wrapper">' +
+                '<div class="kkp-fs-scale-shell">' +
+                    '<div class="kkp-fs-scale-inner">' +
+                        (html || '') +
+                    '</div>' +
+                '</div>' +
+            '</div>'
+        );
+    };
+
+    var kmKkScaleApplying = false;
+    var kmKkScaleRaf = null;
+
+    function kmIsKkMobileViewport() {
+        return window.matchMedia('(max-width: 768px)').matches;
+    }
+
+    function kmApplyScaleToRoot(root) {
+        if (!root) return;
+        var shell = root.querySelector('.kkp-fs-scale-shell');
+        var inner = root.querySelector('.kkp-fs-scale-inner');
+        if (!shell || !inner || kmKkScaleApplying) return;
+
+        if (!kmIsKkMobileViewport()) {
+            shell.style.height = '';
+            shell.style.width = '';
+            inner.style.width = '';
+            inner.style.minWidth = '';
+            inner.style.transform = '';
+            inner.style.zoom = '';
+            return;
+        }
+
+        kmKkScaleApplying = true;
+        try {
+            inner.style.zoom = '1';
+            inner.style.transform = 'none';
+            inner.style.width = '860px';
+            inner.style.minWidth = '860px';
+
+            var designWidth = Math.max(860, Math.ceil(inner.scrollWidth || 860));
+            inner.style.width = designWidth + 'px';
+            inner.style.minWidth = designWidth + 'px';
+
+            var available = Math.max(
+                1,
+                Math.floor(shell.clientWidth || root.clientWidth || window.innerWidth || 1)
+            );
+            var scale = Math.min(1, available / designWidth);
+
+            if ('zoom' in inner.style) {
+                inner.style.transform = '';
+                inner.style.zoom = String(scale);
+                shell.style.width = '100%';
+                shell.style.height = '';
+            } else {
+                inner.style.zoom = '';
+                inner.style.transformOrigin = 'top left';
+                inner.style.transform = 'scale(' + scale + ')';
+                shell.style.width = '100%';
+                shell.style.height = Math.ceil(inner.scrollHeight * scale) + 'px';
+            }
+        } finally {
+            kmKkScaleApplying = false;
+        }
+    }
+
+    window.kmApplyKkFormScale = function() {
+        var viewRoot = document.getElementById('kmKKPViewRoot');
+        var editRoot = document.getElementById('kkProfilingEditRoot');
+        if (viewRoot && !viewRoot.hidden) {
+            kmApplyScaleToRoot(viewRoot);
+        }
+        if (editRoot && !editRoot.hidden) {
+            kmApplyScaleToRoot(editRoot);
+        }
+    };
+
+    window.kmScheduleKkFormScale = function() {
+        if (kmKkScaleRaf) {
+            cancelAnimationFrame(kmKkScaleRaf);
+        }
+        kmKkScaleRaf = requestAnimationFrame(function() {
+            kmKkScaleRaf = null;
+            window.kmApplyKkFormScale();
+        });
+    };
+
+    window.addEventListener('resize', function() {
+        window.kmScheduleKkFormScale();
+    });
 
     function printKKPHtml(formHTML) {
         if (!formHTML || !String(formHTML).trim()) return;
@@ -1222,6 +1410,7 @@
     window.printKKPForm = function() {
         var container = document.getElementById('kmKKPViewRoot') || document.getElementById('kmKKPFormContainer');
         if (!container) return;
-        printKKPHtml(container.innerHTML);
+        var paper = container.querySelector('.kk-view-paper');
+        printKKPHtml(paper ? paper.outerHTML : container.innerHTML);
     };
 })();

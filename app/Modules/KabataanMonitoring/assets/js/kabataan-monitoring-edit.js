@@ -61,7 +61,7 @@
         var n = parseInt(age, 10);
         if (n >= 15 && n <= 17) return 'Child Youth (15-17 yrs old)';
         if (n >= 18 && n <= 24) return 'Core Youth (18-24 yrs old)';
-        if (n >= 25 && n <= 30) return 'Young Adult (25-30 yrs old)';
+        if (n >= 25 && n <= 30) return 'Young Adult (15-30 yrs old)';
         return '';
     }
 
@@ -291,6 +291,9 @@
         }
         if (isEdit && typeof window.initKmEditValidation === 'function') {
             window.initKmEditValidation(editRoot);
+        }
+        if (typeof window.kmScheduleKkFormScale === 'function') {
+            window.kmScheduleKkFormScale();
         }
     }
 

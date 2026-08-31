@@ -426,11 +426,19 @@ document.addEventListener('DOMContentLoaded', function () {
 });
 
 // ── Logout Modal ──
-window.showLogoutModal = function () {
+var logoutInProgress = false;
+
+window.showLogoutModal = function (event) {
+    if (event) {
+        event.preventDefault();
+        event.stopPropagation();
+    }
+
     var modal = document.getElementById('logoutModal');
     if (!modal) {
         return;
     }
+
     var profileDropdown = document.getElementById('profileDropdown');
     if (profileDropdown) {
         profileDropdown.classList.remove('show');
@@ -439,58 +447,110 @@ window.showLogoutModal = function () {
     if (profileBtn) {
         profileBtn.classList.remove('open');
     }
+
+    modal.setAttribute('aria-hidden', 'false');
     modal.classList.add('show');
     document.body.style.overflow = 'hidden';
+
+    var confirmBtn = document.getElementById('logoutConfirmBtn');
+    if (confirmBtn && !logoutInProgress) {
+        confirmBtn.disabled = false;
+        confirmBtn.textContent = 'Yes, Logout';
+        requestAnimationFrame(function () {
+            confirmBtn.focus();
+        });
+    }
 };
 
 window.closeLogoutModal = function () {
+    if (logoutInProgress) {
+        return;
+    }
     var modal = document.getElementById('logoutModal');
     if (!modal) {
         return;
     }
     modal.classList.remove('show');
+    modal.setAttribute('aria-hidden', 'true');
     document.body.style.overflow = '';
 };
 
 window.confirmLogout = function () {
-    if (typeof LoadingScreen !== 'undefined') {
-        LoadingScreen.show('Logging Out', 'Please wait...');
+    if (logoutInProgress) {
+        return;
+    }
+    logoutInProgress = true;
+
+    var confirmBtn = document.getElementById('logoutConfirmBtn');
+    var cancelBtn = document.getElementById('logoutCancelBtn');
+    if (confirmBtn) {
+        confirmBtn.disabled = true;
+        confirmBtn.textContent = 'Logging out...';
+    }
+    if (cancelBtn) {
+        cancelBtn.disabled = true;
     }
 
-    var logoutUrl = window.logoutRoute || '/logout';
-    var loginUrl = window.loginRoute || '/login';
-    var csrfMeta = document.querySelector('meta[name="csrf-token"]');
-    var csrfToken = csrfMeta ? csrfMeta.getAttribute('content') : '';
-
-    fetch(logoutUrl, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'X-CSRF-TOKEN': csrfToken || '',
-            'Accept': 'application/json',
-        },
-        credentials: 'same-origin',
-    }).then(function () {
-        window.location.replace(loginUrl);
-    }).catch(function () {
-        var form = document.createElement('form');
-        form.method = 'POST';
-        form.action = logoutUrl;
-        if (csrfToken) {
-            var inp = document.createElement('input');
-            inp.type = 'hidden';
-            inp.name = '_token';
-            inp.value = csrfToken;
-            form.appendChild(inp);
-        }
-        document.body.appendChild(form);
+    var form = document.getElementById('logoutForm');
+    if (form) {
         form.submit();
-    });
+        return;
+    }
+
+    // Fallback if form markup is missing.
+    var logoutUrl = window.logoutRoute || '/logout';
+    var csrfToken = getCsrfToken();
+    var fallback = document.createElement('form');
+    fallback.method = 'POST';
+    fallback.action = logoutUrl;
+    if (csrfToken) {
+        var inp = document.createElement('input');
+        inp.type = 'hidden';
+        inp.name = '_token';
+        inp.value = csrfToken;
+        fallback.appendChild(inp);
+    }
+    document.body.appendChild(fallback);
+    fallback.submit();
 };
 
 document.addEventListener('DOMContentLoaded', function () {
     var logoutModal = document.getElementById('logoutModal');
+    var logoutTrigger = document.getElementById('logoutTriggerBtn');
+    var logoutConfirmBtn = document.getElementById('logoutConfirmBtn');
+    var logoutCancelBtn = document.getElementById('logoutCancelBtn');
+    var logoutCloseBtn = document.getElementById('logoutModalCloseBtn');
+
+    if (logoutTrigger) {
+        logoutTrigger.addEventListener('click', window.showLogoutModal);
+    }
+
+    if (logoutConfirmBtn) {
+        logoutConfirmBtn.addEventListener('click', function (event) {
+            event.preventDefault();
+            event.stopPropagation();
+            window.confirmLogout();
+        });
+    }
+
+    if (logoutCancelBtn) {
+        logoutCancelBtn.addEventListener('click', function (event) {
+            event.preventDefault();
+            event.stopPropagation();
+            window.closeLogoutModal();
+        });
+    }
+
+    if (logoutCloseBtn) {
+        logoutCloseBtn.addEventListener('click', function (event) {
+            event.preventDefault();
+            event.stopPropagation();
+            window.closeLogoutModal();
+        });
+    }
+
     if (logoutModal) {
+        logoutModal.setAttribute('aria-hidden', 'true');
         logoutModal.addEventListener('click', function (event) {
             if (event.target === logoutModal) {
                 window.closeLogoutModal();

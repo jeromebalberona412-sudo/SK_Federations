@@ -112,6 +112,7 @@
 
             try {
                 await api(cfg.restoreUrl + '/' + pendingRestoreId + '/restore', { method: 'POST' });
+                window.SkLocalCache?.clearByPrefix('sk_fed_deleted_posts_v1_');
                 closeRestoreModal();
                 await loadArchive(currentPage);
             } catch (err) {
@@ -129,47 +130,67 @@
         if (search) params.set('search', search);
 
         const tbody = document.getElementById('archiveTableBody');
-        if (tbody) tbody.innerHTML = '<tr><td colspan="6">Loading archived posts…</td></tr>';
+        const cacheKey = 'sk_fed_deleted_posts_v1_' + params.toString();
+        const cached = window.SkLocalCache?.get(cacheKey);
+        const paintRows = function (rows) {
+            archiveRows = rows || [];
+            if (!tbody) return;
+            if (!archiveRows.length) {
+                tbody.innerHTML = '<tr><td colspan="6">No archived posts found.</td></tr>';
+                return;
+            }
+            tbody.innerHTML = archiveRows.map(function (row) {
+                return '<tr>' +
+                    '<td>' + escapeHtml(row.type_label) + '</td>' +
+                    '<td>' + escapeHtml(row.author_name) + '</td>' +
+                    '<td>' + escapeHtml(formatDate(row.created_at)) + '</td>' +
+                    '<td>' + escapeHtml(formatDate(row.archived_at)) + '</td>' +
+                    '<td><span class="days-badge ' + tierClass(row.days_tier) + '">' + escapeHtml(row.auto_delete_label) + '</span></td>' +
+                    '<td class="col-actions">' +
+                        ArchiveRowActions.renderMenu(row.id, { view: true, restore: true, deletePermanent: true }) +
+                    '</td>' +
+                '</tr>';
+            }).join('');
 
-        const data = await api(cfg.dataUrl + '?' + params.toString());
-        archiveRows = data.data || [];
+            ArchiveRowActions.bind(tbody, function (action, id) {
+                if (action === 'view') {
+                    openArchiveViewModal(id);
+                    return;
+                }
+                if (action === 'restore') {
+                    openRestoreModal(id);
+                    return;
+                }
+                if (action === 'delete') {
+                    if (!confirm('Permanently delete this archived post? This cannot be undone.')) return;
+                    api(cfg.restoreUrl + '/' + id, { method: 'DELETE' })
+                        .then(function () {
+                            window.SkLocalCache?.clearByPrefix('sk_fed_deleted_posts_v1_');
+                            loadArchive(currentPage).catch(showError);
+                        })
+                        .catch(showError);
+                }
+            });
+        };
 
-        if (!tbody) return;
-
-        if (!archiveRows.length) {
-            tbody.innerHTML = '<tr><td colspan="6">No archived posts found.</td></tr>';
-            return;
+        if (cached?.payload) {
+            paintRows(cached.payload.data || []);
+            if (window.SkLocalCache.isFresh(cached, 5 * 60 * 1000)) {
+                api(cfg.dataUrl + '?' + params.toString())
+                    .then(function (data) {
+                        window.SkLocalCache?.set(cacheKey, data);
+                        paintRows(data.data || []);
+                    })
+                    .catch(function () {});
+                return;
+            }
+        } else if (tbody) {
+            tbody.innerHTML = '<tr><td colspan="6">Loading archived posts…</td></tr>';
         }
 
-        tbody.innerHTML = archiveRows.map(function (row) {
-            return '<tr>' +
-                '<td>' + escapeHtml(row.type_label) + '</td>' +
-                '<td>' + escapeHtml(row.author_name) + '</td>' +
-                '<td>' + escapeHtml(formatDate(row.created_at)) + '</td>' +
-                '<td>' + escapeHtml(formatDate(row.archived_at)) + '</td>' +
-                '<td><span class="days-badge ' + tierClass(row.days_tier) + '">' + escapeHtml(row.auto_delete_label) + '</span></td>' +
-                '<td class="col-actions">' +
-                    ArchiveRowActions.renderMenu(row.id, { view: true, restore: true, deletePermanent: true }) +
-                '</td>' +
-            '</tr>';
-        }).join('');
-
-        ArchiveRowActions.bind(tbody, function (action, id) {
-            if (action === 'view') {
-                openArchiveViewModal(id);
-                return;
-            }
-            if (action === 'restore') {
-                openRestoreModal(id);
-                return;
-            }
-            if (action === 'delete') {
-                if (!confirm('Permanently delete this archived post? This cannot be undone.')) return;
-                api(cfg.restoreUrl + '/' + id, { method: 'DELETE' })
-                    .then(function () { loadArchive(currentPage).catch(showError); })
-                    .catch(showError);
-            }
-        });
+        const data = await api(cfg.dataUrl + '?' + params.toString());
+        window.SkLocalCache?.set(cacheKey, data);
+        paintRows(data.data || []);
     }
 
     function showError(err) {

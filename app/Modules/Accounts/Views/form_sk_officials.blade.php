@@ -173,13 +173,13 @@
                             <div class="form-group-light">
                                 <label class="form-label-light required">Term Start Date (MM/DD/YYYY)</label>
                                 <input type="date" name="term_start" id="official_term_start" class="form-input-light" required>
-                                <p class="form-hint-light">Defaults to today. You may advance a little into the future.</p>
+                                <p class="form-hint-light">Defaults to the current SK Federation President/VP term start.</p>
                                 <span class="form-error-light"></span>
                             </div>
                             <div class="form-group-light">
                                 <label class="form-label-light required">Term End Date (MM/DD/YYYY)</label>
                                 <input type="date" name="term_end" id="official_term_end" class="form-input-light" required>
-                                <p class="form-hint-light">Defaults to today + 5 years. Updates when Term Start changes.</p>
+                                <p class="form-hint-light">Defaults to the current SK Federation President/VP term end.</p>
                                 <span class="form-error-light"></span>
                             </div>
                         </div>

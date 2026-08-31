@@ -50,6 +50,44 @@ async function fetchKkProfilingData() {
     }
 
     const params = new URLSearchParams(getKkProfilingFilters());
+    const cacheKey = 'sk_fed_kk_chart_v1_' + params.toString();
+    const cached = window.SkLocalCache?.get(cacheKey);
+
+    if (cached?.payload && window.SkLocalCache.isFresh(cached, 5 * 60 * 1000)) {
+        // Soft revalidate in background; return cached for instant chart paint.
+        fetch(`${endpoint}?${params.toString()}`, {
+            headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+            credentials: 'same-origin',
+        })
+            .then((response) => (response.ok ? response.json() : null))
+            .then((payload) => {
+                if (!payload) return;
+                window.SkLocalCache?.set(cacheKey, payload.data || null);
+            })
+            .catch(() => {});
+        return cached.payload;
+    }
+
+    if (cached?.payload) {
+        // Stale cache: paint caller can use it while we refresh.
+        try {
+            const response = await fetch(`${endpoint}?${params.toString()}`, {
+                headers: {
+                    Accept: 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+                credentials: 'same-origin',
+            });
+            if (response.ok) {
+                const payload = await response.json();
+                window.SkLocalCache?.set(cacheKey, payload.data || null);
+                return payload.data || null;
+            }
+        } catch (error) {
+            // fall through to cache
+        }
+        return cached.payload;
+    }
 
     try {
         const response = await fetch(`${endpoint}?${params.toString()}`, {
@@ -65,6 +103,7 @@ async function fetchKkProfilingData() {
         }
 
         const payload = await response.json();
+        window.SkLocalCache?.set(cacheKey, payload.data || null);
         return payload.data || null;
     } catch (error) {
         return null;
@@ -219,7 +258,6 @@ function initKkProfilingMonthlyChart() {
     wireKkProfilingBarangayFilter();
     wireKkProfilingPeriodFilter();
     wireKkProfilingMonthFilter();
-    wireKkProfilingExport();
     wireKkProfilingDatasetFilters();
     toggleKkProfilingMonthFilter();
     wireDashboardYearFilter();

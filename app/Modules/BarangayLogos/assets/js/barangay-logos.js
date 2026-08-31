@@ -279,7 +279,7 @@
             return;
         }
 
-        // Optimistic UI
+        // Optimistic UI — show local preview immediately
         var wasAlreadyUploaded = card.classList.contains('has-logo');
         var previousUrl = null;
         var imgBefore = document.getElementById('img-' + index);
@@ -287,9 +287,10 @@
             previousUrl = imgBefore.getAttribute('data-current-url') || imgBefore.src || null;
         }
 
-        applyLogoToCard(index, previewDataUrl, null);
+        applyLogoToCard(index, previewDataUrl, null, { keepPreviewUntilRemote: true });
         setCardLoading(index, true);
-        setUploadOverlay(true, wasAlreadyUploaded ? 'Updating Logo' : 'Uploading Logo');
+        // Card-level spinner only — avoid heavy full-page overlay blocking the UI
+        setUploadOverlay(false);
 
         var formData = new FormData();
         formData.append('barangay_id', barangayId);
@@ -317,7 +318,20 @@
                 blToast(result.data.message || 'Upload failed.', 'error');
                 return;
             }
-            applyLogoToCard(index, result.data.url, result.data.id);
+            var remoteUrl = result.data && (result.data.url || result.data.secure_url);
+            var logoId = result.data && result.data.id;
+            if (remoteUrl) {
+                // Swap to remote when it actually loads; keep preview if CDN is slow
+                applyLogoToCard(index, remoteUrl, logoId, {
+                    fallbackUrl: previewDataUrl,
+                    pulse: true,
+                });
+            } else {
+                applyLogoToCard(index, previewDataUrl, logoId, { pulse: true });
+            }
+            if (window.SkLocalCache) {
+                window.SkLocalCache.clearByPrefix('sk_fed_barangay_logos_v1_');
+            }
             var msg = wasAlreadyUploaded ? 'Logo changed successfully!' : 'Logo uploaded successfully!';
             blToast(msg, 'success');
         })
@@ -347,7 +361,7 @@
         }
 
         setCardLoading(index, true);
-        setUploadOverlay(true, 'Removing Logo');
+        setUploadOverlay(false);
 
         fetch(((window.barangayLogosRoutes && window.barangayLogosRoutes.deleteBase) || '/barangay-logos') + '/' + logoId, {
             method: 'DELETE',
@@ -369,6 +383,9 @@
                 return;
             }
             clearLogoFromCard(index);
+            if (window.SkLocalCache) {
+                window.SkLocalCache.clearByPrefix('sk_fed_barangay_logos_v1_');
+            }
             blToast('Logo deleted successfully!', 'success');
         })
         .catch(function () {
@@ -381,7 +398,8 @@
     /* ══════════════════════════════════════════════════════════
        CARD DOM HELPERS
     ══════════════════════════════════════════════════════════ */
-    function applyLogoToCard(index, url, logoId) {
+    function applyLogoToCard(index, url, logoId, options) {
+        options = options || {};
         var img         = document.getElementById('img-'           + index);
         var placeholder = document.getElementById('placeholder-'   + index);
         var removeBtn   = document.getElementById('removeBtn-'     + index);
@@ -392,9 +410,41 @@
         if (!img || !placeholder || !removeBtn || !card) return;
 
         var displayUrl = withCacheBuster(url);
-        img.src = displayUrl;
-        img.setAttribute('data-current-url', url);
-        img.style.display = logosVisible ? 'block' : 'none';
+        var fallbackUrl = options.fallbackUrl || null;
+
+        function showImage(src, stableUrl) {
+            img.onload = null;
+            img.onerror = null;
+            img.src = src;
+            if (stableUrl) {
+                img.setAttribute('data-current-url', stableUrl);
+            } else if (url && url.indexOf('data:') !== 0) {
+                img.setAttribute('data-current-url', url);
+            }
+            img.style.display = logosVisible ? 'block' : 'none';
+        }
+
+        if (fallbackUrl && url && url.indexOf('data:') !== 0) {
+            // Keep preview visible while remote URL is probed
+            showImage(fallbackUrl.indexOf('data:') === 0 ? fallbackUrl : withCacheBuster(fallbackUrl), null);
+            var probe = new Image();
+            probe.onload = function () {
+                showImage(displayUrl, url);
+            };
+            probe.onerror = function () {
+                // CDN may lag — keep local preview, retry once shortly
+                setTimeout(function () {
+                    var retryUrl = withCacheBuster(url);
+                    var retry = new Image();
+                    retry.onload = function () { showImage(retryUrl, url); };
+                    retry.onerror = function () { /* keep preview */ };
+                    retry.src = retryUrl;
+                }, 1200);
+            };
+            probe.src = displayUrl;
+        } else {
+            showImage(displayUrl, url && url.indexOf('data:') !== 0 ? url : null);
+        }
 
         placeholder.style.display = 'none';
 
@@ -410,8 +460,18 @@
 
         if (btnText) btnText.textContent = 'Change Logo';
 
-        if (logoId !== null) {
+        if (logoId !== null && logoId !== undefined) {
             card.setAttribute('data-logo-id', logoId);
+        }
+
+        if (options.pulse) {
+            card.classList.remove('just-uploaded');
+            // Force reflow so animation can replay
+            void card.offsetWidth;
+            card.classList.add('just-uploaded');
+            setTimeout(function () {
+                card.classList.remove('just-uploaded');
+            }, 900);
         }
     }
 

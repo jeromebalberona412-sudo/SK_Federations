@@ -57,11 +57,63 @@ function loadPosts(reset) {
     isLoading = true;
 
     var container = document.getElementById('feed-posts');
-    if (reset) { posts = []; knownPostIds.clear(); postCache.clear(); container.innerHTML = '<div class="post-card" style="text-align:center;color:#999;padding:32px;">Loading...</div>'; }
-
     var url = '/api/community-feed?per_page=100&page=1'
         + (currentFilter !== 'all' ? '&filter=' + encodeURIComponent(currentFilter) : '')
         + (feedSearch ? '&search=' + encodeURIComponent(feedSearch) : '');
+    var cacheKey = 'sk_fed_community_feed_v1_' + currentFilter + '_' + (feedSearch || '');
+
+    function paintFeed(data) {
+        if (reset) container.innerHTML = '';
+        posts = (data.data || []).filter(function(p) { return p && p.id; });
+        knownPostIds.clear();
+        if (!posts.length) {
+            container.innerHTML = '<div class="post-card" style="text-align:center;color:#999;padding:32px;">No posts found.</div>';
+        } else {
+            posts.forEach(function(p) {
+                knownPostIds.add(Number(p.id));
+                postCache.set(Number(p.id), p);
+                var el = document.createElement('div');
+                el.className = 'post-card';
+                el.dataset.postId = p.id;
+                el.innerHTML = buildPost(p);
+                bindPostImageClicks(el, p);
+                bindReactionControls(el);
+                container.appendChild(el);
+            });
+        }
+    }
+
+    var cached = window.SkLocalCache && window.SkLocalCache.get(cacheKey);
+    var hasCached = Boolean(cached && cached.payload);
+    var cacheFresh = hasCached && window.SkLocalCache.isFresh(cached, 5 * 60 * 1000);
+
+    if (hasCached) {
+        if (reset) { posts = []; knownPostIds.clear(); postCache.clear(); }
+        paintFeed(cached.payload);
+        if (cacheFresh) {
+            isLoading = false;
+            setFilterTabsDisabled(false);
+            startFeedPolling();
+            // Soft revalidate without blocking UI.
+            apiFetch(url, { method: 'GET' })
+                .then(function (r) {
+                    return r.json().catch(function () { return {}; }).then(function (data) {
+                        if (!r.ok) return null;
+                        return data;
+                    });
+                })
+                .then(function (data) {
+                    if (!data) return;
+                    if (window.SkLocalCache) window.SkLocalCache.set(cacheKey, data);
+                    paintFeed(data);
+                })
+                .catch(function () {});
+            return Promise.resolve();
+        }
+    } else if (reset) {
+        posts = []; knownPostIds.clear(); postCache.clear();
+        container.innerHTML = '<div class="post-card" style="text-align:center;color:#999;padding:32px;">Loading...</div>';
+    }
 
     return apiFetch(url, { method: 'GET' })
         .then(function(r) {
@@ -74,28 +126,11 @@ function loadPosts(reset) {
             });
         })
         .then(function(data) {
-            if (reset) container.innerHTML = '';
-
-            posts = (data.data || []).filter(function(p) { return p && p.id; });
-
-            if (!posts.length) {
-                container.innerHTML = '<div class="post-card" style="text-align:center;color:#999;padding:32px;">No posts found.</div>';
-            } else {
-                posts.forEach(function(p) {
-                    knownPostIds.add(Number(p.id));
-                    postCache.set(Number(p.id), p);
-                    var el = document.createElement('div');
-                    el.className = 'post-card';
-                    el.dataset.postId = p.id;
-                    el.innerHTML = buildPost(p);
-                    bindPostImageClicks(el, p);
-                    bindReactionControls(el);
-                    container.appendChild(el);
-                });
-            }
+            if (window.SkLocalCache) window.SkLocalCache.set(cacheKey, data);
+            paintFeed(data);
         })
         .catch(function(err) {
-            if (reset) {
+            if (reset && !hasCached) {
                 container.innerHTML = '<div class="post-card" style="text-align:center;color:#999;padding:32px;">'
                     + escapeHtml(err && err.message ? err.message : 'Failed to load posts.')
                     + '</div>';
@@ -1541,6 +1576,7 @@ function deletePost(id) {
             });
         })
         .then(function() {
+            if (window.SkLocalCache) window.SkLocalCache.clearByPrefix('sk_fed_community_feed_v1_');
             posts = posts.filter(function(x) { return x.id !== id; });
             var el = document.querySelector('[data-post-id="' + id + '"]');
             if (el) el.remove();
@@ -1691,6 +1727,7 @@ function savePostForm(formData) {
         })
         .then(function(saved) {
             if (!saved || !saved.id) throw new Error('Invalid response from server.');
+            if (window.SkLocalCache) window.SkLocalCache.clearByPrefix('sk_fed_community_feed_v1_');
             closeComposeModal();
             notifyFeed(isEdit ? 'Post updated successfully.' : 'Post created successfully.');
             renderPosts(true);

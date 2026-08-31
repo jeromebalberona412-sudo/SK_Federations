@@ -104,6 +104,8 @@ class KkProfilingFederationUpdateService
             'invite_sent' => $inviteSent,
         ]);
 
+        $this->monitoring->forgetListCache($updated->barangay?->name);
+
         return [
             'registration' => $updated,
             'invite_sent' => $inviteSent,

@@ -54,6 +54,14 @@ document.addEventListener('DOMContentLoaded', function () {
         }
 
         feedRefreshInFlight = true;
+        const cacheKey = 'sk_fed_dashboard_feed_v1';
+        const cached = window.SkLocalCache?.get(cacheKey);
+        if (cached?.payload) {
+            renderActivity(cached.payload.recent_activity || [], els.activityList);
+            renderEvents(cached.payload.upcoming_events || []);
+            renderTodayReminder(cached.payload.today_reminder || null);
+            updateStats(cached.payload.stats || {});
+        }
 
         try {
             const response = await fetch(feedUrl, {
@@ -66,12 +74,13 @@ document.addEventListener('DOMContentLoaded', function () {
             }
 
             const payload = await response.json();
+            window.SkLocalCache?.set(cacheKey, payload);
             renderActivity(payload.recent_activity || [], els.activityList);
             renderEvents(payload.upcoming_events || []);
             renderTodayReminder(payload.today_reminder || null);
             updateStats(payload.stats || {});
         } catch (_) {
-            // Keep existing dashboard data on transient failures.
+            // Keep cached paint when refresh fails.
         } finally {
             feedRefreshInFlight = false;
         }

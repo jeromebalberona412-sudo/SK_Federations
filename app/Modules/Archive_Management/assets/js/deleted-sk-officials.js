@@ -101,7 +101,6 @@ function getCsrfToken() {
 async function loadDsoRecords() {
     if (dsoIsLoading) return;
     dsoIsLoading = true;
-    renderDsoLoadingState();
 
     const params = new URLSearchParams({
         filter: dsoActiveFilter,
@@ -111,6 +110,34 @@ async function loadDsoRecords() {
         position: dsoActivePosition,
         term: dsoActiveTerm,
     });
+    const cacheKey = 'sk_fed_deleted_sk_officials_v1_' + params.toString();
+    const cached = window.SkLocalCache?.get(cacheKey);
+    const paint = (payload) => {
+        dsoRecords = (payload.data || []).map(normalizeDsoRecord);
+        dsoFiltered = [...dsoRecords];
+        populateDsoDropdowns(payload.filters || {});
+        const pages = Math.max(1, Math.ceil(dsoFiltered.length / dsoPerPage) || 1);
+        if (dsoCurrentPage > pages) dsoCurrentPage = pages;
+        renderDsoTable();
+    };
+
+    if (cached?.payload) {
+        paint(cached.payload);
+        if (window.SkLocalCache.isFresh(cached, 5 * 60 * 1000)) {
+            dsoIsLoading = false;
+            fetch(`${DSO_API.data}?${params.toString()}`, { headers: { Accept: 'application/json' } })
+                .then((response) => response.json().then((payload) => ({ ok: response.ok, payload })))
+                .then(({ ok, payload }) => {
+                    if (!ok) return;
+                    window.SkLocalCache?.set(cacheKey, payload);
+                    paint(payload);
+                })
+                .catch(() => {});
+            return;
+        }
+    } else {
+        renderDsoLoadingState();
+    }
 
     try {
         const response = await fetch(`${DSO_API.data}?${params.toString()}`, {
@@ -119,18 +146,14 @@ async function loadDsoRecords() {
         const payload = await response.json();
         if (!response.ok) throw new Error('Failed to load deleted records.');
 
-        dsoRecords = (payload.data || []).map(normalizeDsoRecord);
-        dsoFiltered = [...dsoRecords];
-        populateDsoDropdowns(payload.filters || {});
-        const pages = Math.max(1, Math.ceil(dsoFiltered.length / dsoPerPage) || 1);
-        if (dsoCurrentPage > pages) {
-            dsoCurrentPage = pages;
-        }
-        renderDsoTable();
+        window.SkLocalCache?.set(cacheKey, payload);
+        paint(payload);
     } catch (error) {
-        dsoRecords = [];
-        dsoFiltered = [];
-        renderDsoErrorState(error.message || 'Unable to load deleted SK Officials records.');
+        if (!cached?.payload) {
+            dsoRecords = [];
+            dsoFiltered = [];
+            renderDsoErrorState(error.message || 'Unable to load deleted SK Officials records.');
+        }
     } finally {
         dsoIsLoading = false;
     }
@@ -421,6 +444,7 @@ function bindDsoRestoreModal() {
             }
             closeDsoRestoreModal();
             showDsoToast(data.message || 'Account restored successfully.');
+            window.SkLocalCache?.clearByPrefix('sk_fed_deleted_sk_officials_v1_');
             await loadDsoRecords();
         } catch (error) {
             alert(error.message || 'Failed to restore account. Please try again.');

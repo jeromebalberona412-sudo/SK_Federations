@@ -5,6 +5,7 @@ namespace App\Modules\Calendar\Controllers;
 use App\Models\SkFederationCalendarNote;
 use App\Modules\Shared\Controllers\Controller;
 use App\Services\SkFedActivityService;
+use App\Services\SkFedPageCache;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -13,7 +14,10 @@ use Illuminate\View\View;
 
 class CalendarController extends Controller
 {
-    public function __construct(private readonly SkFedActivityService $activityService) {}
+    public function __construct(
+        private readonly SkFedActivityService $activityService,
+        private readonly SkFedPageCache $pageCache,
+    ) {}
 
     public function page(Request $request): View
     {
@@ -25,16 +29,20 @@ class CalendarController extends Controller
         $year = (int) $request->query('year', now()->year);
         $month = (int) $request->query('month', now()->month);
 
-        $start = sprintf('%04d-%02d-01', $year, $month);
-        $end = date('Y-m-t', strtotime($start));
+        $notes = $this->pageCache->remember('calendar.notes', function () use ($year, $month) {
+            $start = sprintf('%04d-%02d-01', $year, $month);
+            $end = date('Y-m-t', strtotime($start));
 
-        $notes = SkFederationCalendarNote::query()
-            ->whereBetween('note_date', [$start, $end])
-            ->orderBy('note_date')
-            ->get()
-            ->map(fn (SkFederationCalendarNote $note) => $this->formatNote($note));
+            return SkFederationCalendarNote::query()
+                ->whereBetween('note_date', [$start, $end])
+                ->orderBy('note_date')
+                ->get()
+                ->map(fn (SkFederationCalendarNote $note) => $this->formatNote($note))
+                ->values()
+                ->all();
+        }, ['year' => $year, 'month' => $month]);
 
-        return response()->json(['data' => $notes]);
+        return response()->json(['data' => $notes])->header('Cache-Control', 'private, max-age=60');
     }
 
     public function store(Request $request): JsonResponse
@@ -72,6 +80,8 @@ class CalendarController extends Controller
             ['note_id' => $note->id, 'note_date' => $validated['note_date']]
         );
 
+        $this->pageCache->bump('calendar.notes');
+
         return response()->json([
             'message' => 'Note saved.',
             'data' => $this->formatNote($note),
@@ -99,6 +109,8 @@ class CalendarController extends Controller
             ['note_id' => $note->id]
         );
 
+        $this->pageCache->bump('calendar.notes');
+
         return response()->json([
             'message' => 'Note updated.',
             'data' => $this->formatNote($note->fresh()),
@@ -121,6 +133,8 @@ class CalendarController extends Controller
             'Deleted calendar note: '.$title,
             ['note_id' => $id]
         );
+
+        $this->pageCache->bump('calendar.notes');
 
         return response()->json(['message' => 'Note deleted.']);
     }

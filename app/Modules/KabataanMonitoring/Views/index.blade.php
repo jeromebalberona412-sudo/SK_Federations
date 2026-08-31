@@ -44,9 +44,16 @@
 
 @push('scripts')
 <script>
+    window.kmPageMode = 'index';
+    window.kmBarangay = '';
+    window.kmInitialPayload = {
+        data: @json($initialRecords ?? []),
+        years: @json($registrationYears ?? []),
+    };
     window.kmConfig = {
         dataUrl: @json(route('api.kabataan-monitoring.index')),
     };
 </script>
-    <script src="{{ url('/modules/kabataan-monitoring/js/kabataan-monitoring.js') }}?v={{ time() }}"></script>
+    <script src="{{ url('/shared/js/local-data-cache.js') }}?v={{ @filemtime(public_path('shared/js/local-data-cache.js')) ?: time() }}"></script>
+    <script src="{{ url('/modules/kabataan-monitoring/js/kabataan-monitoring.js') }}?v={{ @filemtime(app_path('Modules/KabataanMonitoring/assets/js/kabataan-monitoring.js')) ?: time() }}"></script>
 @endpush

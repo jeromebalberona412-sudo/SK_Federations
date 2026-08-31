@@ -28,6 +28,10 @@
      data-account-type="{{ $accountType ?? 'sk_federation' }}"
      data-batch-role="{{ $batchRole }}"
      data-batch-template-type="{{ $batchTemplateType }}"
+     @if($isOfficials)
+     data-default-term-start="{{ $defaultTermStart ?? '' }}"
+     data-default-term-end="{{ $defaultTermEnd ?? '' }}"
+     @endif
      @unless($isOfficials)
      data-taken-federation-positions="{{ json_encode(array_values($takenFederationPositions ?? [])) }}"
      @endunless>

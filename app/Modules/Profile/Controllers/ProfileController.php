@@ -46,10 +46,12 @@ class ProfileController extends Controller
 
         if (Schema::hasTable('barangays')) {
             /** @var Collection<int, Barangay> $barangays */
-            $barangays = Barangay::query()
-                ->select(['id', 'name'])
-                ->orderBy('name')
-                ->get();
+            $barangays = app(\App\Services\SkFedPageCache::class)->remember(
+                'profile.barangays',
+                fn () => Barangay::query()->select(['id', 'name'])->orderBy('name')->get(),
+                [],
+                300
+            );
 
             if ($user->barangay_id) {
                 $barangay = $barangays->firstWhere('id', $user->barangay_id);

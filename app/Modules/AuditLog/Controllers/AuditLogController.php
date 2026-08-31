@@ -41,32 +41,45 @@ class AuditLogController extends Controller
         $allowedPerPage = [10, 25, 50, 100, 500, 1000];
         $perPage = in_array($requestedPerPage, $allowedPerPage, true) ? $requestedPerPage : 100;
         $page = max(1, (int) $request->integer('page', 1));
+        $filters = $this->extractFilters($request);
+        $pageCache = app(\App\Services\SkFedPageCache::class);
 
-        $paginator = $this->queryService->paginate(
-            $this->extractFilters($request),
-            $tenantId,
-            $perPage,
-            $page,
-        );
+        $payload = $pageCache->remember('audit.logs', function () use ($filters, $tenantId, $perPage, $page) {
+            $paginator = $this->queryService->paginate($filters, $tenantId, $perPage, $page);
 
-        return response()->json([
-            'data' => $paginator->items(),
-            'meta' => [
-                'current_page' => $paginator->currentPage(),
-                'last_page' => $paginator->lastPage(),
-                'per_page' => $paginator->perPage(),
-                'total' => $paginator->total(),
-                'from' => $paginator->firstItem() ?? 0,
-                'to' => $paginator->lastItem() ?? 0,
-            ],
-        ]);
+            return [
+                'data' => $paginator->items(),
+                'meta' => [
+                    'current_page' => $paginator->currentPage(),
+                    'last_page' => $paginator->lastPage(),
+                    'per_page' => $paginator->perPage(),
+                    'total' => $paginator->total(),
+                    'from' => $paginator->firstItem() ?? 0,
+                    'to' => $paginator->lastItem() ?? 0,
+                ],
+            ];
+        }, [
+            'tenant' => $tenantId,
+            'page' => $page,
+            'per_page' => $perPage,
+            'filters' => $filters,
+        ], 60);
+
+        return response()->json($payload)->header('Cache-Control', 'private, max-age=30');
     }
 
     public function stats(Request $request): JsonResponse
     {
+        $tenantId = $request->user()?->tenant_id;
+        $pageCache = app(\App\Services\SkFedPageCache::class);
+
+        $stats = $pageCache->remember('audit.stats', function () use ($tenantId) {
+            return $this->queryService->stats($tenantId);
+        }, ['tenant' => $tenantId], 60);
+
         return response()->json([
-            'data' => $this->queryService->stats($request->user()?->tenant_id),
-        ]);
+            'data' => $stats,
+        ])->header('Cache-Control', 'private, max-age=30');
     }
 
     public function recent(Request $request): JsonResponse

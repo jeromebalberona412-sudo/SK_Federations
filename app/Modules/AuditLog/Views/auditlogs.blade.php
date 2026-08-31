@@ -17,7 +17,7 @@
         ['label' => 'Total Audit Logs', 'metricKey' => 'total_logs', 'value' => $stats['total_logs'] ?? 0, 'tone' => 'azure', 'icon' => 'activity'],
         ['label' => "Today's Activities", 'metricKey' => 'today_activities', 'value' => $stats['today_activities'] ?? 0, 'tone' => 'teal', 'icon' => 'users'],
         ['label' => 'Security Events', 'metricKey' => 'security_events', 'value' => $stats['security_events'] ?? 0, 'tone' => 'red', 'icon' => 'reject'],
-        ['label' => 'Active Users Logged Today', 'metricKey' => 'active_users_today', 'value' => $stats['active_users_today'] ?? 0, 'tone' => 'violet', 'icon' => 'officials'],
+        ['label' => 'Failed Logins Today', 'metricKey' => 'failed_logins_today', 'value' => $stats['failed_logins_today'] ?? 0, 'tone' => 'violet', 'icon' => 'officials'],
     ];
 @endphp
 

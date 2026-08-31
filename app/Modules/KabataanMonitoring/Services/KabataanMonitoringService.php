@@ -7,10 +7,13 @@ use App\Modules\AuditLog\Contracts\AuditLogInterface;
 use App\Modules\Shared\Models\User;
 use App\Services\BarangayLogoUrlService;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Schema;
 
 class KabataanMonitoringService
 {
+    private const LIST_CACHE_TTL = 300;
+
     public function __construct(
         private readonly BarangayLogoUrlService $logoUrls,
         private readonly AuditLogInterface $auditLog,
@@ -19,7 +22,20 @@ class KabataanMonitoringService
     /**
      * @return list<array<string, mixed>>
      */
-    public function listAll(): array
+    public function listAll(?string $barangayName = null): array
+    {
+        $barangayName = $barangayName !== null ? trim($barangayName) : '';
+        $cacheKey = $this->listCacheKey($barangayName);
+
+        return Cache::remember($cacheKey, self::LIST_CACHE_TTL, function () use ($barangayName) {
+            return $this->listAllUncached($barangayName !== '' ? $barangayName : null);
+        });
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function listAllUncached(?string $barangayName = null): array
     {
         if (! Schema::hasTable('kabataan_registrations')) {
             return [];
@@ -37,18 +53,77 @@ class KabataanMonitoringService
             });
         }
 
-        return $query
+        $barangayName = $barangayName !== null ? trim($barangayName) : '';
+        if ($barangayName !== '') {
+            $query->whereHas('barangay', fn ($builder) => $builder->where('name', $barangayName));
+        }
+
+        $records = $query
             ->orderBy('last_name')
             ->orderBy('first_name')
-            ->get()
-            ->map(fn (KabataanRegistration $record) => $this->formatRecord($record))
+            ->get();
+
+        // Resolve each barangay logo once (not once per youth record).
+        $logoMap = [];
+        $barangayIds = $records
+            ->pluck('barangay_id')
+            ->filter()
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values()
             ->all();
+
+        foreach ($barangayIds as $barangayId) {
+            $logoMap[$barangayId] = $this->logoUrls->resolve($barangayId);
+        }
+
+        return $records
+            ->map(fn (KabataanRegistration $record) => $this->formatRecord(
+                $record,
+                $logoMap[(int) ($record->barangay_id ?? 0)] ?? null
+            ))
+            ->all();
+    }
+
+    public function forgetListCache(?string $barangayName = null): void
+    {
+        $barangayName = $barangayName !== null ? trim($barangayName) : '';
+        Cache::forget($this->listCacheKey(''));
+        Cache::forget($this->yearsCacheKey(''));
+
+        if ($barangayName !== '') {
+            Cache::forget($this->listCacheKey($barangayName));
+            Cache::forget($this->yearsCacheKey($barangayName));
+        }
+    }
+
+    private function listCacheKey(string $barangayName): string
+    {
+        return 'skfed:km:list:v2:'.md5(strtolower($barangayName !== '' ? $barangayName : 'all'));
+    }
+
+    private function yearsCacheKey(string $barangayName): string
+    {
+        return 'skfed:km:years:v2:'.md5(strtolower($barangayName !== '' ? $barangayName : 'all'));
     }
 
     /**
      * @return list<string>
      */
     public function registrationYears(?string $barangayName = null): array
+    {
+        $barangayName = $barangayName !== null ? trim($barangayName) : '';
+        $cacheKey = $this->yearsCacheKey($barangayName);
+
+        return Cache::remember($cacheKey, self::LIST_CACHE_TTL, function () use ($barangayName) {
+            return $this->registrationYearsUncached($barangayName !== '' ? $barangayName : null);
+        });
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function registrationYearsUncached(?string $barangayName = null): array
     {
         if (! Schema::hasTable('kabataan_registrations')) {
             return [];
@@ -101,6 +176,8 @@ class KabataanMonitoringService
         }
 
         $record->delete();
+
+        $this->forgetListCache($record->barangay?->name);
 
         $this->auditLog->log('kabataan_registration.deleted', $user, [
             'action' => 'delete',
@@ -235,7 +312,7 @@ class KabataanMonitoringService
     /**
      * @return array<string, mixed>
      */
-    private function formatRecord(KabataanRegistration $record): array
+    private function formatRecord(KabataanRegistration $record, ?string $barangayLogoUrl = null): array
     {
         $formData = is_array($record->form_data) ? $record->form_data : [];
 
@@ -243,7 +320,7 @@ class KabataanMonitoringService
             'id' => $record->id,
             'slug' => (string) $record->id,
             'respondentNumber' => $this->displayRespondentNumber($record),
-            'barangayLogoUrl' => $record->barangay_id ? ($this->logoUrls->resolve((int) $record->barangay_id) ?: null) : null,
+            'barangayLogoUrl' => $barangayLogoUrl,
             'firstName' => $record->first_name,
             'middleName' => $record->middle_name,
             'lastName' => $record->last_name,
@@ -394,10 +471,17 @@ class KabataanMonitoringService
     public function store(User $user, array $data): array
     {
         $formData = $this->buildFormDataFromRequest($data);
+        $barangayName = trim((string) ($data['barangay'] ?? ''));
+        $barangayId = null;
+        if ($barangayName !== '' && class_exists(\App\Modules\Profile\Models\Barangay::class)) {
+            $barangayId = \App\Modules\Profile\Models\Barangay::query()
+                ->where('name', $barangayName)
+                ->value('id');
+        }
 
         $registration = KabataanRegistration::create([
-            'tenant_id' => 1, // Will need to be determined based on federation context
-            'barangay_id' => null, // Will need to be determined based on federation context
+            'tenant_id' => 1,
+            'barangay_id' => $barangayId,
             'last_name' => $data['last_name'],
             'first_name' => $data['first_name'],
             'middle_name' => $data['middle_name'] ?? null,
@@ -419,6 +503,8 @@ class KabataanMonitoringService
             'module' => 'kabataan_monitoring',
             'name' => $registration->full_name,
         ]);
+
+        $this->forgetListCache($barangayName);
 
         return [
             'id' => $registration->id,
@@ -451,9 +537,10 @@ class KabataanMonitoringService
             'facebook' => $data['facebook'] ?? null,
             'group_chat' => $data['group_chat'] ?? null,
             'signature' => $data['signature'] ?? null,
-            'region' => 'Region IV-A (CALABARZON)',
-            'province' => 'Laguna',
-            'city' => 'Santa Cruz',
+            'region' => $data['region'] ?? 'Region IV-A (CALABARZON)',
+            'province' => $data['province'] ?? 'Laguna',
+            'city' => $data['city'] ?? 'Santa Cruz',
+            'barangay' => $data['barangay'] ?? null,
         ];
     }
 

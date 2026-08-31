@@ -322,6 +322,7 @@ body.sidebar-collapsed .dso-page-footer {
     .main-content {
         padding-left: 12px !important;
         padding-right: 12px !important;
+        padding-top: 12px !important;
     }
 
     .page-header,
@@ -329,6 +330,8 @@ body.sidebar-collapsed .dso-page-footer {
     .page-header-modern-with-button,
     .page-header-right,
     .page-header-actions,
+    .page-header-top,
+    .page-header-filters,
     .calendar-header-section,
     .bm-header,
     .km-page-header,
@@ -336,9 +339,66 @@ body.sidebar-collapsed .dso-page-footer {
     .arfed-page-header,
     .aroff-page-header,
     .dso-page-header,
+    .auditlog-header,
+    .profile-header,
     .filters-row,
-    .accounts-filter-grid {
+    .accounts-filter-grid,
+    .bl-grid,
+    .cf-layout,
+    .cf-sidebar,
+    .cf-main,
+    .stats-grid-6,
+    .module-stats-grid {
         max-width: 100%;
+        min-width: 0;
+        width: 100%;
+        box-sizing: border-box;
+    }
+
+    .page-header-modern-with-button,
+    .page-header-section,
+    .bm-header,
+    .km-page-header,
+    .bl-page-header,
+    .calendar-header-section,
+    .arfed-page-header,
+    .aroff-page-header,
+    .dso-page-header {
+        display: flex;
+        flex-direction: column;
+        align-items: stretch;
+        gap: 10px;
+    }
+
+    .page-header-filters,
+    .accounts-filter-grid,
+    .filters-row,
+    .km-toolbar,
+    .bm-toolbar,
+    .bl-toolbar,
+    .audit-filters,
+    .calendar-nav-row {
+        display: grid !important;
+        grid-template-columns: 1fr !important;
+        gap: 8px !important;
+        width: 100%;
+    }
+
+    .page-header-actions,
+    .header-actions,
+    .bm-header-actions,
+    .km-header-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        width: 100%;
+    }
+
+    .page-header-actions > *,
+    .header-actions > *,
+    .bm-header-actions > *,
+    .km-header-actions > * {
+        flex: 1 1 auto;
         min-width: 0;
     }
 
@@ -348,9 +408,12 @@ body.sidebar-collapsed .dso-page-footer {
     .search-input,
     .bm-search,
     .km-search,
-    .km-search-input {
+    .km-search-input,
+    .form-input-light,
+    .bl-search {
         max-width: 100%;
         min-width: 0;
+        width: 100%;
         box-sizing: border-box;
     }
 
@@ -408,16 +471,21 @@ body.sidebar-collapsed .dso-page-footer {
     .module-stats-grid,
     .arfed-stats-row,
     .aroff-stats-row,
-    .dso-stats-row {
+    .dso-stats-row,
+    .stats-grid-6,
+    .bl-stats,
+    .audit-stats-grid {
         display: grid !important;
         grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
         width: 100%;
+        gap: 8px !important;
     }
 
     .module-stats-grid .stat-card,
     .arfed-stat-card,
     .aroff-stat-card,
-    .dso-stat-card {
+    .dso-stat-card,
+    .stat-card {
         min-width: 0 !important;
         width: auto;
         flex: none;
@@ -430,8 +498,45 @@ body.sidebar-collapsed .dso-page-footer {
     .dso-table-wrapper table,
     .bm-table-wrap table,
     .km-table-wrapper table,
-    .audit-table-wrap table {
-        min-width: 680px;
+    .audit-table-wrap table,
+    .accounts-table,
+    .data-table {
+        min-width: 640px;
+    }
+
+    .modal-content,
+    .modal-overlay .modal-content,
+    .calendar-modal,
+    .calendar-jump-modal,
+    .calendar-confirm-modal,
+    .account-modal,
+    .form-modal-content,
+    .bm-modal-dialog,
+    .km-delete-dialog,
+    .bl-modal-box,
+    .cf-compose-modal,
+    .profile-modal {
+        max-width: calc(100vw - 20px) !important;
+        width: min(100%, calc(100vw - 20px)) !important;
+        box-sizing: border-box;
+        margin-left: auto;
+        margin-right: auto;
+    }
+
+    .bm-form-grid,
+    .form-grid,
+    .accounts-form-grid {
+        grid-template-columns: 1fr !important;
+    }
+
+    .cf-layout {
+        display: flex !important;
+        flex-direction: column !important;
+    }
+
+    .cf-sidebar {
+        width: 100% !important;
+        max-width: 100% !important;
     }
 
     .account-profile-row {
@@ -440,19 +545,15 @@ body.sidebar-collapsed .dso-page-footer {
 
     .aroff-page-footer,
     .arfed-page-footer,
-    .dso-page-footer {
+    .dso-page-footer,
+    .accounts-page-footer,
+    .audit-page-footer,
+    .km-page-pagination,
+    .pagination-footer {
         padding: 5px 12px;
         gap: 0.5rem;
         flex-wrap: wrap;
-    }
-
-    .modal-content,
-    .modal-overlay .modal-content,
-    .calendar-modal,
-    .calendar-jump-modal,
-    .calendar-confirm-modal {
-        max-width: calc(100vw - 24px);
-        box-sizing: border-box;
+        left: 0 !important;
     }
 }
 

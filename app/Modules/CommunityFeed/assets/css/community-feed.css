@@ -1087,19 +1087,26 @@ body.sk-fed-feed .main-content,
 .compose-modal-window-actions { display: flex; align-items: center; gap: 6px; }
 .compose-window-btn {
     background: transparent;
-    border: 1px solid rgba(255,255,255,0.28);
+    border: none;
     border-radius: 8px;
     width: 32px; height: 32px;
     cursor: pointer; font-size: 14px; color: #fff;
     display: inline-flex; align-items: center; justify-content: center;
 }
-.compose-window-btn:hover { background: rgba(255,255,255,0.18); }
+.compose-window-btn:hover { background: transparent; opacity: 0.85; }
 .compose-win-icon-restore { display: none; }
 .compose-modal.compose-maximized .compose-win-icon-max { display: none; }
 .compose-modal.compose-maximized .compose-win-icon-restore { display: block; }
-.compose-modal .modal-close { background: rgba(255,255,255,0.15); }
+.compose-modal .modal-close {
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+}
 .compose-modal .modal-close svg { color: #fff; }
-.compose-modal .modal-close:hover { background: rgba(255,255,255,0.28); }
+.compose-modal .modal-close:hover {
+    background: transparent !important;
+    opacity: 0.85;
+}
 
 .compose-attach-row { display: flex; gap: 8px; margin-top: 12px; }
 .compose-attach-btn {
@@ -1165,6 +1172,26 @@ body.sk-fed-feed .main-content,
 .modal-close svg { width: 16px; height: 16px; color: #666; }
 .modal-close:hover { background: #f44336; }
 .modal-close:hover svg { color: white; }
+
+/* Create Post window controls — no frosted/white button backgrounds */
+.compose-modal .compose-window-btn,
+.compose-modal .modal-close {
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    border-radius: 8px;
+}
+.compose-modal .compose-window-btn:hover,
+.compose-modal .modal-close:hover {
+    background: transparent !important;
+    opacity: 0.85;
+}
+.compose-modal .modal-close svg {
+    color: #fff !important;
+}
+.compose-modal .modal-close:hover svg {
+    color: #fff !important;
+}
 .modal-body { padding: 22px; overflow-y: auto; }
 
 .program-item { padding: 16px; background: #f5f7fa; border-radius: 12px; margin-bottom: 12px; }

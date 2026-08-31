@@ -1,5 +1,7 @@
 {{-- Editable KK Survey Questionnaire — same layout as Kabataan manual form --}}
 <div class="kk-profiling-edit-root" id="kkProfilingEditRoot" hidden>
+    <div class="kkp-fs-scale-shell">
+        <div class="kkp-fs-scale-inner">
     <div class="kkp-paper kk-view-paper kk-profiling-form-scroll" id="kkEditFormScroll">
                     {{-- PAPER FORM HEADER --}}
                     <div class="kkp-form-header">
@@ -311,5 +313,7 @@
                         </div>
                     </div>
 
+    </div>
+        </div>
     </div>
 </div>

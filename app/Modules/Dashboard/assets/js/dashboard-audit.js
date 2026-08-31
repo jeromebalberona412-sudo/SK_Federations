@@ -80,6 +80,35 @@ document.addEventListener('DOMContentLoaded', function () {
             page: String(state.page),
             per_page: String(state.perPage),
         });
+        const cacheKey = 'sk_fed_dash_audit_v1_' + params.toString();
+        const cached = window.SkLocalCache?.get(cacheKey);
+        const paint = (payload) => {
+            state.rows = (payload.data || []).slice(0, state.perPage);
+            state.meta = payload.meta || state.meta;
+            renderRows(state.rows);
+            renderTableSubtitle(state.meta);
+        };
+
+        if (cached?.payload) {
+            paint(cached.payload);
+            if (window.SkLocalCache.isFresh(cached, 5 * 60 * 1000)) {
+                fetch(`${dataUrl}?${params.toString()}`, {
+                    headers: {
+                        Accept: 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest',
+                    },
+                    credentials: 'same-origin',
+                })
+                    .then((response) => (response.ok ? response.json() : null))
+                    .then((payload) => {
+                        if (!payload) return;
+                        window.SkLocalCache?.set(cacheKey, payload);
+                        paint(payload);
+                    })
+                    .catch(() => {});
+                return;
+            }
+        }
 
         try {
             const response = await fetch(`${dataUrl}?${params.toString()}`, {
@@ -95,11 +124,12 @@ document.addEventListener('DOMContentLoaded', function () {
             }
 
             const payload = await response.json();
-            state.rows = (payload.data || []).slice(0, state.perPage);
-            state.meta = payload.meta || state.meta;
-            renderRows(state.rows);
-            renderTableSubtitle(state.meta);
+            window.SkLocalCache?.set(cacheKey, payload);
+            paint(payload);
         } catch (error) {
+            if (cached?.payload) {
+                return;
+            }
             if (els.tableSubtitle) {
                 els.tableSubtitle.textContent = 'Unable to load audit logs. Please try again.';
             }

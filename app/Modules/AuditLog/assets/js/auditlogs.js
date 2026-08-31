@@ -157,6 +157,8 @@ document.addEventListener('DOMContentLoaded', function () {
                     "Today's Activities": 'today_activities',
                     'Security Events': 'security_events',
                     'Active Users Logged Today': 'active_users_today',
+                    'Failed Logins Today': 'failed_logins_today',
+                    "This Week's Activities": 'week_activities',
                 };
 
                 if (labelMap[label.textContent.trim()] === key) {
@@ -174,6 +176,33 @@ document.addEventListener('DOMContentLoaded', function () {
             return;
         }
 
+        const cacheKey = 'sk_fed_audit_logs_v1_' + buildQuery(getFilters());
+        const cached = window.SkLocalCache?.get(cacheKey);
+        const paint = (payload) => {
+            state.rows = payload.data || [];
+            state.meta = payload.meta || state.meta;
+            state.page = state.meta.current_page || state.page;
+            renderRows(state.rows);
+            renderPagination(state.meta);
+        };
+
+        if (cached?.payload) {
+            paint(cached.payload);
+            if (window.SkLocalCache.isFresh(cached, 5 * 60 * 1000)) {
+                fetch(`${routes.data}?${buildQuery(getFilters())}`, {
+                    headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                })
+                    .then((response) => (response.ok ? response.json() : null))
+                    .then((payload) => {
+                        if (!payload) return;
+                        window.SkLocalCache?.set(cacheKey, payload);
+                        paint(payload);
+                    })
+                    .catch(() => {});
+                return;
+            }
+        }
+
         try {
             const response = await fetch(`${routes.data}?${buildQuery(getFilters())}`, {
                 headers: {
@@ -187,13 +216,10 @@ document.addEventListener('DOMContentLoaded', function () {
             }
 
             const payload = await response.json();
-            state.rows = payload.data || [];
-            state.meta = payload.meta || state.meta;
-            state.page = state.meta.current_page || state.page;
-            renderRows(state.rows);
-            renderPagination(state.meta);
+            window.SkLocalCache?.set(cacheKey, payload);
+            paint(payload);
         } catch (error) {
-            if (els.tableBody) {
+            if (!cached?.payload && els.tableBody) {
                 els.tableBody.innerHTML = '<tr><td colspan="7" class="audit-empty-row">Unable to load audit logs. Please try again.</td></tr>';
             }
         }
@@ -202,6 +228,25 @@ document.addEventListener('DOMContentLoaded', function () {
     async function refreshStats() {
         if (!routes.stats) {
             return;
+        }
+
+        const cacheKey = 'sk_fed_audit_stats_v1';
+        const cached = window.SkLocalCache?.get(cacheKey);
+        if (cached?.payload?.data) {
+            updateStatCards(cached.payload.data);
+            if (window.SkLocalCache.isFresh(cached, 5 * 60 * 1000)) {
+                fetch(routes.stats, {
+                    headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                })
+                    .then((response) => (response.ok ? response.json() : null))
+                    .then((statsPayload) => {
+                        if (!statsPayload?.data) return;
+                        window.SkLocalCache?.set(cacheKey, statsPayload);
+                        updateStatCards(statsPayload.data);
+                    })
+                    .catch(() => {});
+                return;
+            }
         }
 
         try {
@@ -215,6 +260,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
             const statsPayload = await response.json();
             if (statsPayload?.data) {
+                window.SkLocalCache?.set(cacheKey, statsPayload);
                 updateStatCards(statsPayload.data);
             }
         } catch (error) {

@@ -8,13 +8,15 @@
     @hasSection('meta-cache')
         @yield('meta-cache')
     @else
-        <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-        <meta http-equiv="Pragma" content="no-cache">
-        <meta http-equiv="Expires" content="0">
+        <meta http-equiv="Cache-Control" content="private, max-age=0, must-revalidate">
     @endif
     <title>@yield('title', 'SK OnePortal')</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" media="print" onload="this.media='all'">
+    <noscript><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"></noscript>
     @php
         $dashboardCssVersion = @filemtime(app_path('Modules/Dashboard/assets/css/dashboard.css')) ?: time();
         $layoutCssVersion = @filemtime(app_path('Modules/Layout/assets/css/layout.css')) ?: time();
@@ -41,10 +43,11 @@
     @if(!empty($turnoverModal['show']))
         <link rel="stylesheet" href="{{ url('/modules/turnover/css/turnover.css') }}?v={{ $turnoverModal['cssVersion'] }}">
         @include('turnover::partials.global-modal', ['turnoverModal' => $turnoverModal])
-        <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js" defer></script>
         <script src="{{ url('/modules/turnover/js/turnover.js') }}?v={{ $turnoverModal['jsVersion'] }}"></script>
     @endif
 
+    <script src="{{ url('/shared/js/local-data-cache.js') }}?v={{ @filemtime(public_path('shared/js/local-data-cache.js')) ?: time() }}"></script>
     <script src="{{ url('/modules/layout/js/layout.js') }}?v={{ $layoutJsVersion }}"></script>
     <script>
         window.logoutRoute = "{{ route('logout') }}";

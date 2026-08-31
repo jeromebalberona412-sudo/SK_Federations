@@ -42,48 +42,63 @@ class CommunityFeedPostController extends Controller
     public function feed(Request $request): JsonResponse
     {
         $user = Auth::user();
-        $query = Announcement::with([
-            'barangay',
-            'comments.user',
-            'comments.reactions',
-            'user',
-            'images',
-            'reactions.user',
-        ])
-            ->withCount('reactions')
-            ->active();
-
-        $query->orderByDesc('created_at');
-
+        $pageCache = app(\App\Services\SkFedPageCache::class);
         $perPage = min(100, max(1, (int) $request->get('per_page', 100)));
+        $filter = (string) ($request->filter ?: 'all');
+        $search = trim((string) $request->get('search', ''));
+        $barangayId = $request->filled('barangay_id') ? (int) $request->barangay_id : null;
 
-        if ($request->filter && $request->filter !== 'all') {
-            $query->where('type', $request->filter);
-        }
+        $payload = $pageCache->remember('community.feed', function () use ($request, $user, $perPage, $filter, $search, $barangayId) {
+            $query = Announcement::with([
+                'barangay',
+                'comments.user',
+                'comments.reactions',
+                'user',
+                'images',
+                'reactions.user',
+            ])
+                ->withCount('reactions')
+                ->active();
 
-        if ($request->filled('barangay_id')) {
-            $query->where('barangay_id', (int) $request->barangay_id)
-                ->whereRaw('"is_federation_wide" = false');
-        }
+            $query->orderByDesc('created_at');
 
-        if ($search = trim((string) $request->get('search', ''))) {
-            $query->where(function ($q) use ($search) {
-                $q->where('title', 'like', '%'.$search.'%')
-                    ->orWhere('body', 'like', '%'.$search.'%')
-                    ->orWhere('type', 'like', '%'.$search.'%')
-                    ->orWhereHas('user', fn ($uq) => $uq->where('name', 'like', '%'.$search.'%'));
-            });
-        }
+            if ($filter !== 'all') {
+                $query->where('type', $filter);
+            }
 
-        $posts = $query->paginate($perPage);
+            if ($barangayId) {
+                $query->where('barangay_id', $barangayId)
+                    ->whereRaw('"is_federation_wide" = false');
+            }
 
-        return response()->json([
-            'data' => collect($posts->items())->map(fn ($p) => $this->formatPost($p, $user->id)),
-            'current_page' => $posts->currentPage(),
-            'last_page' => $posts->lastPage(),
-            'total' => $posts->total(),
-            'user_id' => $user->id,
-        ]);
+            if ($search !== '') {
+                $query->where(function ($q) use ($search) {
+                    $q->where('title', 'like', '%'.$search.'%')
+                        ->orWhere('body', 'like', '%'.$search.'%')
+                        ->orWhere('type', 'like', '%'.$search.'%')
+                        ->orWhereHas('user', fn ($uq) => $uq->where('name', 'like', '%'.$search.'%'));
+                });
+            }
+
+            $posts = $query->paginate($perPage);
+
+            return [
+                'data' => collect($posts->items())->map(fn ($p) => $this->formatPost($p, $user->id))->values()->all(),
+                'current_page' => $posts->currentPage(),
+                'last_page' => $posts->lastPage(),
+                'total' => $posts->total(),
+                'user_id' => $user->id,
+            ];
+        }, [
+            'user' => $user->id,
+            'page' => (int) $request->get('page', 1),
+            'per_page' => $perPage,
+            'filter' => $filter,
+            'search' => $search,
+            'barangay_id' => $barangayId,
+        ], 60);
+
+        return response()->json($payload)->header('Cache-Control', 'private, max-age=30');
     }
 
     public function formatPostForPage(Announcement $post, int $userId): array
@@ -128,6 +143,11 @@ class CommunityFeedPostController extends Controller
         ]);
 
         $user = Auth::user();
+        $isFederationWide = true;
+        if (config('database.connections.'.config('database.default').'.driver') === 'pgsql') {
+            $isFederationWide = DB::raw('true');
+        }
+
         $post = Announcement::create([
             'type' => $validated['type'],
             'title' => $validated['title'] ?? null,
@@ -135,7 +155,7 @@ class CommunityFeedPostController extends Controller
             'link_url' => $validated['link_url'] ?? null,
             'user_id' => $user->id,
             'barangay_id' => null,
-            'is_federation_wide' => true,
+            'is_federation_wide' => $isFederationWide,
         ]);
 
         $this->storePostImages($post, $request);
@@ -150,6 +170,9 @@ class CommunityFeedPostController extends Controller
         ])
             ->withCount('reactions')
             ->findOrFail($post->id);
+
+        app(\App\Services\SkFedPageCache::class)->bump('community.feed');
+        app(\App\Services\SkFedPageCache::class)->bump('archive.deleted_posts');
 
         return response()->json($this->formatPost($fresh, $user->id), 201);
     }
@@ -191,6 +214,8 @@ class CommunityFeedPostController extends Controller
             $this->storePostImages($post, $request, $currentCount, $remaining);
         }
 
+        app(\App\Services\SkFedPageCache::class)->bump('community.feed');
+
         return response()->json($this->formatPost(
             $post->load(['barangay', 'comments.user', 'comments.reactions', 'user', 'images', 'reactions.user'])
                 ->loadCount('reactions'),
@@ -208,6 +233,9 @@ class CommunityFeedPostController extends Controller
 
         app(FederationPostArchiveService::class)
             ->archive($post, Auth::user());
+
+        app(\App\Services\SkFedPageCache::class)->bump('community.feed');
+        app(\App\Services\SkFedPageCache::class)->bump('archive.deleted_posts');
 
         return response()->json(['success' => true]);
     }

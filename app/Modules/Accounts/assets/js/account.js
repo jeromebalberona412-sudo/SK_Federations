@@ -108,8 +108,8 @@ window.AccountsDeleteModal = (function () {
         const { input, hintError, hintSuccess, confirmBtn } = els();
         if (!input || !confirmBtn) return;
 
-        const value = input.value;
-        const matched = value === 'DELETE';
+        const value = (input.value || '').trim();
+        const matched = value.toLowerCase() === 'delete';
 
         if (hintError) hintError.style.display = value.length > 0 && !matched ? 'block' : 'none';
         if (hintSuccess) hintSuccess.style.display = matched ? 'block' : 'none';
@@ -153,7 +153,7 @@ window.AccountsDeleteModal = (function () {
 
     async function confirmDelete() {
         const { input } = els();
-        if (!input || input.value !== 'DELETE') return;
+        if (!input || input.value.trim().toLowerCase() !== 'delete') return;
 
         const token = csrfToken();
         if (!token) {
@@ -592,12 +592,33 @@ function maxTermStartDate() {
     return addDaysToDateString(formatLocalDate(new Date()), SK_OFFICIAL_TERM_START_ADVANCE_DAYS);
 }
 
+function federationDefaultTermStart() {
+    const el = document.getElementById('mainContent');
+    const value = (el?.dataset?.defaultTermStart || '').trim();
+    return /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : '';
+}
+
+function federationDefaultTermEnd() {
+    const el = document.getElementById('mainContent');
+    const value = (el?.dataset?.defaultTermEnd || '').trim();
+    return /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : '';
+}
+
 function currentDefaultTermStart() {
-    return formatLocalDate(new Date());
+    return federationDefaultTermStart() || formatLocalDate(new Date());
+}
+
+function currentDefaultTermEnd(startDateStr) {
+    const fedStart = federationDefaultTermStart();
+    const fedEnd = federationDefaultTermEnd();
+    if (fedStart && fedEnd && startDateStr === fedStart) {
+        return fedEnd;
+    }
+    return addYearsToDateString(startDateStr, ACCOUNT_TERM_YEARS);
 }
 
 function skOfficialTermEndForStart(startDateStr) {
-    return addYearsToDateString(startDateStr, SK_OFFICIAL_TERM_YEARS);
+    return currentDefaultTermEnd(startDateStr);
 }
 
 function getTermStartMinDate() {
@@ -1489,13 +1510,16 @@ function validateTermRange(form) {
     }
 
     if (!termValid) return false;
-    if (start && (start < termStartMin || start > termStartMax)) {
+    const fedStart = federationDefaultTermStart();
+    const fedEnd = federationDefaultTermEnd();
+    const matchesLeadership = !!(fedStart && fedEnd && start === fedStart && end === fedEnd);
+    if (start && !matchesLeadership && (start < termStartMin || start > termStartMax)) {
         _showErr(startInput, SK_OFFICIAL_TERM_START_MESSAGE);
         return false;
     }
     if (start && end) {
-        const requiredEnd = addYearsToDateString(start, ACCOUNT_TERM_YEARS);
-        if (end !== requiredEnd) {
+        const requiredEnd = currentDefaultTermEnd(start);
+        if (end !== requiredEnd && !matchesLeadership) {
             _showErr(endInput, SK_OFFICIAL_TERM_END_MESSAGE);
             return false;
         }
@@ -1629,11 +1653,13 @@ function applyTermDateConstraints(form) {
     const isEditOfficialsTextDates = form.id === 'editSkOfficialsForm';
 
     const syncEndConstraints = () => {
+        const fedStart = federationDefaultTermStart();
         const effectiveStart = normalizeDateInputValue(startInput.value);
         if (!effectiveStart && form.id === 'addSkOfficialsForm') {
             startInput.value = currentDefaultTermStart();
         } else if (effectiveStart && (effectiveStart < startInput.min || effectiveStart > startInput.max)) {
-            if (!isEditOfficialsTextDates) {
+            // Keep federation leadership start even when it is historical.
+            if (!isEditOfficialsTextDates && effectiveStart !== fedStart) {
                 startInput.value = currentDefaultTermStart();
             }
         }
@@ -1643,7 +1669,7 @@ function applyTermDateConstraints(form) {
             startInput.value = syncedStart;
         }
 
-        const exactEnd = addYearsToDateString(syncedStart, ACCOUNT_TERM_YEARS);
+        const exactEnd = currentDefaultTermEnd(syncedStart);
         if (exactEnd) {
             endInput.min = exactEnd;
             endInput.max = exactEnd;
@@ -2757,8 +2783,11 @@ function validateBatchAccountRow(row, rowNumber, role, seenEmails, seenFingerpri
     }
 
     if (data.term_start && data.term_end) {
-        const requiredEnd = addYearsToDateString(data.term_start, ACCOUNT_TERM_YEARS);
-        if (data.term_end !== requiredEnd) {
+        const requiredEnd = currentDefaultTermEnd(data.term_start);
+        const fedStart = federationDefaultTermStart();
+        const fedEnd = federationDefaultTermEnd();
+        const matchesLeadership = fedStart && fedEnd && data.term_start === fedStart && data.term_end === fedEnd;
+        if (data.term_end !== requiredEnd && !matchesLeadership) {
             errors.push({
                 row: rowNumber,
                 field: 'term_end',

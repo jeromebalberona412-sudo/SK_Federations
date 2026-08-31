@@ -1,17 +1,21 @@
 <!-- Logout Confirmation Modal -->
-<div id="logoutModal" class="modal">
+<form id="logoutForm" action="{{ route('logout') }}" method="POST" hidden>
+    @csrf
+</form>
+
+<div id="logoutModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="logoutModalTitle" aria-hidden="true">
     <div class="modal-content logout-modal-content">
-        <button type="button" class="logout-modal-close" onclick="closeLogoutModal()" aria-label="Close">
+        <button type="button" class="logout-modal-close" id="logoutModalCloseBtn" aria-label="Close">
             &times;
         </button>
         <div class="logout-modal-body">
-            <h2 class="logout-modal-title">Logout Confirmation</h2>
+            <h2 class="logout-modal-title" id="logoutModalTitle">Logout Confirmation</h2>
             <p class="logout-modal-message">Are you sure you want to logout?</p>
             <div class="logout-modal-actions">
-                <button type="button" class="logout-btn-cancel" onclick="closeLogoutModal()">
+                <button type="button" class="logout-btn-cancel" id="logoutCancelBtn">
                     Cancel
                 </button>
-                <button type="button" class="logout-btn-confirm" onclick="confirmLogout()">
+                <button type="button" class="logout-btn-confirm" id="logoutConfirmBtn">
                     Yes, Logout
                 </button>
             </div>
@@ -20,25 +24,36 @@
 </div>
 
 <style>
-    .logout-modal-content {
+    #logoutModal.modal {
+        display: none;
+        position: fixed;
+        z-index: 40000;
+        inset: 0;
+        margin: 0;
+        padding: 16px;
+        background: rgba(15, 23, 42, 0.45);
+        align-items: center;
+        justify-content: center;
+        -webkit-tap-highlight-color: transparent;
+    }
+
+    #logoutModal.modal.show {
+        display: flex !important;
+    }
+
+    #logoutModal .logout-modal-content {
         max-width: 420px;
-        width: 90%;
-        background: white;
-        border-radius: 20px;
+        width: 100%;
+        background: #fff;
+        border-radius: 16px;
         position: relative;
-        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15);
-        animation: logoutModalSlideIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+        box-shadow: 0 16px 40px rgba(15, 23, 42, 0.18);
     }
 
-    @keyframes logoutModalSlideIn {
-        from { opacity: 0; transform: scale(0.95) translateY(-20px); }
-        to { opacity: 1; transform: scale(1) translateY(0); }
-    }
-
-    .logout-modal-close {
+    #logoutModal .logout-modal-close {
         position: absolute;
-        top: 16px;
-        right: 16px;
+        top: 12px;
+        right: 12px;
         width: 36px;
         height: 36px;
         border: none;
@@ -48,76 +63,87 @@
         line-height: 1;
         cursor: pointer;
         border-radius: 8px;
-        transition: all 0.2s ease;
-        z-index: 10;
+        touch-action: manipulation;
     }
 
-    .logout-modal-close:hover {
+    #logoutModal .logout-modal-close:hover,
+    #logoutModal .logout-modal-close:focus-visible {
         background: #f1f5f9;
         color: #475569;
     }
 
-    .logout-modal-body {
-        padding: 40px 32px 32px;
+    #logoutModal .logout-modal-body {
+        padding: 36px 28px 28px;
         text-align: center;
     }
 
-    .logout-modal-title {
-        font-size: 24px;
+    #logoutModal .logout-modal-title {
+        font-size: 22px;
         font-weight: 700;
         color: #0f172a;
-        margin: 0 0 12px 0;
+        margin: 0 0 10px;
     }
 
-    .logout-modal-message {
+    #logoutModal .logout-modal-message {
         font-size: 15px;
         color: #64748b;
-        line-height: 1.6;
-        margin: 0 0 28px 0;
+        line-height: 1.5;
+        margin: 0 0 24px;
     }
 
-    .logout-modal-actions {
+    #logoutModal .logout-modal-actions {
         display: flex;
-        gap: 12px;
+        gap: 10px;
         justify-content: center;
         flex-wrap: wrap;
     }
 
-    .logout-btn-cancel {
-        background: white;
-        color: #64748b;
-        border: 2px solid #e2e8f0;
-        padding: 12px 28px;
+    #logoutModal .logout-btn-cancel,
+    #logoutModal .logout-btn-confirm {
+        padding: 11px 24px;
         border-radius: 10px;
         font-size: 15px;
         font-weight: 600;
         cursor: pointer;
-        transition: all 0.2s ease;
         min-width: 120px;
+        touch-action: manipulation;
+        -webkit-tap-highlight-color: transparent;
     }
 
-    .logout-btn-cancel:hover {
+    #logoutModal .logout-btn-cancel {
+        background: #fff;
+        color: #64748b;
+        border: 2px solid #e2e8f0;
+    }
+
+    #logoutModal .logout-btn-cancel:hover,
+    #logoutModal .logout-btn-cancel:focus-visible {
         background: #f8fafc;
         border-color: #cbd5e1;
         color: #475569;
     }
 
-    .logout-btn-confirm {
-        background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
-        color: white;
+    #logoutModal .logout-btn-confirm {
+        background: #dc2626;
+        color: #fff;
         border: none;
-        padding: 12px 32px;
-        border-radius: 10px;
-        font-size: 15px;
-        font-weight: 600;
-        cursor: pointer;
-        transition: all 0.2s ease;
-        box-shadow: 0 6px 20px rgba(220, 38, 38, 0.3);
         min-width: 140px;
     }
 
-    .logout-btn-confirm:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 8px 28px rgba(220, 38, 38, 0.4);
+    #logoutModal .logout-btn-confirm:hover,
+    #logoutModal .logout-btn-confirm:focus-visible {
+        background: #b91c1c;
+    }
+
+    #logoutModal .logout-btn-confirm:disabled,
+    #logoutModal .logout-btn-cancel:disabled {
+        opacity: 0.7;
+        cursor: wait;
+        pointer-events: none;
+    }
+
+    .profile-dropdown-item--logout {
+        touch-action: manipulation;
+        -webkit-tap-highlight-color: transparent;
     }
 </style>

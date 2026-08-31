@@ -25,7 +25,6 @@
     const confirmedLongNames = new Set();
 
     function showLongNameConfirmation(inputElement, fieldId) {
-        // Create modal if it doesn't exist
         let modal = document.getElementById('kkpLongNameConfirmModal');
         if (!modal) {
             modal = document.createElement('div');
@@ -36,82 +35,96 @@
             modal.innerHTML = `
                 <div class="kkp-confirm-modal-content">
                     <div class="kkp-confirm-modal-header">
-                        <h3>Are you sure you want to continue?</h3>
+                        <h3>Continue with a longer legal name?</h3>
                         <button type="button" class="kkp-confirm-modal-close" aria-label="Close">&times;</button>
                     </div>
                     <div class="kkp-confirm-modal-body">
                         <p>This name is already 50 characters long.</p>
-                        <p>To continue entering more characters, type YES below.</p>
-                        <input type="text" id="kkpLongNameConfirmInput" class="kkp-confirm-input" placeholder="Type YES" autocomplete="off">
-                    </div>
-                    <div class="kkp-confirm-modal-footer">
-                        <button type="button" class="kkp-confirm-btn kkp-confirm-btn-cancel">Cancel</button>
-                        <button type="button" class="kkp-confirm-btn kkp-confirm-btn-continue" disabled>Continue</button>
+                        <p>Type <strong>yes</strong> to continue entering more characters (max 150).</p>
+                        <label class="kkp-confirm-label" for="kkpLongNameConfirmInput">Confirmation</label>
+                        <input type="text" id="kkpLongNameConfirmInput" class="kkp-confirm-input" placeholder="type yes" autocomplete="off" maxlength="8" autocapitalize="none" spellcheck="false">
+                        <p class="kkp-confirm-hint" id="kkpLongNameConfirmHint" hidden>Please type “yes” to continue.</p>
                     </div>
                 </div>
             `;
             document.body.appendChild(modal);
 
-            // Add event listeners
             const closeBtn = modal.querySelector('.kkp-confirm-modal-close');
-            const cancelBtn = modal.querySelector('.kkp-confirm-btn-cancel');
-            const continueBtn = modal.querySelector('.kkp-confirm-btn-continue');
             const confirmInput = modal.querySelector('#kkpLongNameConfirmInput');
+            const hint = modal.querySelector('#kkpLongNameConfirmHint');
 
             const closeModal = () => {
                 modal.style.display = 'none';
                 confirmInput.value = '';
-                continueBtn.disabled = true;
+                if (hint) hint.hidden = true;
             };
 
             const handleCancel = () => {
-                // Truncate to 50 characters if not confirmed
-                if (!confirmedLongNames.has(fieldId)) {
-                    inputElement.value = inputElement.value.substring(0, KKP_NAME_WARNING_THRESHOLD);
+                const activeFieldId = modal.dataset.targetFieldId || '';
+                const activeInput = activeFieldId ? document.getElementById(activeFieldId) : null;
+                const target = activeInput || inputElement;
+                if (target && !confirmedLongNames.has(activeFieldId)) {
+                    target.value = String(target.value || '').substring(0, KKP_NAME_WARNING_THRESHOLD);
                 }
-                inputElement.readOnly = false;
-                inputElement.focus();
+                if (target) {
+                    target.readOnly = false;
+                    target.focus();
+                }
                 closeModal();
             };
 
+            const handleConfirm = () => {
+                const activeFieldId = modal.dataset.targetFieldId || '';
+                if (activeFieldId) confirmedLongNames.add(activeFieldId);
+                const activeInput = activeFieldId ? document.getElementById(activeFieldId) : null;
+                const target = activeInput || inputElement;
+                if (target) {
+                    target.readOnly = false;
+                    target.focus();
+                }
+                closeModal();
+            };
+
+            const isYesTyped = () => String(confirmInput.value || '').trim().toLowerCase() === 'yes';
+
             closeBtn.addEventListener('click', handleCancel);
-            cancelBtn.addEventListener('click', handleCancel);
 
             confirmInput.addEventListener('input', () => {
-                continueBtn.disabled = confirmInput.value.trim().toUpperCase() !== 'YES';
+                const typed = String(confirmInput.value || '');
+                if (hint) hint.hidden = typed.trim() === '' || isYesTyped();
+                if (isYesTyped()) handleConfirm();
             });
 
-            continueBtn.addEventListener('click', () => {
-                confirmedLongNames.add(fieldId);
-                inputElement.readOnly = false;
-                inputElement.focus();
-                closeModal();
+            confirmInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    if (isYesTyped()) handleConfirm();
+                    else if (hint) hint.hidden = false;
+                }
             });
 
-            // Close on escape key
             modal.addEventListener('keydown', (e) => {
                 if (e.key === 'Escape') handleCancel();
             });
-            
-            // Close on backdrop click
+
             modal.addEventListener('click', (e) => {
                 if (e.target === modal) handleCancel();
             });
         }
 
-        // Store the current input element for the continue action
         modal.dataset.targetFieldId = fieldId;
-        
-        // Show modal
         modal.style.display = 'flex';
-        
-        // Focus on input
+
         setTimeout(() => {
             const confirmInput = modal.querySelector('#kkpLongNameConfirmInput');
-            if (confirmInput) confirmInput.focus();
+            const hint = modal.querySelector('#kkpLongNameConfirmHint');
+            if (confirmInput) {
+                confirmInput.value = '';
+                confirmInput.focus();
+            }
+            if (hint) hint.hidden = true;
         }, 100);
 
-        // Block input temporarily
         inputElement.readOnly = true;
     }
 
@@ -369,17 +382,54 @@
         const n = parseInt(age, 10);
         if (n >= 15 && n <= 17) return 'Child Youth (15-17 yrs old)';
         if (n >= 18 && n <= 24) return 'Core Youth (18-24 yrs old)';
-        if (n >= 25 && n <= 30) return 'Young Adult (25-30 yrs old)';
+        if (n >= 25 && n <= 30) return 'Young Adult (15-30 yrs old)';
         return '';
     }
+
+    function syncYouthAgeGroupFromAge(age, root) {
+        const context = root || document;
+        const ids = resolveKmFieldIds(context);
+        const hidden = context.querySelector
+            ? context.querySelector('#' + ids.youthAgeGroup)
+            : document.getElementById(ids.youthAgeGroup);
+        if (!hidden) return;
+
+        const groupName = youthAgeGroupFromAge(age);
+        const block = hidden.closest('.kkf-demo-block, .kkp-demo-block') || context;
+        const nameAttr = hidden.id === 'kabataanYouthAgeGroup' ? 'kabataanYouthAgeGroup' : 'kkEditYouthAgeGroup';
+        block.querySelectorAll('input[name="' + nameAttr + '"]').forEach((chk) => {
+            chk.checked = Boolean(groupName) && chk.value === groupName;
+        });
+        hidden.value = groupName || '';
+
+        if (groupName) {
+            block.querySelectorAll('.kkp-demo-block-error, .kkf-demo-block-error, .kkp-field-error').forEach((node) => node.remove());
+        }
+    }
+
+    window.setCheckboxGroupByHiddenId = function (hiddenId, value) {
+        const hidden = document.getElementById(hiddenId);
+        if (!hidden) return;
+        hidden.value = value || '';
+        const block = hidden.closest('.kkp-demo-block, .kkp-sex-block, .kkf-demo-block, .kkf-sex-block');
+        if (!block) return;
+        block.querySelectorAll('input.kkp-sq-chk, input.kkf-sq-chk').forEach((checkbox) => {
+            checkbox.checked = value !== '' && checkbox.value === value;
+        });
+    };
+
+    window.syncYouthAgeGroupFromAge = syncYouthAgeGroupFromAge;
 
     function getFieldErrorHost(el) {
         if (!el) return null;
         return el.closest('.kkp-inline-pair')
+            || el.closest('.kkf-inline-pair')
             || el.closest('.kkp-name-col')
             || el.closest('.kkf-name-col')
             || el.closest('.kkp-loc-col')
             || el.closest('.kkf-loc-col')
+            || el.closest('.kkp-birthday-field')
+            || el.closest('.kkp-age-select-box')
             || el.parentNode;
     }
 
@@ -388,18 +438,30 @@
         if (!el || !host) return;
         el.classList.remove('kkp-input-err');
         host.querySelectorAll('.kkp-field-error').forEach((node) => node.remove());
+        const wrap = host.parentElement;
+        if (wrap && (wrap.classList.contains('kkp-inline-pair') || wrap.classList.contains('kkf-inline-pair'))) {
+            wrap.querySelectorAll(':scope > .kkp-field-error').forEach((node) => node.remove());
+        }
         if (el.closest('.kkp-name-col') || el.closest('.kkf-name-col')) {
             kkpSyncNameMaxIndicator(el);
         }
     }
 
     function showFieldError(el, msg) {
-        const host = getFieldErrorHost(el);
-        if (!el || !host) return;
+        if (!el) return;
+        const host = el.closest('.kkp-inline-pair')
+            || el.closest('.kkf-inline-pair')
+            || el.closest('.kkp-name-col')
+            || el.closest('.kkf-name-col')
+            || el.closest('.kkp-loc-col')
+            || el.closest('.kkf-loc-col')
+            || getFieldErrorHost(el);
+        if (!host) return;
         host.querySelectorAll('.kkp-field-error').forEach((node) => node.remove());
         el.classList.add('kkp-input-err');
         const err = document.createElement('span');
         err.className = 'kkp-field-error';
+        err.setAttribute('role', 'alert');
         err.textContent = msg;
         host.appendChild(err);
         if (el.closest('.kkp-name-col') || el.closest('.kkf-name-col')) {
@@ -415,7 +477,7 @@
         const block = el.closest('.kkp-demo-block') || el.closest('.kkf-demo-block');
         if (!block) return;
 
-        block.querySelectorAll('.kkp-demo-block-error').forEach((node) => node.remove());
+        block.querySelectorAll('.kkp-demo-block-error, .kkf-demo-block-error').forEach((node) => node.remove());
         const err = document.createElement('span');
         err.className = 'kkp-field-error kkp-demo-block-error';
         err.setAttribute('role', 'alert');
@@ -425,14 +487,22 @@
 
     function personalLeftError(message, root) {
         const context = root || document;
+        const sexBlock = context.querySelector('.kkp-sex-block') || context.querySelector('.kkf-sex-block');
         const left = context.querySelector('.kkp-personal-left') || context.querySelector('.kkf-personal-left');
-        if (!left) return;
+        const host = sexBlock || left;
+        if (!host) return;
 
-        left.querySelectorAll('.kkp-section-error').forEach((node) => node.remove());
+        const parent = host.parentElement || host;
+        parent.querySelectorAll('.kkp-section-error').forEach((node) => node.remove());
         const err = document.createElement('span');
         err.className = 'kkp-field-error kkp-section-error';
+        err.setAttribute('role', 'alert');
         err.textContent = message;
-        left.appendChild(err);
+        if (sexBlock && sexBlock.parentNode) {
+            sexBlock.insertAdjacentElement('afterend', err);
+        } else {
+            host.appendChild(err);
+        }
     }
 
     function calculateAgeFromBirthday(dateStr) {
@@ -530,7 +600,8 @@
                 kkAssembly: 'kabataanAttendedKKAssembly',
                 votingReason: 'kabataanVotingReason',
                 clearBtn: null,
-                emailRequired: false,
+                emailRequired: true,
+                clearBtn: null,
             };
         }
 
@@ -676,21 +747,35 @@
 
             contactInput.addEventListener('input', function () {
                 let value = (this.value || '').replace(/\D/g, ''); // Remove all non-digits
-                
-                // Enforce exactly 11 digits starting with 09
+
+                if (!value) {
+                    value = '09';
+                } else if (value.length === 1 && value === '9') {
+                    value = '09';
+                } else if (!value.startsWith('09')) {
+                    if (value.startsWith('9')) {
+                        value = '0' + value;
+                    } else {
+                        value = '09' + value.replace(/^0+/, '');
+                    }
+                }
+
                 if (value.length > 11) {
                     value = value.slice(0, 11);
                 }
-                
-                // If user starts typing 9, auto-add 0 prefix
-                if (value.length === 1 && value === '9') {
-                    value = '0' + value;
-                }
-                
+
                 this.value = value;
                 validateContact();
             });
 
+            contactInput.addEventListener('keydown', function (e) {
+                const digits = (this.value || '').replace(/\D/g, '');
+                if ((e.key === 'Backspace' || e.key === 'Delete') && digits.length <= 2) {
+                    e.preventDefault();
+                    this.value = '09';
+                    validateContact();
+                }
+            });
             contactInput.addEventListener('blur', function () {
                 // Ensure it's exactly 09XXXXXXXXX format
                 let value = (this.value || '').replace(/\D/g, '');
@@ -754,8 +839,8 @@
                     clearFieldError(ageSelect);
                 }
                 const youthAgeGroupEl = root.querySelector('#' + ids.youthAgeGroup);
-                if (youthAgeGroupEl && typeof window.setCheckboxGroupByHiddenId === 'function') {
-                    window.setCheckboxGroupByHiddenId(ids.youthAgeGroup, youthAgeGroupFromAge(age));
+                if (youthAgeGroupEl) {
+                    syncYouthAgeGroupFromAge(age, root);
                 }
             });
         }
@@ -766,9 +851,11 @@
                 const val = parseInt(ageSelect.value, 10);
                 if (!val || val < 15 || val > 30) {
                     showFieldError(ageSelect, 'Age must be 15 to 30 only.');
+                    syncYouthAgeGroupFromAge('', root);
                     return;
                 }
                 clearFieldError(ageSelect);
+                syncYouthAgeGroupFromAge(val, root);
                 if (dobInput && dobInput.value) {
                     const info = calculateAgeFromBirthday(dobInput.value);
                     if (info && info.age !== val) {
@@ -790,8 +877,9 @@
 
         root.querySelectorAll('.kkp-sex-block input.kkp-sq-chk, .kkf-sex-block input.kkf-sq-chk').forEach((chk) => {
             chk.addEventListener('change', () => {
-                const left = root.querySelector('.kkp-personal-left, .kkf-personal-left');
-                if (left) left.querySelectorAll('.kkp-section-error').forEach((e) => e.remove());
+                const sexBlock = chk.closest('.kkp-sex-block, .kkf-sex-block');
+                const host = sexBlock?.parentElement || root.querySelector('.kkp-personal-center, .kkp-personal-left, .kkf-personal-left');
+                if (host) host.querySelectorAll('.kkp-section-error').forEach((e) => e.remove());
             });
         });
 

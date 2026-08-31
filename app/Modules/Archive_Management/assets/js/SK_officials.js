@@ -68,6 +68,32 @@ async function loadAroffRecords() {
         year: aroffYearFilter,
         term: aroffTermFilter,
     });
+    const cacheKey = 'sk_fed_sk_officials_records_v1_' + params.toString();
+    const cached = window.SkLocalCache?.get(cacheKey);
+    const paint = (payload) => {
+        aroffRecords = payload.data || [];
+        aroffFiltered = [...aroffRecords];
+        populateAroffFilters(payload.filters || {});
+        const pages = Math.max(1, Math.ceil(aroffFiltered.length / aroffPerPage) || 1);
+        if (aroffCurrentPage > pages) aroffCurrentPage = pages;
+        renderAroffTable();
+    };
+
+    if (cached?.payload) {
+        paint(cached.payload);
+        if (window.SkLocalCache.isFresh(cached, 5 * 60 * 1000)) {
+            aroffIsLoading = false;
+            fetch(`${AROFF_API.data}?${params.toString()}`, { headers: { Accept: 'application/json' } })
+                .then((response) => response.json().then((payload) => ({ ok: response.ok, payload })))
+                .then(({ ok, payload }) => {
+                    if (!ok) return;
+                    window.SkLocalCache?.set(cacheKey, payload);
+                    paint(payload);
+                })
+                .catch(() => {});
+            return;
+        }
+    }
 
     try {
         const response = await fetch(`${AROFF_API.data}?${params.toString()}`, {
@@ -76,18 +102,14 @@ async function loadAroffRecords() {
         const payload = await response.json();
         if (!response.ok) throw new Error('Failed to load archived records.');
 
-        aroffRecords = payload.data || [];
-        aroffFiltered = [...aroffRecords];
-        populateAroffFilters(payload.filters || {});
-        const pages = Math.max(1, Math.ceil(aroffFiltered.length / aroffPerPage) || 1);
-        if (aroffCurrentPage > pages) {
-            aroffCurrentPage = pages;
-        }
-        renderAroffTable();
+        window.SkLocalCache?.set(cacheKey, payload);
+        paint(payload);
     } catch (error) {
-        aroffRecords = [];
-        aroffFiltered = [];
-        renderAroffTable();
+        if (!cached?.payload) {
+            aroffRecords = [];
+            aroffFiltered = [];
+            renderAroffTable();
+        }
     } finally {
         aroffIsLoading = false;
     }

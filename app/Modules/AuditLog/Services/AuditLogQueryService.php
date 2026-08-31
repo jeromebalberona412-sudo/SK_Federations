@@ -81,18 +81,22 @@ class AuditLogQueryService
         $this->applyTenantScope($securityQuery, $tenantId);
         $securityQuery->whereIn('event_type', AdminActivityLog::securityEventTypes());
 
-        $activeUsersQuery = AdminActivityLog::query();
-        $this->applyTenantScope($activeUsersQuery, $tenantId);
-        $activeUsersQuery
-            ->where('event_type', AdminActivityLog::EVENT_LOGIN_SUCCESS)
-            ->where('created_at', '>=', $today)
-            ->whereNotNull('user_id');
+        $failedLoginsQuery = AdminActivityLog::query();
+        $this->applyTenantScope($failedLoginsQuery, $tenantId);
+        $failedLoginsQuery
+            ->where('event_type', AdminActivityLog::EVENT_LOGIN_FAILED)
+            ->where('created_at', '>=', $today);
+
+        $weekQuery = AdminActivityLog::query();
+        $this->applyTenantScope($weekQuery, $tenantId);
+        $weekQuery->where('created_at', '>=', now()->subDays(7)->startOfDay());
 
         return [
             'total_logs' => (int) $base->count(),
             'today_activities' => (int) $todayQuery->count(),
             'security_events' => (int) $securityQuery->count(),
-            'active_users_today' => (int) $activeUsersQuery->distinct()->count('user_id'),
+            'failed_logins_today' => (int) $failedLoginsQuery->count(),
+            'week_activities' => (int) $weekQuery->count(),
         ];
     }
 

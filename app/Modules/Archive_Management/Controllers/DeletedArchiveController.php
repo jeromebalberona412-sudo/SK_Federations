@@ -24,13 +24,26 @@ class DeletedArchiveController extends Controller
     public function officialsData(Request $request): JsonResponse
     {
         $tenantId = $this->resolveTenantId($request->user());
-        $payload = $this->deletedArchiveService->listDeletedAccounts(
-            User::ROLE_SK_OFFICIAL,
-            $tenantId,
-            $request
-        );
+        $pageCache = app(\App\Services\SkFedPageCache::class);
+        $parts = [
+            'tenant' => $tenantId,
+            'filter' => (string) $request->query('filter', ''),
+            'year' => (string) $request->query('year', ''),
+            'search' => (string) $request->query('search', ''),
+            'barangay' => (string) $request->query('barangay', ''),
+            'position' => (string) $request->query('position', ''),
+            'term' => (string) $request->query('term', ''),
+        ];
 
-        return response()->json($payload);
+        $payload = $pageCache->remember('archive.deleted_sk_officials', function () use ($tenantId, $request) {
+            return $this->deletedArchiveService->listDeletedAccounts(
+                User::ROLE_SK_OFFICIAL,
+                $tenantId,
+                $request
+            );
+        }, $parts);
+
+        return response()->json($payload)->header('Cache-Control', 'private, max-age=60');
     }
 
     public function restoreOfficial(Request $request, int $account): JsonResponse
@@ -43,6 +56,12 @@ class DeletedArchiveController extends Controller
             User::ROLE_SK_OFFICIAL,
             $admin
         );
+
+        app(\App\Services\SkFedPageCache::class)->bumpMany([
+            'archive.deleted_sk_officials',
+            'accounts.officials',
+            'archive.sk_officials_records',
+        ]);
 
         return response()->json([
             'success' => true,

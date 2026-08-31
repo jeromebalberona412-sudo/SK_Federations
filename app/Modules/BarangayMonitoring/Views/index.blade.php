@@ -345,9 +345,9 @@
         </div>
         <div class="bm-modal-body bm-cancel-schedule-body">
             <p>Are you sure you want to delete this ABYIP submission schedule? Barangay SK Officials will not be able to upload until a new schedule is created.</p>
-            <label class="bm-type-confirm-label" for="deleteScheduleConfirmInput">Type <strong>delete</strong> to confirm</label>
-            <input type="text" id="deleteScheduleConfirmInput" class="bm-type-confirm-input" placeholder="delete" autocomplete="off" autocapitalize="none" spellcheck="false">
-            <p class="bm-type-confirm-hint" id="deleteScheduleConfirmHint" hidden>Please type “delete” to continue.</p>
+            <label class="bm-type-confirm-label" for="deleteScheduleConfirmInput">Type <strong>DELETE</strong> to confirm</label>
+            <input type="text" id="deleteScheduleConfirmInput" class="bm-type-confirm-input" placeholder="DELETE" autocomplete="off" autocapitalize="none" spellcheck="false">
+            <p class="bm-type-confirm-hint" id="deleteScheduleConfirmHint" hidden>Please type “DELETE” to continue (any capitalization is fine).</p>
         </div>
         <div class="bm-modal-footer bm-cancel-schedule-footer">
             <button type="button" class="bm-btn-secondary" data-delete-schedule-close>No, Keep Schedule</button>

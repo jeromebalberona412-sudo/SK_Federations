@@ -208,9 +208,6 @@
                             <option value="11">November</option>
                             <option value="12">December</option>
                         </select>
-                        <button type="button" id="kkProfilingExportBtn" class="kk-export-btn" title="Export chart data as CSV">
-                            <i class="fas fa-file-csv" aria-hidden="true"></i> CSV
-                        </button>
                     </div>
                 </div>
                 <p class="kk-chart-subtitle kk-chart-subtitle--center" id="kkProfilingChartSubtitle">Monthly submissions — approved, pending, and rejected</p>

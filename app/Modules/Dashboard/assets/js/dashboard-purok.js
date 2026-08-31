@@ -126,6 +126,33 @@
         }
 
         const params = new URLSearchParams(getPurokFilters());
+        const cacheKey = 'sk_fed_purok_chart_v1_' + params.toString();
+        const cached = window.SkLocalCache?.get(cacheKey);
+        if (cached?.payload) {
+            const data = cached.payload.data || { labels: [], counts: [], zones: [] };
+            if (hasBarangay) {
+                fillZoneOptions(data.zones || [], getPurokFilters().purok);
+            }
+            renderPurokChart(data);
+            if (window.SkLocalCache.isFresh(cached, 5 * 60 * 1000)) {
+                fetch(endpoint + '?' + params.toString(), {
+                    headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                    credentials: 'same-origin',
+                })
+                    .then((response) => (response.ok ? response.json() : null))
+                    .then((payload) => {
+                        if (!payload) return;
+                        window.SkLocalCache?.set(cacheKey, payload);
+                        const next = payload.data || { labels: [], counts: [], zones: [] };
+                        if (hasBarangay) {
+                            fillZoneOptions(next.zones || [], getPurokFilters().purok);
+                        }
+                        renderPurokChart(next);
+                    })
+                    .catch(() => {});
+                return;
+            }
+        }
 
         try {
             const response = await fetch(endpoint + '?' + params.toString(), {
@@ -136,13 +163,16 @@
                 return;
             }
             const payload = await response.json();
+            window.SkLocalCache?.set(cacheKey, payload);
             const data = payload.data || { labels: [], counts: [], zones: [] };
             if (hasBarangay) {
                 fillZoneOptions(data.zones || [], getPurokFilters().purok);
             }
             renderPurokChart(data);
         } catch (_) {
-            renderPurokChart({ labels: [], counts: [] });
+            if (!cached?.payload) {
+                renderPurokChart({ labels: [], counts: [] });
+            }
         }
     }
 

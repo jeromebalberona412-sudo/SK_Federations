@@ -6,6 +6,7 @@ use App\Modules\BarangayMonitoring\Services\AbyipSubmissionScheduleService;
 use App\Modules\BarangayMonitoring\Services\BarangayMonitoringService;
 use App\Modules\Shared\Controllers\Controller;
 use App\Services\BarangayLogoUrlService;
+use App\Services\SkFedPageCache;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
@@ -20,31 +21,40 @@ class BarangayMonitoringController extends Controller
 
     public function index(Request $request): View
     {
-        $logoService = app(BarangayLogoUrlService::class);
-        $barangays = [];
+        $pageCache = app(SkFedPageCache::class);
+        $payload = $pageCache->remember('barangay.monitoring.index', function () {
+            $logoService = app(BarangayLogoUrlService::class);
+            $barangays = [];
 
-        foreach ($this->barangayCatalog() as $slug => $row) {
-            $barangayId = $this->monitoringService->resolveBarangayId($slug);
-            $abyipStatus = $this->monitoringService->resolveAbyipStatus($barangayId);
+            foreach ($this->barangayCatalog() as $slug => $row) {
+                $barangayId = $this->monitoringService->resolveBarangayId($slug);
+                $abyipStatus = $this->monitoringService->resolveAbyipStatus($barangayId);
 
-            $barangays[] = array_merge($row, [
-                'barangay_id' => $barangayId,
-                'status' => $abyipStatus['status'],
-                'submitted_by' => $abyipStatus['submitted_by'],
-                'submitted_by_role' => $abyipStatus['submitted_by_role'] ?? null,
-                'logo_url' => $barangayId ? $logoService->resolve($barangayId) : null,
-            ]);
-        }
+                $barangays[] = array_merge($row, [
+                    'barangay_id' => $barangayId,
+                    'status' => $abyipStatus['status'],
+                    'submitted_by' => $abyipStatus['submitted_by'],
+                    'submitted_by_role' => $abyipStatus['submitted_by_role'] ?? null,
+                    'logo_url' => $barangayId ? $logoService->resolve($barangayId) : null,
+                ]);
+            }
 
-        $stats = $this->buildStats($barangays);
+            return [
+                'barangays' => $barangays,
+                'stats' => $this->buildStats($barangays),
+                'abyipSchedule' => $this->scheduleService->currentSchedule(),
+                'abyipSchedules' => $this->scheduleService->listSchedules()->values()->all(),
+                'canCreateAbyipSchedule' => $this->scheduleService->canCreateForCurrentYear(),
+            ];
+        });
 
         return view('barangay_monitoring::index', [
             'user' => $request->user(),
-            'barangays' => $barangays,
-            'stats' => $stats,
-            'abyipSchedule' => $this->scheduleService->currentSchedule(),
-            'abyipSchedules' => $this->scheduleService->listSchedules()->values()->all(),
-            'canCreateAbyipSchedule' => $this->scheduleService->canCreateForCurrentYear(),
+            'barangays' => $payload['barangays'],
+            'stats' => $payload['stats'],
+            'abyipSchedule' => $payload['abyipSchedule'],
+            'abyipSchedules' => $payload['abyipSchedules'],
+            'canCreateAbyipSchedule' => $payload['canCreateAbyipSchedule'],
         ]);
     }
 
@@ -99,6 +109,8 @@ class BarangayMonitoringController extends Controller
             ], 422);
         }
 
+        app(SkFedPageCache::class)->bump('barangay.monitoring.index');
+
         return response()->json([
             'message' => 'ABYIP submission schedule created.',
             'data' => $schedule,
@@ -115,6 +127,8 @@ class BarangayMonitoringController extends Controller
                 'errors' => $exception->errors(),
             ], 422);
         }
+
+        app(SkFedPageCache::class)->bump('barangay.monitoring.index');
 
         return response()->json([
             'message' => 'ABYIP submission schedule updated.',
@@ -143,6 +157,8 @@ class BarangayMonitoringController extends Controller
             ], 422);
         }
 
+        app(SkFedPageCache::class)->bump('barangay.monitoring.index');
+
         return response()->json([
             'message' => 'ABYIP submission deadline extended.',
             'data' => $schedule,
@@ -159,6 +175,8 @@ class BarangayMonitoringController extends Controller
                 'errors' => $exception->errors(),
             ], 422);
         }
+
+        app(SkFedPageCache::class)->bump('barangay.monitoring.index');
 
         return response()->json([
             'message' => 'ABYIP resubmission is now allowed for barangays that have not submitted.',
@@ -181,6 +199,8 @@ class BarangayMonitoringController extends Controller
             ], 422);
         }
 
+        app(SkFedPageCache::class)->bump('barangay.monitoring.index');
+
         return response()->json([
             'message' => 'ABYIP submission schedule cancelled.',
             'data' => $schedule,
@@ -197,6 +217,8 @@ class BarangayMonitoringController extends Controller
                 'errors' => $exception->errors(),
             ], 422);
         }
+
+        app(SkFedPageCache::class)->bump('barangay.monitoring.index');
 
         return response()->json([
             'message' => 'ABYIP submission schedule deleted.',

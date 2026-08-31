@@ -21,24 +21,48 @@ class TermRecordsArchiveController extends Controller
     public function officialsData(Request $request): JsonResponse
     {
         $tenantId = $this->resolveTenantId($request->user());
+        $pageCache = app(\App\Services\SkFedPageCache::class);
+        $parts = [
+            'tenant' => $tenantId,
+            'search' => (string) $request->query('search', ''),
+            'year' => (string) $request->query('year', ''),
+            'term' => (string) $request->query('term', ''),
+        ];
 
         return response()->json(
-            $this->termRecordsArchiveService->listOfficialRecords($tenantId, $request)
-        );
+            $pageCache->remember('archive.sk_officials_records', function () use ($tenantId, $request) {
+                return $this->termRecordsArchiveService->listOfficialRecords($tenantId, $request);
+            }, $parts)
+        )->header('Cache-Control', 'private, max-age=60');
     }
 
     public function federationData(Request $request): JsonResponse
     {
         $tenantId = $this->resolveTenantId($request->user());
+        $pageCache = app(\App\Services\SkFedPageCache::class);
+        $parts = [
+            'tenant' => $tenantId,
+            'search' => (string) $request->query('search', ''),
+            'year' => (string) $request->query('year', ''),
+            'term' => (string) $request->query('term', ''),
+        ];
 
         return response()->json(
-            $this->termRecordsArchiveService->listFederationRecords($tenantId, $request)
-        );
+            $pageCache->remember('archive.sk_federation_records', function () use ($tenantId, $request) {
+                return $this->termRecordsArchiveService->listFederationRecords($tenantId, $request);
+            }, $parts)
+        )->header('Cache-Control', 'private, max-age=60');
     }
 
     public function restoreOfficialRecord(Request $request, int $record): JsonResponse
     {
         $user = $this->archivedRecordRestoreService->restoreOfficialRecord($record, $request->user());
+
+        app(\App\Services\SkFedPageCache::class)->bumpMany([
+            'archive.sk_officials_records',
+            'accounts.officials',
+            'archive.deleted_sk_officials',
+        ]);
 
         return response()->json([
             'message' => 'SK Official account restored successfully.',
@@ -49,6 +73,12 @@ class TermRecordsArchiveController extends Controller
     public function restoreFederationRecord(Request $request, int $record): JsonResponse
     {
         $user = $this->archivedRecordRestoreService->restoreFederationRecord($record, $request->user());
+
+        app(\App\Services\SkFedPageCache::class)->bumpMany([
+            'archive.sk_federation_records',
+            'accounts.federation',
+            'archive.deleted_sk_officials',
+        ]);
 
         return response()->json([
             'message' => 'SK Federation account restored successfully.',

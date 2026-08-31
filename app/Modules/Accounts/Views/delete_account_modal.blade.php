@@ -21,7 +21,7 @@
                    placeholder="DELETE" autocomplete="off" autocapitalize="none" spellcheck="false">
 
             <p class="delete-confirm-hint delete-confirm-hint-error" id="deleteConfirmHintError" style="display:none;">
-                Please type &quot;DELETE&quot; exactly to continue.
+                Please type &quot;DELETE&quot; to continue (any capitalization is fine).
             </p>
             <p class="delete-confirm-hint delete-confirm-hint-success" id="deleteConfirmHintSuccess" style="display:none;">
                 ✓ Confirmation text matched.

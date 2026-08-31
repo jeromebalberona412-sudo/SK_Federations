@@ -16,6 +16,7 @@ use App\Modules\Accounts\Requests\BulkDeactivateAccountsRequest;
 use App\Modules\Accounts\Services\AccountBatchTemplateService;
 use App\Modules\Accounts\Services\AccountService;
 use App\Modules\Accounts\Services\FederationRosterService;
+use App\Modules\Accounts\Support\SkOfficialTermDates;
 use App\Modules\Shared\Controllers\Controller;
 use App\Modules\Authentication\Services\BootstrapSkFedAdminService;
 use App\Modules\Shared\Models\Tenant;
@@ -47,20 +48,28 @@ class AdminAccountController extends Controller
         $this->expiredTermProcessor->processForTenant($tenantId, $request->user());
         $this->federationRosterService->syncFederationRosterAccess($tenantId);
 
-        $query = $this->federationRosterService->federationRosterQuery($tenantId);
+        $pageCache = app(\App\Services\SkFedPageCache::class);
+        $payload = $pageCache->remember('accounts.federation', function () use ($tenantId) {
+            $query = $this->federationRosterService->federationRosterQuery($tenantId);
 
-        $accounts = $query->get()
-            ->sortBy(fn (User $account) => Str::lower($account->barangay?->name ?? 'zzzz'))
-            ->values();
-        $barangays = Barangay::query()
-            ->where('tenant_id', $tenantId)
-            ->orderBy('name')
-            ->get();
+            $accounts = $query->get()
+                ->sortBy(fn (User $account) => Str::lower($account->barangay?->name ?? 'zzzz'))
+                ->values();
+            $barangays = Barangay::query()
+                ->where('tenant_id', $tenantId)
+                ->orderBy('name')
+                ->get();
 
-        $takenFederationPositions = $this->federationRosterService->takenFederationPositions($tenantId);
+            $takenFederationPositions = $this->federationRosterService->takenFederationPositions($tenantId);
+
+            return compact('accounts', 'barangays', 'takenFederationPositions');
+        }, ['tenant' => $tenantId]);
 
         $accountType = 'sk_federation';
         $positionOptions = OfficialProfile::federationPositionOptions();
+        $accounts = $payload['accounts'];
+        $barangays = $payload['barangays'];
+        $takenFederationPositions = $payload['takenFederationPositions'];
 
         return view('accounts::manage_account', compact('accounts', 'accountType', 'barangays', 'positionOptions', 'takenFederationPositions'));
     }
@@ -73,37 +82,55 @@ class AdminAccountController extends Controller
         $this->ensureTenantBarangays($tenantId);
         $this->expiredTermProcessor->processForTenant($tenantId, $request->user());
 
-        $query = User::query()
-            ->with(['barangay', 'officialProfile.latestTerm'])
-            ->where('tenant_id', $tenantId)
-            ->where('role', User::ROLE_SK_OFFICIAL)
-            ->whereHas('officialProfile.terms', function ($termQuery) {
-                $today = now()->startOfDay();
+        $pageCache = app(\App\Services\SkFedPageCache::class);
+        $payload = $pageCache->remember('accounts.officials', function () use ($tenantId) {
+            $query = User::query()
+                ->with(['barangay', 'officialProfile.latestTerm'])
+                ->where('tenant_id', $tenantId)
+                ->where('role', User::ROLE_SK_OFFICIAL)
+                ->whereHas('officialProfile.terms', function ($termQuery) {
+                    $today = now()->startOfDay();
 
-                $termQuery->where(function ($scope) use ($today) {
-                    $scope->where(function ($active) use ($today) {
-                        $active
-                            ->where('status', OfficialTerm::STATUS_ACTIVE)
-                            ->whereDate('term_end', '>=', $today);
-                    })->orWhere(function ($upcoming) use ($today) {
-                        $upcoming
-                            ->where('status', OfficialTerm::STATUS_INACTIVE)
-                            ->whereDate('term_start', '>=', $today);
+                    $termQuery->where(function ($scope) use ($today) {
+                        $scope->where(function ($active) use ($today) {
+                            $active
+                                ->where('status', OfficialTerm::STATUS_ACTIVE)
+                                ->whereDate('term_end', '>=', $today);
+                        })->orWhere(function ($upcoming) use ($today) {
+                            $upcoming
+                                ->where('status', OfficialTerm::STATUS_INACTIVE)
+                                ->whereDate('term_start', '>=', $today);
+                        });
                     });
-                });
-            })
-            ->orderByDesc('created_at');
+                })
+                ->orderByDesc('created_at');
 
-        $accounts = $query->get();
-        $barangays = Barangay::query()
-            ->where('tenant_id', $tenantId)
-            ->orderBy('name')
-            ->get();
+            return [
+                'accounts' => $query->get(),
+                'barangays' => Barangay::query()
+                    ->where('tenant_id', $tenantId)
+                    ->orderBy('name')
+                    ->get(),
+            ];
+        }, ['tenant' => $tenantId]);
+
+        $accounts = $payload['accounts'];
+        $barangays = $payload['barangays'];
 
         $accountType = 'sk_officials';
         $positionOptions = OfficialProfile::officialPositionOptions();
+        $leadershipTermDefaults = SkOfficialTermDates::leadershipDefaults($tenantId);
+        $defaultTermStart = $leadershipTermDefaults['term_start'];
+        $defaultTermEnd = $leadershipTermDefaults['term_end'];
 
-        return view('accounts::manage_account', compact('accounts', 'accountType', 'barangays', 'positionOptions'));
+        return view('accounts::manage_account', compact(
+            'accounts',
+            'accountType',
+            'barangays',
+            'positionOptions',
+            'defaultTermStart',
+            'defaultTermEnd'
+        ));
     }
 
     public function create(): View
@@ -216,6 +243,8 @@ class AdminAccountController extends Controller
             $message .= ' Password setup emails were sent.';
         }
 
+        $this->bumpAccountsCache();
+
         return response()->json([
             'success' => true,
             'message' => $message,
@@ -235,6 +264,8 @@ class AdminAccountController extends Controller
             $request->validated('account_ids'),
             $request->user()
         );
+
+        $this->bumpAccountsCache();
 
         $deleted = $result['deleted'];
         $failedCount = count($result['failed']);
@@ -296,6 +327,7 @@ class AdminAccountController extends Controller
                 $request->user()
             );
             Log::info('AdminAccountController@store: Account created successfully.', ['user_id' => $user->id]);
+            $this->bumpAccountsCache();
 
             $statusMessage = empty($validatedData['password'])
                 ? 'Account created successfully. A password setup email has been sent.'
@@ -368,6 +400,7 @@ class AdminAccountController extends Controller
         $this->authorize('update', $user);
 
         $this->accountService->updateAccount($user, $request->validated(), $request->user());
+        $this->bumpAccountsCache();
 
         if ($request->expectsJson()) {
             return response()->json([
@@ -390,6 +423,8 @@ class AdminAccountController extends Controller
             $request->user()
         );
 
+        $this->bumpAccountsCache();
+
         return response()->json([
             'success' => true,
             'message' => 'Federation position updated successfully.',
@@ -407,6 +442,7 @@ class AdminAccountController extends Controller
         $this->authorize('deactivate', $user);
 
         $this->accountService->deactivate($user, $request->user());
+        $this->bumpAccountsCache();
 
         if ($request->expectsJson()) {
             return response()->json([
@@ -443,6 +479,18 @@ class AdminAccountController extends Controller
         $this->accountService->extendTerm($officialProfile, $request->validated(), $request->user());
 
         return back()->with('status', 'Term extended successfully.');
+    }
+
+    private function bumpAccountsCache(): void
+    {
+        $pageCache = app(\App\Services\SkFedPageCache::class);
+        $pageCache->bumpMany([
+            'accounts.federation',
+            'accounts.officials',
+            'archive.deleted_sk_officials',
+            'archive.sk_officials_records',
+            'archive.sk_federation_records',
+        ]);
     }
 
     private function resolveTenantId(User $admin): int
