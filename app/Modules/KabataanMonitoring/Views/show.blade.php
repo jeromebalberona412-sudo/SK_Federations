@@ -11,7 +11,7 @@
 @endpush
 
 @push('styles')
-    <link rel="stylesheet" href="{{ url('/modules/kabataan-monitoring/css/kabataan-monitoring.css') }}">
+    @vite(['app/Modules/KabataanMonitoring/assets/css/kabataan-monitoring.css'])
 @endpush
 
 @section('content')
@@ -66,5 +66,5 @@
     window.kmConfig = { dataUrl: @json(route('api.kabataan-monitoring.index')) };
 </script>
 <script src="{{ url('/shared/js/loading.js') }}"></script>
-    <script src="{{ url('/modules/kabataan-monitoring/js/kabataan-monitoring.js') }}"></script>
+    @vite(['app/Modules/KabataanMonitoring/assets/js/kabataan-monitoring.js'])
 @endpush

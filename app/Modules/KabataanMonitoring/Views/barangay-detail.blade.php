@@ -11,16 +11,12 @@
 @endpush
 
 @push('styles')
-    @php
-        $kmCssV = @filemtime(app_path('Modules/KabataanMonitoring/assets/css/kabataan-monitoring.css')) ?: time();
-        $kkpCssV = @filemtime(app_path('Modules/KabataanMonitoring/assets/css/kkprofiling.css')) ?: time();
-        $kkpFormCssV = @filemtime(app_path('Modules/KabataanMonitoring/assets/css/kk-profiling-form.css')) ?: time();
-        $kkpViewCssV = @filemtime(app_path('Modules/KabataanMonitoring/assets/css/kk-questionnaire-view.css')) ?: time();
-    @endphp
-    <link rel="stylesheet" href="{{ url('/modules/kabataan-monitoring/css/kabataan-monitoring.css') }}?v={{ $kmCssV }}">
-    <link rel="stylesheet" href="{{ url('/modules/kabataan-monitoring/css/kkprofiling.css') }}?v={{ $kkpCssV }}">
-    <link rel="stylesheet" href="{{ url('/modules/kabataan-monitoring/css/kk-profiling-form.css') }}?v={{ $kkpFormCssV }}">
-    <link rel="stylesheet" href="{{ url('/modules/kabataan-monitoring/css/kk-questionnaire-view.css') }}?v={{ $kkpViewCssV }}">
+    @vite([
+        'app/Modules/KabataanMonitoring/assets/css/kabataan-monitoring.css',
+        'app/Modules/KabataanMonitoring/assets/css/kkprofiling.css',
+        'app/Modules/KabataanMonitoring/assets/css/kk-profiling-form.css',
+        'app/Modules/KabataanMonitoring/assets/css/kk-questionnaire-view.css',
+    ])
 @endpush
 
 @section('content')
@@ -246,14 +242,6 @@
 @endsection
 
 @push('scripts')
-    @php
-        $kmJsV = @filemtime(app_path('Modules/KabataanMonitoring/assets/js/kabataan-monitoring.js')) ?: time();
-        $kmTableJsV = @filemtime(app_path('Modules/KabataanMonitoring/assets/js/kabataan-monitoring-table.js')) ?: time();
-        $kmValJsV = @filemtime(app_path('Modules/KabataanMonitoring/assets/js/kabataan-monitoring-validation.js')) ?: time();
-        $kmEditJsV = @filemtime(app_path('Modules/KabataanMonitoring/assets/js/kabataan-monitoring-edit.js')) ?: time();
-        $kmUploadJsV = @filemtime(app_path('Modules/KabataanMonitoring/assets/js/kabataan-monitoring-upload.js')) ?: time();
-        $cacheJsV = @filemtime(public_path('shared/js/local-data-cache.js')) ?: time();
-    @endphp
     <script>
         window.kmPageMode = 'barangay-detail';
         window.kmBarangay = @json($barangay);
@@ -271,12 +259,15 @@
             destroyUrl: @json(url('/api/kabataan-monitoring/__ID__')),
             batchPrintUrl: @json(route('kabataan-monitoring.batch-print')),
             csrfToken: @json(csrf_token()),
+            viewCssUrl: @json(\Illuminate\Support\Facades\Vite::asset('app/Modules/KabataanMonitoring/assets/css/kk-questionnaire-view.css')),
         };
     </script>
-    <script src="{{ url('/shared/js/local-data-cache.js') }}?v={{ $cacheJsV }}"></script>
-    <script src="{{ url('/modules/kabataan-monitoring/js/kabataan-monitoring.js') }}?v={{ $kmJsV }}"></script>
-    <script src="{{ url('/modules/kabataan-monitoring/js/kabataan-monitoring-table.js') }}?v={{ $kmTableJsV }}"></script>
-    <script src="{{ url('/modules/kabataan-monitoring/js/kabataan-monitoring-validation.js') }}?v={{ $kmValJsV }}"></script>
-    <script src="{{ url('/modules/kabataan-monitoring/js/kabataan-monitoring-edit.js') }}?v={{ $kmEditJsV }}"></script>
-    <script src="{{ url('/modules/kabataan-monitoring/js/kabataan-monitoring-upload.js') }}?v={{ $kmUploadJsV }}"></script>
+    <script src="{{ url('/shared/js/local-data-cache.js') }}?v={{ @filemtime(public_path('shared/js/local-data-cache.js')) ?: time() }}"></script>
+    @vite([
+        'app/Modules/KabataanMonitoring/assets/js/kabataan-monitoring.js',
+        'app/Modules/KabataanMonitoring/assets/js/kabataan-monitoring-table.js',
+        'app/Modules/KabataanMonitoring/assets/js/kabataan-monitoring-validation.js',
+        'app/Modules/KabataanMonitoring/assets/js/kabataan-monitoring-edit.js',
+        'app/Modules/KabataanMonitoring/assets/js/kabataan-monitoring-upload.js',
+    ])
 @endpush

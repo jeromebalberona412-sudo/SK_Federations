@@ -60,9 +60,9 @@
 @endsection
 
 @push('styles')
-    <link rel="stylesheet" href="{{ url('/modules/notifications/css/notifications.css') }}?v={{ @filemtime(app_path('Modules/Notifications/assets/css/notifications.css')) ?: time() }}">
+    @vite(['app/Modules/Notifications/assets/css/notifications.css'])
 @endpush
 
 @push('scripts')
-    <script src="{{ url('/modules/notifications/js/notifications.js') }}?v={{ @filemtime(app_path('Modules/Notifications/assets/js/notifications.js')) ?: time() }}"></script>
+    @vite(['app/Modules/Notifications/assets/js/notifications.js'])
 @endpush

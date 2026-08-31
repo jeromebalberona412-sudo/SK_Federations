@@ -2,14 +2,11 @@
 
 @section('title', 'Deleted SK Officials')
 
-@php
-    $cssVersion = @filemtime(app_path('Modules/Archive_Management/assets/css/deleted-sk-officials.css')) ?: time();
-    $jsVersion = @filemtime(app_path('Modules/Archive_Management/assets/js/deleted-sk-officials.js')) ?: time();
-@endphp
-
 @push('styles')
-    <link rel="stylesheet" href="{{ url('/modules/archive-management/css/archive-row-actions.css') }}?v={{ $cssVersion }}">
-    <link rel="stylesheet" href="{{ url('/modules/archive-management/css/deleted-sk-officials.css') }}?v={{ $cssVersion }}">
+    @vite([
+        'app/Modules/Archive_Management/assets/css/archive-row-actions.css',
+        'app/Modules/Archive_Management/assets/css/deleted-sk-officials.css',
+    ])
 @endpush
 
 @section('content')
@@ -140,7 +137,9 @@
 @endsection
 
 @push('scripts')
-    <script src="{{ url('/modules/archive-management/js/archive-fullname-sort.js') }}?v={{ $jsVersion }}"></script>
-    <script src="{{ url('/modules/archive-management/js/archive-row-actions.js') }}?v={{ $jsVersion }}"></script>
-    <script src="{{ url('/modules/archive-management/js/deleted-sk-officials.js') }}?v={{ $jsVersion }}"></script>
+    @vite([
+        'app/Modules/Archive_Management/assets/js/archive-fullname-sort.js',
+        'app/Modules/Archive_Management/assets/js/archive-row-actions.js',
+        'app/Modules/Archive_Management/assets/js/deleted-sk-officials.js',
+    ])
 @endpush

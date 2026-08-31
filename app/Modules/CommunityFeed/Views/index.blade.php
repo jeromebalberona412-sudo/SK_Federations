@@ -11,14 +11,10 @@
 @endpush
 
 @push('styles')
-    @php
-        $communityFeedCssPath = app_path('Modules/CommunityFeed/assets/css/community-feed.css');
-        $communityFeedCssVersion = file_exists($communityFeedCssPath) ? filemtime($communityFeedCssPath) : time();
-        $commentPreviewCssPath = app_path('Modules/CommunityFeed/assets/css/community-feed-comment-preview.css');
-        $commentPreviewCssVersion = file_exists($commentPreviewCssPath) ? filemtime($commentPreviewCssPath) : time();
-    @endphp
-    <link rel="stylesheet" href="{{ url('/modules/community-feed/css/community-feed.css') }}?v={{ $communityFeedCssVersion }}">
-    <link rel="stylesheet" href="{{ url('/modules/community-feed/css/community-feed-comment-preview.css') }}?v={{ $commentPreviewCssVersion }}">
+    @vite([
+        'app/Modules/CommunityFeed/assets/css/community-feed.css',
+        'app/Modules/CommunityFeed/assets/css/community-feed-comment-preview.css',
+    ])
     <link rel="preload" href="{{ url('/sounds/reactions_ux.mp3') }}" as="audio" type="audio/mpeg">
 @endpush
 
@@ -308,12 +304,8 @@
         }
         window.showFeedToast = showFeedToast;
     </script>
-    @php
-        $communityFeedJsPath = app_path('Modules/CommunityFeed/assets/js/community-feed.js');
-        $communityFeedJsVersion = file_exists($communityFeedJsPath) ? filemtime($communityFeedJsPath) : time();
-        $commentPreviewJsPath = app_path('Modules/CommunityFeed/assets/js/community-feed-comment-preview.js');
-        $commentPreviewJsVersion = file_exists($commentPreviewJsPath) ? filemtime($commentPreviewJsPath) : time();
-    @endphp
-    <script src="{{ url('/modules/community-feed/js/community-feed.js') }}?v={{ $communityFeedJsVersion }}"></script>
-    <script src="{{ url('/modules/community-feed/js/community-feed-comment-preview.js') }}?v={{ $commentPreviewJsVersion }}"></script>
+    @vite([
+        'app/Modules/CommunityFeed/assets/js/community-feed.js',
+        'app/Modules/CommunityFeed/assets/js/community-feed-comment-preview.js',
+    ])
 @endpush

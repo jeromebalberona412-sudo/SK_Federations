@@ -3,7 +3,7 @@
 @section('title', 'Reports - SK OnePortal')
 
 @push('styles')
-    <link rel="stylesheet" href="{{ url('/modules/reports/css/reports.css') }}?v={{ time() }}">
+    @vite(['app/Modules/Reports/assets/css/reports.css'])
 @endpush
 
 @section('content')
@@ -67,5 +67,5 @@
         listUrl: @json(route('api.reports.index')),
     };
 </script>
-<script src="{{ url('/modules/reports/js/reports.js') }}?v={{ time() }}"></script>
+@vite(['app/Modules/Reports/assets/js/reports.js'])
 @endpush

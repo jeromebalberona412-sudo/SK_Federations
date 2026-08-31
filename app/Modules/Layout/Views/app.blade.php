@@ -17,13 +17,10 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" media="print" onload="this.media='all'">
     <noscript><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"></noscript>
-    @php
-        $dashboardCssVersion = @filemtime(app_path('Modules/Dashboard/assets/css/dashboard.css')) ?: time();
-        $layoutCssVersion = @filemtime(app_path('Modules/Layout/assets/css/layout.css')) ?: time();
-        $layoutJsVersion = @filemtime(app_path('Modules/Layout/assets/js/layout.js')) ?: time();
-    @endphp
-    <link rel="stylesheet" href="{{ url('/modules/dashboard/css/dashboard.css') }}?v={{ $dashboardCssVersion }}">
-    <link rel="stylesheet" href="{{ url('/modules/layout/css/layout.css') }}?v={{ $layoutCssVersion }}">
+    @vite([
+        'app/Modules/Dashboard/assets/css/dashboard.css',
+        'app/Modules/Layout/assets/css/layout.css',
+    ])
     @stack('styles')
     <link rel="stylesheet" href="{{ url('/shared/css/federations-responsive.css') }}?v={{ @filemtime(public_path('shared/css/federations-responsive.css')) ?: time() }}">
 </head>
@@ -41,14 +38,14 @@
     @include('layout::session-timeout-modal')
 
     @if(!empty($turnoverModal['show']))
-        <link rel="stylesheet" href="{{ url('/modules/turnover/css/turnover.css') }}?v={{ $turnoverModal['cssVersion'] }}">
+        @vite(['app/Modules/Turnover/assets/css/turnover.css'])
         @include('turnover::partials.global-modal', ['turnoverModal' => $turnoverModal])
         <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js" defer></script>
-        <script src="{{ url('/modules/turnover/js/turnover.js') }}?v={{ $turnoverModal['jsVersion'] }}"></script>
+        @vite(['app/Modules/Turnover/assets/js/turnover.js'])
     @endif
 
     <script src="{{ url('/shared/js/local-data-cache.js') }}?v={{ @filemtime(public_path('shared/js/local-data-cache.js')) ?: time() }}"></script>
-    <script src="{{ url('/modules/layout/js/layout.js') }}?v={{ $layoutJsVersion }}"></script>
+    @vite(['app/Modules/Layout/assets/js/layout.js'])
     <script>
         window.logoutRoute = "{{ route('logout') }}";
         window.loginRoute  = "{{ route('login') }}";

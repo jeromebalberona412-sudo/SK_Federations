@@ -1378,7 +1378,12 @@
             alert('Please allow pop-ups to print this questionnaire.');
             return;
         }
-        var viewCssHref = window.location.origin + '/modules/kabataan-monitoring/css/kk-questionnaire-view.css';
+        var viewCssHref = (window.kmConfig && window.kmConfig.viewCssUrl) || '';
+        if (!viewCssHref) {
+            alert('Unable to load print stylesheet. Please refresh and try again.');
+            printWindow.close();
+            return;
+        }
         printWindow.document.write('<html><head><title>KK Survey Questionnaire</title>');
         printWindow.document.write('<link rel="stylesheet" href="' + viewCssHref + '">');
         printWindow.document.write('<style>@page{size:Letter portrait;margin:.35in;}body{margin:0;} .kk-view-paper{zoom:.88;box-shadow:none;border:none;padding:0;} .kkp-notice-body br{display:none;}</style>');

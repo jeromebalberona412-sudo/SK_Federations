@@ -2,13 +2,8 @@
 
 @section('title', 'Audit Logs')
 
-@php
-    $auditCssVersion = @filemtime(app_path('Modules/AuditLog/assets/css/auditlogs.css')) ?: time();
-    $auditJsVersion = @filemtime(app_path('Modules/AuditLog/assets/js/auditlogs.js')) ?: time();
-@endphp
-
 @push('styles')
-    <link rel="stylesheet" href="{{ url('/modules/audit-log/css/auditlogs.css') }}?v={{ $auditCssVersion }}">
+    @vite(['app/Modules/AuditLog/assets/css/auditlogs.css'])
 @endpush
 
 @section('content')
@@ -151,5 +146,5 @@
 @endsection
 
 @push('scripts')
-    <script src="{{ url('/modules/audit-log/js/auditlogs.js') }}?v={{ $auditJsVersion }}"></script>
+    @vite(['app/Modules/AuditLog/assets/js/auditlogs.js'])
 @endpush

@@ -3,7 +3,7 @@
 @section('title', 'Barangay ABYIP - SK OnePortal')
 
 @push('styles')
-    <link rel="stylesheet" href="{{ url('/modules/barangay-abyip/css/barangay_abyip.css') }}?v={{ time() }}">
+    @vite(['app/Modules/Barangay_ABYIP/Assets/css/barangay_abyip.css'])
 @endpush
 
 @section('content')
@@ -210,5 +210,5 @@
         rejectUrl: @json(url('/api/barangay-abyip/__ID__/reject')),
     };
 </script>
-<script src="{{ url('/modules/barangay-abyip/js/barangay_abyip.js') }}?v={{ time() }}"></script>
+@vite(['app/Modules/Barangay_ABYIP/Assets/js/barangay_abyip.js'])
 @endpush

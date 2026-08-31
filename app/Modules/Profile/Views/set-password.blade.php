@@ -8,11 +8,11 @@
 @endphp
 
 @push('styles')
-    <link rel="stylesheet" href="{{ url('/modules/profile/css/change-password.css') }}?v={{ @filemtime(app_path('Modules/Profile/assets/css/change-password.css')) ?: time() }}">
+    @vite(['app/Modules/Profile/assets/css/change-password.css'])
 @endpush
 
 @push('scripts')
-    <script src="{{ url('/modules/profile/js/change-password.js') }}"></script>
+    @vite(['app/Modules/Profile/assets/js/change-password.js'])
 @endpush
 
 @section('content')

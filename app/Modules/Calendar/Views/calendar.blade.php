@@ -3,11 +3,7 @@
 @section('title', 'Calendar - SK OnePortal')
 
 @push('styles')
-    @php
-        $calendarCssPath = app_path('Modules/Calendar/assets/css/calendar.css');
-        $calendarCssVersion = file_exists($calendarCssPath) ? filemtime($calendarCssPath) : time();
-    @endphp
-    <link rel="stylesheet" href="{{ url('/modules/calendar/css/calendar.css') }}?v={{ $calendarCssVersion }}">
+    @vite(['app/Modules/Calendar/assets/css/calendar.css'])
 @endpush
 
 @section('content')
@@ -37,9 +33,5 @@
 @endsection
 
 @push('scripts')
-    @php
-        $calendarJsPath = app_path('Modules/Calendar/assets/js/calendar.js');
-        $calendarJsVersion = file_exists($calendarJsPath) ? filemtime($calendarJsPath) : time();
-    @endphp
-    <script src="{{ url('/modules/calendar/js/calendar.js') }}?v={{ $calendarJsVersion }}"></script>
+    @vite(['app/Modules/Calendar/assets/js/calendar.js'])
 @endpush

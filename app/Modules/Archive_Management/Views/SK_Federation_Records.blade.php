@@ -2,14 +2,11 @@
 
 @section('title', 'Archived SK Federation Records')
 
-@php
-    $cssVersion = @filemtime(app_path('Modules/Archive_Management/assets/css/SK_federation.css')) ?: time();
-    $jsVersion = @filemtime(app_path('Modules/Archive_Management/assets/js/SK_federation.js')) ?: time();
-@endphp
-
 @push('styles')
-    <link rel="stylesheet" href="{{ url('/modules/archive-management/css/archive-row-actions.css') }}?v={{ $cssVersion }}">
-    <link rel="stylesheet" href="{{ url('/modules/archive-management/css/SK_federation.css') }}?v={{ $cssVersion }}">
+    @vite([
+        'app/Modules/Archive_Management/assets/css/archive-row-actions.css',
+        'app/Modules/Archive_Management/assets/css/SK_federation.css',
+    ])
 @endpush
 
 @section('content')
@@ -102,7 +99,9 @@
 @endsection
 
 @push('scripts')
-    <script src="{{ url('/modules/archive-management/js/archive-fullname-sort.js') }}?v={{ $jsVersion }}"></script>
-    <script src="{{ url('/modules/archive-management/js/archive-row-actions.js') }}?v={{ $jsVersion }}"></script>
-    <script src="{{ url('/modules/archive-management/js/SK_federation.js') }}?v={{ $jsVersion }}"></script>
+    @vite([
+        'app/Modules/Archive_Management/assets/js/archive-fullname-sort.js',
+        'app/Modules/Archive_Management/assets/js/archive-row-actions.js',
+        'app/Modules/Archive_Management/assets/js/SK_federation.js',
+    ])
 @endpush

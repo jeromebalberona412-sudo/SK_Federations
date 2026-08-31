@@ -328,12 +328,6 @@
 @endsection
 
 @push('scripts')
-@php
-    $kkProfilingJsVersion = @filemtime(app_path('Modules/Dashboard/assets/js/kkprofilingchart.js')) ?: time();
-    $purokChartJsVersion = @filemtime(app_path('Modules/Dashboard/assets/js/dashboard-purok.js')) ?: time();
-    $dashAuditJsVersion = @filemtime(app_path('Modules/Dashboard/assets/js/dashboard-audit.js')) ?: time();
-    $dashActivityJsVersion = @filemtime(app_path('Modules/Dashboard/assets/js/dashboard-activity.js')) ?: time();
-@endphp
 <script>
     window.__KK_BARANGAYS__ = @json($kkBarangayOptions);
     window.__KK_PROFILING_DATA_URL__ = @json(route('dashboard.kk-profiling-data'));
@@ -349,10 +343,12 @@
     };
 </script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-<script src="{{ url('/modules/dashboard/js/kkprofilingchart.js') }}?v={{ $kkProfilingJsVersion }}"></script>
-<script src="{{ url('/modules/dashboard/js/dashboard-purok.js') }}?v={{ $purokChartJsVersion }}"></script>
-<script src="{{ url('/modules/dashboard/js/dashboard-activity.js') }}?v={{ $dashActivityJsVersion }}"></script>
-<script src="{{ url('/modules/dashboard/js/dashboard-audit.js') }}?v={{ $dashAuditJsVersion }}"></script>
+@vite([
+    'app/Modules/Dashboard/assets/js/kkprofilingchart.js',
+    'app/Modules/Dashboard/assets/js/dashboard-purok.js',
+    'app/Modules/Dashboard/assets/js/dashboard-activity.js',
+    'app/Modules/Dashboard/assets/js/dashboard-audit.js',
+])
 <script>
         const fedBlue = '#213F99', fedRed = '#d0242b';
         @php

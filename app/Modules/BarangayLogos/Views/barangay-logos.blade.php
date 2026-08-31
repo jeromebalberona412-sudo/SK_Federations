@@ -3,7 +3,7 @@
 @section('title', 'SK Barangay Logos')
 
 @push('styles')
-    <link rel="stylesheet" href="{{ url('/modules/barangay-logos/css/barangay-logos.css') }}?v={{ @filemtime(app_path('Modules/BarangayLogos/assets/css/barangay-logos.css')) ?: time() }}">
+    @vite(['app/Modules/BarangayLogos/assets/css/barangay-logos.css'])
 @endpush
 
 @section('content')
@@ -324,5 +324,5 @@
             deleteBase: @json(url('/barangay-logos')),
         };
     </script>
-    <script src="{{ url('/modules/barangay-logos/js/barangay-logos.js') }}?v={{ @filemtime(app_path('Modules/BarangayLogos/assets/js/barangay-logos.js')) ?: time() }}"></script>
+    @vite(['app/Modules/BarangayLogos/assets/js/barangay-logos.js'])
 @endpush

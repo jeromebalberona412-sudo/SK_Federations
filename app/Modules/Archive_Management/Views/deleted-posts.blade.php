@@ -2,14 +2,11 @@
 
 @section('title', 'Deleted Posts')
 
-@php
-    $cssVersion = @filemtime(app_path('Modules/Archive_Management/assets/css/deleted-posts.css')) ?: time();
-    $jsVersion = @filemtime(app_path('Modules/Archive_Management/assets/js/deleted-posts.js')) ?: time();
-@endphp
-
 @push('styles')
-    <link rel="stylesheet" href="{{ url('/modules/archive-management/css/archive-row-actions.css') }}?v={{ $cssVersion }}">
-    <link rel="stylesheet" href="{{ url('/modules/archive-management/css/deleted-posts.css') }}?v={{ $cssVersion }}">
+    @vite([
+        'app/Modules/Archive_Management/assets/css/archive-row-actions.css',
+        'app/Modules/Archive_Management/assets/css/deleted-posts.css',
+    ])
 @endpush
 
 @section('content')
@@ -89,6 +86,8 @@
             csrf: @json(csrf_token()),
         };
     </script>
-    <script src="{{ url('/modules/archive-management/js/archive-row-actions.js') }}?v={{ $jsVersion }}"></script>
-    <script src="{{ url('/modules/archive-management/js/deleted-posts.js') }}?v={{ $jsVersion }}"></script>
+    @vite([
+        'app/Modules/Archive_Management/assets/js/archive-row-actions.js',
+        'app/Modules/Archive_Management/assets/js/deleted-posts.js',
+    ])
 @endpush

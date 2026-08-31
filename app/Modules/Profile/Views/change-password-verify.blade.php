@@ -5,7 +5,7 @@
 @section('card-class', 'ce-verify-card sk-fed-compact-card')
 
 @push('styles')
-    <link rel="stylesheet" href="{{ url('/modules/profile/css/change-password.css') }}?v={{ @filemtime(app_path('Modules/Profile/assets/css/change-password.css')) ?: time() }}">
+    @vite(['app/Modules/Profile/assets/css/change-password.css'])
 @endpush
 
 @push('scripts-before')
@@ -15,7 +15,7 @@
 @endpush
 
 @push('scripts')
-    <script src="{{ url('/modules/profile/js/change-password-verify.js') }}?v={{ @filemtime(app_path('Modules/Profile/assets/js/change-password-verify.js')) ?: time() }}"></script>
+    @vite(['app/Modules/Profile/assets/js/change-password-verify.js'])
 @endpush
 
 @section('content')

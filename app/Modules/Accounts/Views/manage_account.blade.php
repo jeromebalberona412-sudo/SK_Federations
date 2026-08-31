@@ -11,14 +11,12 @@
     $addLabel = $isOfficials ? 'Add SK Official' : 'Add Federation Member';
     $positionFilterLabel = $isOfficials ? 'Position' : 'Federation Position';
     $tableColspan = $isOfficials ? 8 : 6;
-    $accountCssVersion = @filemtime(app_path('Modules/Accounts/assets/css/account.css')) ?: time();
-    $accountJsVersion = @filemtime(app_path('Modules/Accounts/assets/js/account.js')) ?: time();
     $batchTemplateType = $isOfficials ? 'officials' : 'federation';
     $batchRole = $isOfficials ? 'sk_official' : 'sk_fed';
 @endphp
 
 @push('styles')
-    <link rel="stylesheet" href="{{ url('/modules/accounts/css/account.css') }}?v={{ $accountCssVersion }}">
+    @vite(['app/Modules/Accounts/assets/css/account.css'])
 @endpush
 
 @section('content')
@@ -289,8 +287,10 @@
 @endsection
 
 @push('scripts')
-    <script src="{{ url('/modules/accounts/js/account-date-fields.js') }}?v={{ @filemtime(app_path('Modules/Accounts/assets/js/account-date-fields.js')) ?: time() }}"></script>
-    <script src="{{ url('/modules/accounts/js/account.js') }}?v={{ $accountJsVersion }}"></script>
+    @vite([
+        'app/Modules/Accounts/assets/js/account-date-fields.js',
+        'app/Modules/Accounts/assets/js/account.js',
+    ])
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.9/dist/cdn.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 @endpush

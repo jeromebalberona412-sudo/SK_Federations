@@ -9,7 +9,7 @@
     <meta http-equiv="Expires" content="0">
     <title>Password Reset Successful</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="{{ url('/modules/authentication/css/style.css') }}" rel="stylesheet">
+    @vite(['app/Modules/Authentication/assets/css/style.css'])
     <link rel="stylesheet" href="{{ url('/shared/css/loading.css') }}">
     <style>
         .check-wrap {

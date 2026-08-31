@@ -4,11 +4,11 @@
 @section('card-class', 'ce-change-card')
 
 @push('styles')
-    <link rel="stylesheet" href="{{ url('/modules/profile/css/change-email.css') }}?v={{ @filemtime(app_path('Modules/Profile/assets/css/change-email.css')) ?: time() }}">
+    @vite(['app/Modules/Profile/assets/css/change-email.css'])
 @endpush
 
 @push('scripts')
-    <script src="{{ url('/modules/profile/js/change-email.js') }}?v={{ @filemtime(app_path('Modules/Profile/assets/js/change-email.js')) ?: time() }}"></script>
+    @vite(['app/Modules/Profile/assets/js/change-email.js'])
 @endpush
 
 @section('content')

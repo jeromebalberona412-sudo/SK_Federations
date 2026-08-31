@@ -7,14 +7,10 @@
 @endpush
 
 @push('styles')
-    @php
-        $communityFeedCssPath = base_path('app/Modules/CommunityFeed/assets/css/community-feed.css');
-        $communityFeedCssVersion = file_exists($communityFeedCssPath) ? filemtime($communityFeedCssPath) : time();
-        $commentPreviewCssPath = base_path('app/Modules/CommunityFeed/assets/css/community-feed-comment-preview.css');
-        $commentPreviewCssVersion = file_exists($commentPreviewCssPath) ? filemtime($commentPreviewCssPath) : time();
-    @endphp
-    <link rel="stylesheet" href="{{ url('/modules/community-feed/css/community-feed.css') }}?v={{ $communityFeedCssVersion }}">
-    <link rel="stylesheet" href="{{ url('/modules/community-feed/css/community-feed-comment-preview.css') }}?v={{ $commentPreviewCssVersion }}">
+    @vite([
+        'app/Modules/CommunityFeed/assets/css/community-feed.css',
+        'app/Modules/CommunityFeed/assets/css/community-feed-comment-preview.css',
+    ])
     <link rel="preload" href="{{ url('/sounds/reactions_ux.mp3') }}" as="audio" type="audio/mpeg">
 @endpush
 
@@ -191,14 +187,6 @@
 @endsection
 
 @push('scripts')
-    @php
-        $communityFeedJsPath = app_path('Modules/CommunityFeed/assets/js/community-feed.js');
-        $communityFeedJsVersion = file_exists($communityFeedJsPath) ? filemtime($communityFeedJsPath) : time();
-        $commentPreviewJsPath = app_path('Modules/CommunityFeed/assets/js/community-feed-comment-preview.js');
-        $commentPreviewJsVersion = file_exists($commentPreviewJsPath) ? filemtime($commentPreviewJsPath) : time();
-        $barangayProfileJsPath = app_path('Modules/CommunityFeed/assets/js/barangay-profile.js');
-        $barangayProfileJsVersion = file_exists($barangayProfileJsPath) ? filemtime($barangayProfileJsPath) : time();
-    @endphp
     <script>
         window.currentAvatar = @json($avatar ?? '');
         window.CommunityFeedConfig = {
@@ -231,7 +219,9 @@
         }
         window.showFeedToast = showFeedToast;
     </script>
-    <script src="{{ url('/modules/community-feed/js/community-feed.js') }}?v={{ $communityFeedJsVersion }}"></script>
-    <script src="{{ url('/modules/community-feed/js/community-feed-comment-preview.js') }}?v={{ $commentPreviewJsVersion }}"></script>
-    <script src="{{ url('/modules/community-feed/js/barangay-profile.js') }}?v={{ $barangayProfileJsVersion }}"></script>
+    @vite([
+        'app/Modules/CommunityFeed/assets/js/community-feed.js',
+        'app/Modules/CommunityFeed/assets/js/community-feed-comment-preview.js',
+        'app/Modules/CommunityFeed/assets/js/barangay-profile.js',
+    ])
 @endpush

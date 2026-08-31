@@ -11,7 +11,7 @@
 @endpush
 
 @push('styles')
-    <link rel="stylesheet" href="{{ url('/modules/kabataan-monitoring/css/kabataan-monitoring.css') }}?v={{ time() }}">
+    @vite(['app/Modules/KabataanMonitoring/assets/css/kabataan-monitoring.css'])
 @endpush
 
 @section('content')
@@ -52,8 +52,9 @@
     };
     window.kmConfig = {
         dataUrl: @json(route('api.kabataan-monitoring.index')),
+        viewCssUrl: @json(\Illuminate\Support\Facades\Vite::asset('app/Modules/KabataanMonitoring/assets/css/kk-questionnaire-view.css')),
     };
 </script>
     <script src="{{ url('/shared/js/local-data-cache.js') }}?v={{ @filemtime(public_path('shared/js/local-data-cache.js')) ?: time() }}"></script>
-    <script src="{{ url('/modules/kabataan-monitoring/js/kabataan-monitoring.js') }}?v={{ @filemtime(app_path('Modules/KabataanMonitoring/assets/js/kabataan-monitoring.js')) ?: time() }}"></script>
+    @vite(['app/Modules/KabataanMonitoring/assets/js/kabataan-monitoring.js'])
 @endpush

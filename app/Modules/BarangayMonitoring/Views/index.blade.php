@@ -7,7 +7,7 @@
 @endpush
 
 @push('styles')
-    <link rel="stylesheet" href="{{ url('/modules/barangay-monitoring/css/barangay-monitoring.css') }}?v={{ time() }}">
+    @vite(['app/Modules/BarangayMonitoring/assets/css/barangay-monitoring.css'])
 @endpush
 
 @section('content')
@@ -414,6 +414,8 @@
         canCreateSchedule: @json($canCreateAbyipSchedule ?? true),
     };
 </script>
-<script src="{{ url('/modules/barangay-monitoring/js/barangay-monitoring.js') }}"></script>
-<script src="{{ url('/modules/barangay-monitoring/js/barangay-monitoring-schedule.js') }}?v={{ time() }}"></script>
+@vite([
+    'app/Modules/BarangayMonitoring/assets/js/barangay-monitoring.js',
+    'app/Modules/BarangayMonitoring/assets/js/barangay-monitoring-schedule.js',
+])
 @endpush

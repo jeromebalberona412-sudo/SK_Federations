@@ -3,7 +3,7 @@
 @section('title', 'Federation Turnover')
 
 @push('styles')
-    <link rel="stylesheet" href="{{ url('/modules/turnover/css/turnover.css') }}?v={{ $cssVersion }}">
+    @vite(['app/Modules/Turnover/assets/css/turnover.css'])
 @endpush
 
 @section('content')
@@ -137,5 +137,5 @@
             csrfToken: @json(csrf_token()),
         };
     </script>
-    <script src="{{ url('/modules/turnover/js/turnover.js') }}?v={{ $jsVersion }}"></script>
+    @vite(['app/Modules/Turnover/assets/js/turnover.js'])
 @endpush

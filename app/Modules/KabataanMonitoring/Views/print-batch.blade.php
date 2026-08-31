@@ -5,8 +5,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>KK Survey Questionnaire — Batch Print</title>
-    <link rel="stylesheet" href="{{ url('/modules/kabataan-monitoring/css/kkprofiling.css') }}?v={{ @filemtime(app_path('Modules/KabataanMonitoring/assets/css/kkprofiling.css')) ?: time() }}">
-    <link rel="stylesheet" href="{{ url('/modules/kabataan-monitoring/css/kk-questionnaire-view.css') }}?v={{ @filemtime(app_path('Modules/KabataanMonitoring/assets/css/kk-questionnaire-view.css')) ?: time() }}">
+    @vite([
+        'app/Modules/KabataanMonitoring/assets/css/kkprofiling.css',
+        'app/Modules/KabataanMonitoring/assets/css/kk-questionnaire-view.css',
+    ])
     <style>
         @page {
             size: Letter portrait;

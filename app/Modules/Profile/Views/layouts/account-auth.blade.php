@@ -10,10 +10,7 @@
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>@yield('title', 'Account Settings') - SK OnePortal</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    @php
-        $accountAuthCssVersion = @filemtime(app_path('Modules/Profile/assets/css/account-auth.css')) ?: time();
-    @endphp
-    <link rel="stylesheet" href="{{ url('/modules/profile/css/account-auth.css') }}?v={{ $accountAuthCssVersion }}">
+    @vite(['app/Modules/Profile/assets/css/account-auth.css'])
     @stack('styles')
 </head>
 <body>

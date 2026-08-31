@@ -7,8 +7,10 @@
 @endpush
 
 @push('styles')
-    <link rel="stylesheet" href="{{ url('/modules/barangay-monitoring/css/barangay-monitoring.css') }}?v={{ time() }}">
-    <link rel="stylesheet" href="{{ url('/modules/barangay-abyip/css/barangay_abyip.css') }}?v={{ time() }}">
+    @vite([
+        'app/Modules/BarangayMonitoring/assets/css/barangay-monitoring.css',
+        'app/Modules/Barangay_ABYIP/Assets/css/barangay_abyip.css',
+    ])
 @endpush
 
 @section('content')
@@ -409,5 +411,5 @@
             barangayName: @json($barangayData['name'] ?? ''),
         };
     </script>
-    <script src="{{ url('/modules/barangay-monitoring/js/barangay-monitoring-show.js') }}?v={{ time() }}"></script>
+    @vite(['app/Modules/BarangayMonitoring/assets/js/barangay-monitoring-show.js'])
 @endpush

@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Email Verification Required</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="{{ url('/modules/authentication/css/style.css') }}" rel="stylesheet">
+    @vite(['app/Modules/Authentication/assets/css/style.css'])
     <link rel="stylesheet" href="{{ url('/shared/css/loading.css') }}">
 </head>
 <body>
@@ -74,7 +74,7 @@
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="{{ url('/shared/js/loading.js') }}"></script>
-    <script src="{{ url('/modules/authentication/js/script.js') }}"></script>
+    @vite(['app/Modules/Authentication/assets/js/script.js'])
     <script>
         document.querySelector('form').addEventListener('submit', function(e) {
             LoadingScreen.show('Sending Verification', 'Please wait...');
