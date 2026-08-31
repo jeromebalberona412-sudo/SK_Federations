@@ -3,8 +3,8 @@
 @section('title', 'Deleted Posts')
 
 @push('styles')
+    <link rel="stylesheet" href="{{ url('/shared/css/archive-row-actions.css') }}?v={{ @filemtime(public_path('shared/css/archive-row-actions.css')) ?: time() }}">
     @vite([
-        'app/Modules/Archive_Management/assets/css/archive-row-actions.css',
         'app/Modules/Archive_Management/assets/css/deleted-posts.css',
     ])
 @endpush
@@ -86,8 +86,8 @@
             csrf: @json(csrf_token()),
         };
     </script>
+    <script src="{{ url('/shared/js/archive-row-actions.js') }}?v={{ @filemtime(public_path('shared/js/archive-row-actions.js')) ?: time() }}"></script>
     @vite([
-        'app/Modules/Archive_Management/assets/js/archive-row-actions.js',
         'app/Modules/Archive_Management/assets/js/deleted-posts.js',
     ])
 @endpush

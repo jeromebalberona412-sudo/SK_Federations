@@ -3,8 +3,8 @@
 @section('title', 'Deleted SK Officials')
 
 @push('styles')
+    <link rel="stylesheet" href="{{ url('/shared/css/archive-row-actions.css') }}?v={{ @filemtime(public_path('shared/css/archive-row-actions.css')) ?: time() }}">
     @vite([
-        'app/Modules/Archive_Management/assets/css/archive-row-actions.css',
         'app/Modules/Archive_Management/assets/css/deleted-sk-officials.css',
     ])
 @endpush
@@ -137,9 +137,9 @@
 @endsection
 
 @push('scripts')
+    <script src="{{ url('/shared/js/archive-row-actions.js') }}?v={{ @filemtime(public_path('shared/js/archive-row-actions.js')) ?: time() }}"></script>
+    <script src="{{ url('/shared/js/archive-fullname-sort.js') }}?v={{ @filemtime(public_path('shared/js/archive-fullname-sort.js')) ?: time() }}"></script>
     @vite([
-        'app/Modules/Archive_Management/assets/js/archive-fullname-sort.js',
-        'app/Modules/Archive_Management/assets/js/archive-row-actions.js',
         'app/Modules/Archive_Management/assets/js/deleted-sk-officials.js',
     ])
 @endpush
