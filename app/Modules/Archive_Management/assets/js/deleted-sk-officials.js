@@ -1,6 +1,18 @@
 // Deleted SK Officials — live data from users archive
 
-document.addEventListener('DOMContentLoaded', function () {
+function onArchiveReady(fn) {
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', fn);
+    } else {
+        fn();
+    }
+}
+
+onArchiveReady(function () {
+    if (!window.ArchiveRowActions || !window.ArchiveFullnameSort) {
+        console.error('Archive helpers are not available.');
+        return;
+    }
     initDeletedSkOfficials();
 });
 
@@ -21,7 +33,7 @@ function escapeDsoHtml(value) {
 function dsoProfileGroup(iconClass, title, fields) {
     const cells = fields.map(([label, value, fieldType]) => {
         if (fieldType === 'fullname' && window.ArchiveRowActions) {
-            return ArchiveRowActions.fullNameFieldHtml(label, value);
+            return window.ArchiveRowActions.fullNameFieldHtml(label, value);
         }
         return `
         <div class="account-profile-field">
@@ -61,8 +73,8 @@ let dsoNameSortDir = null;
 const DSO_POLL_MS = 20000;
 
 function initDeletedSkOfficials() {
-    ArchiveRowActions.initGlobalClose();
-    ArchiveFullnameSort.init({
+    window.ArchiveRowActions.initGlobalClose();
+    window.ArchiveFullnameSort.init({
         onSort: (dir) => {
             dsoNameSortDir = dir;
             dsoCurrentPage = 1;
@@ -281,7 +293,7 @@ function renderDsoTable() {
             <td><span class="dso-deleted-badge">${r.deletedDate}</span></td>
             <td><span class="dso-time-badge">${r.deletedTime}</span></td>
             <td>
-                ${ArchiveRowActions.renderMenu(r.id, { view: true, restore: true })}
+                ${window.ArchiveRowActions.renderMenu(r.id, { view: true, restore: true })}
             </td>
         </tr>`;
     }).join('');
@@ -289,7 +301,7 @@ function renderDsoTable() {
     if (info) info.textContent = `${dsoFiltered.length} record${dsoFiltered.length === 1 ? '' : 's'}`;
     renderDsoPagination(dsoFiltered.length);
 
-    ArchiveRowActions.bind(tbody, (action, id) => {
+    window.ArchiveRowActions.bind(tbody, (action, id) => {
         if (action === 'view') openDsoViewModal(id);
         if (action === 'restore') openDsoRestoreModal(id);
     });
@@ -394,7 +406,7 @@ function openDsoViewModal(id) {
 }
 
 function bindDsoViewModal() {
-    ArchiveRowActions.bindViewModalControls('dso', { bodyClass: 'dso-modal-open' });
+    window.ArchiveRowActions.bindViewModalControls('dso', { bodyClass: 'dso-modal-open' });
 }
 
 function openDsoRestoreModal(id) {

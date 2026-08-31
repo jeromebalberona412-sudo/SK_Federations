@@ -1,6 +1,18 @@
 // Archived SK Officials Records Module
 
-document.addEventListener('DOMContentLoaded', function () {
+function onArchiveReady(fn) {
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', fn);
+    } else {
+        fn();
+    }
+}
+
+onArchiveReady(function () {
+    if (!window.ArchiveRowActions || !window.ArchiveFullnameSort) {
+        console.error('Archive helpers are not available.');
+        return;
+    }
     initArchivedSkOfficials();
 });
 
@@ -29,8 +41,8 @@ let aroffNameSortDir = null;
 const AROFF_POLL_MS = 20000;
 
 function initArchivedSkOfficials() {
-    ArchiveRowActions.initGlobalClose();
-    ArchiveFullnameSort.init({
+    window.ArchiveRowActions.initGlobalClose();
+    window.ArchiveFullnameSort.init({
         onSort: (dir) => {
             aroffNameSortDir = dir;
             aroffCurrentPage = 1;
@@ -157,7 +169,7 @@ function escapeAroffHtml(value) {
 function aroffProfileGroup(iconClass, title, fields) {
     const cells = fields.map(([label, value, fieldType]) => {
         if (fieldType === 'fullname' && window.ArchiveRowActions) {
-            return ArchiveRowActions.fullNameFieldHtml(label, value);
+            return window.ArchiveRowActions.fullNameFieldHtml(label, value);
         }
         return `
         <div class="account-profile-field">
@@ -214,7 +226,7 @@ function renderAroffTable() {
             <td style="text-align:center;"><span class="aroff-term-badge">${term}</span></td>
             <td style="text-align:center;"><span class="aroff-completed-badge">Completed Term</span></td>
             <td>
-                ${ArchiveRowActions.renderMenu(r.id, { view: true, restore: true })}
+                ${window.ArchiveRowActions.renderMenu(r.id, { view: true, restore: true })}
             </td>
         </tr>`;
     }).join('');
@@ -223,7 +235,7 @@ function renderAroffTable() {
 
     renderAroffPagination(aroffFiltered.length);
 
-    ArchiveRowActions.bind(tbody, (action, id) => {
+    window.ArchiveRowActions.bind(tbody, (action, id) => {
         if (action === 'view') openAroffViewModal(id);
         if (action === 'restore') restoreAroffRecord(id);
     });
@@ -346,7 +358,7 @@ function openAroffViewModal(id) {
 }
 
 function bindAroffViewModal() {
-    ArchiveRowActions.bindViewModalControls('aroff');
+    window.ArchiveRowActions.bindViewModalControls('aroff');
 }
 
 async function restoreAroffRecord(id) {

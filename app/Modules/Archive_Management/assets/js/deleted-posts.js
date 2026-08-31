@@ -147,12 +147,12 @@
                     '<td>' + escapeHtml(formatDate(row.archived_at)) + '</td>' +
                     '<td><span class="days-badge ' + tierClass(row.days_tier) + '">' + escapeHtml(row.auto_delete_label) + '</span></td>' +
                     '<td class="col-actions">' +
-                        ArchiveRowActions.renderMenu(row.id, { view: true, restore: true, deletePermanent: true }) +
+                        window.ArchiveRowActions.renderMenu(row.id, { view: true, restore: true, deletePermanent: true }) +
                     '</td>' +
                 '</tr>';
             }).join('');
 
-            ArchiveRowActions.bind(tbody, function (action, id) {
+            window.ArchiveRowActions.bind(tbody, function (action, id) {
                 if (action === 'view') {
                     openArchiveViewModal(id);
                     return;
@@ -197,9 +197,21 @@
         alert(err.message || 'Request failed.');
     }
 
-    document.addEventListener('DOMContentLoaded', function () {
-        ArchiveRowActions.initGlobalClose();
-        ArchiveRowActions.bindViewModalControls('archive');
+    function onArchiveReady(fn) {
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', fn);
+        } else {
+            fn();
+        }
+    }
+
+    onArchiveReady(function () {
+        if (!window.ArchiveRowActions) {
+            console.error('ArchiveRowActions is not available.');
+            return;
+        }
+        window.ArchiveRowActions.initGlobalClose();
+        window.ArchiveRowActions.bindViewModalControls('archive');
         bindRestoreModal();
 
         loadArchive(1).catch(showError);
