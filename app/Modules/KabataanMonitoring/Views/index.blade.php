@@ -1,6 +1,6 @@
 @extends('layout::app')
 
-@section('title', 'Kabataan Monitoring - SK OnePortal')
+@section('title', 'KK Profiling Records - SK OnePortal')
 
 @push('main-class')
     km-main
@@ -18,10 +18,10 @@
 <div class="km-container">
 
             <section class="km-page-header">
-                <h1 class="km-page-title">Kabataan Monitoring</h1>
+                <h1 class="km-page-title">KK Profiling Records</h1>
             </section>
 
-            <section class="km-filter-bar" aria-label="Kabataan filters">
+            <section class="km-filter-bar km-filter-bar--index" aria-label="Kabataan filters">
                 <div class="km-search-group km-search-group--index">
                     <input
                         type="search"

@@ -178,9 +178,9 @@
                         <option value="program">Youth Program</option>
                     </select>
                 </div>
-                <textarea class="compose-textarea" id="compose-content" placeholder="Write something..." rows="6" maxlength="2000"></textarea>
+                <textarea class="compose-textarea" id="compose-content" placeholder="Write something..." rows="6" maxlength="5000"></textarea>
                 <div class="compose-char-row">
-                    <span id="compose-char-count" class="compose-char-count">0 / 2000</span>
+                    <span id="compose-char-count" class="compose-char-count">0 / 5000</span>
                 </div>
                 <div class="compose-attach-row">
                     <label class="compose-attach-btn" for="compose-image-input" title="Upload Image">
@@ -196,12 +196,13 @@
                 <p id="compose-images-meta" class="compose-images-meta"></p>
                 <div id="compose-images-preview" class="compose-images-preview"></div>
                 <div id="compose-link-input-wrap" style="display:none;margin-top:10px;">
-                    <input type="url" id="compose-link-input" class="compose-link-field" placeholder="Paste a link (https://...)">
+                    <input type="url" id="compose-link-input" class="compose-link-field" maxlength="63" placeholder="Paste a link (https://...)">
+                    <span id="compose-link-error" class="compose-link-error" role="alert"></span>
                 </div>
             </div>
             <div class="modal-footer-btns">
                 <button class="btn-secondary" onclick="closeComposeModal()">Cancel</button>
-                <button class="btn-primary" onclick="submitPost()">
+                <button type="button" class="btn-primary" id="composePostBtn" onclick="submitPost()">
                     <svg viewBox="0 0 20 20" fill="currentColor" style="width:16px;height:16px;"><path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z"/></svg>
                     Post
                 </button>

@@ -45,12 +45,12 @@
             <i class="fas fa-rss"></i><span>SK Community Feed</span>
         </a>
 
-        <a href="{{ route('barangay-monitoring') }}" class="menu-item {{ request()->routeIs('barangay-monitoring*') ? 'active' : '' }}" data-tooltip="Barangay Monitoring" data-no-loading>
-            <i class="fas fa-map-marker-alt"></i><span>Barangay Monitoring</span>
+        <a href="{{ route('barangay-monitoring') }}" class="menu-item {{ request()->routeIs('barangay-monitoring*') ? 'active' : '' }}" data-tooltip="Barangay Compliance" data-no-loading>
+            <i class="fas fa-map-marker-alt"></i><span>Barangay Compliance</span>
         </a>
 
-        <a href="{{ route('kabataan-monitoring') }}" class="menu-item {{ request()->routeIs('kabataan-monitoring*') ? 'active' : '' }}" data-tooltip="Kabataan Monitoring" data-no-loading>
-            <i class="fas fa-users"></i><span>Kabataan Monitoring</span>
+        <a href="{{ route('kabataan-monitoring') }}" class="menu-item {{ request()->routeIs('kabataan-monitoring*') ? 'active' : '' }}" data-tooltip="KK Profiling Records" data-no-loading>
+            <i class="fas fa-users"></i><span>KK Profiling Records</span>
         </a>
 
         <a href="{{ route('barangay-logos.index') }}" class="menu-item {{ request()->routeIs('barangay-logos*') ? 'active' : '' }}" data-nav-key="barangay-logos" data-tooltip="Barangay Logos" data-no-loading>
@@ -84,14 +84,14 @@
             <a href="{{ route('archived.deleted-sk-officials') }}" class="menu-item submenu-item submenu-item--plain {{ request()->routeIs('archived.deleted-sk-officials') ? 'active' : '' }}" data-no-loading>
                 <span>Deleted SK Officials</span>
             </a>
-            <a href="{{ route('archived.sk-federation-records') }}" class="menu-item submenu-item submenu-item--plain {{ request()->routeIs('archived.sk-federation-records') ? 'active' : '' }}" data-no-loading>
-                <span>SK Federation Records</span>
+            <a href="{{ route('archived.deleted-posts') }}" class="menu-item submenu-item submenu-item--plain {{ request()->routeIs('archived.deleted-posts*') ? 'active' : '' }}" data-no-loading>
+                <span>Deleted Posts</span>
             </a>
             <a href="{{ route('archived.sk-officials-records') }}" class="menu-item submenu-item submenu-item--plain {{ request()->routeIs('archived.sk-officials-records') ? 'active' : '' }}" data-no-loading>
                 <span>SK Officials Records</span>
             </a>
-            <a href="{{ route('archived.deleted-posts') }}" class="menu-item submenu-item submenu-item--plain {{ request()->routeIs('archived.deleted-posts*') ? 'active' : '' }}" data-no-loading>
-                <span>Deleted Posts</span>
+            <a href="{{ route('archived.sk-federation-records') }}" class="menu-item submenu-item submenu-item--plain {{ request()->routeIs('archived.sk-federation-records') ? 'active' : '' }}" data-no-loading>
+                <span>SK Federation Records</span>
             </a>
         </div>
 

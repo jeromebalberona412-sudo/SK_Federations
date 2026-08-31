@@ -507,8 +507,7 @@
     border-top-color: #fff;
     border-radius: 50%;
     animation: calendarSpin 0.7s linear infinite;
-    vertical-align: middle;
-    margin-right: 6px;
+    flex-shrink: 0;
 }
 
 .calendar-action-spinner-dark {
@@ -564,6 +563,23 @@
     background: #16a34a;
     box-shadow: 0 4px 12px rgba(22, 163, 74, 0.45);
     transform: translateY(-1px);
+}
+
+.btn-primary.is-loading,
+.modal-action-btn.is-loading {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    opacity: 0.9;
+    cursor: wait;
+    pointer-events: none;
+    transform: none;
+}
+
+.btn-primary.is-loading:hover,
+.modal-action-btn.is-loading:hover {
+    transform: none;
 }
 
 .modal-action-btn {

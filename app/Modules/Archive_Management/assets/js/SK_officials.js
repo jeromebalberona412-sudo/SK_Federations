@@ -12,6 +12,7 @@ function formatRecordName(record) {
 
 const AROFF_API = {
     data: '/manage-archive/sk-officials-records/data',
+    restore: (id) => `/manage-archive/sk-officials-records/${id}/restore`,
 };
 
 let aroffRecords = [];
@@ -22,11 +23,21 @@ let aroffPerPage = 10;
 let aroffSearchQ = '';
 let aroffYearFilter = 'all';
 let aroffTermFilter = 'all';
+let aroffNameSortDir = null;
 
 // ── Init ──────────────────────────────────────────────────────────────────────
 const AROFF_POLL_MS = 20000;
 
 function initArchivedSkOfficials() {
+    ArchiveRowActions.initGlobalClose();
+    ArchiveFullnameSort.init({
+        onSort: (dir) => {
+            aroffNameSortDir = dir;
+            aroffCurrentPage = 1;
+            renderAroffTable();
+        },
+        getCurrentDir: () => aroffNameSortDir,
+    });
     bindAroffSearch();
     bindAroffPagination();
     bindAroffViewModal();
@@ -122,12 +133,16 @@ function escapeAroffHtml(value) {
 }
 
 function aroffProfileGroup(iconClass, title, fields) {
-    const cells = fields.map(([label, value]) => `
+    const cells = fields.map(([label, value, fieldType]) => {
+        if (fieldType === 'fullname' && window.ArchiveRowActions) {
+            return ArchiveRowActions.fullNameFieldHtml(label, value);
+        }
+        return `
         <div class="account-profile-field">
             <label>${escapeAroffHtml(label)}</label>
             <p>${escapeAroffHtml(value || '-')}</p>
-        </div>
-    `).join('');
+        </div>`;
+    }).join('');
 
     return `
         <div class="account-profile-group">
@@ -140,14 +155,25 @@ function aroffProfileGroup(iconClass, title, fields) {
 }
 
 // ── Render Table ──────────────────────────────────────────────────────────────
+function getAroffSortedRecords() {
+    const list = [...aroffFiltered];
+    if (!aroffNameSortDir) return list;
+    list.sort((a, b) => {
+        const cmp = formatRecordName(a).localeCompare(formatRecordName(b), undefined, { sensitivity: 'base' });
+        return aroffNameSortDir === 'asc' ? cmp : -cmp;
+    });
+    return list;
+}
+
 function renderAroffTable() {
     const tbody = document.getElementById('aroffTableBody');
     const info = document.getElementById('aroffPaginationInfo');
     if (!tbody) return;
 
+    const sorted = getAroffSortedRecords();
     const start = (aroffCurrentPage - 1) * aroffPerPage;
     const end = start + aroffPerPage;
-    const page = aroffFiltered.slice(start, end);
+    const page = sorted.slice(start, end);
 
     if (aroffFiltered.length === 0) {
         tbody.innerHTML = `<tr class="aroff-empty-row"><td colspan="5">No archived SK Officials records found.</td></tr>`;
@@ -166,9 +192,7 @@ function renderAroffTable() {
             <td style="text-align:center;"><span class="aroff-term-badge">${term}</span></td>
             <td style="text-align:center;"><span class="aroff-completed-badge">Completed Term</span></td>
             <td>
-                <div class="aroff-action-btns">
-                    <button type="button" class="aroff-btn-view" data-id="${r.id}" aria-label="View details for ${fullName}">View</button>
-                </div>
+                ${ArchiveRowActions.renderMenu(r.id, { view: true, restore: true })}
             </td>
         </tr>`;
     }).join('');
@@ -177,8 +201,9 @@ function renderAroffTable() {
 
     renderAroffPagination(aroffFiltered.length);
 
-    tbody.querySelectorAll('.aroff-btn-view').forEach(btn => {
-        btn.addEventListener('click', function () { openAroffViewModal(this.dataset.id); });
+    ArchiveRowActions.bind(tbody, (action, id) => {
+        if (action === 'view') openAroffViewModal(id);
+        if (action === 'restore') restoreAroffRecord(id);
     });
 }
 
@@ -270,8 +295,8 @@ function openAroffViewModal(id) {
         body.innerHTML = `
             <div class="account-modal-card">
                 ${aroffProfileGroup('fa-user', 'Personal Information', [
-                    ['Full Name', formatRecordName(r)],
-                    ['Sex', r.sex],
+                    ['Full Name', formatRecordName(r), 'fullname'],
+                    ['Sex', r.sex || '-'],
                     ['Date of Birth', r.dateOfBirth],
                     ['Age', r.age],
                     ['Contact Number', r.contactNumber],
@@ -299,33 +324,27 @@ function openAroffViewModal(id) {
 }
 
 function bindAroffViewModal() {
-    const modal = document.getElementById('aroffViewModal');
-    const box = document.getElementById('aroffViewModalBox');
-    const closeBtn = document.getElementById('aroffViewClose');
-    const closeFooterBtn = document.getElementById('aroffViewCloseFooter');
-    const toggleBtn = document.getElementById('aroffViewToggle');
+    ArchiveRowActions.bindViewModalControls('aroff');
+}
 
-    const close = () => {
-        if (modal) { modal.style.display = 'none'; modal.classList.remove('aroff-maximized'); }
-        if (box) box.classList.remove('aroff-maximized');
-        if (toggleBtn) toggleBtn.textContent = '□';
-    };
+async function restoreAroffRecord(id) {
+    const record = aroffRecords.find((r) => String(r.id) === String(id));
+    if (!record) return;
+    if (!confirm(`Restore archived record for ${formatRecordName(record)}?`)) return;
 
-    if (closeBtn) closeBtn.addEventListener('click', close);
-    if (closeFooterBtn) closeFooterBtn.addEventListener('click', close);
-    if (modal) modal.addEventListener('click', e => { if (e.target === modal) close(); });
-
-    if (toggleBtn && box) {
-        toggleBtn.addEventListener('click', function (e) {
-            e.stopPropagation();
-            const isMax = !box.classList.contains('aroff-maximized');
-            modal.classList.toggle('aroff-maximized', isMax);
-            box.classList.toggle('aroff-maximized', isMax);
-            toggleBtn.textContent = isMax ? '⧉' : '□';
+    try {
+        const response = await fetch(AROFF_API.restore(id), {
+            method: 'POST',
+            headers: {
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
+                Accept: 'application/json',
+            },
         });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.message || 'Failed to restore record.');
+        alert(data.message || 'Record restored successfully.');
+        await loadAroffRecords();
+    } catch (error) {
+        alert(error.message || 'Failed to restore record.');
     }
-
-    document.addEventListener('keydown', function (e) {
-        if (e.key === 'Escape' && modal && modal.style.display === 'flex') close();
-    });
 }

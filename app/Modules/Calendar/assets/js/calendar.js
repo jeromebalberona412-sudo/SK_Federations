@@ -88,6 +88,29 @@ function showConfirm(options) {
     });
 }
 
+function setButtonLoading(button, loading, label) {
+    if (!button) {
+        return;
+    }
+
+    if (loading) {
+        if (!button.dataset.originalHtml) {
+            button.dataset.originalHtml = button.innerHTML;
+        }
+        button.disabled = true;
+        button.classList.add('is-loading');
+        button.innerHTML = '<span class="calendar-action-spinner" aria-hidden="true"></span><span>' + label + '</span>';
+        return;
+    }
+
+    button.disabled = false;
+    button.classList.remove('is-loading');
+    if (button.dataset.originalHtml) {
+        button.innerHTML = button.dataset.originalHtml;
+        delete button.dataset.originalHtml;
+    }
+}
+
 function showToast(message, type) {
     const existing = document.querySelector('.app-toast');
     if (existing) existing.remove();
@@ -147,11 +170,18 @@ function initializeCalendar() {
     }
 
     function canEditDate(year, monthIndex, day) {
-        if (!canModifyNote(year)) return false;
-        return !isPastDate(year, monthIndex, day);
+        const key = `${year}-${monthIndex}-${day}`;
+        const note = notes[key];
+        const hasNote = !!(note && (note.title || note.content));
+
+        if (hasNote) {
+            return year <= currentYear;
+        }
+
+        return canAddNote(year);
     }
 
-    function canModifyNote(year) {
+    function canAddNote(year) {
         return year === currentYear;
     }
 
@@ -227,14 +257,16 @@ function initializeCalendar() {
             const isTodayCell = dateKey === todayKey;
             const isPast = isPastDate(year, monthIndex, day);
             const canEdit = canEditDate(year, monthIndex, day);
+            const canAdd = canAddNote(year);
             const isPastYear = year < currentYear;
             const isNextYear = year > currentYear;
 
             cell.className = 'calendar-day';
             if (isTodayCell) cell.classList.add('is-today');
             if (hasNote) cell.classList.add('has-notes');
-            if (isPast || isPastYear || isNextYear) cell.classList.add('is-past');
-            if (isPast && !hasNote) cell.classList.add('is-disabled');
+            if (isPast) cell.classList.add('is-past');
+            if (isPastYear || isNextYear) cell.classList.add('is-past-year');
+            if (!hasNote && !canAdd) cell.classList.add('is-disabled');
 
             const dayNumber = document.createElement('div');
             dayNumber.className = 'calendar-day-number';
@@ -249,14 +281,10 @@ function initializeCalendar() {
 
             const addLabel = document.createElement('div');
             addLabel.className = 'calendar-day-add';
-            if (hasNote && !canEdit) {
-                addLabel.textContent = 'View note';
-            } else if (!hasNote && isPast) {
-                addLabel.textContent = 'Past date';
-            } else if (!hasNote && !canModifyNote(year)) {
+            if (hasNote) {
+                addLabel.textContent = canEdit ? 'Edit note' : 'View note';
+            } else if (!canAdd) {
                 addLabel.textContent = isPastYear ? 'Past year' : 'Next year';
-            } else if (hasNote) {
-                addLabel.textContent = 'Edit note';
             } else {
                 addLabel.textContent = 'Add note';
             }
@@ -443,14 +471,8 @@ function initializeCalendar() {
 
         const note = notes[dateKey];
         const hasNote = note && (note.title || note.content);
-        const pastDate = isPastDate(year, monthIndex, day);
 
-        if (!hasNote && pastDate) {
-            showToast('No past dates to add note.', 'error');
-            return;
-        }
-
-        if (!hasNote && !canModifyNote(year)) {
+        if (!hasNote && !canAddNote(year)) {
             if (year < currentYear) {
                 showToast('Cannot add notes to past years.', 'error');
             } else {
@@ -552,7 +574,7 @@ function initializeCalendar() {
 
         function onEditClick() {
             if (!canEditDate(activeYear, activeMonthIndex, activeDay)) {
-                showToast('No past dates to add note.', 'error');
+                showToast('This note cannot be edited.', 'error');
                 return;
             }
             switchToEditMode();
@@ -561,7 +583,7 @@ function initializeCalendar() {
 
         async function onDelete() {
             if (!canEditDate(activeYear, activeMonthIndex, activeDay)) {
-                showToast('Past date notes cannot be deleted.', 'error');
+                showToast('This note cannot be deleted.', 'error');
                 return;
             }
 
@@ -578,7 +600,7 @@ function initializeCalendar() {
             const noteId = notes[dateKey]?.id;
             if (!noteId) return;
 
-            delBtn.disabled = true;
+            setButtonLoading(delBtn, true, 'Deleting...');
 
             try {
                 await calendarApiFetch(`/api/calendar/notes/${noteId}`, { method: 'DELETE' });
@@ -589,7 +611,7 @@ function initializeCalendar() {
             } catch (err) {
                 showToast(err.message || 'Failed to delete note.', 'error');
             } finally {
-                delBtn.disabled = false;
+                setButtonLoading(delBtn, false);
             }
         }
 
@@ -614,8 +636,8 @@ function initializeCalendar() {
                 return;
             }
 
-            if (!canEditDate(activeYear, activeMonthIndex, activeDay)) {
-                showToast('No past dates to add note.', 'error');
+            if (!canEditDate(activeYear, activeMonthIndex, activeDay) && !notes[dateKey]?.id) {
+                showToast('Cannot add a note for this date.', 'error');
                 return;
             }
 
@@ -632,7 +654,7 @@ function initializeCalendar() {
                 if (!ok) return;
             }
 
-            saveBtn.disabled = true;
+            setButtonLoading(saveBtn, true, hadNote ? 'Saving...' : 'Adding...');
 
             const isoDate = dateKeyToIso(activeYear, activeMonthIndex, activeDay);
 
@@ -664,7 +686,7 @@ function initializeCalendar() {
             } catch (err) {
                 showToast(err.message || 'Failed to save note.', 'error');
             } finally {
-                saveBtn.disabled = false;
+                setButtonLoading(saveBtn, false);
             }
         }
 

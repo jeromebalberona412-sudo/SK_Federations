@@ -1,6 +1,6 @@
 @extends('layout::app')
 
-@section('title', ($barangayData['name'] ?? 'Barangay') . ' - Barangay Monitoring')
+@section('title', ($barangayData['name'] ?? 'Barangay') . ' - Barangay Compliance')
 
 @push('main-class')
     bm-main
@@ -18,7 +18,7 @@
 
     <a class="bm-back-link" href="{{ route('barangay-monitoring') }}" data-no-loading>
         <i class="fas fa-arrow-left"></i>
-        <span>Back to All Barangays</span>
+        <span>Back to Barangay Compliance</span>
     </a>
 
     <header class="bm-show-hero">
@@ -36,9 +36,14 @@
                     {{ $barangayData['name'] }}, {{ $barangayData['municipality'] }}
                 </p>
                 @if(!empty($barangayData['submitted_by']))
+                    @php
+                        $heroSubmittedBy = (string) $barangayData['submitted_by'];
+                        $heroSubmittedByShort = \Illuminate\Support\Str::limit($heroSubmittedBy, 22, '...');
+                    @endphp
                     <p class="bm-show-submitted-by">
                         <i class="fas fa-user"></i>
-                        Submitted by: {{ $barangayData['submitted_by'] }}
+                        Submitted by:
+                        <span class="bm-ellipsis">{{ $heroSubmittedByShort }}</span>
                         @if(!empty($barangayData['submitted_by_role']))
                             <span class="bm-submitted-role">({{ $barangayData['submitted_by_role'] }})</span>
                         @endif
@@ -78,11 +83,37 @@
                     <p class="bm-schedule-label">Deadline</p>
                     <p class="bm-schedule-value">{{ $schedule['deadline'] ?? '—' }}</p>
                 </div>
-                <div class="bm-schedule-item">
-                    <p class="bm-schedule-label">Original Deadline</p>
-                    <p class="bm-schedule-value">{{ $schedule['original_deadline'] ?? '—' }}</p>
-                </div>
             </div>
+        </section>
+    @endif
+
+    @php
+        $complianceStatus = strtolower((string) ($barangayData['compliance_status'] ?? ''));
+        $needsResubmission = in_array($complianceStatus, ['not_submitted', 'rejected'], true);
+        $scheduleId = $barangayData['abyip_schedule']['id'] ?? null;
+        $allowLate = (bool) ($barangayData['abyip_schedule']['allow_late_extension'] ?? false);
+        $deadlinePassed = false;
+        if (!empty($barangayData['abyip_schedule']['deadline_raw'])) {
+            $deadlinePassed = now()->startOfDay()->gt(\Carbon\Carbon::parse($barangayData['abyip_schedule']['deadline_raw'])->startOfDay());
+        }
+    @endphp
+    @if($needsResubmission)
+        <section class="bm-card bm-resubmission-banner" aria-label="ABYIP resubmission">
+            <div class="bm-resubmission-copy">
+                <h3><i class="fas fa-redo"></i> Resubmission</h3>
+                @if($complianceStatus === 'rejected')
+                    <p>This barangay’s ABYIP was rejected. SK Officials can resubmit a corrected document from the SK Officials portal.</p>
+                @elseif($deadlinePassed && ! $allowLate)
+                    <p>This barangay has not submitted ABYIP for the current schedule. Allow resubmission so SK Officials can still upload after the deadline.</p>
+                @else
+                    <p>This barangay has not submitted ABYIP yet. SK Officials can still submit while the schedule is open{{ $allowLate ? ', including late resubmission' : '' }}.</p>
+                @endif
+            </div>
+            @if($scheduleId && $complianceStatus === 'not_submitted' && $deadlinePassed && ! $allowLate)
+                <button type="button" class="bm-btn-schedule" id="btnAllowResubmission" data-schedule-id="{{ $scheduleId }}">
+                    <i class="fas fa-unlock"></i> Allow resubmission
+                </button>
+            @endif
         </section>
     @endif
 
@@ -127,8 +158,12 @@
                         <td data-label="Calendar Year">{{ $report['fiscal_year'] ?? '—' }}</td>
                         <td data-label="Date Submitted">{{ !empty($report['date_submitted']) ? date('M d, Y', strtotime($report['date_submitted'])) : '—' }}</td>
                         <td data-label="Time Submitted">{{ !empty($report['date_submitted']) ? date('h:i A', strtotime($report['date_submitted'])) : '—' }}</td>
-                        <td data-label="Submitted By">{{ $report['submitted_by'] ?? '—' }}</td>
-                        <td data-label="Role">{{ $report['submitted_by_role'] ?? '—' }}</td>
+                        @php
+                            $rowSubmittedBy = (string) ($report['submitted_by'] ?? '—');
+                            $rowSubmittedByShort = \Illuminate\Support\Str::limit($rowSubmittedBy, 18, '...');
+                        @endphp
+                        <td class="bm-cell-ellipsis" data-label="Submitted By">{{ $rowSubmittedByShort }}</td>
+                        <td class="bm-cell-ellipsis" data-label="Role">{{ $report['submitted_by_role'] ?? '—' }}</td>
                         <td data-label="Status">
                             <span class="bm-status-pill bm-status-{{ $report['status'] ?? 'pending' }}">
                                 {{ ucfirst($report['status'] ?? 'pending') }}
@@ -272,7 +307,8 @@
         <div class="bm-kk-modal-body">
             <p>Are you sure you want to approve this ABYIP submission?</p>
         </div>
-        <div class="bm-kk-modal-footer">
+        <div class="bm-kk-modal-footer bm-kk-modal-footer--split">
+            <button type="button" class="bm-kk-btn-cancel" onclick="closeApproveModal()">Cancel</button>
             <button type="button" class="bm-kk-btn-approve approve-submit-btn" onclick="confirmApproval()">Confirm Approve</button>
         </div>
     </div>
@@ -367,6 +403,7 @@
             approveUrl: @json(url('/api/barangay-abyip/__ID__/approve')),
             rejectUrl: @json(url('/api/barangay-abyip/__ID__/reject')),
             revokeUrl: @json(url('/api/barangay-abyip/__ID__/revoke')),
+            allowResubmissionUrl: @json(url('/api/barangay-monitoring/abyip-schedules/__ID__/allow-resubmission')),
             csrfToken: @json(csrf_token()),
             abyipReports: @json($barangayData['abyip']['reports'] ?? []),
             barangayName: @json($barangayData['name'] ?? ''),

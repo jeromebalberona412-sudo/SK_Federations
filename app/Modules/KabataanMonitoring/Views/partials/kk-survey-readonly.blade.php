@@ -14,7 +14,6 @@
     <div class="kkp-form-header">
         <div class="kkp-form-main-title">KK Survey Questionnaire</div>
         <div class="kkp-form-header-right">
-            <div class="kkp-form-annex">ANNEX 3</div>
             <div class="kkp-form-header-fields">
                 <div class="kkp-hdr-field kkp-hdr-field--respondent">
                     <span class="kkp-hdr-label">Respondent #:</span>

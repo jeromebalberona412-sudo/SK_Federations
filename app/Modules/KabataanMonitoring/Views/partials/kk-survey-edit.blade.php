@@ -5,7 +5,6 @@
                     <div class="kkp-form-header">
                         <div class="kkp-form-main-title">KK Survey Questionnaire</div>
                         <div class="kkp-form-header-right">
-                            <div class="kkp-form-annex">ANNEX 3</div>
                             <div class="kkp-form-header-fields">
                                 <div class="kkp-hdr-field kkp-hdr-field--respondent">
                                     <span class="kkp-hdr-label">Respondent #:</span>
@@ -15,6 +14,11 @@
                                     <label class="kkp-hdr-label" for="kkEditDate">Date:</label>
                                     <input type="text" id="kkEditDate" class="kkp-hdr-input kkp-hdr-input-readonly" readonly tabindex="-1">
                                 </div>
+                            </div>
+                            <div class="kkp-form-clear-bar">
+                                <button type="button" class="kkp-form-clear-btn" id="kkEditClearDataBtn">
+                                    Clear Data
+                                </button>
                             </div>
                         </div>
                     </div>
@@ -33,15 +37,15 @@
                     <div class="kkp-row-label">Name of Respondent:</div>
                     <div class="kkp-name-row">
                         <div class="kkp-name-col">
-                            <input type="text" id="kkEditLastName" class="kkp-uline" placeholder=" " required>
+                            <input type="text" id="kkEditLastName" class="kkp-uline" placeholder=" " required maxlength="150">
                             <label for="kkEditLastName" class="kkp-col-label">Last Name *</label>
                         </div>
                         <div class="kkp-name-col">
-                            <input type="text" id="kkEditFirstName" class="kkp-uline" placeholder=" " required>
+                            <input type="text" id="kkEditFirstName" class="kkp-uline" placeholder=" " required maxlength="150">
                             <label for="kkEditFirstName" class="kkp-col-label">First Name *</label>
                         </div>
                         <div class="kkp-name-col">
-                            <input type="text" id="kkEditMiddleName" class="kkp-uline" placeholder=" ">
+                            <input type="text" id="kkEditMiddleName" class="kkp-uline" placeholder=" " maxlength="150">
                             <label for="kkEditMiddleName" class="kkp-col-label">Middle Name *</label>
                         </div>
                         <div class="kkp-name-col kkp-name-col--sm">
@@ -104,10 +108,10 @@
                         <div class="kkp-personal-center">
                             <div class="kkp-age-dob-row">
                                 <div class="kkp-inline-pair kkp-inline-pair--age">
-                                    <label class="kkp-inline-label" for="kkEditAgeInput">Age:</label>
+                                    <label class="kkp-inline-label" for="kkEditAgeInput">Age: <span class="kkp-required">*</span></label>
                                     <div class="kkp-age-select-box">
-                                        <select id="kkEditAgeInput" class="kkp-uline kkp-uline-select kkp-uline-age kkp-age-select-compact">
-                                            <option value="" disabled>Select</option>
+                                        <select id="kkEditAgeInput" class="kkp-uline kkp-uline-select kkp-uline-age kkp-age-select-compact" required>
+                                            <option value="" disabled selected>Select</option>
                                             @for ($ageOption = 15; $ageOption <= 30; $ageOption++)
                                                 <option value="{{ $ageOption }}">{{ $ageOption }}</option>
                                             @endfor
@@ -115,9 +119,9 @@
                                     </div>
                                 </div>
                                 <div class="kkp-inline-pair kkp-inline-pair--birthday">
-                                    <label class="kkp-inline-label" for="kkEditDob">Birthday:</label>
+                                    <label class="kkp-inline-label" for="kkEditDob">Birthday: <span class="kkp-required">*</span></label>
                                     <div class="kkp-birthday-field">
-                                        <input type="date" id="kkEditDob" class="kkp-uline kkp-uline-med">
+                                        <input type="date" id="kkEditDob" class="kkp-uline kkp-uline-med" required>
                                         <span class="kkp-hint kkp-birthday-hint">(mm/dd/yyyy)</span>
                                     </div>
                                 </div>
@@ -125,12 +129,12 @@
                         </div>
                         <div class="kkp-personal-right">
                             <div class="kkp-inline-pair kkp-inline-pair--email">
-                                <label class="kkp-inline-label" for="kkEditEmail">E-mail address: <span class="kkp-optional-label">(Optional)</span></label>
-                                <input type="email" id="kkEditEmail" class="kkp-uline kkp-uline-med kkp-email-input" placeholder=" " maxlength="254" autocomplete="email">
+                                <label class="kkp-inline-label" for="kkEditEmail">E-mail address: <span class="kkp-required">*</span></label>
+                                <input type="email" id="kkEditEmail" class="kkp-uline kkp-uline-med kkp-email-input" placeholder=" " maxlength="254" autocomplete="email" required>
                             </div>
                             <div class="kkp-inline-pair">
-                                <label class="kkp-inline-label" for="kkEditContactInput">Contact #:</label>
-                                <input type="tel" id="kkEditContactInput" class="kkp-uline kkp-uline-med" placeholder="09XXXXXXXXX" inputmode="numeric" maxlength="11">
+                                <label class="kkp-inline-label" for="kkEditContactInput">Contact #: <span class="kkp-required">*</span></label>
+                                <input type="tel" id="kkEditContactInput" class="kkp-uline kkp-uline-med" placeholder="09XXXXXXXXX" inputmode="numeric" maxlength="11" pattern="09[0-9]{9}" required>
                             </div>
                         </div>
                     </div>

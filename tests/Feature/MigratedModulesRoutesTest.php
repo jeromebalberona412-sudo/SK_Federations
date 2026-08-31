@@ -16,6 +16,18 @@ it('registers audit log routes in sk federation', function () {
     expect(Route::has('auditlogs.export.csv'))->toBeTrue();
 });
 
+it('registers dashboard feed route in sk federation', function () {
+    expect(Route::has('dashboard.feed'))->toBeTrue();
+    expect(Route::has('dashboard.recent-activities'))->toBeTrue();
+});
+
+it('registers calendar routes in sk federation', function () {
+    expect(Route::has('calendar'))->toBeTrue();
+    expect(Route::has('api.calendar.notes.index'))->toBeTrue();
+    expect(Route::has('api.calendar.notes.store'))->toBeTrue();
+    expect(Route::has('api.calendar.notes.destroy'))->toBeTrue();
+});
+
 it('registers community feed reaction routes in sk federation', function () {
     expect(Route::has('api.community-feed.react'))->toBeTrue();
     expect(Route::has('api.community-feed.comment-react'))->toBeTrue();
@@ -43,4 +55,5 @@ it('redirects guests away from migrated module pages', function () {
     get('/accounts/federation')->assertRedirect('/login');
     get('/audit-logs')->assertRedirect('/login');
     get('/archived/deleted-sk-officials')->assertRedirect('/login');
+    get('/api/dashboard/feed')->assertRedirect('/login');
 });

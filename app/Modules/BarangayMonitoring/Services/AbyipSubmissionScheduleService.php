@@ -255,6 +255,62 @@ class AbyipSubmissionScheduleService
         });
     }
 
+    /**
+     * @return array<string, mixed>
+     */
+    public function allowResubmission(User $user, int|string $id): array
+    {
+        $schedule = $this->findSchedule($id);
+
+        if ($schedule->status === AbyipSubmissionSchedule::STATUS_CANCELLED) {
+            throw ValidationException::withMessages([
+                'schedule' => ['Cancelled schedules cannot accept resubmissions.'],
+            ]);
+        }
+
+        if (! Schema::hasColumn('abyip_submission_schedules', 'allow_late_extension')) {
+            throw ValidationException::withMessages([
+                'schedule' => ['Resubmission is not available on this schedule table.'],
+            ]);
+        }
+
+        return DB::transaction(function () use ($user, $schedule) {
+            if (DB::getDriverName() === 'pgsql') {
+                DB::table('abyip_submission_schedules')
+                    ->where('id', $schedule->id)
+                    ->update($this->existingScheduleAttributes([
+                        'allow_late_extension' => DB::raw('TRUE'),
+                        'status' => AbyipSubmissionSchedule::STATUS_EXTENDED,
+                        'updated_by_user_id' => $user->id,
+                    ]));
+                $schedule->refresh();
+            } else {
+                $schedule->update($this->existingScheduleAttributes([
+                    'allow_late_extension' => true,
+                    'status' => AbyipSubmissionSchedule::STATUS_EXTENDED,
+                    'updated_by_user_id' => $user->id,
+                ]));
+            }
+
+            $this->recordHistory(
+                $schedule,
+                AbyipSubmissionScheduleHistory::ACTION_EXTENDED,
+                $schedule->deadline,
+                $schedule->deadline,
+                null,
+                null,
+                'Late ABYIP resubmission allowed for barangays that have not submitted.',
+                $user
+            );
+
+            $this->logScheduleEvent($user, 'abyip_schedule.resubmission_allowed', $schedule, [
+                'action' => 'resubmission_allowed',
+            ]);
+
+            return $this->formatSchedule($schedule->fresh($this->scheduleRelations(includeHistory: true)), includeHistory: true);
+        });
+    }
+
     public function destroy(User $user, int|string $id): void
     {
         $schedule = $this->findSchedule($id);

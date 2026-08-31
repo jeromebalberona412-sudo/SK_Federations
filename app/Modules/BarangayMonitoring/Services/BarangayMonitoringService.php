@@ -141,6 +141,96 @@ class BarangayMonitoringService
             ->value('aggregate');
     }
 
+    /**
+     * @return array{
+     *     stats: array{submitted: int, pending: int, approved: int, rejected: int, fiscal_year: int, total_barangays: int},
+     *     recent: list<array{barangay: string, slug: ?string, title: string, fiscal_year: int, submitted_by: string, submitted_by_role: ?string, status: string, date_submitted: ?string}>
+     * }
+     */
+    public function dashboardAbyipOverview(int $limit = 8): array
+    {
+        $emptyStats = [
+            'submitted' => 0,
+            'pending' => 0,
+            'approved' => 0,
+            'rejected' => 0,
+            'fiscal_year' => (int) now()->format('Y'),
+            'total_barangays' => count($this->slugToNameMap()),
+        ];
+
+        if (! Schema::hasTable('abyip')) {
+            return ['stats' => $emptyStats, 'recent' => []];
+        }
+
+        $currentYear = (int) now()->format('Y');
+        $nameToSlug = array_flip($this->slugToNameMap());
+
+        $documents = Abyip::query()
+            ->documents()
+            ->with([
+                'barangay:id,name',
+                'creator:id,name',
+                'creator.officialProfile:id,user_id,position',
+            ])
+            ->whereNotNull('barangay_id')
+            ->where('fiscal_year', $currentYear)
+            ->orderByDesc('created_at')
+            ->get();
+
+        if ($documents->isEmpty()) {
+            $documents = Abyip::query()
+                ->documents()
+                ->with([
+                    'barangay:id,name',
+                    'creator:id,name',
+                    'creator.officialProfile:id,user_id,position',
+                ])
+                ->whereNotNull('barangay_id')
+                ->orderByDesc('created_at')
+                ->get();
+            $currentYear = (int) ($documents->first()?->fiscal_year ?? $currentYear);
+        }
+
+        $latestByBarangay = $documents->unique('barangay_id')->values();
+
+        $stats = [
+            'submitted' => $latestByBarangay->count(),
+            'pending' => $latestByBarangay->filter(fn (Abyip $doc) => strtolower((string) ($doc->status ?? '')) === Abyip::STATUS_PENDING)->count(),
+            'approved' => $latestByBarangay->filter(fn (Abyip $doc) => strtolower((string) ($doc->status ?? '')) === Abyip::STATUS_APPROVED)->count(),
+            'rejected' => $latestByBarangay->filter(fn (Abyip $doc) => strtolower((string) ($doc->status ?? '')) === Abyip::STATUS_REJECTED)->count(),
+            'fiscal_year' => $currentYear,
+            'total_barangays' => count($this->slugToNameMap()),
+        ];
+
+        $recent = $latestByBarangay
+            ->take($limit)
+            ->map(function (Abyip $document) use ($nameToSlug): array {
+                $barangayName = $document->barangay?->name ?? 'Unknown';
+                $status = strtolower((string) ($document->status ?? Abyip::STATUS_PENDING));
+
+                if (! in_array($status, [Abyip::STATUS_PENDING, Abyip::STATUS_APPROVED, Abyip::STATUS_REJECTED], true)) {
+                    $status = Abyip::STATUS_PENDING;
+                }
+
+                return [
+                    'barangay' => $barangayName,
+                    'slug' => $nameToSlug[$barangayName] ?? null,
+                    'title' => filled($document->document_title) ? (string) $document->document_title : 'ABYIP '.$document->fiscal_year,
+                    'fiscal_year' => (int) $document->fiscal_year,
+                    'submitted_by' => $document->creator?->name ?? 'N/A',
+                    'submitted_by_role' => $this->formatOfficialPosition($document->creator?->officialProfile?->position),
+                    'status' => $status,
+                    'date_submitted' => $document->created_at?->timezone(config('app.timezone', 'Asia/Manila'))->format('M j, Y'),
+                ];
+            })
+            ->all();
+
+        return [
+            'stats' => $stats,
+            'recent' => $recent,
+        ];
+    }
+
     private function formatOfficialPosition(?string $position): ?string
     {
         if ($position === null || trim($position) === '') {

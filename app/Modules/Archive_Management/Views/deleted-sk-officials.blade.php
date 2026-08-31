@@ -8,6 +8,7 @@
 @endphp
 
 @push('styles')
+    <link rel="stylesheet" href="{{ url('/modules/archive-management/css/archive-row-actions.css') }}?v={{ $cssVersion }}">
     <link rel="stylesheet" href="{{ url('/modules/archive-management/css/deleted-sk-officials.css') }}?v={{ $cssVersion }}">
 @endpush
 
@@ -55,7 +56,15 @@
             <table class="dso-table">
                 <thead>
                     <tr>
-                        <th>Full Name<div class="table-col-hint">LN, FN, MN, Suffix</div></th>
+                        <th class="ar-th-sortable" data-sort-key="fullname" data-sort-type="text" aria-sort="none">
+                            <button type="button" class="ar-sort-btn ar-sort-btn--fullname" aria-haspopup="menu" aria-expanded="false">
+                                <span class="table-fullname-label">
+                                    Full Name
+                                    <span class="table-col-hint">LN, FN, MN, Suffix</span>
+                                </span>
+                                <span class="ar-sort-icon" aria-hidden="true"></span>
+                            </button>
+                        </th>
                         <th>Position</th>
                         <th>Barangay</th>
                         <th>Municipality</th>
@@ -116,24 +125,22 @@
     <div class="dso-modal-box dso-view-modal-box" id="dsoViewModalBox">
         <div class="dso-modal-header dso-view-modal-header">
             <h2 class="dso-modal-title">View Details</h2>
-            <div class="dso-view-controls">
-                <button type="button" class="dso-view-toggle modal-win-btn modal-win-btn-maximize" id="dsoViewToggle" title="Maximize" aria-label="Maximize">
-                    <svg id="dsoViewToggleIcon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"></path>
-                    </svg>
-                </button>
+            <div class="dso-view-controls modal-window-controls">
+                <button type="button" class="modal-toggle-btn" id="dsoViewMaximizeBtn" aria-label="Fullscreen" title="Fullscreen">□</button>
+                <button type="button" class="modal-toggle-btn" id="dsoViewRestoreBtn" hidden aria-label="Restore down" title="Restore down">⧉</button>
                 <button type="button" class="dso-view-close modal-win-btn modal-win-btn-close" id="dsoViewClose" title="Close" aria-label="Close">&times;</button>
             </div>
         </div>
         <div class="dso-view-body" id="dsoViewBody"></div>
-        <div class="dso-modal-footer">
-            <button type="button" class="dso-btn-cancel" id="dsoViewCloseFooter">Close</button>
-        </div>
     </div>
 </div>
+
+<div id="arFullnameSortMenu" class="ar-sort-menu" hidden role="menu" aria-label="Sort full name"></div>
 
 @endsection
 
 @push('scripts')
+    <script src="{{ url('/modules/archive-management/js/archive-fullname-sort.js') }}?v={{ $jsVersion }}"></script>
+    <script src="{{ url('/modules/archive-management/js/archive-row-actions.js') }}?v={{ $jsVersion }}"></script>
     <script src="{{ url('/modules/archive-management/js/deleted-sk-officials.js') }}?v={{ $jsVersion }}"></script>
 @endpush

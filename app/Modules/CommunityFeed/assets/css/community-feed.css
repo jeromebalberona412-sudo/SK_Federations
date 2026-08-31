@@ -1034,7 +1034,7 @@ body.sk-fed-feed .main-content,
 .compose-textarea {
     width: 100%; border: 2px solid #e0e0e0; border-radius: 10px;
     padding: 12px; font-size: 14px; font-family: inherit;
-    color: #333; resize: vertical; outline: none;
+    color: #333; resize: none; outline: none;
     transition: border-color 0.2s; box-sizing: border-box;
     min-height: 120px; max-height: 220px;
     flex: none;
@@ -1117,6 +1117,35 @@ body.sk-fed-feed .main-content,
     outline: none; transition: border-color 0.2s;
 }
 .compose-link-field:focus { border-color: var(--fed-blue); }
+.compose-link-error {
+    display: block;
+    margin-top: 6px;
+    font-size: 12px;
+    color: #ef4444;
+    font-weight: 600;
+}
+
+.compose-btn-spinner {
+    width: 14px;
+    height: 14px;
+    border: 2px solid rgba(255, 255, 255, 0.35);
+    border-top-color: #fff;
+    border-radius: 50%;
+    animation: composeSpin 0.7s linear infinite;
+    flex-shrink: 0;
+}
+@keyframes composeSpin { to { transform: rotate(360deg); } }
+
+.btn-primary.is-loading {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    opacity: 0.92;
+    cursor: wait;
+    pointer-events: none;
+}
+.btn-primary.is-loading:hover { box-shadow: none; }
 
 .modal-footer-btns {
     display: flex; gap: 10px; justify-content: flex-end;
@@ -1544,7 +1573,7 @@ body.sk-fed-feed .main-content,
 
 /* Feed toast */
 .feed-toast {
-    position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(16px);
+    position: fixed; top: 24px; left: 50%; transform: translateX(-50%) translateY(-16px);
     padding: 12px 20px; border-radius: 10px; font-size: 14px; font-weight: 600;
     color: #fff; background: #22c55e; box-shadow: 0 8px 24px rgba(0,0,0,0.18);
     opacity: 0; pointer-events: none; transition: opacity 0.25s ease, transform 0.25s ease;

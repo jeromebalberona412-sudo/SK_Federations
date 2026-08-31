@@ -2,6 +2,8 @@ document.addEventListener('DOMContentLoaded', function () {
     const feed = window.__DASHBOARD_FEED__ || {};
     const shell = document.getElementById('dashboardActivityApp');
     const activitiesUrl = shell?.dataset.activitiesUrl || feed.activities_url || '';
+    const feedUrl = feed.feed_url || '';
+    const REFRESH_MS = 45000;
 
     const els = {
         activityList: document.getElementById('activityList'),
@@ -10,7 +12,6 @@ document.addEventListener('DOMContentLoaded', function () {
         modal: document.getElementById('dashActivityModal'),
         modalDialog: document.querySelector('#dashActivityModal .dash-activity-modal-dialog'),
         modalList: document.getElementById('dashActivityModalList'),
-        modalSubtitle: document.getElementById('dashActivityModalSubtitle'),
         modalPagination: document.getElementById('dashActivityModalPagination'),
         fullscreenBtn: document.getElementById('dashActivityFullscreenBtn'),
     };
@@ -21,9 +22,74 @@ document.addEventListener('DOMContentLoaded', function () {
         loading: false,
     };
 
+    let feedRefreshTimer = null;
+    let feedRefreshInFlight = false;
+
     renderActivity(feed.recent_activity || [], els.activityList);
     renderEvents(feed.upcoming_events || []);
     renderTodayReminder(feed.today_reminder || null);
+    bindActivityClicks(els.activityList);
+    bindActivityClicks(els.modalList);
+
+    if (feedUrl) {
+        startFeedPolling();
+    }
+
+    function startFeedPolling() {
+        feedRefreshTimer = window.setInterval(refreshDashboardFeed, REFRESH_MS);
+        window.addEventListener('beforeunload', function () {
+            if (feedRefreshTimer) {
+                window.clearInterval(feedRefreshTimer);
+            }
+        });
+    }
+
+    async function refreshDashboardFeed() {
+        if (!feedUrl || feedRefreshInFlight) {
+            return;
+        }
+
+        if (els.modal && !els.modal.hidden) {
+            return;
+        }
+
+        feedRefreshInFlight = true;
+
+        try {
+            const response = await fetch(feedUrl, {
+                headers: { Accept: 'application/json' },
+                credentials: 'same-origin',
+            });
+
+            if (!response.ok) {
+                return;
+            }
+
+            const payload = await response.json();
+            renderActivity(payload.recent_activity || [], els.activityList);
+            renderEvents(payload.upcoming_events || []);
+            renderTodayReminder(payload.today_reminder || null);
+            updateStats(payload.stats || {});
+        } catch (_) {
+            // Keep existing dashboard data on transient failures.
+        } finally {
+            feedRefreshInFlight = false;
+        }
+    }
+
+    function updateStats(stats) {
+        document.querySelectorAll('[data-stat-key]').forEach(function (card) {
+            const key = card.getAttribute('data-stat-key');
+            if (!key || stats[key] === undefined) {
+                return;
+            }
+
+            const valueEl = card.querySelector('.stat-value');
+            if (valueEl) {
+                valueEl.textContent = Number(stats[key] || 0).toLocaleString();
+            }
+        });
+    }
 
     function renderTodayReminder(reminder) {
         const banner = document.getElementById('calendarReminderBanner');
@@ -50,6 +116,10 @@ document.addEventListener('DOMContentLoaded', function () {
         button.addEventListener('click', closeActivityModal);
     });
 
+    document.querySelectorAll('[data-dash-activity-detail-close]').forEach(function (button) {
+        button.addEventListener('click', closeActivityDetail);
+    });
+
     if (els.fullscreenBtn) {
         els.fullscreenBtn.addEventListener('click', toggleActivityFullscreen);
     }
@@ -57,6 +127,9 @@ document.addEventListener('DOMContentLoaded', function () {
     document.addEventListener('keydown', function (event) {
         if (event.key === 'Escape' && els.modal && !els.modal.hidden) {
             closeActivityModal();
+        }
+        if (event.key === 'Escape') {
+            closeActivityDetail();
         }
     });
 
@@ -67,6 +140,26 @@ document.addEventListener('DOMContentLoaded', function () {
             .replace(/>/g, '&gt;')
             .replace(/"/g, '&quot;')
             .replace(/'/g, '&#039;');
+    }
+
+    function bindActivityClicks(target) {
+        if (!target || target.dataset.activityBound === '1') {
+            return;
+        }
+
+        target.dataset.activityBound = '1';
+        target.addEventListener('click', function (event) {
+            const button = event.target.closest('.activity-item--clickable');
+            if (!button) {
+                return;
+            }
+
+            openActivityDetail({
+                text: button.getAttribute('data-activity-text') || '',
+                who: button.getAttribute('data-activity-who') || '',
+                time: button.getAttribute('data-activity-time') || '',
+            });
+        });
     }
 
     function renderActivity(items, target) {
@@ -85,17 +178,20 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     function buildActivityItem(item) {
-        const whoLine = item.position
-            ? escapeHtml(item.who) + ' &middot; ' + escapeHtml(item.position)
-            : escapeHtml(item.who);
+        const whoText = item.position
+            ? String(item.who || '') + ' · ' + String(item.position || '')
+            : String(item.who || '');
 
-        return '<div class="activity-item activity-item-no-icon">' +
+        return '<button type="button" class="activity-item activity-item-no-icon activity-item--clickable"' +
+            ' data-activity-view="' + escapeHtml(item.id || '') + '"' +
+            ' data-activity-text="' + escapeHtml(item.text) + '"' +
+            ' data-activity-who="' + escapeHtml(whoText) + '"' +
+            ' data-activity-time="' + escapeHtml(item.time) + '">' +
             '<div class="activity-body">' +
             '<strong>' + escapeHtml(item.text) + '</strong>' +
-            '<span>' + whoLine + '</span>' +
+            '<span>' + escapeHtml(whoText) + '</span>' +
             '</div>' +
-            '<div class="activity-time">' + escapeHtml(item.time) + '</div>' +
-            '</div>';
+            '</button>';
     }
 
     function renderEvents(events) {
@@ -104,7 +200,11 @@ document.addEventListener('DOMContentLoaded', function () {
         }
 
         if (!events.length) {
-            els.eventsList.innerHTML = '<p class="dash-empty-msg">No upcoming calendar notes.</p>';
+            els.eventsList.innerHTML =
+                '<div class="dash-events-empty">' +
+                '<i class="fas fa-calendar-alt" aria-hidden="true"></i>' +
+                '<p class="dash-empty-msg">No upcoming calendar notes.</p>' +
+                '</div>';
             return;
         }
 
@@ -144,6 +244,32 @@ document.addEventListener('DOMContentLoaded', function () {
         setActivityFullscreen(false);
         els.modal.hidden = true;
         document.body.classList.remove('dash-activity-modal-open');
+    }
+
+    function openActivityDetail(item) {
+        const modal = document.getElementById('dashActivityDetailModal');
+        const textEl = document.getElementById('dashActivityDetailText');
+        const metaEl = document.getElementById('dashActivityDetailMeta');
+        if (!modal || !textEl || !metaEl) {
+            return;
+        }
+
+        textEl.textContent = item.text || '—';
+        metaEl.textContent = [item.who, item.time].filter(Boolean).join(' · ');
+        modal.hidden = false;
+        document.body.classList.add('dash-activity-modal-open');
+    }
+
+    function closeActivityDetail() {
+        const modal = document.getElementById('dashActivityDetailModal');
+        if (!modal) {
+            return;
+        }
+
+        modal.hidden = true;
+        if (!els.modal || els.modal.hidden) {
+            document.body.classList.remove('dash-activity-modal-open');
+        }
     }
 
     function setActivityFullscreen(enabled) {
@@ -198,12 +324,6 @@ document.addEventListener('DOMContentLoaded', function () {
             const payload = await response.json();
             const items = payload.data || [];
             const meta = payload.meta || {};
-
-            if (els.modalSubtitle) {
-                els.modalSubtitle.textContent = meta.total
-                    ? 'Showing ' + meta.from + '–' + meta.to + ' of ' + meta.total + ' activities'
-                    : 'No federation activities recorded yet';
-            }
 
             renderActivity(items, els.modalList);
             renderModalPagination(meta);

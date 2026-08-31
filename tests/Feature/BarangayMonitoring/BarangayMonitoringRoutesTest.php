@@ -11,6 +11,7 @@ it('registers barangay monitoring and abyip schedule routes', function () {
     expect(Route::has('api.barangay-monitoring.schedules'))->toBeTrue();
     expect(Route::has('api.barangay-monitoring.schedules.store'))->toBeTrue();
     expect(Route::has('api.barangay-monitoring.schedules.extend'))->toBeTrue();
+    expect(Route::has('api.barangay-monitoring.schedules.allow-resubmission'))->toBeTrue();
 });
 
 it('redirects legacy barangay abyip page to monitoring', function () {

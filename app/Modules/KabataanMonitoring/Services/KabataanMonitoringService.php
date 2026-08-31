@@ -6,6 +6,7 @@ use App\Models\KabataanRegistration;
 use App\Modules\AuditLog\Contracts\AuditLogInterface;
 use App\Modules\Shared\Models\User;
 use App\Services\BarangayLogoUrlService;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Schema;
 
 class KabataanMonitoringService
@@ -13,8 +14,8 @@ class KabataanMonitoringService
     public function __construct(
         private readonly BarangayLogoUrlService $logoUrls,
         private readonly AuditLogInterface $auditLog,
-    ) {
-    }
+    ) {}
+
     /**
      * @return list<array<string, mixed>>
      */
@@ -384,5 +385,103 @@ class KabataanMonitoringService
         }
 
         return 'inactive';
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     * @return array<string, mixed>
+     */
+    public function store(User $user, array $data): array
+    {
+        $formData = $this->buildFormDataFromRequest($data);
+
+        $registration = KabataanRegistration::create([
+            'tenant_id' => 1, // Will need to be determined based on federation context
+            'barangay_id' => null, // Will need to be determined based on federation context
+            'last_name' => $data['last_name'],
+            'first_name' => $data['first_name'],
+            'middle_name' => $data['middle_name'] ?? null,
+            'suffix' => $data['suffix'] ?? null,
+            'email' => $data['email'] ?? null,
+            'contact_number' => $data['contact_number'] ?? null,
+            'form_data' => $formData,
+            'status' => 'active',
+            'evaluation_status' => 'active',
+            'submitted_at' => now(),
+            'reviewed_by_user_id' => $user->id,
+            'reviewed_at' => now(),
+        ]);
+
+        $this->auditLog->log('kabataan_registration.created', $user, [
+            'action' => 'create',
+            'entity_type' => 'kabataan_registration',
+            'entity_id' => (string) $registration->id,
+            'module' => 'kabataan_monitoring',
+            'name' => $registration->full_name,
+        ]);
+
+        return [
+            'id' => $registration->id,
+            'respondent_number' => $this->displayRespondentNumber($registration),
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     * @return array<string, mixed>
+     */
+    private function buildFormDataFromRequest(array $data): array
+    {
+        return [
+            'age' => $data['age'] ?? null,
+            'birthday' => $data['birthday'] ?? null,
+            'sex' => $data['sex'] ?? null,
+            'purok_zone' => $data['purok_zone'] ?? null,
+            'civil_status' => $data['civil_status'] ?? null,
+            'youth_classification' => $data['youth_classification'] ?? null,
+            'youth_age_group' => $data['youth_age_group'] ?? null,
+            'work_status' => $data['work_status'] ?? null,
+            'education' => $data['education'] ?? null,
+            'sk_voter' => $data['sk_voter'] ?? null,
+            'national_voter' => $data['national_voter'] ?? null,
+            'sk_voted' => $data['sk_voted'] ?? null,
+            'kk_assembly' => $data['kk_assembly'] ?? null,
+            'kk_times' => $data['kk_times'] ?? null,
+            'kk_reason' => $data['kk_reason'] ?? null,
+            'facebook' => $data['facebook'] ?? null,
+            'group_chat' => $data['group_chat'] ?? null,
+            'signature' => $data['signature'] ?? null,
+            'region' => 'Region IV-A (CALABARZON)',
+            'province' => 'Laguna',
+            'city' => 'Santa Cruz',
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function batchUpload(User $user, UploadedFile $file): array
+    {
+        // This will be implemented to handle Excel/CSV batch uploads
+        // Following the pattern from SK_Officials but adapted for federation context
+
+        $results = [
+            'total' => 0,
+            'success' => 0,
+            'failed' => 0,
+            'errors' => [],
+        ];
+
+        // For now, return a placeholder response
+        // The actual implementation will parse the Excel/CSV file and create records
+
+        $this->auditLog->log('kabataan_registration.batch_upload', $user, [
+            'action' => 'batch_upload',
+            'entity_type' => 'kabataan_registration',
+            'module' => 'kabataan_monitoring',
+            'file_name' => $file->getClientOriginalName(),
+        ]);
+
+        return $results;
     }
 }

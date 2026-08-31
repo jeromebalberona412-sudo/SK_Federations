@@ -2,15 +2,20 @@
 
 namespace App\Modules\Dashboard\Services;
 
+use App\Models\KabataanRegistration;
 use App\Modules\Accounts\Models\Barangay;
+use App\Modules\BarangayMonitoring\Services\BarangayMonitoringService;
 use App\Modules\Shared\Models\User;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 class KkProfilingChartService
 {
+    private const CACHE_TTL_SECONDS = 300;
+
     /**
      * @return array<string, mixed>
      */
@@ -21,28 +26,206 @@ class KkProfilingChartService
         }
 
         $tenantId = (int) $user->tenant_id;
-        $barangayId = $request->input('barangay_id', 'all');
+        $barangayId = (string) $request->input('barangay_id', 'all');
         $period = $request->input('period', 'monthly') === 'weekly' ? 'weekly' : 'monthly';
         $year = (int) $request->input('year', now()->year);
         $month = max(1, min(12, (int) $request->input('month', now()->month)));
 
-        $barangayIds = Barangay::query()
+        $cacheKey = sprintf(
+            'skfed:dash:kk-chart:%d:%s:%s:%d:%d',
+            $tenantId,
+            $barangayId === '' ? 'all' : $barangayId,
+            $period,
+            $year,
+            $month
+        );
+
+        return Cache::remember($cacheKey, self::CACHE_TTL_SECONDS, function () use ($tenantId, $barangayId, $period, $year, $month): array {
+            $barangayIds = Barangay::query()
+                ->where('tenant_id', $tenantId)
+                ->pluck('id');
+
+            if ($barangayId !== 'all' && $barangayId !== '' && $barangayId !== null) {
+                $barangayIds = $barangayIds->filter(fn (int $id) => $id === (int) $barangayId)->values();
+            }
+
+            if ($barangayIds->isEmpty()) {
+                return $this->emptyPayload($period);
+            }
+
+            if ($period === 'weekly') {
+                return $this->weeklyPayload($tenantId, $barangayIds->all(), $year, $month);
+            }
+
+            return $this->monthlyPayload($tenantId, $barangayIds->all(), $year);
+        });
+    }
+
+    /**
+     * @return array{labels: list<string>, counts: list<int>, zones: list<string>}
+     */
+    public function getPurokChartData(User $user, Request $request): array
+    {
+        $tenantId = (int) $user->tenant_id;
+        $barangayIdInput = (string) $request->input('barangay_id', 'all');
+        $purokFilter = trim((string) $request->input('purok', 'all'));
+        $yearInput = $request->input('year', 'all');
+        $yearKey = ($yearInput === 'all' || $yearInput === '' || $yearInput === null) ? 'all' : (string) (int) $yearInput;
+
+        $cacheKey = sprintf(
+            'skfed:dash:purok-chart:%d:%s:%s:%s',
+            $tenantId,
+            $barangayIdInput === '' ? 'all' : $barangayIdInput,
+            $purokFilter === '' ? 'all' : $purokFilter,
+            $yearKey
+        );
+
+        return Cache::remember($cacheKey, self::CACHE_TTL_SECONDS, function () use ($user, $request): array {
+            return $this->buildPurokChartData($user, $request);
+        });
+    }
+
+    /**
+     * @return array{labels: list<string>, counts: list<int>, zones: list<string>}
+     */
+    private function buildPurokChartData(User $user, Request $request): array
+    {
+        $catalogNames = array_values(app(BarangayMonitoringService::class)->slugToNameMap());
+        $empty = [
+            'labels' => $catalogNames,
+            'counts' => array_fill(0, count($catalogNames), 0),
+            'zones' => [],
+        ];
+
+        $tenantId = (int) $user->tenant_id;
+        $barangayIdInput = $request->input('barangay_id', 'all');
+        $purokFilter = trim((string) $request->input('purok', 'all'));
+        $yearInput = $request->input('year', 'all');
+        $year = ($yearInput === 'all' || $yearInput === '' || $yearInput === null) ? null : (int) $yearInput;
+
+        $barangays = Barangay::query()
             ->where('tenant_id', $tenantId)
-            ->pluck('id');
+            ->orderBy('name')
+            ->get(['id', 'name']);
 
-        if ($barangayId !== 'all' && $barangayId !== '' && $barangayId !== null) {
-            $barangayIds = $barangayIds->filter(fn (int $id) => $id === (int) $barangayId)->values();
+        $barangayId = ($barangayIdInput !== 'all' && $barangayIdInput !== '' && $barangayIdInput !== null)
+            ? (int) $barangayIdInput
+            : null;
+
+        $zones = $barangayId ? $this->zonesForBarangay($barangayId) : [];
+
+        if (! Schema::hasTable('kabataan_registrations')) {
+            return $barangayId ? ['labels' => $zones, 'counts' => array_fill(0, count($zones), 0), 'zones' => $zones] : $empty;
         }
 
-        if ($barangayIds->isEmpty()) {
-            return $this->emptyPayload($period);
+        $query = KabataanRegistration::query()
+            ->whereNull('deleted_at')
+            ->where('tenant_id', $tenantId)
+            ->whereIn('status', ['active', 'email_verified', 'password_set']);
+
+        if (Schema::hasColumn('kabataan_registrations', 'evaluation_status')) {
+            $query->where(function ($evaluationQuery): void {
+                $evaluationQuery->whereNull('evaluation_status')
+                    ->orWhereIn('evaluation_status', ['active', 'Auto Approved', 'ID Verified']);
+            });
         }
 
-        if ($period === 'weekly') {
-            return $this->weeklyPayload($tenantId, $barangayIds->all(), $year, $month);
+        if ($barangayId !== null) {
+            $query->where('barangay_id', $barangayId);
         }
 
-        return $this->monthlyPayload($tenantId, $barangayIds->all(), $year);
+        if ($year !== null) {
+            $query->where(function ($yearQuery) use ($year): void {
+                $yearQuery->whereYear('reviewed_at', $year)
+                    ->orWhere(function ($createdQuery) use ($year): void {
+                        $createdQuery->whereNull('reviewed_at')->whereYear('created_at', $year);
+                    });
+            });
+        }
+
+        $records = $query->get(['id', 'barangay_id', 'form_data']);
+
+        if ($barangayId === null) {
+            $countsByBarangay = array_fill_keys($catalogNames, 0);
+            $nameById = $barangays->pluck('name', 'id');
+
+            foreach ($records as $record) {
+                $name = $nameById[$record->barangay_id] ?? null;
+                if ($name === null || ! array_key_exists($name, $countsByBarangay)) {
+                    continue;
+                }
+                $countsByBarangay[$name]++;
+            }
+
+            return [
+                'labels' => array_keys($countsByBarangay),
+                'counts' => array_values($countsByBarangay),
+                'zones' => [],
+            ];
+        }
+
+        $counts = [];
+        foreach ($zones as $zoneName) {
+            $counts[$zoneName] = 0;
+        }
+
+        foreach ($records as $record) {
+            $formData = is_array($record->form_data) ? $record->form_data : [];
+            $purok = $this->formValue($formData, 'purok_zone');
+            if ($purok === '—' || $purok === '') {
+                continue;
+            }
+            if (! array_key_exists($purok, $counts)) {
+                $counts[$purok] = 0;
+            }
+            $counts[$purok]++;
+        }
+
+        if ($purokFilter !== '' && $purokFilter !== 'all') {
+            $counts = [$purokFilter => $counts[$purokFilter] ?? 0];
+        }
+
+        return [
+            'labels' => array_keys($counts),
+            'counts' => array_values($counts),
+            'zones' => $zones,
+        ];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function zonesForBarangay(int $barangayId): array
+    {
+        if (! Schema::hasTable('barangay_zones')) {
+            return [];
+        }
+
+        return DB::table('barangay_zones')
+            ->where('barangay_id', $barangayId)
+            ->where('status', 'active')
+            ->orderBy('name')
+            ->pluck('name')
+            ->filter()
+            ->map(fn ($name) => (string) $name)
+            ->values()
+            ->all();
+    }
+
+    /**
+     * @param  array<string, mixed>  $formData
+     */
+    private function formValue(array $formData, string $key): string
+    {
+        $value = $formData[$key] ?? $formData['purokZone'] ?? '—';
+
+        if (is_array($value)) {
+            $value = $value[0] ?? '—';
+        }
+
+        $value = trim((string) $value);
+
+        return $value !== '' ? $value : '—';
     }
 
     /**

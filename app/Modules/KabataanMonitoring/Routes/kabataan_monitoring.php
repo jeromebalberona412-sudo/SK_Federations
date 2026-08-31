@@ -34,6 +34,8 @@ Route::middleware(['auth', 'session.timeout', 'verified', 'single.session', 'sk_
         Route::get('/api/kabataan-monitoring/{id}/edit', [KabataanMonitoringController::class, 'editData'])->whereNumber('id')->name('api.kabataan-monitoring.edit');
         Route::put('/api/kabataan-monitoring/{id}', [KabataanMonitoringController::class, 'update'])->whereNumber('id')->name('api.kabataan-monitoring.update');
         Route::delete('/api/kabataan-monitoring/{id}', [KabataanMonitoringController::class, 'destroy'])->whereNumber('id')->name('api.kabataan-monitoring.destroy');
+        Route::post('/api/kabataan-monitoring', [KabataanMonitoringController::class, 'store'])->name('api.kabataan-monitoring.store');
+        Route::post('/api/kabataan-monitoring/batch-upload', [KabataanMonitoringController::class, 'batchUpload'])->name('api.kabataan-monitoring.batch-upload');
         Route::post('/kabataan-monitoring/batch-print', [KabataanMonitoringController::class, 'batchPrint'])->name('kabataan-monitoring.batch-print');
         Route::get('/kabataan-monitoring/barangay/{barangay}', [KabataanMonitoringController::class, 'barangayDetail'])->name('kabataan-monitoring.barangay');
         Route::get('/kabataan-monitoring/{kabataan}', [KabataanMonitoringController::class, 'show'])->name('kabataan-monitoring.show');

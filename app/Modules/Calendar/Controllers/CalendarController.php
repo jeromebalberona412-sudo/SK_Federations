@@ -5,6 +5,7 @@ namespace App\Modules\Calendar\Controllers;
 use App\Models\SkFederationCalendarNote;
 use App\Modules\Shared\Controllers\Controller;
 use App\Services\SkFedActivityService;
+use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
@@ -12,9 +13,7 @@ use Illuminate\View\View;
 
 class CalendarController extends Controller
 {
-    public function __construct(private readonly SkFedActivityService $activityService)
-    {
-    }
+    public function __construct(private readonly SkFedActivityService $activityService) {}
 
     public function page(Request $request): View
     {
@@ -47,7 +46,7 @@ class CalendarController extends Controller
             'content' => ['required', 'string', 'max:500'],
         ]);
 
-        $this->assertCanModifyDate($validated['note_date']);
+        $this->assertCanCreateNote($validated['note_date']);
 
         $exists = SkFederationCalendarNote::query()
             ->whereDate('note_date', $validated['note_date'])
@@ -84,7 +83,7 @@ class CalendarController extends Controller
         $user = $request->user();
         $note = $this->findNote($id);
 
-        $this->assertCanModifyDate($note->note_date->toDateString());
+        $this->assertCanModifyExistingNote($note->note_date->toDateString());
 
         $validated = $request->validate([
             'title' => ['required', 'string', 'max:50'],
@@ -111,7 +110,7 @@ class CalendarController extends Controller
         $user = $request->user();
         $note = $this->findNote($id);
 
-        $this->assertCanModifyDate($note->note_date->toDateString());
+        $this->assertCanModifyExistingNote($note->note_date->toDateString());
 
         $title = $note->title;
         $note->delete();
@@ -139,29 +138,34 @@ class CalendarController extends Controller
         return $note;
     }
 
-    protected function assertCanModifyDate(string $date): void
+    protected function assertCanCreateNote(string $date): void
     {
-        $noteDate = \Carbon\Carbon::parse($date)->startOfDay();
-        $today = now()->startOfDay();
-
-        if ($noteDate->lt($today)) {
-            throw ValidationException::withMessages([
-                'note_date' => ['No past dates to add note.'],
-            ]);
-        }
-
+        $noteDate = Carbon::parse($date)->startOfDay();
         $currentYear = (int) now()->year;
         $noteYear = (int) $noteDate->year;
 
         if ($noteYear < $currentYear) {
             throw ValidationException::withMessages([
-                'note_date' => ['Notes cannot be added or edited for past years.'],
+                'note_date' => ['Notes cannot be added for past years.'],
             ]);
         }
 
         if ($noteYear > $currentYear) {
             throw ValidationException::withMessages([
-                'note_date' => ['Notes cannot be added or edited for next year or beyond.'],
+                'note_date' => ['Notes cannot be added for next year or beyond.'],
+            ]);
+        }
+    }
+
+    protected function assertCanModifyExistingNote(string $date): void
+    {
+        $noteDate = Carbon::parse($date)->startOfDay();
+        $currentYear = (int) now()->year;
+        $noteYear = (int) $noteDate->year;
+
+        if ($noteYear > $currentYear) {
+            throw ValidationException::withMessages([
+                'note_date' => ['Notes cannot be edited or deleted for next year or beyond.'],
             ]);
         }
     }

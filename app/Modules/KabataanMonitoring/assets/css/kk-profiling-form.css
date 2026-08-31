@@ -1,0 +1,694 @@
+/* ═══════════════════════════════════════════════
+   KK PROFILING FORM — Federation Blue/Red Theme
+   ═══════════════════════════════════════════════ */
+
+:root {
+    --km-blue: #213F99;
+    --km-red: #d0242b;
+    --km-yellow: #f7d31e;
+    --km-bg: #f3f6fb;
+    --km-text: #1f2937;
+    --km-muted: #64748b;
+    --km-border: #dbe5f2;
+}
+
+/* ── KK Profiling Form Layout ── */
+.kkp-form-header {
+    background: linear-gradient(135deg, #f0f4ff 0%, #fff 100%);
+    border: 1px solid #c7d9f7;
+    border-radius: 12px;
+    padding: 16px 20px;
+    margin-bottom: 16px;
+}
+
+.kkp-form-main-title {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--km-blue);
+    margin-bottom: 12px;
+}
+
+.kkp-form-header-right {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+.kkp-form-annex {
+    background: var(--km-blue);
+    color: #ffffff;
+    padding: 4px 12px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.kkp-form-header-fields {
+    display: flex;
+    gap: 12px;
+}
+
+.kkp-hdr-field {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.kkp-hdr-field--respondent {
+    flex: 0 0 auto;
+}
+
+.kkp-hdr-label {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--km-muted);
+}
+
+.kkp-hdr-input {
+    border: 1px solid #cbd5e1;
+    border-radius: 6px;
+    padding: 6px 10px;
+    font-size: 13px;
+    background: #ffffff;
+    min-width: 120px;
+}
+
+.kkp-hdr-input-readonly {
+    background: #f8fafc;
+    color: var(--km-muted);
+}
+
+.kkp-hdr-input-auto {
+    color: var(--km-blue);
+    font-style: italic;
+}
+
+/* ── Notice Box ── */
+.kkf-notice-box {
+    background: #eff6ff;
+    border-left: 4px solid var(--km-blue);
+    border-radius: 8px;
+    padding: 16px;
+    margin-bottom: 20px;
+}
+
+.kkf-notice-title {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--km-blue);
+    margin-bottom: 8px;
+}
+
+.kkf-notice-body {
+    font-size: 13px;
+    color: var(--km-text);
+    line-height: 1.5;
+    margin-bottom: 8px;
+}
+
+.kkf-notice-confidential {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--km-red);
+    margin: 0;
+}
+
+/* ── Section Titles ── */
+.kkf-section-title {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--km-blue);
+    margin-bottom: 16px;
+    padding-bottom: 8px;
+    border-bottom: 2px solid var(--km-blue);
+}
+
+.kkf-instruction {
+    font-size: 13px;
+    color: var(--km-muted);
+    margin-bottom: 16px;
+    font-style: italic;
+}
+
+/* ── Form Fields ── */
+.kkf-row-label {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--km-text);
+    margin-bottom: 8px;
+}
+
+.kkf-name-row {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+    margin-bottom: 16px;
+}
+
+.kkf-name-col {
+    position: relative;
+}
+
+.kkf-name-col--sm {
+    flex: 0 0 80px;
+}
+
+.kkf-uline {
+    width: 100%;
+    border: none;
+    border-bottom: 2px solid #cbd5e1;
+    padding: 8px 4px;
+    font-size: 13px;
+    background: transparent;
+    border-radius: 0;
+}
+
+.kkf-uline:focus {
+    outline: none;
+    border-bottom-color: var(--km-blue);
+}
+
+.kkf-uline::placeholder {
+    color: #94a3b8;
+}
+
+.kkf-col-label {
+    position: absolute;
+    top: -18px;
+    left: 0;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--km-muted);
+    pointer-events: none;
+}
+
+.kkf-uline-select {
+    appearance: none;
+    background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23213F99' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6,9 12,15 18,9'%3e%3c/polyline%3e%3c/svg%3e");
+    background-repeat: no-repeat;
+    background-position: right 8px center;
+    background-size: 14px;
+    padding-right: 28px;
+}
+
+/* ── Location Row ── */
+.kkf-loc-row {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 12px;
+    margin-bottom: 16px;
+}
+
+.kkf-loc-col {
+    position: relative;
+}
+
+/* ── Personal Info Row ── */
+.kkp-personal-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 16px;
+    margin-bottom: 20px;
+}
+
+.kkp-personal-left,
+.kkp-personal-center,
+.kkp-personal-right {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+/* ── Sex Block ── */
+.kkp-sex-block {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 12px;
+}
+
+.kkp-sex-label-box {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--km-text);
+    margin-bottom: 8px;
+}
+
+.kkp-sex-options {
+    display: flex;
+    gap: 16px;
+}
+
+.kkp-chk-lbl {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    color: var(--km-text);
+    cursor: pointer;
+}
+
+.kkp-sq-chk {
+    accent-color: var(--km-blue);
+    width: 16px;
+    height: 16px;
+}
+
+/* ── Age/DOB Row ── */
+.kkp-age-dob-row {
+    display: flex;
+    gap: 12px;
+}
+
+.kkp-inline-pair {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.kkp-inline-pair--age {
+    flex: 0 0 auto;
+}
+
+.kkp-inline-pair--birthday {
+    flex: 1;
+}
+
+.kkp-inline-label {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--km-text);
+}
+
+.kkp-age-select-box {
+    flex: 1;
+}
+
+.kkp-uline-age {
+    width: 100%;
+}
+
+.kkp-birthday-field {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.kkp-uline-med {
+    flex: 1;
+}
+
+.kkp-hint {
+    font-size: 11px;
+    color: var(--km-muted);
+}
+
+.kkp-optional-label {
+    font-size: 11px;
+    color: var(--km-muted);
+    font-weight: 400;
+}
+
+.kkp-email-input {
+    width: 100%;
+}
+
+/* ── Demographic Grid ── */
+.kkf-demo-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    margin-bottom: 20px;
+}
+
+.kkf-demo-col {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.kkf-demo-block {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 12px;
+}
+
+.kkf-demo-block-label {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--km-blue);
+    margin-bottom: 12px;
+}
+
+.kkf-demo-block-options {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.kkf-demo-options-2col {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+}
+
+/* ── Youth Classification Layout ── */
+.kkp-youth-class-layout {
+    display: flex;
+    gap: 12px;
+}
+
+.kkp-youth-class-main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.kkp-youth-class-side {
+    position: relative;
+    padding-left: 12px;
+}
+
+.kkp-youth-specific-brace {
+    position: absolute;
+    left: 0;
+    top: 0;
+    font-size: 24px;
+    color: var(--km-blue);
+    font-weight: 700;
+}
+
+.kkp-youth-specific-options {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+/* ── Voter Section ── */
+.kkf-voter-section {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 12px;
+}
+
+.kkf-voter-row {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+    margin-bottom: 12px;
+}
+
+.kkf-voter-row:last-child {
+    margin-bottom: 0;
+}
+
+.kkf-voter-cell {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.kkf-voter-cell-label {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--km-text);
+}
+
+/* ── Footer Row ── */
+.kkf-footer-row {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 20px;
+}
+
+.kkf-footer-fb {
+    flex: 1;
+}
+
+.kkf-footer-spacer {
+    flex: 0 0 40px;
+}
+
+.kkf-footer-chat {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.kkf-uline-fb {
+    flex: 1;
+}
+
+/* ── Signature Section ── */
+.kkf-sig-section {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 16px;
+}
+
+.kkf-sig-container {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+}
+
+.kkf-sig-overlay {
+    position: absolute;
+    top: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 10;
+}
+
+.kkf-sig-overlay-img {
+    max-width: 200px;
+    max-height: 80px;
+}
+
+.kkf-sig-name-wrapper {
+    width: 100%;
+    max-width: 300px;
+}
+
+.kkf-sig-name-input {
+    width: 100%;
+    border: none;
+    border-bottom: 2px solid #cbd5e1;
+    padding: 8px 4px;
+    font-size: 14px;
+    font-weight: 600;
+    text-align: center;
+    background: transparent;
+}
+
+.kkf-sig-label-bottom {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--km-muted);
+    text-align: center;
+}
+
+.kkf-sig-trigger-btn {
+    background: var(--km-blue);
+    color: #ffffff;
+    border: none;
+    border-radius: 8px;
+    padding: 8px 16px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    transition: background 0.15s;
+}
+
+.kkf-sig-trigger-btn:hover {
+    background: #1b3380;
+}
+
+/* ── Custom Suffix ── */
+.kkp-custom-suffix-wrap {
+    display: none;
+    margin-top: 8px;
+}
+
+.kkp-custom-suffix-wrap.show {
+    display: block;
+}
+
+/* ── Responsive Design ── */
+@media (max-width: 768px) {
+    .kkf-name-row {
+        grid-template-columns: 1fr 1fr;
+    }
+    
+    .kkf-loc-row {
+        grid-template-columns: 1fr 1fr;
+    }
+    
+    .kkp-personal-row {
+        grid-template-columns: 1fr;
+    }
+    
+    .kkf-demo-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .kkf-voter-row {
+        grid-template-columns: 1fr;
+    }
+    
+    .kkf-footer-row {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    
+    .kkf-footer-spacer {
+        display: none;
+    }
+}
+
+@media (max-width: 480px) {
+    .kkf-name-row {
+        grid-template-columns: 1fr;
+    }
+    
+    .kkf-loc-row {
+        grid-template-columns: 1fr;
+    }
+    
+    .kkp-form-header {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+    
+    .kkp-form-header-right {
+        flex-direction: column;
+        align-items: flex-start;
+        width: 100%;
+    }
+    
+    .kkp-form-header-fields {
+        flex-direction: column;
+        width: 100%;
+    }
+    
+    .kkp-hdr-field {
+        width: 100%;
+    }
+    
+    .kkp-hdr-input {
+        width: 100%;
+    }
+}
+
+/* ── Field validation (matches Kabataan KK Profiling / SK Officials) ── */
+#kabataanAddModal .kkp-field-error,
+#kabataanPanelManual .kkp-field-error,
+.kabataan-panel-manual .kkp-field-error {
+    position: relative;
+    display: block;
+    font-size: 11px;
+    color: #dc2626;
+    margin: 3px 0 0;
+    font-weight: 500;
+    line-height: 1.35;
+    text-align: left;
+    white-space: normal;
+    word-break: break-word;
+    overflow-wrap: anywhere;
+    max-width: 100%;
+    z-index: 1;
+    background: transparent !important;
+    border: none !important;
+    padding: 0 !important;
+    pointer-events: none;
+}
+
+#kabataanAddModal .kkp-demo-block-error,
+#kabataanAddModal .kkf-demo-block-error,
+#kabataanPanelManual .kkp-demo-block-error,
+#kabataanPanelManual .kkf-demo-block-error,
+.kabataan-panel-manual .kkp-demo-block-error,
+.kabataan-panel-manual .kkf-demo-block-error {
+    position: static !important;
+    display: block !important;
+    flex: 0 0 100%;
+    width: 100%;
+    max-width: 100%;
+    order: 99;
+    text-align: left;
+    margin: 4px 0 0;
+    padding: 0 2px !important;
+    border: none !important;
+    background: transparent !important;
+    font-size: 11px;
+    color: #dc2626;
+    font-weight: 500;
+    line-height: 1.35;
+    pointer-events: none;
+}
+
+#kabataanAddModal .kkp-input-err,
+#kabataanAddModal .kkf-input-err,
+#kabataanPanelManual .kkp-input-err,
+#kabataanPanelManual .kkf-input-err {
+    border: none !important;
+    border-bottom: 1.5px solid #dc2626 !important;
+    box-shadow: none !important;
+    outline: none !important;
+    background: transparent !important;
+}
+
+#kabataanAddModal .kkf-uline,
+#kabataanAddModal .kkp-uline,
+#kabataanPanelManual .kkf-uline,
+#kabataanPanelManual .kkp-uline {
+    border: none !important;
+    border-bottom: 1px solid #555 !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    outline: none !important;
+    background: transparent !important;
+}
+
+#kabataanAddModal .kkf-uline:focus,
+#kabataanAddModal .kkp-uline:focus,
+#kabataanPanelManual .kkf-uline:focus,
+#kabataanPanelManual .kkp-uline:focus {
+    border-bottom-color: var(--km-blue) !important;
+    box-shadow: none !important;
+    background: transparent !important;
+}
+
+.kkp-name-col > .kkp-field-error,
+.kkf-name-col > .kkp-field-error {
+    text-align: center;
+    width: 100%;
+}
+
+.kkp-loc-col > .kkp-field-error,
+.kkf-loc-col > .kkp-field-error {
+    text-align: left;
+}
+
+.kkp-sex-block + .kkp-field-error,
+.kkf-sex-block + .kkp-field-error,
+.kkp-section-error {
+    position: static;
+    display: block;
+    text-align: left;
+    margin-top: 3px;
+    white-space: normal;
+    background: transparent !important;
+    border: none !important;
+    padding: 0 !important;
+}

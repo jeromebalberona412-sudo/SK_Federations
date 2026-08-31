@@ -22,11 +22,19 @@ export default defineConfig({
                 'app/Modules/Archive_Management/assets/js/SK_federation.js',
                 'app/Modules/Archive_Management/assets/css/SK_officials.css',
                 'app/Modules/Archive_Management/assets/js/SK_officials.js',
+                'app/Modules/Archive_Management/assets/css/deleted-posts.css',
+                'app/Modules/Archive_Management/assets/js/deleted-posts.js',
+                'app/Modules/Archive_Management/assets/css/rejected-kk-profiling.css',
+                'app/Modules/Archive_Management/assets/js/rejected-kk-profiling.js',
+                'app/Modules/Archive_Management/assets/css/rejected-scholarships.css',
+                'app/Modules/Archive_Management/assets/js/rejected-scholarships.js',
 
                 // ── Authentication — shared ────────────────────────────────
                 'app/Modules/Authentication/assets/css/auth-base.css',
                 'app/Modules/Authentication/assets/css/auth-legal.css',
                 'app/Modules/Authentication/assets/js/auth-legal.js',
+                'app/Modules/Authentication/assets/css/style.css',
+                'app/Modules/Authentication/assets/js/script.js',
 
                 // ── Authentication — shared Turnstile ───────────────────────
                 'app/Modules/Authentication/assets/css/turnstile-gate.css',
@@ -51,6 +59,75 @@ export default defineConfig({
                 // ── Authentication — Email Verify Wait ────────────────────
                 'app/Modules/Authentication/assets/css/verify-wait.css',
                 'app/Modules/Authentication/assets/js/verify-wait.js',
+
+                // ── Barangay Logos ───────────────────────────────────────────
+                'app/Modules/BarangayLogos/assets/css/barangay-logos.css',
+                'app/Modules/BarangayLogos/assets/js/barangay-logos.js',
+
+                // ── Barangay Monitoring ───────────────────────────────────
+                'app/Modules/BarangayMonitoring/assets/css/barangay-monitoring.css',
+                'app/Modules/BarangayMonitoring/assets/js/barangay-monitoring.js',
+                'app/Modules/BarangayMonitoring/assets/js/barangay-monitoring-schedule.js',
+                'app/Modules/BarangayMonitoring/assets/js/barangay-monitoring-show.js',
+
+                // ── Calendar ───────────────────────────────────────────────
+                'app/Modules/Calendar/assets/css/calendar.css',
+                'app/Modules/Calendar/assets/js/calendar.js',
+
+                // ── Community Feed ────────────────────────────────────────
+                'app/Modules/CommunityFeed/assets/css/community-feed.css',
+                'app/Modules/CommunityFeed/assets/js/community-feed.js',
+                'app/Modules/CommunityFeed/assets/css/community-feed-comment-preview.css',
+                'app/Modules/CommunityFeed/assets/js/community-feed-comment-preview.js',
+                'app/Modules/CommunityFeed/assets/js/barangay-profile.js',
+
+                // ── Dashboard ───────────────────────────────────────────────
+                'app/Modules/Dashboard/assets/css/dashboard.css',
+                'app/Modules/Dashboard/assets/js/dashboard.js',
+                'app/Modules/Dashboard/assets/css/statcard.css',
+                'app/Modules/Dashboard/assets/js/dashboard-activity.js',
+                'app/Modules/Dashboard/assets/js/dashboard-audit.js',
+                'app/Modules/Dashboard/assets/js/dashboard-purok.js',
+                'app/Modules/Dashboard/assets/js/kkprofilingchart.js',
+
+                // ── Kabataan Monitoring ───────────────────────────────────
+                'app/Modules/KabataanMonitoring/assets/css/kabataan-monitoring.css',
+                'app/Modules/KabataanMonitoring/assets/js/kabataan-monitoring.js',
+                'app/Modules/KabataanMonitoring/assets/css/kk-profiling-form.css',
+                'app/Modules/KabataanMonitoring/assets/js/kabataan-monitoring-upload.js',
+                'app/Modules/KabataanMonitoring/assets/css/kk-questionnaire-view.css',
+                'app/Modules/KabataanMonitoring/assets/css/kkprofiling.css',
+                'app/Modules/KabataanMonitoring/assets/js/kabataan-monitoring-table.js',
+                'app/Modules/KabataanMonitoring/assets/js/kabataan-monitoring-validation.js',
+                'app/Modules/KabataanMonitoring/assets/js/kabataan-monitoring-edit.js',
+
+                // ── Layout ───────────────────────────────────────────────────
+                'app/Modules/Layout/assets/css/layout.css',
+                'app/Modules/Layout/assets/js/layout.js',
+
+                // ── Notifications ───────────────────────────────────────────
+                'app/Modules/Notifications/assets/css/notifications.css',
+                'app/Modules/Notifications/assets/js/notifications.js',
+
+                // ── Profile ─────────────────────────────────────────────────
+                'app/Modules/Profile/assets/css/profile.css',
+                'app/Modules/Profile/assets/js/profile.js',
+                'app/Modules/Profile/assets/css/account-auth.css',
+                'app/Modules/Profile/assets/css/change-email.css',
+                'app/Modules/Profile/assets/js/change-email.js',
+                'app/Modules/Profile/assets/js/change-email-verify.js',
+                'app/Modules/Profile/assets/css/change-password.css',
+                'app/Modules/Profile/assets/js/change-password.js',
+                'app/Modules/Profile/assets/js/change-password-verify.js',
+                'app/Modules/Profile/assets/css/sk-fed-account-auth.css',
+
+                // ── Reports ────────────────────────────────────────────────
+                'app/Modules/Reports/assets/css/reports.css',
+                'app/Modules/Reports/assets/js/reports.js',
+
+                // ── Turnover ───────────────────────────────────────────────
+                'app/Modules/Turnover/assets/css/turnover.css',
+                'app/Modules/Turnover/assets/js/turnover.js',
             ],
             refresh: true,
         }),

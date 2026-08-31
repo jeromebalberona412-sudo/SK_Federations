@@ -132,14 +132,20 @@ function initKkProfilingMonthlyChart() {
         kkProfilingMonthlyChart.destroy();
     }
 
+    const initial = window.__KK_PROFILING_INITIAL__ || null;
+    const labels = initial?.labels || [];
+    const approved = initial?.approved || [];
+    const rejected = initial?.rejected || [];
+    const pending = initial?.pending || [];
+
     kkProfilingMonthlyChart = new window.Chart(canvas, {
         type: 'line',
         data: {
-            labels: [],
+            labels,
             datasets: [
                 {
                     label: 'Approved',
-                    data: [],
+                    data: approved,
                     borderColor: '#22c55e',
                     backgroundColor: 'rgba(34, 197, 94, 0.1)',
                     borderWidth: 2.5,
@@ -150,7 +156,7 @@ function initKkProfilingMonthlyChart() {
                 },
                 {
                     label: 'Rejected',
-                    data: [],
+                    data: rejected,
                     borderColor: '#ef4444',
                     backgroundColor: 'rgba(239, 68, 68, 0.08)',
                     borderWidth: 2.5,
@@ -161,7 +167,7 @@ function initKkProfilingMonthlyChart() {
                 },
                 {
                     label: 'Pending',
-                    data: [],
+                    data: pending,
                     borderColor: '#f59e0b',
                     backgroundColor: 'rgba(245, 158, 11, 0.08)',
                     borderWidth: 2.5,
@@ -175,6 +181,7 @@ function initKkProfilingMonthlyChart() {
         options: {
             responsive: true,
             maintainAspectRatio: false,
+            animation: false,
             plugins: {
                 legend: { display: false },
                 tooltip: {
@@ -215,14 +222,39 @@ function initKkProfilingMonthlyChart() {
     wireKkProfilingExport();
     wireKkProfilingDatasetFilters();
     toggleKkProfilingMonthFilter();
-    refreshKkProfilingChart();
+    wireDashboardYearFilter();
+
+    if (initial) {
+        kkProfilingCurrentData = {
+            barangayName: 'All Barangays',
+            period: initial.period,
+            year: initial.year,
+            labels,
+            monthlyApproved: approved,
+            monthlyRejected: rejected,
+            monthlyPending: pending,
+        };
+        updateKkProfilingSubtitle(initial);
+    } else {
+        refreshKkProfilingChart();
+    }
+}
+
+function wireDashboardYearFilter() {
+    const yearSelect = document.getElementById('yearSelect');
+    if (!yearSelect || yearSelect.dataset.kkWired === 'true') {
+        return;
+    }
+
+    yearSelect.addEventListener('change', scheduleKkProfilingRefresh);
+    yearSelect.dataset.kkWired = 'true';
 }
 
 function scheduleKkProfilingRefresh() {
     window.clearTimeout(kkProfilingFetchTimer);
     kkProfilingFetchTimer = window.setTimeout(() => {
         refreshKkProfilingChart();
-    }, 200);
+    }, 80);
 }
 
 function wireKkProfilingBarangayFilter() {
@@ -328,6 +360,7 @@ function wireKkProfilingExport() {
 
 window.exportKkProfilingChart = function exportKkProfilingChart() {
     if (!kkProfilingCurrentData) {
+        alert('Chart data is still loading. Please wait a moment and try again.');
         return;
     }
 

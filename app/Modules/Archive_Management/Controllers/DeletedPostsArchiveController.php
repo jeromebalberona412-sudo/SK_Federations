@@ -51,6 +51,13 @@ class DeletedPostsArchiveController extends Controller
     public function restore(int $id): JsonResponse
     {
         $post = $this->findArchivedPost($id);
+        if ($post === null) {
+            return response()->json([
+                'success' => false,
+                'message' => 'This archived post is no longer available. It may have been restored or permanently deleted.',
+            ], 404);
+        }
+
         $this->archiveService->restore($post);
 
         return response()->json(['success' => true, 'message' => 'Post restored successfully.']);
@@ -59,18 +66,25 @@ class DeletedPostsArchiveController extends Controller
     public function destroy(int $id): JsonResponse
     {
         $post = $this->findArchivedPost($id);
+        if ($post === null) {
+            return response()->json([
+                'success' => false,
+                'message' => 'This archived post is no longer available. It may have been restored or permanently deleted.',
+            ], 404);
+        }
+
         $this->archiveService->permanentlyDelete($post);
 
         return response()->json(['success' => true, 'message' => 'Post permanently deleted.']);
     }
 
-    private function findArchivedPost(int $id): Announcement
+    private function findArchivedPost(int $id): ?Announcement
     {
         return Announcement::query()
             ->where('id', $id)
             ->archived()
             ->federationWide()
-            ->firstOrFail();
+            ->first();
     }
 
     /**

@@ -647,7 +647,7 @@
         var hint = document.getElementById('kmDeleteConfirmHint');
         var button = document.getElementById('kmDeleteConfirmBtn');
         if (!input || !button) return;
-        var matched = input.value.trim().toLowerCase() === 'confirm';
+        var matched = input.value.trim().toLowerCase() === 'DELETE';
         button.disabled = !matched;
         if (hint) hint.hidden = matched || input.value.trim() === '';
     }
@@ -677,9 +677,9 @@
         syncDeleteConfirmState();
     }
 
-    async function confirmKmDelete() {
+    async function DELETEKmDelete() {
         if (!pendingDeleteRecord || !pendingDeleteRecord.id) return;
-        if (document.getElementById('kmDeleteConfirmInput')?.value.trim().toLowerCase() !== 'confirm') return;
+        if (document.getElementById('kmDeleteConfirmInput')?.value.trim().toLowerCase() !== 'DELETE') return;
 
         var button = document.getElementById('kmDeleteConfirmBtn');
         var urlTemplate = (window.kmConfig && window.kmConfig.destroyUrl) || '';
@@ -735,11 +735,11 @@
         input?.addEventListener('keydown', function (event) {
             if (event.key === 'Enter') {
                 event.preventDefault();
-                confirmKmDelete();
+                DELETEKmDelete();
             }
         });
         document.getElementById('kmDeleteConfirmBtn')?.addEventListener('click', function () {
-            confirmKmDelete();
+            DELETEKmDelete();
         });
         document.querySelectorAll('[data-km-delete-close]').forEach(function (btn) {
             btn.addEventListener('click', closeKmDeleteModal);

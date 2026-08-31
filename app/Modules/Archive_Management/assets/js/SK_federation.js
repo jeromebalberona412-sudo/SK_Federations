@@ -12,6 +12,7 @@ function formatRecordName(record) {
 
 const ARFED_API = {
     data: '/manage-archive/sk-federation-records/data',
+    restore: (id) => `/manage-archive/sk-federation-records/${id}/restore`,
 };
 
 let arfedRecords = [];
@@ -22,11 +23,21 @@ let arfedPerPage = 10;
 let arfedSearchQ = '';
 let arfedYearFilter = 'all';
 let arfedTermFilter = 'all';
+let arfedNameSortDir = null;
 
 // ── Init ──────────────────────────────────────────────────────────────────────
 const ARFED_POLL_MS = 20000;
 
 function initArchivedSkFederation() {
+    ArchiveRowActions.initGlobalClose();
+    ArchiveFullnameSort.init({
+        onSort: (dir) => {
+            arfedNameSortDir = dir;
+            arfedCurrentPage = 1;
+            renderArfedTable();
+        },
+        getCurrentDir: () => arfedNameSortDir,
+    });
     bindArfedSearch();
     bindArfedPagination();
     bindArfedViewModal();
@@ -122,12 +133,16 @@ function escapeArfedHtml(value) {
 }
 
 function arfedProfileGroup(iconClass, title, fields) {
-    const cells = fields.map(([label, value]) => `
+    const cells = fields.map(([label, value, fieldType]) => {
+        if (fieldType === 'fullname' && window.ArchiveRowActions) {
+            return ArchiveRowActions.fullNameFieldHtml(label, value);
+        }
+        return `
         <div class="account-profile-field">
             <label>${escapeArfedHtml(label)}</label>
             <p>${escapeArfedHtml(value || '-')}</p>
-        </div>
-    `).join('');
+        </div>`;
+    }).join('');
 
     return `
         <div class="account-profile-group">
@@ -140,14 +155,25 @@ function arfedProfileGroup(iconClass, title, fields) {
 }
 
 // ── Render Table ──────────────────────────────────────────────────────────────
+function getArfedSortedRecords() {
+    const list = [...arfedFiltered];
+    if (!arfedNameSortDir) return list;
+    list.sort((a, b) => {
+        const cmp = formatRecordName(a).localeCompare(formatRecordName(b), undefined, { sensitivity: 'base' });
+        return arfedNameSortDir === 'asc' ? cmp : -cmp;
+    });
+    return list;
+}
+
 function renderArfedTable() {
     const tbody = document.getElementById('arfedTableBody');
     const info = document.getElementById('arfedPaginationInfo');
     if (!tbody) return;
 
+    const sorted = getArfedSortedRecords();
     const start = (arfedCurrentPage - 1) * arfedPerPage;
     const end = start + arfedPerPage;
-    const page = arfedFiltered.slice(start, end);
+    const page = sorted.slice(start, end);
 
     if (arfedFiltered.length === 0) {
         tbody.innerHTML = `<tr class="arfed-empty-row"><td colspan="5">No archived SK Federation records found.</td></tr>`;
@@ -166,9 +192,7 @@ function renderArfedTable() {
             <td style="text-align:center;"><span class="arfed-term-badge">${term}</span></td>
             <td style="text-align:center;"><span class="arfed-completed-badge">Completed Term</span></td>
             <td>
-                <div class="arfed-action-btns">
-                    <button type="button" class="arfed-btn-view" data-id="${r.id}" aria-label="View details for ${fullName}">View</button>
-                </div>
+                ${ArchiveRowActions.renderMenu(r.id, { view: true, restore: true })}
             </td>
         </tr>`;
     }).join('');
@@ -177,8 +201,9 @@ function renderArfedTable() {
 
     renderArfedPagination(arfedFiltered.length);
 
-    tbody.querySelectorAll('.arfed-btn-view').forEach(btn => {
-        btn.addEventListener('click', function () { openArfedViewModal(this.dataset.id); });
+    ArchiveRowActions.bind(tbody, (action, id) => {
+        if (action === 'view') openArfedViewModal(id);
+        if (action === 'restore') restoreArfedRecord(id);
     });
 }
 
@@ -269,8 +294,8 @@ function openArfedViewModal(id) {
         body.innerHTML = `
             <div class="account-modal-card">
                 ${arfedProfileGroup('fa-user', 'Personal Information', [
-                    ['Full Name', formatRecordName(r)],
-                    ['Sex', r.sex],
+                    ['Full Name', formatRecordName(r), 'fullname'],
+                    ['Sex', r.sex || '-'],
                     ['Date of Birth', r.dateOfBirth],
                     ['Age', r.age],
                     ['Contact Number', r.contactNumber],
@@ -298,33 +323,27 @@ function openArfedViewModal(id) {
 }
 
 function bindArfedViewModal() {
-    const modal = document.getElementById('arfedViewModal');
-    const box = document.getElementById('arfedViewModalBox');
-    const closeBtn = document.getElementById('arfedViewClose');
-    const closeFooterBtn = document.getElementById('arfedViewCloseFooter');
-    const toggleBtn = document.getElementById('arfedViewToggle');
+    ArchiveRowActions.bindViewModalControls('arfed');
+}
 
-    const close = () => {
-        if (modal) { modal.style.display = 'none'; modal.classList.remove('arfed-maximized'); }
-        if (box) box.classList.remove('arfed-maximized');
-        if (toggleBtn) toggleBtn.textContent = '□';
-    };
+async function restoreArfedRecord(id) {
+    const record = arfedRecords.find((r) => String(r.id) === String(id));
+    if (!record) return;
+    if (!confirm(`Restore archived record for ${formatRecordName(record)}?`)) return;
 
-    if (closeBtn) closeBtn.addEventListener('click', close);
-    if (closeFooterBtn) closeFooterBtn.addEventListener('click', close);
-    if (modal) modal.addEventListener('click', e => { if (e.target === modal) close(); });
-
-    if (toggleBtn && box) {
-        toggleBtn.addEventListener('click', function (e) {
-            e.stopPropagation();
-            const isMax = !box.classList.contains('arfed-maximized');
-            modal.classList.toggle('arfed-maximized', isMax);
-            box.classList.toggle('arfed-maximized', isMax);
-            toggleBtn.textContent = isMax ? '⧉' : '□';
+    try {
+        const response = await fetch(ARFED_API.restore(id), {
+            method: 'POST',
+            headers: {
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
+                Accept: 'application/json',
+            },
         });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.message || 'Failed to restore record.');
+        alert(data.message || 'Record restored successfully.');
+        await loadArfedRecords();
+    } catch (error) {
+        alert(error.message || 'Failed to restore record.');
     }
-
-    document.addEventListener('keydown', function (e) {
-        if (e.key === 'Escape' && modal && modal.style.display === 'flex') close();
-    });
 }

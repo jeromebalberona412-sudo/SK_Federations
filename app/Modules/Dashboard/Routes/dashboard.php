@@ -31,6 +31,10 @@ Route::middleware(['auth', 'session.timeout', 'verified', 'single.session', 'sk_
         Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
         Route::get('/api/dashboard/kk-profiling', [DashboardController::class, 'kkProfilingData'])
             ->name('dashboard.kk-profiling-data');
+        Route::get('/api/dashboard/purok-distribution', [DashboardController::class, 'purokChartData'])
+            ->name('dashboard.purok-distribution');
         Route::get('/api/dashboard/recent-activities', [DashboardController::class, 'recentActivities'])
             ->name('dashboard.recent-activities');
+        Route::get('/api/dashboard/feed', [DashboardController::class, 'feed'])
+            ->name('dashboard.feed');
     });

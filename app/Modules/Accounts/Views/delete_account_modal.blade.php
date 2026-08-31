@@ -16,12 +16,12 @@
             </p>
             <p class="delete-confirm-desc">This action cannot be undone.</p>
 
-            <label class="delete-confirm-label" for="deleteConfirmationInput">Confirmation Required</label>
+            <label class="delete-confirm-label" for="deleteConfirmationInput">Type DELETE to confirm</label>
             <input type="text" id="deleteConfirmationInput" class="delete-confirm-input"
-                   placeholder="Confirm" autocomplete="off">
+                   placeholder="DELETE" autocomplete="off" autocapitalize="none" spellcheck="false">
 
             <p class="delete-confirm-hint delete-confirm-hint-error" id="deleteConfirmHintError" style="display:none;">
-                Please type &quot;Confirm&quot; exactly to continue.
+                Please type &quot;DELETE&quot; exactly to continue.
             </p>
             <p class="delete-confirm-hint delete-confirm-hint-success" id="deleteConfirmHintSuccess" style="display:none;">
                 ✓ Confirmation text matched.
@@ -29,7 +29,7 @@
         </div>
         <div class="delete-confirm-footer">
             <button type="button" class="btn-cancel-delete" id="deleteModalCancelBtn">Cancel</button>
-            <button type="button" class="btn-confirm-delete is-disabled" id="deleteModalConfirmBtn" disabled>Confirm Delete</button>
+            <button type="button" class="btn-confirm-delete is-disabled" id="deleteModalConfirmBtn" disabled>Delete Account</button>
         </div>
         </div>
     </div>

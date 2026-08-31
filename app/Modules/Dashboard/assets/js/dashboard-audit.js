@@ -175,5 +175,14 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     });
 
-    fetchLogs();
+    scheduleDashboardAuditFetch(fetchLogs);
 });
+
+function scheduleDashboardAuditFetch(callback) {
+    if (typeof window.requestIdleCallback === 'function') {
+        window.requestIdleCallback(callback, { timeout: 1500 });
+        return;
+    }
+
+    window.setTimeout(callback, 120);
+}

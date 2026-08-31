@@ -8,6 +8,7 @@
 @endphp
 
 @push('styles')
+    <link rel="stylesheet" href="{{ url('/modules/archive-management/css/archive-row-actions.css') }}?v={{ $cssVersion }}">
     <link rel="stylesheet" href="{{ url('/modules/archive-management/css/SK_officials.css') }}?v={{ $cssVersion }}">
 @endpush
 
@@ -37,7 +38,15 @@
             <table class="aroff-table">
                 <thead>
                     <tr>
-                        <th>Full Name<div class="table-col-hint">LN, FN, MN, Suffix</div></th>
+                        <th class="ar-th-sortable" data-sort-key="fullname" data-sort-type="text" aria-sort="none">
+                            <button type="button" class="ar-sort-btn ar-sort-btn--fullname" aria-haspopup="menu" aria-expanded="false">
+                                <span class="table-fullname-label">
+                                    Full Name
+                                    <span class="table-col-hint">LN, FN, MN, Suffix</span>
+                                </span>
+                                <span class="ar-sort-icon" aria-hidden="true"></span>
+                            </button>
+                        </th>
                         <th>Position</th>
                         <th>Term</th>
                         <th>Status</th>
@@ -78,20 +87,22 @@
     <div class="aroff-modal-box aroff-view-modal-box" id="aroffViewModalBox">
         <div class="aroff-modal-header aroff-view-modal-header">
             <h2 class="aroff-modal-title" id="aroffViewModalTitle">View Details</h2>
-            <div class="aroff-view-controls">
-                <button type="button" class="aroff-view-toggle" id="aroffViewToggle" aria-label="Maximize">□</button>
-                <button type="button" class="aroff-view-close" id="aroffViewClose" aria-label="Close">&times;</button>
+            <div class="aroff-view-controls modal-window-controls">
+                <button type="button" class="modal-toggle-btn" id="aroffViewMaximizeBtn" aria-label="Fullscreen" title="Fullscreen">□</button>
+                <button type="button" class="modal-toggle-btn" id="aroffViewRestoreBtn" hidden aria-label="Restore down" title="Restore down">⧉</button>
+                <button type="button" class="aroff-view-close modal-win-btn" id="aroffViewClose" aria-label="Close">&times;</button>
             </div>
         </div>
         <div class="aroff-view-body" id="aroffViewBody"></div>
-        <div class="aroff-modal-footer">
-            <button type="button" class="aroff-page-btn" id="aroffViewCloseFooter" aria-label="Close">&times;</button>
-        </div>
     </div>
 </div>
+
+<div id="arFullnameSortMenu" class="ar-sort-menu" hidden role="menu" aria-label="Sort full name"></div>
 
 @endsection
 
 @push('scripts')
+    <script src="{{ url('/modules/archive-management/js/archive-fullname-sort.js') }}?v={{ $jsVersion }}"></script>
+    <script src="{{ url('/modules/archive-management/js/archive-row-actions.js') }}?v={{ $jsVersion }}"></script>
     <script src="{{ url('/modules/archive-management/js/SK_officials.js') }}?v={{ $jsVersion }}"></script>
 @endpush

@@ -431,15 +431,34 @@
         }
     }
 
+    function setActionButtonLoading(button, loading, label) {
+        if (!button) return;
+        if (loading) {
+            if (!button.dataset.originalHtml) {
+                button.dataset.originalHtml = button.innerHTML;
+            }
+            button.disabled = true;
+            button.classList.add('is-loading');
+            button.innerHTML = '<span class="bm-action-spinner" aria-hidden="true"></span><span>' + label + '</span>';
+            return;
+        }
+        button.disabled = false;
+        button.classList.remove('is-loading');
+        if (button.dataset.originalHtml) {
+            button.innerHTML = button.dataset.originalHtml;
+        }
+    }
+
     window.confirmApproval = async function () {
         if (!approveSubmissionId) return;
 
         const approveBtn = document.querySelector('.approve-submit-btn');
-        if (approveBtn) approveBtn.disabled = true;
+        const cancelBtn = document.querySelector('#approveModal .bm-kk-btn-cancel');
+        if (cancelBtn) cancelBtn.disabled = true;
+        setActionButtonLoading(approveBtn, true, 'Approving...');
 
         let succeeded = false;
         try {
-            showActionLoading('Approving Submission', 'Please wait while we approve this ABYIP report...');
             await apiFetch((config.approveUrl || '/api/barangay-abyip/__ID__/approve').replace('__ID__', approveSubmissionId), {
                 method: 'POST',
                 body: {},
@@ -452,8 +471,8 @@
             showToast(error.message || 'Approval failed.', 'error');
         } finally {
             if (!succeeded) {
-                hideActionLoading();
-                if (approveBtn) approveBtn.disabled = false;
+                setActionButtonLoading(approveBtn, false);
+                if (cancelBtn) cancelBtn.disabled = false;
             }
         }
     };
@@ -556,11 +575,12 @@
         }
 
         const rejectBtn = document.querySelector('.reject-submit-btn');
-        if (rejectBtn) rejectBtn.disabled = true;
+        const cancelBtn = document.querySelector('#rejectModal .cancel-btn');
+        if (cancelBtn) cancelBtn.disabled = true;
+        setActionButtonLoading(rejectBtn, true, 'Rejecting...');
 
         let succeeded = false;
         try {
-            showActionLoading('Rejecting Submission', 'Please wait while we reject this ABYIP report...');
             await apiFetch((config.rejectUrl || '/api/barangay-abyip/__ID__/reject').replace('__ID__', rejectSubmissionId), {
                 method: 'POST',
                 body: { reason: reason },
@@ -573,8 +593,8 @@
             showToast(error.message || 'Rejection failed.', 'error');
         } finally {
             if (!succeeded) {
-                hideActionLoading();
-                if (rejectBtn) rejectBtn.disabled = false;
+                setActionButtonLoading(rejectBtn, false);
+                if (cancelBtn) cancelBtn.disabled = false;
             }
         }
     };
@@ -671,10 +691,51 @@
         });
     }
 
+    function initAllowResubmission() {
+        const button = document.getElementById('btnAllowResubmission');
+        if (!button) {
+            return;
+        }
+
+        button.addEventListener('click', async function () {
+            const scheduleId = button.getAttribute('data-schedule-id');
+            if (!scheduleId) {
+                return;
+            }
+
+            const confirmed = window.confirm('Allow late ABYIP resubmission for barangays that have not submitted?');
+            if (!confirmed) {
+                return;
+            }
+
+            button.disabled = true;
+            try {
+                const url = (config.allowResubmissionUrl || '/api/barangay-monitoring/abyip-schedules/__ID__/allow-resubmission')
+                    .replace('__ID__', scheduleId);
+                const payload = await apiFetch(url, { method: 'POST' });
+                const toast = document.getElementById('toast');
+                if (toast) {
+                    toast.querySelector('.toast-message').textContent = payload.message || 'Resubmission allowed.';
+                    toast.classList.add('show');
+                    setTimeout(function () {
+                        toast.classList.remove('show');
+                        window.location.reload();
+                    }, 1200);
+                } else {
+                    window.location.reload();
+                }
+            } catch (error) {
+                button.disabled = false;
+                window.alert(error.message || 'Unable to allow resubmission.');
+            }
+        });
+    }
+
     document.addEventListener('DOMContentLoaded', function () {
         initAbyipFilters();
         initAbyipViewButtons();
         initActionMenus();
+        initAllowResubmission();
         bindRejectReasonControls();
         bindRevokeReasonControls();
     });

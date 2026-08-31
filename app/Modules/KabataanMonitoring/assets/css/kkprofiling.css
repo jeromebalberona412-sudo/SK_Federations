@@ -391,6 +391,29 @@
     margin-bottom: 4px;
 }
 
+@media (max-width: 768px) {
+    .kkp-name-row {
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+    }
+    
+    .kkp-name-col:nth-child(3),
+    .kkp-name-col:nth-child(4) {
+        grid-column: span 1;
+    }
+}
+
+@media (max-width: 480px) {
+    .kkp-name-row {
+        grid-template-columns: 1fr;
+        gap: 6px;
+    }
+    
+    .kkp-name-col {
+        grid-column: span 1;
+    }
+}
+
 .kkp-name-col {
     display: flex;
     flex-direction: column;
@@ -411,6 +434,28 @@
     margin-bottom: 4px;
 }
 
+@media (max-width: 768px) {
+    .kkp-loc-row {
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+    }
+    
+    .kkp-loc-col:nth-child(5) {
+        grid-column: span 2;
+    }
+}
+
+@media (max-width: 480px) {
+    .kkp-loc-row {
+        grid-template-columns: 1fr;
+        gap: 6px;
+    }
+    
+    .kkp-loc-col {
+        grid-column: span 1;
+    }
+}
+
 .kkp-loc-col {
     display: flex;
     flex-direction: column;
@@ -427,6 +472,34 @@
     margin: 4px 0;
     align-items: center;
     min-width: 0;
+}
+
+@media (max-width: 768px) {
+    .kkp-personal-row {
+        grid-template-columns: 1fr;
+        gap: 12px;
+        padding: 8px;
+    }
+    
+    .kkp-personal-center {
+        border-left: none;
+        border-right: none;
+        padding: 0;
+        border-top: 1px solid #ddd;
+        border-bottom: 1px solid #ddd;
+        padding: 8px 0;
+    }
+}
+
+@media (max-width: 480px) {
+    .kkp-personal-row {
+        gap: 8px;
+        padding: 6px;
+    }
+    
+    .kkp-personal-center {
+        padding: 6px 0;
+    }
 }
 
 .kkp-personal-left,
@@ -535,6 +608,13 @@
     margin-bottom: 6px;
 }
 
+@media (max-width: 768px) {
+    .kkp-demo-grid {
+        grid-template-columns: 1fr;
+        gap: 8px;
+    }
+}
+
 .kkp-demo-col {
     display: flex;
     flex-direction: column;
@@ -563,6 +643,29 @@
     align-items: stretch;
     flex-wrap: nowrap;
     min-width: 0;
+}
+
+@media (max-width: 640px) {
+    .kkp-demo-block {
+        flex-direction: column;
+        flex-wrap: wrap;
+    }
+    
+    .kkp-demo-block-label {
+        width: 100%;
+        max-width: none;
+        min-width: auto;
+        border-right: none;
+        border-bottom: 1px solid #bbb;
+        padding: 6px 8px;
+        text-align: left;
+        justify-content: flex-start;
+    }
+    
+    .kkp-demo-block-options {
+        width: 100%;
+        padding: 6px 8px;
+    }
 }
 
 .kkp-demo-block-label {
@@ -664,6 +767,13 @@
     gap: 0 6px;
 }
 
+@media (max-width: 480px) {
+    .kkp-demo-options-2col {
+        grid-template-columns: 1fr;
+        gap: 2px 0;
+    }
+}
+
 /* ── CHECKBOX LABEL ── */
 .kkp-chk-lbl {
     display: flex;
@@ -724,10 +834,169 @@
     margin-bottom: 6px;
 }
 
+@media (max-width: 768px) {
+    .kkp-voter-questions-grid {
+        grid-template-columns: 1fr;
+        gap: 8px;
+    }
+}
+
 .kkp-voter-questions-col {
     display: flex;
     flex-direction: column;
     gap: 6px;
+}
+
+/* ── LONG NAME CONFIRMATION MODAL ── */
+.kkp-confirm-modal {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 9999;
+    align-items: center;
+    justify-content: center;
+}
+
+.kkp-confirm-modal-content {
+    background: #fff;
+    border-radius: 8px;
+    max-width: 400px;
+    width: 90%;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+}
+
+.kkp-confirm-modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px 20px;
+    border-bottom: 1px solid #e5e7eb;
+}
+
+.kkp-confirm-modal-header h3 {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 600;
+    color: #111;
+}
+
+.kkp-confirm-modal-close {
+    background: none;
+    border: none;
+    font-size: 24px;
+    color: #6b7280;
+    cursor: pointer;
+    padding: 0;
+    line-height: 1;
+}
+
+.kkp-confirm-modal-close:hover {
+    color: #111;
+}
+
+.kkp-confirm-modal-body {
+    padding: 20px;
+}
+
+.kkp-confirm-modal-body p {
+    margin: 0 0 12px;
+    font-size: 14px;
+    color: #374151;
+}
+
+.kkp-confirm-input {
+    width: 100%;
+    padding: 8px 12px;
+    border: 1px solid #d1d5db;
+    border-radius: 4px;
+    font-size: 14px;
+    margin-top: 8px;
+}
+
+.kkp-confirm-input:focus {
+    outline: none;
+    border-color: #0450a8;
+    box-shadow: 0 0 0 3px rgba(4, 80, 168, 0.1);
+}
+
+.kkp-confirm-modal-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+    padding: 16px 20px;
+    border-top: 1px solid #e5e7eb;
+}
+
+.kkp-confirm-btn {
+    padding: 8px 16px;
+    border-radius: 4px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    border: none;
+}
+
+.kkp-confirm-btn-cancel {
+    background: #f3f4f6;
+    color: #374151;
+}
+
+.kkp-confirm-btn-cancel:hover {
+    background: #e5e7eb;
+}
+
+.kkp-confirm-btn-continue {
+    background: #0450a8;
+    color: #fff;
+}
+
+.kkp-confirm-btn-continue:hover:not(:disabled) {
+    background: #034090;
+}
+
+.kkp-confirm-btn-continue:disabled {
+    background: #9ca3af;
+    cursor: not-allowed;
+}
+
+/* ── CLEAR DATA BUTTON ── */
+.kkp-form-clear-bar {
+    display: flex;
+    align-items: center;
+    margin-left: auto;
+}
+
+.kkp-form-clear-btn {
+    background: #dc2626;
+    color: #fff;
+    border: none;
+    padding: 6px 12px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background 0.15s;
+}
+
+.kkp-form-clear-btn:hover {
+    background: #b91c1c;
+}
+
+@media (max-width: 768px) {
+    .kkp-form-header-right {
+        flex-wrap: wrap;
+    }
+    
+    .kkp-form-clear-bar {
+        width: 100%;
+        margin-left: 0;
+        margin-top: 8px;
+        justify-content: flex-end;
+    }
 }
 
 /* ── FOOTER ROW: FB + Group Chat ── */
@@ -739,6 +1008,36 @@
     margin-bottom: 6px;
     flex-wrap: wrap;
     justify-content: flex-start;
+}
+
+@media (max-width: 768px) {
+    .kkp-footer-row {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 12px;
+    }
+    
+    .kkp-footer-fb {
+        width: 100%;
+        margin-right: 0;
+    }
+    
+    .kkp-footer-fb-field {
+        width: 100%;
+        min-width: 0;
+        max-width: 100%;
+    }
+    
+    .kkp-footer-fb .kkp-uline-fb {
+        min-width: 0;
+        max-width: 100%;
+        width: 100%;
+    }
+    
+    .kkp-footer-chat {
+        width: 100%;
+        flex-wrap: wrap;
+    }
 }
 
 .kkp-footer-fb {
@@ -828,6 +1127,24 @@
     text-align: left;
     width: auto;
     max-width: 35%;
+}
+
+@media (max-width: 768px) {
+    .kkp-sig-section-left {
+        max-width: 50%;
+    }
+}
+
+@media (max-width: 480px) {
+    .kkp-sig-section-left {
+        max-width: 70%;
+    }
+}
+
+@media (max-width: 375px) {
+    .kkp-sig-section-left {
+        max-width: 85%;
+    }
 }
 
 .kkp-sig-container {

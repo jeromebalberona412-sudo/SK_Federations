@@ -21,7 +21,7 @@
                 data-id="{{ $notification['id'] }}"
                 data-action-url="{{ $notification['action_url'] ?? '' }}"
                 role="button"
-                tabindex="0"
+                tabindex="-1"
             >
                 <div class="notif-content">
                     <div class="notif-item-title">{{ $notification['title'] }}</div>

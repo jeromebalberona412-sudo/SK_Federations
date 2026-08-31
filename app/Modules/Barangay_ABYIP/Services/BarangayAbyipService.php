@@ -4,6 +4,7 @@ namespace App\Modules\Barangay_ABYIP\Services;
 
 use App\Models\Abyip;
 use App\Modules\Shared\Models\User;
+use App\Services\AbyipApprovalProvisioningService;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -12,6 +13,10 @@ use Illuminate\Validation\ValidationException;
 
 class BarangayAbyipService
 {
+    public function __construct(
+        private readonly AbyipApprovalProvisioningService $approvalProvisioningService,
+    ) {}
+
     /**
      * @return Collection<int, array<string, mixed>>
      */
@@ -82,7 +87,10 @@ class BarangayAbyipService
             ]);
         });
 
-        return $this->formatSubmission($document->fresh(['barangay', 'creator']));
+        $document->refresh(['barangay:id,name']);
+        $this->approvalProvisioningService->provision($document);
+
+        return $this->formatSubmission($document);
     }
 
     public function reject(User $reviewer, int $id, string $reason): array

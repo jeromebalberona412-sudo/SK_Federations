@@ -28,7 +28,9 @@ class CommunityFeedPostController extends Controller
 {
     private const MAX_IMAGES = 20;
 
-    private const MAX_BODY_LENGTH = 2000;
+    private const MAX_BODY_LENGTH = 5000;
+
+    private const MAX_LINK_LENGTH = 63;
 
     public function __construct(
         private readonly CloudinaryService $cloudinary,
@@ -120,7 +122,7 @@ class CommunityFeedPostController extends Controller
             'type' => 'required|in:announcement,event,activity,program,update',
             'title' => 'nullable|string|max:255',
             'body' => 'required|string|max:'.self::MAX_BODY_LENGTH,
-            'link_url' => 'nullable|url|max:4096',
+            'link_url' => 'nullable|url|max:'.self::MAX_LINK_LENGTH,
             'images' => 'nullable|array|max:'.self::MAX_IMAGES,
             'images.*' => 'image|max:5120',
         ]);
@@ -169,7 +171,7 @@ class CommunityFeedPostController extends Controller
             'type' => 'sometimes|in:announcement,event,activity,program,update',
             'title' => 'nullable|string|max:255',
             'body' => 'sometimes|string|max:'.self::MAX_BODY_LENGTH,
-            'link_url' => 'nullable|url|max:4096',
+            'link_url' => 'nullable|url|max:'.self::MAX_LINK_LENGTH,
             'images' => 'nullable|array|max:'.self::MAX_IMAGES,
             'images.*' => 'image|max:5120',
             'removed_image_ids' => 'nullable|array',

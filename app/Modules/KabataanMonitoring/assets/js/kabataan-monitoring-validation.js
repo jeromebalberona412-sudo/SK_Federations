@@ -19,6 +19,101 @@
 
     const KKP_NAME_MAX_CHARS = 150;
     const KKP_NAME_MAX_MSG = '150 maximum characters only.';
+    const KKP_NAME_WARNING_THRESHOLD = 50;
+    
+    // Track confirmed fields for 50+ character confirmation
+    const confirmedLongNames = new Set();
+
+    function showLongNameConfirmation(inputElement, fieldId) {
+        // Create modal if it doesn't exist
+        let modal = document.getElementById('kkpLongNameConfirmModal');
+        if (!modal) {
+            modal = document.createElement('div');
+            modal.id = 'kkpLongNameConfirmModal';
+            modal.className = 'kkp-confirm-modal';
+            modal.setAttribute('role', 'dialog');
+            modal.setAttribute('aria-modal', 'true');
+            modal.innerHTML = `
+                <div class="kkp-confirm-modal-content">
+                    <div class="kkp-confirm-modal-header">
+                        <h3>Are you sure you want to continue?</h3>
+                        <button type="button" class="kkp-confirm-modal-close" aria-label="Close">&times;</button>
+                    </div>
+                    <div class="kkp-confirm-modal-body">
+                        <p>This name is already 50 characters long.</p>
+                        <p>To continue entering more characters, type YES below.</p>
+                        <input type="text" id="kkpLongNameConfirmInput" class="kkp-confirm-input" placeholder="Type YES" autocomplete="off">
+                    </div>
+                    <div class="kkp-confirm-modal-footer">
+                        <button type="button" class="kkp-confirm-btn kkp-confirm-btn-cancel">Cancel</button>
+                        <button type="button" class="kkp-confirm-btn kkp-confirm-btn-continue" disabled>Continue</button>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(modal);
+
+            // Add event listeners
+            const closeBtn = modal.querySelector('.kkp-confirm-modal-close');
+            const cancelBtn = modal.querySelector('.kkp-confirm-btn-cancel');
+            const continueBtn = modal.querySelector('.kkp-confirm-btn-continue');
+            const confirmInput = modal.querySelector('#kkpLongNameConfirmInput');
+
+            const closeModal = () => {
+                modal.style.display = 'none';
+                confirmInput.value = '';
+                continueBtn.disabled = true;
+            };
+
+            const handleCancel = () => {
+                // Truncate to 50 characters if not confirmed
+                if (!confirmedLongNames.has(fieldId)) {
+                    inputElement.value = inputElement.value.substring(0, KKP_NAME_WARNING_THRESHOLD);
+                }
+                inputElement.readOnly = false;
+                inputElement.focus();
+                closeModal();
+            };
+
+            closeBtn.addEventListener('click', handleCancel);
+            cancelBtn.addEventListener('click', handleCancel);
+
+            confirmInput.addEventListener('input', () => {
+                continueBtn.disabled = confirmInput.value.trim().toUpperCase() !== 'YES';
+            });
+
+            continueBtn.addEventListener('click', () => {
+                confirmedLongNames.add(fieldId);
+                inputElement.readOnly = false;
+                inputElement.focus();
+                closeModal();
+            });
+
+            // Close on escape key
+            modal.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape') handleCancel();
+            });
+            
+            // Close on backdrop click
+            modal.addEventListener('click', (e) => {
+                if (e.target === modal) handleCancel();
+            });
+        }
+
+        // Store the current input element for the continue action
+        modal.dataset.targetFieldId = fieldId;
+        
+        // Show modal
+        modal.style.display = 'flex';
+        
+        // Focus on input
+        setTimeout(() => {
+            const confirmInput = modal.querySelector('#kkpLongNameConfirmInput');
+            if (confirmInput) confirmInput.focus();
+        }, 100);
+
+        // Block input temporarily
+        inputElement.readOnly = true;
+    }
 
     const KKP_EMAIL_TOTAL_MAX = 64;
     const KKP_EMAIL_LOCAL_MIN = 6;
@@ -126,7 +221,7 @@
         const v = (value || '').trim().toLowerCase();
 
         if (!v) {
-            return (required && touched && strict) ? 'Email is required.' : null;
+            return (required && touched) ? 'E-mail address is required.' : null;
         }
 
         if (v.length > KKP_EMAIL_TOTAL_MAX) {
@@ -255,11 +350,15 @@
             return requireEmpty ? 'Contact number is required.' : null;
         }
 
-        if (!/^09\d{9}$/.test(v)) {
-            return 'Please enter a valid Philippine mobile number.';
+        // Strict requirement: Must be exactly 09XXXXXXXXX format (11 digits starting with 09)
+        const normalized = v.replace(/\D/g, '');
+        
+        // Must be exactly 11 digits starting with 09
+        if (normalized.length !== 11 || !normalized.startsWith('09')) {
+            return 'Please enter a valid Philippine mobile number starting with 09 (09XXXXXXXXX).';
         }
 
-        if (kkpIsObviouslyFakeContact(v)) {
+        if (kkpIsObviouslyFakeContact(normalized)) {
             return 'Please enter your actual mobile number.';
         }
 
@@ -338,15 +437,130 @@
 
     function calculateAgeFromBirthday(dateStr) {
         if (!dateStr) return null;
-        const bday = new Date(dateStr + 'T00:00:00');
-        if (isNaN(bday.getTime())) return null;
+        
+        // Handle various date formats: YYYY-MM-DD, MM/DD/YYYY, DD/MM/YYYY
+        let parsedDate;
+        
+        // Try YYYY-MM-DD format first (HTML date input format)
+        if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+            parsedDate = new Date(dateStr + 'T00:00:00');
+        } 
+        // Try MM/DD/YYYY format
+        else if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(dateStr)) {
+            const parts = dateStr.split('/');
+            const month = parseInt(parts[0], 10);
+            const day = parseInt(parts[1], 10);
+            const year = parseInt(parts[2], 10);
+            
+            // Validate the date components
+            if (month < 1 || month > 12 || day < 1 || day > 31 || year < 1900 || year > 2100) {
+                return null;
+            }
+            
+            // Check for invalid dates like 02/30
+            const testDate = new Date(year, month - 1, day);
+            if (testDate.getMonth() !== month - 1 || testDate.getDate() !== day) {
+                return null;
+            }
+            
+            parsedDate = new Date(year, month - 1, day);
+        }
+        // Try DD/MM/YYYY format
+        else if (/^\d{1,2}-\d{1,2}-\d{4}$/.test(dateStr)) {
+            const parts = dateStr.split('-');
+            const day = parseInt(parts[0], 10);
+            const month = parseInt(parts[1], 10);
+            const year = parseInt(parts[2], 10);
+            
+            if (month < 1 || month > 12 || day < 1 || day > 31 || year < 1900 || year > 2100) {
+                return null;
+            }
+            
+            const testDate = new Date(year, month - 1, day);
+            if (testDate.getMonth() !== month - 1 || testDate.getDate() !== day) {
+                return null;
+            }
+            
+            parsedDate = new Date(year, month - 1, day);
+        }
+        else {
+            parsedDate = new Date(dateStr);
+        }
+        
+        if (isNaN(parsedDate.getTime())) return null;
+        
         const now = new Date();
-        let age = now.getFullYear() - bday.getFullYear();
-        const monthDiff = now.getMonth() - bday.getMonth();
-        if (monthDiff < 0 || (monthDiff === 0 && now.getDate() < bday.getDate())) {
+        let age = now.getFullYear() - parsedDate.getFullYear();
+        const monthDiff = now.getMonth() - parsedDate.getMonth();
+        if (monthDiff < 0 || (monthDiff === 0 && now.getDate() < parsedDate.getDate())) {
             age -= 1;
         }
-        return { age, bday, now };
+        return { age, bday: parsedDate, now };
+    }
+
+    /**
+     * Resolve field IDs for edit vs add (manual entry) forms.
+     */
+    function resolveKmFieldIds(root) {
+        const isAddForm = Boolean(root && root.querySelector('#kabataanLastName'));
+
+        if (isAddForm) {
+            return {
+                lastName: 'kabataanLastName',
+                firstName: 'kabataanFirstName',
+                middleName: 'kabataanMiddleName',
+                suffix: 'kabataanSuffix',
+                customSuffix: 'kabataanCustomSuffix',
+                customSuffixWrap: 'kabataanCustomSuffixWrap',
+                purok: 'kabataanPurokZone',
+                age: 'kabataanAgeInput',
+                dob: 'kabataanDob',
+                email: 'kabataanEmail',
+                contact: 'kabataanContactInput',
+                sex: 'kabataanSex',
+                civilStatus: 'kabataanCivilStatus',
+                youthAgeGroup: 'kabataanYouthAgeGroup',
+                education: 'kabataanEducationalBackground',
+                youthClassification: 'kabataanYouthClassification',
+                workStatus: 'kabataanWorkStatus',
+                skVoter: 'kabataanRegisteredSKVoter',
+                votingHistory: 'kabataanVotingHistory',
+                votingFrequency: 'kabataanVotingFrequency',
+                nationalVoter: 'kabataanRegisteredNationalVoter',
+                kkAssembly: 'kabataanAttendedKKAssembly',
+                votingReason: 'kabataanVotingReason',
+                clearBtn: null,
+                emailRequired: false,
+            };
+        }
+
+        return {
+            lastName: 'kkEditLastName',
+            firstName: 'kkEditFirstName',
+            middleName: 'kkEditMiddleName',
+            suffix: 'kkEditSuffix',
+            customSuffix: 'kkEditCustomSuffix',
+            customSuffixWrap: 'kkEditCustomSuffixWrap',
+            purok: 'kkEditPurokZone',
+            age: 'kkEditAgeInput',
+            dob: 'kkEditDob',
+            email: 'kkEditEmail',
+            contact: 'kkEditContactInput',
+            sex: 'kkEditSex',
+            civilStatus: 'kkEditCivilStatus',
+            youthAgeGroup: 'kkEditYouthAgeGroup',
+            education: 'kkEditEducationalBackground',
+            youthClassification: 'kkEditYouthClassification',
+            workStatus: 'kkEditWorkStatus',
+            skVoter: 'kkEditRegisteredSKVoter',
+            votingHistory: 'kkEditVotingHistory',
+            votingFrequency: 'kkEditVotingFrequency',
+            nationalVoter: 'kkEditRegisteredNationalVoter',
+            kkAssembly: 'kkEditAttendedKKAssembly',
+            votingReason: 'kkEditVotingReason',
+            clearBtn: 'kkEditClearDataBtn',
+            emailRequired: true,
+        };
     }
 
     /**
@@ -354,20 +568,21 @@
      */
     function initKmEditValidation(rootElement) {
         const root = rootElement || document.getElementById('kkProfilingEditRoot') || document;
+        const ids = resolveKmFieldIds(root);
 
-        const lastNameInput = root.querySelector('#kkEditLastName');
-        const firstNameInput = root.querySelector('#kkEditFirstName');
-        const middleNameInput = root.querySelector('#kkEditMiddleName');
-        const suffixSelect = root.querySelector('#kkEditSuffix');
-        const customSuffixInput = root.querySelector('#kkEditCustomSuffix');
-        const customSuffixWrap = root.querySelector('#kkEditCustomSuffixWrap');
-        const purokInput = root.querySelector('#kkEditPurokZone');
-        const ageSelect = root.querySelector('#kkEditAgeInput');
-        const dobInput = root.querySelector('#kkEditDob');
-        const emailInput = root.querySelector('#kkEditEmail');
-        const contactInput = root.querySelector('#kkEditContactInput');
+        const lastNameInput = root.querySelector('#' + ids.lastName);
+        const firstNameInput = root.querySelector('#' + ids.firstName);
+        const middleNameInput = root.querySelector('#' + ids.middleName);
+        const suffixSelect = root.querySelector('#' + ids.suffix);
+        const customSuffixInput = root.querySelector('#' + ids.customSuffix);
+        const customSuffixWrap = root.querySelector('#' + ids.customSuffixWrap);
+        const purokInput = root.querySelector('#' + ids.purok);
+        const ageSelect = root.querySelector('#' + ids.age);
+        const dobInput = root.querySelector('#' + ids.dob);
+        const emailInput = root.querySelector('#' + ids.email);
+        const contactInput = root.querySelector('#' + ids.contact);
 
-        // Name fields: sanitize and validate in real-time
+        // Name fields: sanitize and validate in real-time with 50-char confirmation
         [
             { el: lastNameInput, fn: kkpValidateLastName },
             { el: firstNameInput, fn: kkpValidateFirstName },
@@ -377,6 +592,14 @@
             el.dataset.kmValBound = '1';
 
             el.addEventListener('input', () => {
+                const currentLength = el.value.length;
+                const fieldId = el.id;
+                
+                // Check if we need confirmation for 50+ characters
+                if (currentLength === KKP_NAME_WARNING_THRESHOLD && !confirmedLongNames.has(fieldId)) {
+                    showLongNameConfirmation(el, fieldId);
+                }
+                
                 const sanitized = kkpSanitizeNameInput(el.value);
                 if (el.value !== sanitized) {
                     el.value = sanitized;
@@ -424,27 +647,26 @@
             });
         }
 
-        // Purok validation
+        // Purok validation (optional for edit form)
         if (purokInput && purokInput.dataset.kmValBound !== '1') {
             purokInput.dataset.kmValBound = '1';
             const validatePurok = () => {
                 const v = (purokInput.value || '').trim();
-                if (!v) showFieldError(purokInput, 'Purok/Zone is required.');
-                else clearFieldError(purokInput);
+                // Purok is optional in edit form, only validate if provided
+                if (v && v.length > 100) {
+                    showFieldError(purokInput, 'Purok/Zone must not exceed 100 characters.');
+                } else {
+                    clearFieldError(purokInput);
+                }
             };
             purokInput.addEventListener('input', validatePurok);
             purokInput.addEventListener('change', validatePurok);
             purokInput.addEventListener('blur', validatePurok);
         }
 
-        // Contact input: 09 prefix & real-time checking
+        // Contact input: handle multiple PH mobile formats
         if (contactInput && contactInput.dataset.kmValBound !== '1') {
             contactInput.dataset.kmValBound = '1';
-            if (!contactInput.value) contactInput.value = '09';
-
-            contactInput.addEventListener('focus', function () {
-                if (!this.value) this.value = '09';
-            });
 
             const validateContact = () => {
                 const msg = kkpValidateContact(contactInput.value, false);
@@ -453,22 +675,38 @@
             };
 
             contactInput.addEventListener('input', function () {
-                let value = (this.value || '').replace(/\D/g, '');
-                if (!value.startsWith('09')) {
-                    value = value.startsWith('9') ? `0${value}` : `09${value.replace(/^0+/, '')}`;
+                let value = (this.value || '').replace(/\D/g, ''); // Remove all non-digits
+                
+                // Enforce exactly 11 digits starting with 09
+                if (value.length > 11) {
+                    value = value.slice(0, 11);
                 }
-                this.value = value.slice(0, 11);
+                
+                // If user starts typing 9, auto-add 0 prefix
+                if (value.length === 1 && value === '9') {
+                    value = '0' + value;
+                }
+                
+                this.value = value;
                 validateContact();
             });
 
-            contactInput.addEventListener('blur', validateContact);
+            contactInput.addEventListener('blur', function () {
+                // Ensure it's exactly 09XXXXXXXXX format
+                let value = (this.value || '').replace(/\D/g, '');
+                if (value.length === 10 && value.startsWith('9')) {
+                    value = '0' + value;
+                }
+                this.value = value;
+                validateContact();
+            });
         }
 
-        // Email input
+        // Email input (required in edit form)
         if (emailInput && emailInput.dataset.kmValBound !== '1') {
             emailInput.dataset.kmValBound = '1';
             const validateEmail = (strict = false) => {
-                const msg = kkpValidateEmail(emailInput.value, true, { strict });
+                const msg = kkpValidateEmail(emailInput.value, true, { strict, required: true });
                 if (msg) showFieldError(emailInput, msg);
                 else clearFieldError(emailInput);
             };
@@ -479,6 +717,21 @@
         // Birthday & Age synchronization
         if (dobInput && dobInput.dataset.kmValBound !== '1') {
             dobInput.dataset.kmValBound = '1';
+            
+            // Set dynamic date range for 15-30 age requirement
+            const setBirthdayRange = () => {
+                const today = new Date();
+                // Min date: 30 years ago (oldest allowed)
+                const minDate = new Date(today.getFullYear() - 30, today.getMonth(), today.getDate());
+                // Max date: 15 years ago (youngest allowed)
+                const maxDate = new Date(today.getFullYear() - 15, today.getMonth(), today.getDate());
+                
+                dobInput.min = minDate.toISOString().split('T')[0];
+                dobInput.max = maxDate.toISOString().split('T')[0];
+            };
+            
+            setBirthdayRange();
+            
             dobInput.addEventListener('change', () => {
                 const info = calculateAgeFromBirthday(dobInput.value);
                 if (!info) return;
@@ -500,9 +753,9 @@
                     ageSelect.value = String(age);
                     clearFieldError(ageSelect);
                 }
-                const youthAgeGroupEl = root.querySelector('#kkEditYouthAgeGroup');
+                const youthAgeGroupEl = root.querySelector('#' + ids.youthAgeGroup);
                 if (youthAgeGroupEl && typeof window.setCheckboxGroupByHiddenId === 'function') {
-                    window.setCheckboxGroupByHiddenId('kkEditYouthAgeGroup', youthAgeGroupFromAge(age));
+                    window.setCheckboxGroupByHiddenId(ids.youthAgeGroup, youthAgeGroupFromAge(age));
                 }
             });
         }
@@ -541,6 +794,15 @@
                 if (left) left.querySelectorAll('.kkp-section-error').forEach((e) => e.remove());
             });
         });
+
+        // Clear Data button functionality
+        const clearDataBtn = ids.clearBtn ? root.querySelector('#' + ids.clearBtn) : null;
+        if (clearDataBtn && clearDataBtn.dataset.kmValBound !== '1') {
+            clearDataBtn.dataset.kmValBound = '1';
+            clearDataBtn.addEventListener('click', () => {
+                showClearDataConfirmation(root);
+            });
+        }
     }
 
     /**
@@ -548,6 +810,7 @@
      */
     function validateKmEditForm(rootElement) {
         const root = rootElement || document.getElementById('kkProfilingEditRoot') || document;
+        const ids = resolveKmFieldIds(root);
 
         // Clear previous errors
         root.querySelectorAll('.kkp-field-error').forEach((el) => el.remove());
@@ -561,7 +824,7 @@
         }
 
         // 1. Last Name
-        const lastName = root.querySelector('#kkEditLastName');
+        const lastName = root.querySelector('#' + ids.lastName);
         const lastNameMsg = kkpValidateLastName(lastName?.value, true);
         if (lastNameMsg) {
             errors.push(lastNameMsg);
@@ -569,7 +832,7 @@
         }
 
         // 2. First Name
-        const firstName = root.querySelector('#kkEditFirstName');
+        const firstName = root.querySelector('#' + ids.firstName);
         const firstNameMsg = kkpValidateFirstName(firstName?.value, true);
         if (firstNameMsg) {
             errors.push(firstNameMsg);
@@ -577,7 +840,7 @@
         }
 
         // 3. Middle Name
-        const middleName = root.querySelector('#kkEditMiddleName');
+        const middleName = root.querySelector('#' + ids.middleName);
         const middleNameMsg = kkpValidateMiddleName(middleName?.value, true);
         if (middleNameMsg) {
             errors.push(middleNameMsg);
@@ -585,8 +848,8 @@
         }
 
         // 4. Suffix
-        const suffix = root.querySelector('#kkEditSuffix');
-        const customSuffix = root.querySelector('#kkEditCustomSuffix');
+        const suffix = root.querySelector('#' + ids.suffix);
+        const customSuffix = root.querySelector('#' + ids.customSuffix);
         const suffixValue = (suffix?.value || '').trim();
         if (!suffix || !suffixValue) {
             errors.push('Suffix is required.');
@@ -605,21 +868,21 @@
             }
         }
 
-        // 5. Purok/Zone
-        const purok = root.querySelector('#kkEditPurokZone');
-        if (!purok || !purok.value.trim()) {
-            errors.push('Purok/Zone is required.');
-            showFieldError(purok, 'Purok/Zone is required.');
+        // 5. Purok/Zone (optional in edit form)
+        const purok = root.querySelector('#' + ids.purok);
+        if (purok && purok.value.trim() && purok.value.trim().length > 100) {
+            errors.push('Purok/Zone must not exceed 100 characters.');
+            showFieldError(purok, 'Purok/Zone must not exceed 100 characters.');
         }
 
         // 6. Sex
-        if (!hiddenVal('kkEditSex')) {
+        if (!hiddenVal(ids.sex)) {
             errors.push('Sex Assigned by Birth is required.');
             personalLeftError('Please select Sex Assigned by Birth.', root);
         }
 
         // 7. Age
-        const age = root.querySelector('#kkEditAgeInput');
+        const age = root.querySelector('#' + ids.age);
         const ageVal = parseInt(age?.value, 10);
         if (!age || !age.value.trim() || isNaN(ageVal)) {
             errors.push('Age is required.');
@@ -630,7 +893,7 @@
         }
 
         // 8. Birthday
-        const birthday = root.querySelector('#kkEditDob');
+        const birthday = root.querySelector('#' + ids.dob);
         if (!birthday || !birthday.value.trim()) {
             errors.push('Birthday is required.');
             showFieldError(birthday, 'Birthday is required.');
@@ -658,82 +921,88 @@
         }
 
         // 9. Email
-        const email = root.querySelector('#kkEditEmail');
-        if (email && email.value.trim()) {
-            const emailMsg = kkpValidateEmail(email.value, true, { strict: true });
-            if (emailMsg) {
-                errors.push(emailMsg);
-                showFieldError(email, emailMsg);
-            }
+        const email = root.querySelector('#' + ids.email);
+        const emailMsg = kkpValidateEmail(email?.value || '', true, { strict: true, required: ids.emailRequired });
+        if (emailMsg) {
+            errors.push(emailMsg);
+            showFieldError(email, emailMsg);
         }
 
-        // 10. Contact #
-        const contact = root.querySelector('#kkEditContactInput');
+        // 10. Contact # (required in edit form)
+        const contact = root.querySelector('#' + ids.contact);
         const contactErr = kkpValidateContact(contact?.value || '', true);
         if (contactErr) {
             errors.push(contactErr);
             showFieldError(contact, contactErr);
+        } else {
+            // Ensure contact is in 09XXXXXXXXX format before submission
+            if (contact && contact.value) {
+                const normalized = contact.value.replace(/\D/g, '');
+                if (normalized.length === 10 && normalized.startsWith('9')) {
+                    contact.value = '0' + normalized;
+                }
+            }
         }
 
         // 11. Civil Status
-        if (!hiddenVal('kkEditCivilStatus')) {
+        if (!hiddenVal(ids.civilStatus)) {
             errors.push('Civil Status is required.');
-            demoBlockError('kkEditCivilStatus', 'Please select Civil Status.', root);
+            demoBlockError(ids.civilStatus, 'Please select Civil Status.', root);
         }
 
         // 12. Youth Age Group
-        if (!hiddenVal('kkEditYouthAgeGroup')) {
+        if (!hiddenVal(ids.youthAgeGroup)) {
             errors.push('Youth Age Group is required.');
-            demoBlockError('kkEditYouthAgeGroup', 'Please select Youth Age Group.', root);
+            demoBlockError(ids.youthAgeGroup, 'Please select Youth Age Group.', root);
         }
 
         // 13. Educational Background
-        if (!hiddenVal('kkEditEducationalBackground')) {
+        if (!hiddenVal(ids.education)) {
             errors.push('Educational Background is required.');
-            demoBlockError('kkEditEducationalBackground', 'Please select Educational Background.', root);
+            demoBlockError(ids.education, 'Please select Educational Background.', root);
         }
 
         // 14. Youth Classification
-        if (!hiddenVal('kkEditYouthClassification')) {
+        if (!hiddenVal(ids.youthClassification)) {
             errors.push('Youth Classification is required.');
-            demoBlockError('kkEditYouthClassification', 'Please select Youth Classification.', root);
+            demoBlockError(ids.youthClassification, 'Please select Youth Classification.', root);
         }
 
         // 15. Work Status
-        if (!hiddenVal('kkEditWorkStatus')) {
+        if (!hiddenVal(ids.workStatus)) {
             errors.push('Work Status is required.');
-            demoBlockError('kkEditWorkStatus', 'Please select Work Status.', root);
+            demoBlockError(ids.workStatus, 'Please select Work Status.', root);
         }
 
         // 16. Registered SK Voter
-        if (!hiddenVal('kkEditRegisteredSKVoter')) {
+        if (!hiddenVal(ids.skVoter)) {
             errors.push('Registered SK Voter is required.');
-            demoBlockError('kkEditRegisteredSKVoter', 'Please select Yes or No.', root);
+            demoBlockError(ids.skVoter, 'Please select Yes or No.', root);
         }
 
         // 17. Did you vote last SK
-        if (!hiddenVal('kkEditVotingHistory')) {
+        if (!hiddenVal(ids.votingHistory)) {
             errors.push('Did you vote last SK is required.');
-            demoBlockError('kkEditVotingHistory', 'Please select Yes or No.', root);
+            demoBlockError(ids.votingHistory, 'Please select Yes or No.', root);
         }
 
         // 18. Registered National Voter
-        if (!hiddenVal('kkEditRegisteredNationalVoter')) {
+        if (!hiddenVal(ids.nationalVoter)) {
             errors.push('Registered National Voter is required.');
-            demoBlockError('kkEditRegisteredNationalVoter', 'Please select Yes or No.', root);
+            demoBlockError(ids.nationalVoter, 'Please select Yes or No.', root);
         }
 
         // 19. KK Assembly (conditional follow-up)
-        const kkAssemblyVal = hiddenVal('kkEditAttendedKKAssembly');
+        const kkAssemblyVal = hiddenVal(ids.kkAssembly);
         if (!kkAssemblyVal) {
             errors.push('Have you attended a KK Assembly is required.');
-            demoBlockError('kkEditAttendedKKAssembly', 'Please select Yes or No.', root);
-        } else if (kkAssemblyVal === 'Yes' && !hiddenVal('kkEditVotingFrequency')) {
+            demoBlockError(ids.kkAssembly, 'Please select Yes or No.', root);
+        } else if (kkAssemblyVal === 'Yes' && !hiddenVal(ids.votingFrequency)) {
             errors.push('KK Assembly attendance count is required.');
-            demoBlockError('kkEditVotingFrequency', 'Please select number of times attended.', root);
-        } else if (kkAssemblyVal === 'No' && !hiddenVal('kkEditVotingReason')) {
+            demoBlockError(ids.votingFrequency, 'Please select number of times attended.', root);
+        } else if (kkAssemblyVal === 'No' && !hiddenVal(ids.votingReason)) {
             errors.push('KK Assembly reason is required.');
-            demoBlockError('kkEditVotingReason', 'Please select a reason.', root);
+            demoBlockError(ids.votingReason, 'Please select a reason.', root);
         }
 
         // Scroll to first error if any
@@ -748,8 +1017,113 @@
         return true;
     }
 
+    function showClearDataConfirmation(rootElement) {
+        // Create modal if it doesn't exist
+        let modal = document.getElementById('kkpClearDataConfirmModal');
+        if (!modal) {
+            modal = document.createElement('div');
+            modal.id = 'kkpClearDataConfirmModal';
+            modal.className = 'kkp-confirm-modal';
+            modal.setAttribute('role', 'dialog');
+            modal.setAttribute('aria-modal', 'true');
+            modal.innerHTML = `
+                <div class="kkp-confirm-modal-content">
+                    <div class="kkp-confirm-modal-header">
+                        <h3>Clear all data?</h3>
+                        <button type="button" class="kkp-confirm-modal-close" aria-label="Close">&times;</button>
+                    </div>
+                    <div class="kkp-confirm-modal-body">
+                        <p>Are you sure you want to clear all entered data? This action cannot be undone.</p>
+                    </div>
+                    <div class="kkp-confirm-modal-footer">
+                        <button type="button" class="kkp-confirm-btn kkp-confirm-btn-cancel">Cancel</button>
+                        <button type="button" class="kkp-confirm-btn kkp-confirm-btn-continue">Clear Data</button>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(modal);
+
+            // Add event listeners
+            const closeBtn = modal.querySelector('.kkp-confirm-modal-close');
+            const cancelBtn = modal.querySelector('.kkp-confirm-btn-cancel');
+            const clearBtn = modal.querySelector('.kkp-confirm-btn-continue');
+
+            const closeModal = () => {
+                modal.style.display = 'none';
+            };
+
+            closeBtn.addEventListener('click', closeModal);
+            cancelBtn.addEventListener('click', closeModal);
+
+            clearBtn.addEventListener('click', () => {
+                const root = rootElement || document.getElementById('kkProfilingEditRoot') || document;
+                clearKmEditFormData(root);
+                closeModal();
+            });
+
+            // Close on escape key
+            modal.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape') closeModal();
+            });
+        }
+
+        // Show modal
+        modal.style.display = 'flex';
+    }
+
+    function clearKmEditFormData(rootElement) {
+        const root = rootElement || document.getElementById('kkProfilingEditRoot') || document;
+
+        // Clear all text inputs
+        root.querySelectorAll('input[type="text"], input[type="email"], input[type="tel"], input[type="date"]').forEach((input) => {
+            if (!input.readOnly) {
+                input.value = '';
+            }
+        });
+
+        // Clear all selects
+        root.querySelectorAll('select').forEach((select) => {
+            if (!select.disabled) {
+                select.selectedIndex = 0;
+            }
+        });
+
+        // Clear all checkboxes
+        root.querySelectorAll('input[type="checkbox"]').forEach((checkbox) => {
+            checkbox.checked = false;
+        });
+
+        // Clear hidden fields
+        root.querySelectorAll('input[type="hidden"]').forEach((hidden) => {
+            hidden.value = '';
+        });
+
+        // Clear all validation errors
+        root.querySelectorAll('.kkp-field-error').forEach((error) => error.remove());
+        root.querySelectorAll('.kkp-input-err').forEach((input) => input.classList.remove('kkp-input-err'));
+
+        // Reset confirmation states
+        confirmedLongNames.clear();
+
+        const ids = resolveKmFieldIds(root);
+
+        // Trigger custom suffix hide
+        const suffixSelect = root.querySelector('#' + ids.suffix);
+        const customSuffixWrap = root.querySelector('#' + ids.customSuffixWrap);
+        if (suffixSelect && customSuffixWrap) {
+            suffixSelect.value = 'None';
+            customSuffixWrap.classList.remove('show');
+        }
+    }
+
     window.initKmEditValidation = initKmEditValidation;
     window.validateKmEditForm = validateKmEditForm;
+    window.initKabataanAddValidation = function (rootElement) {
+        initKmEditValidation(rootElement);
+    };
+    window.validateKabataanAddForm = function (rootElement) {
+        return validateKmEditForm(rootElement);
+    };
     window.kkpValidateEmail = kkpValidateEmail;
     window.kkpValidateContact = kkpValidateContact;
     window.kkpSanitizeNameInput = kkpSanitizeNameInput;

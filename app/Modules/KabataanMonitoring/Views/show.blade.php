@@ -54,7 +54,7 @@
                     <p>The requested kabataan profile is not available in this prototype dataset.</p>
                 </div>
                 <a class="km-btn" href="{{ route('kabataan-monitoring') }}">
-                    <i class="fas fa-arrow-left"></i> Back to Kabataan Monitoring
+                    <i class="fas fa-arrow-left"></i> Back to KK Profiling Records
                 </a>
             </section>
         </div>

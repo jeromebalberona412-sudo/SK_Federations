@@ -1,6 +1,6 @@
 @extends('layout::app')
 
-@section('title', 'Barangay Monitoring - SK Federation')
+@section('title', 'Barangay Compliance - SK Federation')
 
 @push('main-class')
     bm-main
@@ -16,7 +16,7 @@
                 <article class="bm-kpi-card">
                     <div class="bm-kpi-icon bm-kpi-icon--blue"><i class="fas fa-map-marked-alt"></i></div>
                     <div class="bm-kpi-body">
-                        <div class="bm-kpi-label">Total Barangay</div>
+                        <div class="bm-kpi-label">Total Barangays</div>
                         <div class="bm-kpi-value">{{ $stats['total_barangays'] }}</div>
                     </div>
                 </article>
@@ -28,31 +28,17 @@
                     </div>
                 </article>
                 <article class="bm-kpi-card">
+                    <div class="bm-kpi-icon bm-kpi-icon--amber"><i class="fas fa-clock"></i></div>
+                    <div class="bm-kpi-body">
+                        <div class="bm-kpi-label">ABYIP Pending</div>
+                        <div class="bm-kpi-value">{{ $stats['pending_count'] ?? 0 }}</div>
+                    </div>
+                </article>
+                <article class="bm-kpi-card">
                     <div class="bm-kpi-icon bm-kpi-icon--green"><i class="fas fa-check-circle"></i></div>
                     <div class="bm-kpi-body">
                         <div class="bm-kpi-label">Submission Rate</div>
                         <div class="bm-kpi-value">{{ $stats['submission_rate'] }}%</div>
-                    </div>
-                </article>
-                <article class="bm-kpi-card">
-                    <div class="bm-kpi-icon bm-kpi-icon--green"><i class="fas fa-thumbs-up"></i></div>
-                    <div class="bm-kpi-body">
-                        <div class="bm-kpi-label">Total Submitted</div>
-                        <div class="bm-kpi-value">{{ $stats['submitted_count'] }}</div>
-                    </div>
-                </article>
-                <article class="bm-kpi-card">
-                    <div class="bm-kpi-icon bm-kpi-icon--rose"><i class="fas fa-exclamation-triangle"></i></div>
-                    <div class="bm-kpi-body">
-                        <div class="bm-kpi-label">Not Submitted Rate</div>
-                        <div class="bm-kpi-value">{{ $stats['not_submitted_rate'] }}%</div>
-                    </div>
-                </article>
-                <article class="bm-kpi-card">
-                    <div class="bm-kpi-icon bm-kpi-icon--amber"><i class="fas fa-times-circle"></i></div>
-                    <div class="bm-kpi-body">
-                        <div class="bm-kpi-label">Total Not Submitted</div>
-                        <div class="bm-kpi-value">{{ $stats['not_submitted_count'] }}</div>
                     </div>
                 </article>
             </section>
@@ -169,8 +155,12 @@
                                     <span class="bm-status {{ $barangay['status'] }}">{{ $statusLabel }}</span>
                                 </div>
                                 @if(!empty($barangay['submitted_by']))
+                                    @php
+                                        $listSubmittedBy = (string) $barangay['submitted_by'];
+                                        $listSubmittedByShort = \Illuminate\Support\Str::limit($listSubmittedBy, 22, '...');
+                                    @endphp
                                     <div class="bm-list-meta">
-                                        <span><i class="fas fa-user"></i> Submitted by: {{ $barangay['submitted_by'] }}@if(!empty($barangay['submitted_by_role'])) <span class="bm-submitted-role">({{ $barangay['submitted_by_role'] }})</span>@endif</span>
+                                        <span><i class="fas fa-user"></i> Submitted by: {{ $listSubmittedByShort }}@if(!empty($barangay['submitted_by_role'])) <span class="bm-submitted-role">({{ $barangay['submitted_by_role'] }})</span>@endif</span>
                                     </div>
                                 @endif
                                 <div class="bm-list-foot">
@@ -198,8 +188,6 @@
                     $createdByRole = trim((string) ($abyipSchedule['created_by_role'] ?? ''));
                     $showCreatedBy = $createdBy !== '' && $createdBy !== '—';
                     $showCreatedByRole = $createdByRole !== '' && $createdByRole !== '—';
-                    $originalDeadline = trim((string) ($abyipSchedule['original_deadline'] ?? ''));
-                    $showOriginalDeadline = $originalDeadline !== '' && $originalDeadline !== ($abyipSchedule['deadline'] ?? '');
                 @endphp
                 <div class="bm-schedule-current">
                     <div class="bm-schedule-current-head">
@@ -215,12 +203,6 @@
                             <p class="bm-schedule-label">Deadline</p>
                             <p class="bm-schedule-value">{{ $abyipSchedule['deadline'] }}</p>
                         </div>
-                        @if($showOriginalDeadline)
-                        <div class="bm-schedule-item">
-                            <p class="bm-schedule-label">Original Deadline</p>
-                            <p class="bm-schedule-value">{{ $originalDeadline }}</p>
-                        </div>
-                        @endif
                         @if($showCreatedBy)
                         <div class="bm-schedule-item">
                             <p class="bm-schedule-label">Created By</p>

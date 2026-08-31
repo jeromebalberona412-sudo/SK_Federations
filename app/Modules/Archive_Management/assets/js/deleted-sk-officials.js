@@ -19,12 +19,16 @@ function escapeDsoHtml(value) {
 }
 
 function dsoProfileGroup(iconClass, title, fields) {
-    const cells = fields.map(([label, value]) => `
+    const cells = fields.map(([label, value, fieldType]) => {
+        if (fieldType === 'fullname' && window.ArchiveRowActions) {
+            return ArchiveRowActions.fullNameFieldHtml(label, value);
+        }
+        return `
         <div class="account-profile-field">
             <label>${escapeDsoHtml(label)}</label>
             <p>${escapeDsoHtml(value || '-')}</p>
-        </div>
-    `).join('');
+        </div>`;
+    }).join('');
 
     return `
         <div class="account-profile-group">
@@ -52,10 +56,20 @@ let dsoActivePosition = '';
 let dsoActiveTerm = '';
 let dsoYearFilter = 'all';
 let dsoIsLoading = false;
+let dsoNameSortDir = null;
 
 const DSO_POLL_MS = 20000;
 
 function initDeletedSkOfficials() {
+    ArchiveRowActions.initGlobalClose();
+    ArchiveFullnameSort.init({
+        onSort: (dir) => {
+            dsoNameSortDir = dir;
+            dsoCurrentPage = 1;
+            renderDsoTable();
+        },
+        getCurrentDir: () => dsoNameSortDir,
+    });
     bindDsoSearch();
     bindDsoFilterTabs();
     bindDsoDropdowns();
@@ -205,15 +219,25 @@ function bindDsoFilterTabs() {
     });
 }
 
+function getDsoSortedRecords() {
+    const list = [...dsoFiltered];
+    if (!dsoNameSortDir) return list;
+    list.sort((a, b) => {
+        const cmp = formatRecordName(a).localeCompare(formatRecordName(b), undefined, { sensitivity: 'base' });
+        return dsoNameSortDir === 'asc' ? cmp : -cmp;
+    });
+    return list;
+}
+
 function renderDsoTable() {
     const tbody = document.getElementById('dsoTableBody');
     const info = document.getElementById('dsoPaginationInfo');
     if (!tbody) return;
 
-    dsoFiltered = [...dsoRecords];
+    const sorted = getDsoSortedRecords();
     const start = (dsoCurrentPage - 1) * dsoPerPage;
     const end = start + dsoPerPage;
-    const page = dsoFiltered.slice(start, end);
+    const page = sorted.slice(start, end);
 
     if (dsoFiltered.length === 0) {
         tbody.innerHTML = '<tr class="dso-empty-row"><td colspan="8">No deleted SK Officials records found.</td></tr>';
@@ -234,10 +258,7 @@ function renderDsoTable() {
             <td><span class="dso-deleted-badge">${r.deletedDate}</span></td>
             <td><span class="dso-time-badge">${r.deletedTime}</span></td>
             <td>
-                <div class="dso-action-btns">
-                    <button type="button" class="dso-btn-view" data-id="${r.id}">View</button>
-                    <button type="button" class="dso-btn-restore" data-id="${r.id}">Restore</button>
-                </div>
+                ${ArchiveRowActions.renderMenu(r.id, { view: true, restore: true })}
             </td>
         </tr>`;
     }).join('');
@@ -245,11 +266,9 @@ function renderDsoTable() {
     if (info) info.textContent = `${dsoFiltered.length} record${dsoFiltered.length === 1 ? '' : 's'}`;
     renderDsoPagination(dsoFiltered.length);
 
-    tbody.querySelectorAll('.dso-btn-restore').forEach((btn) => {
-        btn.addEventListener('click', () => openDsoRestoreModal(btn.dataset.id));
-    });
-    tbody.querySelectorAll('.dso-btn-view').forEach((btn) => {
-        btn.addEventListener('click', () => openDsoViewModal(btn.dataset.id));
+    ArchiveRowActions.bind(tbody, (action, id) => {
+        if (action === 'view') openDsoViewModal(id);
+        if (action === 'restore') openDsoRestoreModal(id);
     });
 }
 
@@ -321,8 +340,8 @@ function openDsoViewModal(id) {
     body.innerHTML = `
         <div class="account-modal-card">
             ${dsoProfileGroup('fa-user', 'Personal Information', [
-                ['Full Name', formatRecordName(r)],
-                ['Sex', r.sex],
+                ['Full Name', formatRecordName(r), 'fullname'],
+                ['Sex', r.sex || '-'],
                 ['Date of Birth', r.dateOfBirth],
                 ['Age', r.age],
                 ['Contact Number', r.contactNumber],
@@ -352,40 +371,7 @@ function openDsoViewModal(id) {
 }
 
 function bindDsoViewModal() {
-    const modal = document.getElementById('dsoViewModal');
-    const box = document.getElementById('dsoViewModalBox');
-    const closeBtn = document.getElementById('dsoViewClose');
-    const closeFooterBtn = document.getElementById('dsoViewCloseFooter');
-    const toggleBtn = document.getElementById('dsoViewToggle');
-    const toggleIcon = document.getElementById('dsoViewToggleIcon');
-
-    const close = () => {
-        if (modal) {
-            modal.style.display = 'none';
-            modal.classList.remove('dso-maximized');
-        }
-        if (box) box.classList.remove('dso-maximized');
-        if (toggleBtn) toggleBtn.title = 'Maximize';
-        if (toggleIcon) toggleIcon.innerHTML = '<path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"></path>';
-        document.body.classList.remove('dso-modal-open');
-    };
-
-    closeBtn?.addEventListener('click', close);
-    closeFooterBtn?.addEventListener('click', close);
-    modal?.addEventListener('click', (e) => { if (e.target === modal) close(); });
-
-    toggleBtn?.addEventListener('click', (e) => {
-        e.stopPropagation();
-        const isMax = !box?.classList.contains('dso-maximized');
-        modal?.classList.toggle('dso-maximized', isMax);
-        box?.classList.toggle('dso-maximized', isMax);
-        toggleBtn.title = isMax ? 'Restore Down' : 'Maximize';
-        if (toggleIcon) {
-            toggleIcon.innerHTML = isMax
-                ? '<path d="M4 14h6v6"></path><path d="M20 10h-6V4"></path><path d="M14 10l7-7"></path><path d="M3 21l7-7"></path>'
-                : '<path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"></path>';
-        }
-    });
+    ArchiveRowActions.bindViewModalControls('dso', { bodyClass: 'dso-modal-open' });
 }
 
 function openDsoRestoreModal(id) {

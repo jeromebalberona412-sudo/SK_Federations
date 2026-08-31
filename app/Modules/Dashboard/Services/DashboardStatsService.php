@@ -9,6 +9,7 @@ use App\Modules\Accounts\Services\ChairpersonFederationSyncService;
 use App\Modules\Accounts\Services\FederationRosterService;
 use App\Modules\AuditLog\Services\AuditLogQueryService;
 use App\Modules\Shared\Models\User;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Schema;
 
@@ -28,8 +29,12 @@ class DashboardStatsService
     public function __construct(
         private readonly ChairpersonFederationSyncService $chairpersonFederationSyncService,
         private readonly FederationRosterService $federationRosterService,
-    ) {
-    }
+    ) {}
+
+    /** @var Collection<int, KabataanRegistration>|null */
+    private ?Collection $cachedKabataanRecords = null;
+
+    private ?int $cachedKabataanTenantId = null;
 
     public function totalKabataanRegistered(?int $tenantId = null): int
     {
@@ -153,10 +158,7 @@ class DashboardStatsService
             return [];
         }
 
-        $records = $this->activeKabataanQuery($tenantId)
-            ->with('barangay:id,name')
-            ->get(['id', 'barangay_id', 'form_data']);
-
+        $records = $this->cachedActiveKabataanRecords($tenantId);
         $counts = [];
 
         foreach ($records as $record) {
@@ -201,6 +203,29 @@ class DashboardStatsService
             ->get(['id', 'name']);
     }
 
+    public function dashboardYear(?int $tenantId): int
+    {
+        $currentYear = (int) now()->year;
+
+        if (! Schema::hasTable('kabataan_registrations')) {
+            return $currentYear;
+        }
+
+        $query = KabataanRegistration::query()->whereNull('deleted_at');
+
+        if ($tenantId !== null) {
+            $query->where('tenant_id', $tenantId);
+        }
+
+        $latest = $query
+            ->orderByRaw('COALESCE(reviewed_at, created_at) DESC')
+            ->first(['reviewed_at', 'created_at']);
+
+        $date = $latest?->reviewed_at ?? $latest?->created_at;
+
+        return $date ? (int) $date->format('Y') : $currentYear;
+    }
+
     /**
      * @return list<array{position: string, name: string, barangay: string}>
      */
@@ -240,7 +265,7 @@ class DashboardStatsService
     }
 
     /**
-     * @return \Illuminate\Database\Eloquent\Builder<KabataanRegistration>
+     * @return Builder<KabataanRegistration>
      */
     private function activeKabataanQuery(?int $tenantId)
     {
@@ -265,14 +290,33 @@ class DashboardStatsService
     /**
      * @return Collection<int, KabataanRegistration>
      */
-    private function activeKabataanRecords(?int $tenantId): Collection
+    private function cachedActiveKabataanRecords(?int $tenantId): Collection
     {
-        if (! Schema::hasTable('kabataan_registrations')) {
-            return collect();
+        if ($this->cachedKabataanRecords !== null && $this->cachedKabataanTenantId === $tenantId) {
+            return $this->cachedKabataanRecords;
         }
 
-        return $this->activeKabataanQuery($tenantId)
-            ->get(['id', 'form_data']);
+        if (! Schema::hasTable('kabataan_registrations')) {
+            $this->cachedKabataanTenantId = $tenantId;
+            $this->cachedKabataanRecords = collect();
+
+            return $this->cachedKabataanRecords;
+        }
+
+        $this->cachedKabataanTenantId = $tenantId;
+        $this->cachedKabataanRecords = $this->activeKabataanQuery($tenantId)
+            ->with('barangay:id,name')
+            ->get(['id', 'barangay_id', 'form_data']);
+
+        return $this->cachedKabataanRecords;
+    }
+
+    /**
+     * @return Collection<int, KabataanRegistration>
+     */
+    private function activeKabataanRecords(?int $tenantId): Collection
+    {
+        return $this->cachedActiveKabataanRecords($tenantId);
     }
 
     /**

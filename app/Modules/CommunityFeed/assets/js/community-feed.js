@@ -8,6 +8,8 @@ let pendingFiles = [];
 let existingImages = [];
 let removedImageIds = [];
 const MAX_IMAGES = 20;
+const MAX_BODY_LENGTH = 5000;
+const MAX_LINK_LENGTH = 63;
 let lightboxImages = [];
 let lightboxIndex = 0;
 let lightboxZoom = 1;
@@ -1572,6 +1574,7 @@ function editPost(id) {
     document.getElementById('compose-type').value = p.type || 'update';
     document.getElementById('compose-link-input-wrap').style.display = 'none';
     document.getElementById('compose-link-input').value = '';
+    setComposeLinkError('');
     if (p.link_url) {
         document.getElementById('compose-link-input').value = p.link_url;
         document.getElementById('compose-link-input-wrap').style.display = 'block';
@@ -1586,14 +1589,63 @@ function totalSelectedImages() {
     return existingImages.length + pendingFiles.length;
 }
 
+function setComposePostLoading(loading, label) {
+    var btn = document.getElementById('composePostBtn');
+    if (!btn) return;
+    if (loading) {
+        if (!btn.dataset.originalHtml) {
+            btn.dataset.originalHtml = btn.innerHTML;
+        }
+        btn.disabled = true;
+        btn.classList.add('is-loading');
+        btn.innerHTML = '<span class="compose-btn-spinner" aria-hidden="true"></span><span>' + (label || 'Posting...') + '</span>';
+        return;
+    }
+    btn.disabled = false;
+    btn.classList.remove('is-loading');
+    if (btn.dataset.originalHtml) {
+        btn.innerHTML = btn.dataset.originalHtml;
+    }
+}
+
+function isValidPostLink(value) {
+    if (!value) return true;
+    try {
+        var parsed = new URL(value);
+        return parsed.protocol === 'http:' || parsed.protocol === 'https:';
+    } catch (err) {
+        return false;
+    }
+}
+
+function setComposeLinkError(message) {
+    var el = document.getElementById('compose-link-error');
+    if (el) el.textContent = message || '';
+}
+
 function submitPost() {
     var content = document.getElementById('compose-content').value.trim();
     if (!content) { notifyFeed('Please write something.', 'error'); return; }
-    if (content.length > 2000) { notifyFeed('Posts are limited to 2000 characters.', 'error'); return; }
+    if (content.length > MAX_BODY_LENGTH) {
+        notifyFeed('Posts are limited to ' + MAX_BODY_LENGTH + ' characters.', 'error');
+        return;
+    }
 
     var type = document.getElementById('compose-type').value;
     var linkVal = document.getElementById('compose-link-input').value.trim();
     var titleVal = document.getElementById('compose-title') ? document.getElementById('compose-title').value.trim() : '';
+
+    setComposeLinkError('');
+    if (linkVal.length > MAX_LINK_LENGTH) {
+        setComposeLinkError('Links are limited to ' + MAX_LINK_LENGTH + ' characters.');
+        notifyFeed('Links are limited to ' + MAX_LINK_LENGTH + ' characters.', 'error');
+        return;
+    }
+    if (linkVal && !isValidPostLink(linkVal)) {
+        setComposeLinkError('Enter a valid URL starting with http:// or https://');
+        notifyFeed('Enter a valid URL starting with http:// or https://', 'error');
+        return;
+    }
 
     var fd = new FormData();
     fd.append('type', type);
@@ -1612,9 +1664,7 @@ function savePostForm(formData) {
     var method = isEdit ? 'POST' : 'POST';
     if (isEdit) formData.append('_method', 'PUT');
 
-    if (typeof window.showLoading === 'function') {
-        window.showLoading(isEdit ? 'Saving post' : 'Publishing post', 'Please wait');
-    }
+    setComposePostLoading(true, isEdit ? 'Saving...' : 'Posting...');
 
     fetch(url, {
         method: method,
@@ -1623,7 +1673,15 @@ function savePostForm(formData) {
         body: formData,
     })
         .then(function(r) {
-            return r.json().then(function(body) {
+            return r.text().then(function(text) {
+                var body = {};
+                if (text) {
+                    try {
+                        body = JSON.parse(text);
+                    } catch (parseErr) {
+                        body = { message: text.slice(0, 180) || 'Unexpected server response.' };
+                    }
+                }
                 if (!r.ok) {
                     var msg = body.message || (body.errors ? Object.values(body.errors).flat().join(' ') : 'Unable to save post.');
                     throw new Error(msg);
@@ -1637,11 +1695,16 @@ function savePostForm(formData) {
             notifyFeed(isEdit ? 'Post updated successfully.' : 'Post created successfully.');
             renderPosts(true);
         })
-        .catch(function() {
-            notifyFeed(isEdit ? 'Unable to update the post. Please try again.' : 'Unable to create the post. Please try again.', 'error');
+        .catch(function(err) {
+            notifyFeed(
+                err && err.message
+                    ? err.message
+                    : (isEdit ? 'Unable to update the post. Please try again.' : 'Unable to create the post. Please try again.'),
+                'error'
+            );
         })
         .finally(function () {
-            if (typeof window.hideLoading === 'function') window.hideLoading();
+            setComposePostLoading(false);
         });
 }
 
@@ -1659,6 +1722,7 @@ function openComposeModal(type) {
     if (meta) meta.textContent = '';
     document.getElementById('compose-link-input-wrap').style.display = 'none';
     document.getElementById('compose-link-input').value = '';
+    setComposeLinkError('');
     var fileInput = document.getElementById('compose-image-input');
     if (fileInput) fileInput.value = '';
     if (type && document.getElementById('compose-type')) {
@@ -1671,9 +1735,8 @@ function openComposeModal(type) {
     modal.classList.remove('compose-maximized');
     var btn = document.getElementById('composeFullscreenBtn');
     if (btn) {
-        btn.title = 'Full screen';
-        btn.setAttribute('aria-label', 'Full screen');
-        btn.innerHTML = '<svg viewBox="0 0 20 20" fill="currentColor" width="16" height="16"><path d="M3 3h5v2H5v3H3V3zm9 0h5v5h-2V5h-3V3zM3 12h2v3h3v2H3v-5zm12 0h2v5h-5v-2h3v-3z"/></svg>';
+        btn.title = 'Fullscreen (□)';
+        btn.setAttribute('aria-label', 'Fullscreen');
     }
     updateCharCount();
 }
@@ -1704,8 +1767,8 @@ function updateCharCount() {
     var counter = document.getElementById('compose-char-count');
     if (!el || !counter) return;
     var len = el.value.length;
-    counter.textContent = len + ' / 2000';
-    counter.classList.toggle('over-limit', len > 2000);
+    counter.textContent = len + ' / ' + MAX_BODY_LENGTH;
+    counter.classList.toggle('over-limit', len > MAX_BODY_LENGTH);
 }
 
 function previewImages(input) {
@@ -1791,6 +1854,9 @@ function updateImagesMeta() {
 function toggleLinkInput() {
     var wrap = document.getElementById('compose-link-input-wrap');
     wrap.style.display = wrap.style.display === 'none' ? 'block' : 'none';
+    if (wrap.style.display === 'none') {
+        setComposeLinkError('');
+    }
 }
 
 /* ── PROGRAM MODALS ── (defined in blade inline script for success modal support) ── */
@@ -1808,6 +1874,22 @@ document.addEventListener('DOMContentLoaded', function() {
         renderPosts(true);
     }
     document.getElementById('compose-content')?.addEventListener('input', updateCharCount);
+    document.getElementById('compose-link-input')?.addEventListener('input', function () {
+        var linkVal = document.getElementById('compose-link-input').value.trim();
+        if (!linkVal) {
+            setComposeLinkError('');
+            return;
+        }
+        if (linkVal.length > MAX_LINK_LENGTH) {
+            setComposeLinkError('Links are limited to ' + MAX_LINK_LENGTH + ' characters.');
+            return;
+        }
+        if (!isValidPostLink(linkVal)) {
+            setComposeLinkError('Enter a valid URL starting with http:// or https://');
+            return;
+        }
+        setComposeLinkError('');
+    });
     updateCharCount();
     var searchInput = document.getElementById('feedSearchInput');
     if (searchInput) {

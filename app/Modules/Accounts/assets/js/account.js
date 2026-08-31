@@ -109,7 +109,7 @@ window.AccountsDeleteModal = (function () {
         if (!input || !confirmBtn) return;
 
         const value = input.value;
-        const matched = value === 'Confirm';
+        const matched = value === 'DELETE';
 
         if (hintError) hintError.style.display = value.length > 0 && !matched ? 'block' : 'none';
         if (hintSuccess) hintSuccess.style.display = matched ? 'block' : 'none';
@@ -153,7 +153,7 @@ window.AccountsDeleteModal = (function () {
 
     async function confirmDelete() {
         const { input } = els();
-        if (!input || input.value !== 'Confirm') return;
+        if (!input || input.value !== 'DELETE') return;
 
         const token = csrfToken();
         if (!token) {

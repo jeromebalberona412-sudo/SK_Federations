@@ -149,6 +149,23 @@ class BarangayMonitoringController extends Controller
         ]);
     }
 
+    public function scheduleAllowResubmission(Request $request, string $id): JsonResponse
+    {
+        try {
+            $schedule = $this->scheduleService->allowResubmission($request->user(), $id);
+        } catch (ValidationException $exception) {
+            return response()->json([
+                'message' => collect($exception->errors())->flatten()->first(),
+                'errors' => $exception->errors(),
+            ], 422);
+        }
+
+        return response()->json([
+            'message' => 'ABYIP resubmission is now allowed for barangays that have not submitted.',
+            'data' => $schedule,
+        ]);
+    }
+
     public function scheduleCancel(Request $request, string $id): JsonResponse
     {
         $validated = $request->validate([

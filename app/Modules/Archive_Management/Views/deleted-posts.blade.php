@@ -8,6 +8,7 @@
 @endphp
 
 @push('styles')
+    <link rel="stylesheet" href="{{ url('/modules/archive-management/css/archive-row-actions.css') }}?v={{ $cssVersion }}">
     <link rel="stylesheet" href="{{ url('/modules/archive-management/css/deleted-posts.css') }}?v={{ $cssVersion }}">
 @endpush
 
@@ -48,6 +49,36 @@
     </section>
 </div>
 
+<div class="archive-view-backdrop" id="archiveViewModal" style="display:none;" role="dialog" aria-modal="true" aria-labelledby="archiveViewModalTitle">
+    <div class="archive-view-box" id="archiveViewModalBox">
+        <div class="archive-view-header">
+            <h2 class="archive-view-title" id="archiveViewModalTitle">View Post</h2>
+            <div class="modal-window-controls">
+                <button type="button" class="modal-toggle-btn" id="archiveViewMaximizeBtn" aria-label="Fullscreen" title="Fullscreen">□</button>
+                <button type="button" class="modal-toggle-btn" id="archiveViewRestoreBtn" hidden aria-label="Restore down" title="Restore down">⧉</button>
+                <button type="button" class="modal-win-btn" id="archiveViewClose" aria-label="Close">&times;</button>
+            </div>
+        </div>
+        <div class="archive-view-body" id="archiveViewBody"></div>
+    </div>
+</div>
+
+<div class="dso-modal-backdrop" id="apRestoreModal" style="display:none;">
+    <div class="dso-modal-box">
+        <div class="dso-modal-header">
+            <h2 class="dso-modal-title">Restore Post</h2>
+        </div>
+        <div class="dso-modal-body">
+            <p class="dso-modal-message">Restore this post back to the SK Community Feed?</p>
+            <p class="dso-modal-name" id="apRestoreTitle"></p>
+        </div>
+        <div class="dso-modal-footer">
+            <button type="button" class="dso-btn-cancel" id="apRestoreCancelBtn">Cancel</button>
+            <button type="button" class="dso-btn-confirm" id="apRestoreConfirmBtn">Restore</button>
+        </div>
+    </div>
+</div>
+
 @endsection
 
 @push('scripts')
@@ -58,5 +89,6 @@
             csrf: @json(csrf_token()),
         };
     </script>
+    <script src="{{ url('/modules/archive-management/js/archive-row-actions.js') }}?v={{ $jsVersion }}"></script>
     <script src="{{ url('/modules/archive-management/js/deleted-posts.js') }}?v={{ $jsVersion }}"></script>
 @endpush

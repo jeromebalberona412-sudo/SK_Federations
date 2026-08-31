@@ -212,6 +212,7 @@ class TermRecordsArchiveService
             'middleName' => $record->middle_name,
             'lastName' => $record->last_name,
             'suffix' => $record->suffix,
+            'sex' => $record->sex,
             'position' => $record->position,
             'barangay' => $includeBarangay ? ($record->barangay?->name ?? '') : '',
             'municipality' => $record->municipality,

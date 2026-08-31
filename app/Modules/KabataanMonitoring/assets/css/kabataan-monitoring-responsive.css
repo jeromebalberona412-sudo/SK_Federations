@@ -1,0 +1,456 @@
+/* Kabataan Monitoring — mobile responsive edit view */
+
+html:has(body.km-main),
+body.km-main {
+    overflow-x: hidden;
+    max-width: 100%;
+}
+
+/* ── Modal Responsive Design ── */
+.kabataan-modal-box {
+    max-width: 95%;
+    max-height: 90vh;
+    margin: 10px;
+}
+
+@media (max-width: 768px) {
+    .main-content.km-main {
+        margin-left: 0;
+        margin-top: 60px;
+        padding: 12px;
+    }
+
+    .km-container {
+        padding: 0;
+    }
+
+    .km-page-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 8px;
+    }
+
+    .km-page-title {
+        font-size: 1.2rem;
+    }
+
+    .km-filter-bar {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 8px;
+    }
+
+    .km-filter-bar .km-search-group--index {
+        width: 100%;
+        max-width: none;
+        margin-left: 0;
+    }
+
+    .km-action-buttons {
+        flex-direction: column;
+        width: 100%;
+    }
+
+    .km-btn--manual,
+    .km-btn--batch {
+        width: 100%;
+        justify-content: center;
+    }
+
+    .km-filter-bar--detail {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .km-filter-bar-top {
+        flex-direction: column;
+        gap: 8px;
+    }
+
+    .km-filter-dropdowns {
+        flex-direction: column;
+        width: 100%;
+    }
+
+    .km-filter-dropdowns .km-select {
+        width: 100%;
+    }
+
+    .km-search-group--compact {
+        width: 100%;
+        margin-left: 0;
+    }
+
+    .km-filter-bar-actions {
+        flex-direction: column;
+        width: 100%;
+    }
+
+    .km-export-btn,
+    .km-batch-print-btn {
+        width: 100%;
+        justify-content: center;
+    }
+
+    /* Table responsive */
+    .km-table-card {
+        border-radius: 12px;
+        overflow: hidden;
+    }
+
+    .km-table-wrapper {
+        max-height: none;
+        overflow-x: auto;
+    }
+
+    .km-table {
+        font-size: 11px;
+        min-width: 600px;
+    }
+
+    .km-table thead th,
+    .km-table tbody td {
+        padding: 8px 6px;
+    }
+
+    .km-fullname-cell {
+        min-width: 120px;
+    }
+
+    /* Modal adjustments */
+    .kabataan-modal-box {
+        width: 95%;
+        max-height: 90vh;
+        margin: 10px auto;
+    }
+
+    .kabataan-modal-header {
+        padding: 12px 14px;
+    }
+
+    .kabataan-modal-title {
+        font-size: 14px;
+    }
+
+    .kabataan-modal-body {
+        padding: 12px 14px;
+    }
+
+    .kabataan-modal-footer {
+        padding: 12px 14px;
+        flex-direction: column;
+        gap: 8px;
+    }
+
+    .kabataan-modal-footer .btn {
+        width: 100%;
+    }
+
+    /* KK Profiling Form Responsive */
+    .kkp-form-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 12px;
+    }
+
+    .kkp-form-header-right {
+        flex-direction: column;
+        align-items: flex-start;
+        width: 100%;
+    }
+
+    .kkp-form-header-fields {
+        flex-direction: column;
+        width: 100%;
+    }
+
+    .kkp-hdr-field {
+        width: 100%;
+    }
+
+    .kkp-hdr-input {
+        width: 100%;
+    }
+
+    .kkf-name-row {
+        grid-template-columns: 1fr;
+        gap: 8px;
+    }
+
+    .kkf-name-col--sm {
+        flex: 0 0 auto;
+    }
+
+    .kkf-loc-row {
+        grid-template-columns: 1fr;
+        gap: 8px;
+    }
+
+    .kkp-personal-row {
+        grid-template-columns: 1fr;
+        gap: 12px;
+    }
+
+    .kkp-personal-left,
+    .kkp-personal-center,
+    .kkp-personal-right {
+        width: 100%;
+    }
+
+    .kkp-age-dob-row {
+        flex-direction: column;
+        gap: 8px;
+    }
+
+    .kkp-inline-pair--age,
+    .kkp-inline-pair--birthday {
+        width: 100%;
+    }
+
+    .kkf-demo-grid {
+        grid-template-columns: 1fr;
+        gap: 12px;
+    }
+
+    .kkf-demo-options-2col {
+        grid-template-columns: 1fr;
+    }
+
+    .kkp-youth-class-layout {
+        flex-direction: column;
+    }
+
+    .kkp-youth-class-side {
+        padding-left: 0;
+        margin-top: 8px;
+    }
+
+    .kkp-youth-specific-brace {
+        display: none;
+    }
+
+    .kkf-voter-row {
+        grid-template-columns: 1fr;
+        gap: 8px;
+    }
+
+    .kkf-footer-row {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 12px;
+    }
+
+    .kkf-footer-spacer {
+        display: none;
+    }
+
+    .kkf-footer-fb,
+    .kkf-footer-chat {
+        width: 100%;
+    }
+
+    /* Signature section */
+    .kkf-sig-container {
+        width: 100%;
+    }
+
+    .kkf-sig-name-wrapper {
+        max-width: 100%;
+    }
+
+    /* Batch upload modal */
+    .kabataan-upload-instructions ul {
+        padding-left: 16px;
+    }
+
+    .kabataan-upload-area {
+        padding: 20px;
+    }
+
+    .kabataan-upload-icon {
+        font-size: 36px;
+    }
+
+    .kabataan-upload-text {
+        font-size: 13px;
+    }
+
+    .kabataan-preview-table-container {
+        max-height: 200px;
+    }
+
+    .kabataan-preview-table {
+        font-size: 10px;
+    }
+
+    .kabataan-preview-table th,
+    .kabataan-preview-table td {
+        padding: 6px 4px;
+    }
+
+    /* Delete modal */
+    .km-delete-dialog {
+        width: 90%;
+        max-width: 90%;
+        margin: 10px auto;
+    }
+
+    .km-delete-body p {
+        font-size: 13px;
+    }
+
+    .km-type-confirm-input {
+        width: 100%;
+    }
+
+    .km-delete-footer {
+        flex-direction: column;
+        gap: 8px;
+    }
+
+    .km-delete-footer button {
+        width: 100%;
+    }
+
+    /* Export modal */
+    .km-delete-dialog .km-delete-body {
+        padding: 12px;
+    }
+
+    .km-delete-body input[type="date"] {
+        width: 100%;
+    }
+
+    /* Pagination */
+    .km-page-pagination {
+        flex-direction: column;
+        gap: 12px;
+        padding: 12px;
+    }
+
+    .pagination-footer-nav {
+        justify-content: center;
+        width: 100%;
+    }
+
+    .pagination-footer-right {
+        flex-direction: column;
+        align-items: center;
+        gap: 8px;
+        width: 100%;
+    }
+
+    .pagination-rows-select {
+        width: 100%;
+    }
+
+    .pagination-page-input {
+        width: 80px;
+    }
+}
+
+@media (max-width: 480px) {
+    .main-content.km-main {
+        padding: 10px;
+        margin-top: 55px;
+    }
+
+    .km-page-title {
+        font-size: 1.1rem;
+    }
+
+    .km-table {
+        font-size: 10px;
+        min-width: 500px;
+    }
+
+    .km-table thead th,
+    .km-table tbody td {
+        padding: 6px 4px;
+    }
+
+    .kabataan-modal-box {
+        width: 98%;
+        max-height: 95vh;
+        margin: 5px auto;
+    }
+
+    .kabataan-modal-header {
+        padding: 10px 12px;
+    }
+
+    .kabataan-modal-title {
+        font-size: 13px;
+    }
+
+    .kabataan-modal-body {
+        padding: 10px 12px;
+    }
+
+    .kabataan-modal-footer {
+        padding: 10px 12px;
+    }
+
+    /* Form inputs on small screens */
+    .kkf-uline,
+    .kkp-hdr-input,
+    .km-type-confirm-input {
+        font-size: 14px;
+        padding: 6px 4px;
+    }
+
+    .kkp-chk-lbl {
+        font-size: 12px;
+    }
+
+    .kkp-sq-chk {
+        width: 14px;
+        height: 14px;
+    }
+
+    .kkf-demo-block {
+        padding: 10px;
+    }
+
+    .kkf-voter-section {
+        padding: 10px;
+    }
+
+    .kkf-sig-section {
+        padding: 12px;
+    }
+
+    .kkf-sig-trigger-btn {
+        padding: 6px 12px;
+        font-size: 12px;
+    }
+
+    /* Buttons */
+    .km-btn,
+    .km-search-btn,
+    .km-export-btn,
+    .km-batch-print-btn {
+        font-size: 12px;
+        padding: 6px 12px;
+    }
+
+    .pagination-arrow {
+        padding: 6px 10px;
+    }
+}
+
+/* ── Landscape Mobile ── */
+@media (max-width: 768px) and (orientation: landscape) {
+    .main-content.km-main {
+        padding: 8px;
+        margin-top: 55px;
+    }
+
+    .kabataan-modal-box {
+        max-height: 95vh;
+    }
+
+    .kabataan-modal-body {
+        max-height: calc(95vh - 120px);
+    }
+}
