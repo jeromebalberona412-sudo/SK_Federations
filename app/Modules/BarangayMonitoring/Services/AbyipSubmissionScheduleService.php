@@ -83,7 +83,7 @@ class AbyipSubmissionScheduleService
         $this->assertNoDuplicateYear($validated['fiscal_year']);
 
         return DB::transaction(function () use ($user, $validated) {
-            $schedule = AbyipSubmissionSchedule::query()->create([
+            $schedule = AbyipSubmissionSchedule::query()->create($this->existingScheduleAttributes([
                 'tenant_id' => $user->tenant_id,
                 'fiscal_year' => $validated['fiscal_year'],
                 'title' => $validated['title'],
@@ -93,21 +93,23 @@ class AbyipSubmissionScheduleService
                 'status' => $this->resolveStatus($validated['date_start'], $validated['deadline']),
                 'created_by_user_id' => $user->id,
                 'updated_by_user_id' => $user->id,
-            ]);
+            ]));
 
             $allowLateExtension = filter_var(
                 $validated['allow_late_extension'] ?? false,
                 FILTER_VALIDATE_BOOLEAN
             );
 
-            if ($allowLateExtension && DB::getDriverName() === 'pgsql') {
-                DB::table('abyip_submission_schedules')
-                    ->where('id', $schedule->id)
-                    ->update(['allow_late_extension' => DB::raw('TRUE')]);
-                $schedule->refresh();
-            } elseif ($allowLateExtension) {
-                $schedule->allow_late_extension = true;
-                $schedule->save();
+            if ($allowLateExtension && Schema::hasColumn('abyip_submission_schedules', 'allow_late_extension')) {
+                if (DB::getDriverName() === 'pgsql') {
+                    DB::table('abyip_submission_schedules')
+                        ->where('id', $schedule->id)
+                        ->update(['allow_late_extension' => DB::raw('TRUE')]);
+                    $schedule->refresh();
+                } else {
+                    $schedule->allow_late_extension = true;
+                    $schedule->save();
+                }
             }
 
             $this->recordHistory($schedule, AbyipSubmissionScheduleHistory::ACTION_CREATED, null, $schedule->deadline, null, $schedule->date_start, 'Initial schedule created.', $user);
@@ -135,14 +137,14 @@ class AbyipSubmissionScheduleService
         $oldStart = $schedule->date_start;
 
         return DB::transaction(function () use ($user, $schedule, $validated, $oldDeadline, $oldStart) {
-            $schedule->update([
+            $schedule->update($this->existingScheduleAttributes([
                 'fiscal_year' => $validated['fiscal_year'],
                 'title' => $validated['title'],
                 'date_start' => $validated['date_start'],
                 'deadline' => $validated['deadline'],
                 'status' => $this->resolveStatus($validated['date_start'], $validated['deadline'], $schedule),
                 'updated_by_user_id' => $user->id,
-            ]);
+            ]));
 
             $this->recordHistory(
                 $schedule,
@@ -184,11 +186,11 @@ class AbyipSubmissionScheduleService
         }
 
         return DB::transaction(function () use ($user, $schedule, $newDeadlineDate, $oldDeadline, $reason) {
-            $schedule->update([
+            $schedule->update($this->existingScheduleAttributes([
                 'deadline' => $newDeadlineDate,
                 'status' => AbyipSubmissionSchedule::STATUS_EXTENDED,
                 'updated_by_user_id' => $user->id,
-            ]);
+            ]));
 
             $this->recordHistory(
                 $schedule,
@@ -226,12 +228,12 @@ class AbyipSubmissionScheduleService
         }
 
         return DB::transaction(function () use ($user, $schedule, $reason) {
-            $schedule->update([
+            $schedule->update($this->existingScheduleAttributes([
                 'status' => AbyipSubmissionSchedule::STATUS_CANCELLED,
                 'cancelled_at' => now(),
                 'cancellation_reason' => $reason,
                 'updated_by_user_id' => $user->id,
-            ]);
+            ]));
 
             $this->recordHistory(
                 $schedule,
@@ -276,6 +278,23 @@ class AbyipSubmissionScheduleService
         $this->assertTableExists();
 
         return AbyipSubmissionSchedule::query()->findOrFail($id);
+    }
+
+    /**
+     * @param  array<string, mixed>  $attributes
+     * @return array<string, mixed>
+     */
+    private function existingScheduleAttributes(array $attributes): array
+    {
+        $filtered = [];
+
+        foreach ($attributes as $column => $value) {
+            if (Schema::hasColumn('abyip_submission_schedules', $column)) {
+                $filtered[$column] = $value;
+            }
+        }
+
+        return $filtered;
     }
 
     private function assertTableExists(): void
@@ -484,12 +503,24 @@ class AbyipSubmissionScheduleService
             'original_deadline_raw' => $schedule->original_deadline?->toDateString(),
             'status' => $schedule->status,
             'status_label' => $this->statusLabel($schedule->status),
-            'allow_late_extension' => (bool) $schedule->allow_late_extension,
-            'created_by' => $schedule->creator?->name ?? '—',
-            'created_by_role' => $this->creatorRoleLabel($schedule->creator),
-            'updated_by' => $schedule->updater?->name ?? '—',
-            'cancelled_at' => $schedule->cancelled_at?->format('M j, Y g:i A'),
-            'cancellation_reason' => $schedule->cancellation_reason,
+            'allow_late_extension' => Schema::hasColumn('abyip_submission_schedules', 'allow_late_extension')
+                ? (bool) $schedule->allow_late_extension
+                : false,
+            'created_by' => Schema::hasColumn('abyip_submission_schedules', 'created_by_user_id')
+                ? ($schedule->creator?->name ?? '—')
+                : '—',
+            'created_by_role' => Schema::hasColumn('abyip_submission_schedules', 'created_by_user_id')
+                ? $this->creatorRoleLabel($schedule->creator)
+                : '—',
+            'updated_by' => Schema::hasColumn('abyip_submission_schedules', 'updated_by_user_id')
+                ? ($schedule->updater?->name ?? '—')
+                : '—',
+            'cancelled_at' => Schema::hasColumn('abyip_submission_schedules', 'cancelled_at')
+                ? $schedule->cancelled_at?->format('M j, Y g:i A')
+                : null,
+            'cancellation_reason' => Schema::hasColumn('abyip_submission_schedules', 'cancellation_reason')
+                ? $schedule->cancellation_reason
+                : null,
         ];
 
         if ($includeHistory) {
