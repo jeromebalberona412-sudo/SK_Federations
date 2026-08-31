@@ -170,18 +170,14 @@ function initializeCalendar() {
     }
 
     function canEditDate(year, monthIndex, day) {
-        const key = `${year}-${monthIndex}-${day}`;
-        const note = notes[key];
-        const hasNote = !!(note && (note.title || note.content));
-
-        if (hasNote) {
-            return year <= currentYear;
+        if (!canModifyNote(year)) {
+            return false;
         }
 
-        return canAddNote(year);
+        return !isPastDate(year, monthIndex, day);
     }
 
-    function canAddNote(year) {
+    function canModifyNote(year) {
         return year === currentYear;
     }
 
@@ -280,16 +276,14 @@ function initializeCalendar() {
             const isTodayCell = dateKey === todayKey;
             const isPast = isPastDate(year, monthIndex, day);
             const canEdit = canEditDate(year, monthIndex, day);
-            const canAdd = canAddNote(year);
             const isPastYear = year < currentYear;
             const isNextYear = year > currentYear;
 
             cell.className = 'calendar-day';
             if (isTodayCell) cell.classList.add('is-today');
             if (hasNote) cell.classList.add('has-notes');
-            if (isPast) cell.classList.add('is-past');
-            if (isPastYear || isNextYear) cell.classList.add('is-past-year');
-            if (!hasNote && !canAdd) cell.classList.add('is-disabled');
+            if (isPast || isPastYear || isNextYear) cell.classList.add('is-past');
+            if (isPast && !hasNote) cell.classList.add('is-disabled');
 
             const dayNumber = document.createElement('div');
             dayNumber.className = 'calendar-day-number';
@@ -304,10 +298,14 @@ function initializeCalendar() {
 
             const addLabel = document.createElement('div');
             addLabel.className = 'calendar-day-add';
-            if (hasNote) {
-                addLabel.textContent = canEdit ? 'Edit note' : 'View note';
-            } else if (!canAdd) {
+            if (hasNote && !canEdit) {
+                addLabel.textContent = 'View note';
+            } else if (!hasNote && isPast) {
+                addLabel.textContent = 'Past date';
+            } else if (!hasNote && !canModifyNote(year)) {
                 addLabel.textContent = isPastYear ? 'Past year' : 'Next year';
+            } else if (hasNote) {
+                addLabel.textContent = 'Edit note';
             } else {
                 addLabel.textContent = 'Add note';
             }
@@ -494,8 +492,14 @@ function initializeCalendar() {
 
         const note = notes[dateKey];
         const hasNote = note && (note.title || note.content);
+        const pastDate = isPastDate(year, monthIndex, day);
 
-        if (!hasNote && !canAddNote(year)) {
+        if (!hasNote && pastDate) {
+            showToast('No past dates to add note.', 'error');
+            return;
+        }
+
+        if (!hasNote && !canModifyNote(year)) {
             if (year < currentYear) {
                 showToast('Cannot add notes to past years.', 'error');
             } else {
