@@ -18,10 +18,12 @@
 
             <label class="delete-confirm-label" for="deleteConfirmationInput">Type DELETE to confirm</label>
             <input type="text" id="deleteConfirmationInput" class="delete-confirm-input"
-                   placeholder="DELETE" autocomplete="off" autocapitalize="none" spellcheck="false">
+                   placeholder="DELETE" maxlength="6" autocomplete="off"
+                   autocapitalize="characters" spellcheck="false"
+                   style="text-transform: uppercase;">
 
             <p class="delete-confirm-hint delete-confirm-hint-error" id="deleteConfirmHintError" style="display:none;">
-                Please type &quot;DELETE&quot; to continue (any capitalization is fine).
+                Please type &quot;DELETE&quot; to continue.
             </p>
             <p class="delete-confirm-hint delete-confirm-hint-success" id="deleteConfirmHintSuccess" style="display:none;">
                 ✓ Confirmation text matched.

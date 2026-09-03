@@ -6,7 +6,7 @@ use App\Services\SkFedPageCache;
 use Carbon\Carbon;
 use Illuminate\Validation\ValidationException;
 
-it('blocks calendar note changes on past dates', function () {
+it('blocks creating calendar notes on past dates but allows modifying existing notes', function () {
     Carbon::setTestNow('2026-09-01');
 
     $controller = new CalendarController(
@@ -14,18 +14,26 @@ it('blocks calendar note changes on past dates', function () {
         Mockery::mock(SkFedPageCache::class),
     );
 
-    $method = new ReflectionMethod($controller, 'assertCanModifyDate');
+    $createMethod = new ReflectionMethod($controller, 'assertCanCreateNote');
+    $modifyMethod = new ReflectionMethod($controller, 'assertCanModifyExistingNote');
 
-    expect(fn () => $method->invoke($controller, '2026-08-31'))
+    expect(fn () => $createMethod->invoke($controller, '2026-08-31'))
         ->toThrow(ValidationException::class);
 
-    expect(fn () => $method->invoke($controller, '2026-09-01'))
+    expect(fn () => $createMethod->invoke($controller, '2026-09-01'))
         ->not->toThrow(ValidationException::class);
 
-    expect(fn () => $method->invoke($controller, '2025-12-31'))
+    expect(fn () => $createMethod->invoke($controller, '2027-01-01'))
         ->toThrow(ValidationException::class);
 
-    expect(fn () => $method->invoke($controller, '2027-01-01'))
+    // Existing notes on past dates may still be edited/deleted
+    expect(fn () => $modifyMethod->invoke($controller, '2026-08-31'))
+        ->not->toThrow(ValidationException::class);
+
+    expect(fn () => $modifyMethod->invoke($controller, '2025-12-31'))
+        ->not->toThrow(ValidationException::class);
+
+    expect(fn () => $modifyMethod->invoke($controller, '2027-01-01'))
         ->toThrow(ValidationException::class);
 
     Carbon::setTestNow();

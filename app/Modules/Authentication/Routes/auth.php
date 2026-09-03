@@ -68,6 +68,21 @@ Route::middleware('guest')->group(function () {
     Route::get('/password-reset-success', [AuthController::class, 'showPasswordResetSuccess'])->name('password.reset.success');
 });
 
+// Officials set-account links must open on SK Officials. Redirect old/wrong Federations URLs.
+Route::get('/activate-account/{token}', function (string $token) {
+    $officialsBase = rtrim(trim((string) config('services.sk_officials_app_url')), '/');
+    $federationBase = rtrim(trim((string) config('app.url')), '/');
+
+    if ($officialsBase === '' || strcasecmp($officialsBase, $federationBase) === 0) {
+        abort(404, 'SK Officials activation URL is not configured. Set SK_OFFICIALS_APP_URL in the Federations .env.');
+    }
+
+    $query = request()->getQueryString();
+    $target = "{$officialsBase}/activate-account/{$token}".($query ? "?{$query}" : '');
+
+    return redirect()->away($target);
+})->name('sk_officials.activate.redirect');
+
 // Compatibility fallback: if a stale client hits GET /logout, avoid 405 and perform logout safely.
 Route::middleware('auth')->get('/logout', [AuthController::class, 'logout'])->name('logout.fallback');
 

@@ -170,11 +170,22 @@ function initializeCalendar() {
     }
 
     function canEditDate(year, monthIndex, day) {
-        if (!canModifyNote(year)) {
+        const key = `${year}-${monthIndex}-${day}`;
+        const note = notes[key];
+        const hasNote = !!(note && (note.title || note.content));
+
+        // Next year+: never editable
+        if (year > currentYear) {
             return false;
         }
 
-        return !isPastDate(year, monthIndex, day);
+        // Existing notes (including past dates) can be viewed/edited/deleted
+        if (hasNote) {
+            return true;
+        }
+
+        // New notes: current year, today or future only
+        return canModifyNote(year) && !isPastDate(year, monthIndex, day);
     }
 
     function canModifyNote(year) {
@@ -194,19 +205,18 @@ function initializeCalendar() {
         const isPastYear = year < currentYear;
         const isNextYear = year > currentYear;
 
-        if (!hasNote) {
-            if (pastDate) {
-                showToast('No past dates to add note.', 'error');
-                return;
-            }
+        // Past date with no note: show error like SK Officials (do not open editor)
+        if (!hasNote && pastDate) {
+            showToast('No past dates to add note.', 'error');
+            return;
+        }
 
-            if (!canModifyNote(year)) {
-                showToast(
-                    isPastYear ? 'Cannot add notes to past years.' : 'Cannot add notes to next year or beyond.',
-                    'error'
-                );
-                return;
-            }
+        if (!hasNote && !canModifyNote(year)) {
+            showToast(
+                isPastYear ? 'Cannot add notes to past years.' : 'Cannot add notes to next year or beyond.',
+                'error'
+            );
+            return;
         }
 
         openEditor(dateKey, day, monthName, year, monthIndex);
@@ -345,10 +355,10 @@ function initializeCalendar() {
             cell.setAttribute('tabindex', hasNote || (!isPast && canModifyNote(year)) ? '0' : '-1');
             cell.setAttribute(
                 'aria-label',
-                hasNote && !canEdit
-                    ? `View note for ${monthName} ${day}, ${year}`
-                    : !hasNote && (isPast || isPastYear || isNextYear)
-                        ? `Past date ${monthName} ${day}, ${year}. Notes cannot be added.`
+                !hasNote && isPast
+                    ? `Past date ${monthName} ${day}, ${year}. Notes cannot be added.`
+                    : hasNote && !canEdit
+                        ? `View note for ${monthName} ${day}, ${year}`
                         : `${hasNote ? 'Edit' : 'Add'} note for ${monthName} ${day}, ${year}`
             );
             cell.addEventListener('click', () => handleDayClick(dateKey, day, monthName, year, monthIndex));

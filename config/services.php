@@ -53,7 +53,9 @@ return [
     | Portal URLs for account invitation emails (password setup links)
     |--------------------------------------------------------------------------
     */
-    'sk_officials_app_url' => env('SK_OFFICIALS_APP_URL', env('APP_URL')),
+    // Officials activation links must point at the SK Officials app, not Federations.
+    // Leave unset only in local misconfig — AccountService will block invites until set.
+    'sk_officials_app_url' => env('SK_OFFICIALS_APP_URL'),
     'sk_fed_app_url' => env('SK_FED_APP_URL', env('APP_URL')),
     'kabataan_app_url' => env('KABATAAN_APP_URL', 'http://localhost:8002'),
     'account_activation_expire_minutes' => (int) env('ACCOUNT_ACTIVATION_EXPIRES_MINUTES', 60 * 24),

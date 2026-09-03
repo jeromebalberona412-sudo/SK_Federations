@@ -250,12 +250,9 @@ class AccountService
         });
 
         if ($shouldSendReset && $sendPasswordEmail) {
-            try {
-                $this->sendInitialResetLinkOrFail($user, $normalizedData['role'] ?? null);
-            } catch (ValidationException $exception) {
-                $this->rollbackCreatedAccount($user);
-                throw $exception;
-            }
+            // Validate portal URL now, but send SMTP after the HTTP response so
+            // slow mail servers cannot time out / roll back account creation.
+            $this->queueInitialResetLinkAfterResponse($user, $normalizedData['role'] ?? null);
         }
 
         $this->logAuditAction(
@@ -494,6 +491,40 @@ class AccountService
         }
     }
 
+    private function queueInitialResetLinkAfterResponse(User $user, ?string $role = null): void
+    {
+        [$label, $baseUrl] = $this->resolvePasswordSetupTarget($user, $role);
+
+        if (! is_string($baseUrl) || $baseUrl === '' || ! is_string($label) || $label === '') {
+            throw ValidationException::withMessages([
+                'email' => 'Password setup email could not be sent because the portal URL is not configured. Set SK_OFFICIALS_APP_URL (and SK_FED_APP_URL if needed) in .env, then run php artisan config:clear.',
+            ]);
+        }
+
+        $userId = (int) $user->id;
+        $resolvedRole = $role ?? $user->role;
+
+        dispatch(function () use ($userId, $resolvedRole): void {
+            $user = User::query()->find($userId);
+
+            if ($user === null) {
+                return;
+            }
+
+            try {
+                $this->sendInitialResetLink($user, $resolvedRole);
+            } catch (\Throwable $exception) {
+                report($exception);
+                Log::error('Deferred password setup email failed after account create.', [
+                    'user_id' => $userId,
+                    'email' => $user->email,
+                    'role' => $resolvedRole,
+                    'message' => $exception->getMessage(),
+                ]);
+            }
+        })->afterResponse();
+    }
+
     public function createUser(array $data, User $admin): User
     {
         $fullName = $this->buildFullName($data);
@@ -568,9 +599,15 @@ class AccountService
         $role = $role ?? $user->role;
 
         if ($role === User::ROLE_SK_OFFICIAL) {
-            $baseUrl = trim((string) config('services.sk_officials_app_url'));
+            $baseUrl = rtrim(trim((string) config('services.sk_officials_app_url')), '/');
+            $federationUrl = rtrim(trim((string) config('app.url')), '/');
 
-            return ['SK Official', $baseUrl !== '' ? $baseUrl : null];
+            // Never send Officials to the Federations host — /activate-account does not exist there.
+            if ($baseUrl === '' || strcasecmp($baseUrl, $federationUrl) === 0) {
+                return ['SK Official', null];
+            }
+
+            return ['SK Official', $baseUrl];
         }
 
         if ($role === User::ROLE_SK_FED) {

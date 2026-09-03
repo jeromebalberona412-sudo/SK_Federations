@@ -108,8 +108,17 @@ window.AccountsDeleteModal = (function () {
         const { input, hintError, hintSuccess, confirmBtn } = els();
         if (!input || !confirmBtn) return;
 
-        const value = (input.value || '').trim();
-        const matched = value.toLowerCase() === 'delete';
+        // Auto-caps + max 6 characters ("DELETE")
+        const capped = String(input.value || '')
+            .toUpperCase()
+            .replace(/[^A-Z]/g, '')
+            .slice(0, 6);
+        if (input.value !== capped) {
+            input.value = capped;
+        }
+
+        const value = capped.trim();
+        const matched = value === 'DELETE';
 
         if (hintError) hintError.style.display = value.length > 0 && !matched ? 'block' : 'none';
         if (hintSuccess) hintSuccess.style.display = matched ? 'block' : 'none';
@@ -153,7 +162,7 @@ window.AccountsDeleteModal = (function () {
 
     async function confirmDelete() {
         const { input } = els();
-        if (!input || input.value.trim().toLowerCase() !== 'delete') return;
+        if (!input || input.value.trim().toUpperCase() !== 'DELETE') return;
 
         const token = csrfToken();
         if (!token) {
@@ -441,12 +450,27 @@ function setFormFieldValue(form, name, value) {
 }
 
 function showLoadingOverlay(message = 'Processing...', subtext = 'Please wait') {
+    ensureAccountsLoadingOverlay();
+    const overlay = document.getElementById('accountsLoadingOverlay');
+    const titleEl = document.getElementById('accountsLoadingTitle');
+    const subEl = document.getElementById('accountsLoadingSubtext');
+    if (titleEl) titleEl.textContent = message;
+    if (subEl) subEl.textContent = subtext;
+    if (overlay) {
+        overlay.hidden = false;
+        overlay.setAttribute('aria-hidden', 'false');
+    }
     if (typeof window.showLoading === 'function') {
         window.showLoading(message, subtext);
     }
 }
 
 function hideLoadingOverlay() {
+    const overlay = document.getElementById('accountsLoadingOverlay');
+    if (overlay) {
+        overlay.hidden = true;
+        overlay.setAttribute('aria-hidden', 'true');
+    }
     if (typeof window.hideLoading === 'function') {
         window.hideLoading();
     }
@@ -454,6 +478,62 @@ function hideLoadingOverlay() {
     if (!isAnyModalOpen()) {
         unlockBodyScroll();
     }
+}
+
+function ensureAccountsLoadingOverlay() {
+    if (document.getElementById('accountsLoadingOverlay')) {
+        return;
+    }
+
+    const overlay = document.createElement('div');
+    overlay.id = 'accountsLoadingOverlay';
+    overlay.className = 'accounts-loading-overlay';
+    overlay.hidden = true;
+    overlay.setAttribute('aria-hidden', 'true');
+    overlay.setAttribute('role', 'status');
+    overlay.setAttribute('aria-live', 'polite');
+    overlay.innerHTML = `
+        <div class="accounts-loading-card">
+            <span class="accounts-loading-spinner" aria-hidden="true"></span>
+            <p class="accounts-loading-title" id="accountsLoadingTitle">Processing...</p>
+            <p class="accounts-loading-subtext" id="accountsLoadingSubtext">Please wait</p>
+        </div>
+    `;
+    document.body.appendChild(overlay);
+}
+
+function setCreateAccountButtonLoading(button, loading, label = 'Creating...') {
+    if (!button) {
+        return;
+    }
+
+    if (loading) {
+        if (!button.dataset.originalHtml) {
+            button.dataset.originalHtml = button.innerHTML;
+        }
+        button.disabled = true;
+        button.classList.add('is-loading');
+        button.setAttribute('aria-busy', 'true');
+        button.innerHTML = `<span class="accounts-btn-spinner" aria-hidden="true"></span><span>${label}</span>`;
+        return;
+    }
+
+    button.disabled = false;
+    button.classList.remove('is-loading');
+    button.removeAttribute('aria-busy');
+    if (button.dataset.originalHtml) {
+        button.innerHTML = button.dataset.originalHtml;
+        delete button.dataset.originalHtml;
+    }
+}
+
+function getCreateAccountSubmitButton(form) {
+    if (!form) {
+        return null;
+    }
+
+    return document.querySelector(`button[type="submit"][form="${form.id}"]`)
+        || form.querySelector('button[type="submit"]');
 }
 
 function showFieldError(form, fieldName, message) {
@@ -483,6 +563,158 @@ function escapeHtml(value) {
         .replace(/</g, '&lt;')
         .replace(/>/g, '&gt;')
         .replace(/"/g, '&quot;');
+}
+
+function escapeAttr(value) {
+    return escapeHtml(value).replace(/'/g, '&#39;');
+}
+
+function formatAccountDateDisplay(isoDate) {
+    if (!isoDate || !/^\d{4}-\d{2}-\d{2}$/.test(isoDate)) {
+        return '—';
+    }
+    const [year, month, day] = isoDate.split('-');
+    return `${month}/${day}/${year}`;
+}
+
+function buildOfficialAccountRowHtml(account) {
+    const id = Number(account.id);
+    const displayName = account.display_name || 'N/A';
+    const email = account.email || '';
+    const barangayName = account.barangay_name || '—';
+    const position = account.position || '—';
+    const termStartDisplay = account.term_start_display || formatAccountDateDisplay(account.term_start);
+    const termEndDisplay = account.term_end_display || formatAccountDateDisplay(account.term_end);
+    const isIncoming = !!account.is_incoming_turnover;
+    const sharedAttrs = [
+        ['data-account-id', id],
+        ['data-first-name', account.first_name || ''],
+        ['data-last-name', account.last_name || ''],
+        ['data-middle-name', account.middle_name || ''],
+        ['data-suffix', account.suffix || ''],
+        ['data-sex', account.sex || ''],
+        ['data-date-of-birth', account.date_of_birth || ''],
+        ['data-age', account.age ?? ''],
+        ['data-contact-number', account.contact_number || ''],
+        ['data-email', email],
+        ['data-position', account.position || ''],
+        ['data-federation-position', account.federation_position || ''],
+        ['data-account-role', account.role || ''],
+        ['data-barangay-id', account.barangay_id ?? ''],
+        ['data-barangay-name', account.barangay_name || ''],
+        ['data-municipality', account.municipality || ''],
+        ['data-province', account.province || ''],
+        ['data-region', account.region || ''],
+        ['data-status', account.status || ''],
+        ['data-term-status', account.term_status || 'ACTIVE'],
+        ['data-term-start', account.term_start || ''],
+        ['data-term-end', account.term_end || ''],
+    ].map(([key, value]) => `${key}="${escapeAttr(value)}"`).join(' ');
+
+    const checkboxCell = isIncoming
+        ? '<td class="td-checkbox"><span class="account-checkbox-placeholder" aria-hidden="true">—</span></td>'
+        : `<td class="td-checkbox">
+                <input type="checkbox" class="account-checkbox account-row-checkbox"
+                       value="${id}"
+                       @change="toggleRow(${id}, $event.target.checked)"
+                       :checked="selectedRows.includes(${id})"
+                       aria-label="Select ${escapeAttr(displayName)}">
+           </td>`;
+
+    const editDeleteItems = isIncoming
+        ? `<div class="account-actions-item account-actions-item-muted" role="presentation">
+                <i class="fas fa-lock" aria-hidden="true"></i>
+                <span>Incoming Officer (read-only)</span>
+           </div>`
+        : `<button type="button"
+                class="account-actions-item account-actions-item-edit btn-edit-account"
+                role="menuitem"
+                ${sharedAttrs}>
+                <i class="fas fa-pen" aria-hidden="true"></i>
+                <span>Edit Member</span>
+            </button>
+            <button type="button"
+                class="account-actions-item account-actions-item-danger btn-delete-account"
+                role="menuitem"
+                data-account-id="${id}"
+                data-display-name="${escapeAttr(displayName)}">
+                <i class="fas fa-trash" aria-hidden="true"></i>
+                <span>Delete Account</span>
+            </button>`;
+
+    return `
+        <tr data-account-id="${id}"
+            data-barangay-id="${escapeAttr(account.barangay_id ?? '')}"
+            data-filter-position="${escapeAttr(account.filter_position || account.position || '')}"
+            data-search-text="${escapeAttr(account.search_text || '')}"
+            data-sort-name="${escapeAttr(account.sort_name || '')}"
+            data-sort-email="${escapeAttr(String(email).toLowerCase())}"
+            data-sort-barangay="${escapeAttr(String(account.barangay_name || '').toLowerCase())}"
+            data-sort-position="${escapeAttr(String(account.position || '').toLowerCase())}"
+            data-sort-federation-position="${escapeAttr(String(account.federation_position_label || '').toLowerCase())}"
+            data-sort-term="${escapeAttr(account.term_end || '')}"
+            ${isIncoming ? 'data-incoming-turnover="1"' : ''}>
+            ${checkboxCell}
+            <td class="td-name" title="${escapeAttr(displayName)}">
+                <span class="account-name-text">${escapeHtml(displayName)}</span>
+            </td>
+            <td class="td-email">${escapeHtml(email)}</td>
+            <td class="td-barangay">${escapeHtml(barangayName)}</td>
+            <td class="td-position">${escapeHtml(position)}</td>
+            <td class="td-term">${escapeHtml(termStartDisplay)}</td>
+            <td class="td-term">${escapeHtml(termEndDisplay)}</td>
+            <td class="td-actions">
+                <div class="account-actions-menu">
+                    <button type="button"
+                            class="account-actions-trigger"
+                            aria-label="Account actions for ${escapeAttr(displayName)}"
+                            aria-haspopup="true"
+                            aria-expanded="false">
+                        <i class="fas fa-ellipsis-h" aria-hidden="true"></i>
+                    </button>
+                    <div class="account-actions-dropdown" role="menu">
+                        <button type="button"
+                                class="account-actions-item account-actions-item-view btn-view-account"
+                                role="menuitem"
+                                ${sharedAttrs}
+                                data-email-verified-at="${escapeAttr(account.email_verified_at || '')}">
+                            <i class="fas fa-eye" aria-hidden="true"></i>
+                            <span>View Details</span>
+                        </button>
+                        ${editDeleteItems}
+                    </div>
+                </div>
+            </td>
+        </tr>
+    `;
+}
+
+function prependOfficialAccountRow(account) {
+    const tableBody = document.getElementById('accountsTableBody');
+    if (!tableBody || !account?.id) {
+        return false;
+    }
+
+    const emptyRow = tableBody.querySelector('tr td[colspan]');
+    if (emptyRow) {
+        emptyRow.closest('tr')?.remove();
+    }
+
+    const existing = tableBody.querySelector(`tr[data-account-id="${account.id}"]`);
+    if (existing) {
+        existing.remove();
+    }
+
+    tableBody.insertAdjacentHTML('afterbegin', buildOfficialAccountRowHtml(account));
+
+    if (typeof window.refreshAccountsPagination === 'function') {
+        window.refreshAccountsPagination();
+    }
+
+    const root = document.getElementById('mainContent');
+    root?._x_dataStack?.[0]?.syncSelectAllState?.();
+
+    return true;
 }
 
 // ── Inline validation helpers (light-theme forms) ─────────────
@@ -3705,6 +3937,16 @@ document.addEventListener('DOMContentLoaded', function () {
             payload.term_status = payload.term_status || (payload.status === 'INACTIVE' ? 'INACTIVE' : 'ACTIVE');
 
             showLoadingOverlay('Creating account', 'Please wait while we set up the account...');
+            const createBtn = getCreateAccountSubmitButton(officialsForm);
+            if (createBtn?.dataset.creating === '1') {
+                return;
+            }
+            setCreateAccountButtonLoading(createBtn, true, 'Creating...');
+            if (createBtn) createBtn.dataset.creating = '1';
+
+            const controller = new AbortController();
+            const timeoutId = window.setTimeout(() => controller.abort(), 45000);
+
             fetch('/accounts', {
                 method: 'POST',
                 headers: {
@@ -3712,7 +3954,8 @@ document.addEventListener('DOMContentLoaded', function () {
                     'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
                     'Accept': 'application/json'
                 },
-                body: JSON.stringify(payload)
+                body: JSON.stringify(payload),
+                signal: controller.signal,
             })
                 .then(async r => {
                     const ct = r.headers.get('content-type') || '';
@@ -3721,7 +3964,9 @@ document.addEventListener('DOMContentLoaded', function () {
                 })
                 .then(({ ok, data }) => {
                     if (!ok || !data.success) {
-                        cleanupAccountUiState();
+                        hideLoadingOverlay();
+                        setCreateAccountButtonLoading(createBtn, false);
+                        if (createBtn) delete createBtn.dataset.creating;
                         if (data.errors) {
                             const firstError = displayFormValidationErrors(officialsForm, data.errors)
                                 || Object.values(data.errors).flat()[0]
@@ -3735,13 +3980,30 @@ document.addEventListener('DOMContentLoaded', function () {
                         return;
                     }
 
+                    setCreateAccountButtonLoading(createBtn, false);
+                    if (createBtn) delete createBtn.dataset.creating;
                     cleanupAccountUiState();
                     showAccountToast(data.message || 'SK Officials account created. Password setup email sent.', 'success');
-                    window.setTimeout(() => window.location.reload(), 900);
+                    if (data.data && !prependOfficialAccountRow(data.data)) {
+                        window.setTimeout(() => window.location.reload(), 900);
+                    } else if (officialsForm) {
+                        officialsForm.reset();
+                    }
                 })
-                .catch(() => {
-                    cleanupAccountUiState();
-                    alert('An unexpected error occurred. Please try again.');
+                .catch((err) => {
+                    hideLoadingOverlay();
+                    setCreateAccountButtonLoading(createBtn, false);
+                    if (createBtn) delete createBtn.dataset.creating;
+                    const timedOut = err && err.name === 'AbortError';
+                    showAccountToast(
+                        timedOut
+                            ? 'Create is taking too long. Please check if the account was created, then try again.'
+                            : 'An unexpected error occurred. Please try again.',
+                        'error'
+                    );
+                })
+                .finally(() => {
+                    window.clearTimeout(timeoutId);
                 });
         });
     }
@@ -3769,7 +4031,9 @@ document.addEventListener('DOMContentLoaded', function () {
             for (const [k, v] of formData.entries()) { if (k !== '_token') payload[k] = v; }
             payload.term_status = payload.term_status || (payload.status === 'INACTIVE' ? 'INACTIVE' : 'ACTIVE');
 
-            showLoadingOverlay('Creating account...');
+            showLoadingOverlay('Creating account', 'Please wait while we set up the account...');
+            const createBtn = getCreateAccountSubmitButton(fedForm);
+            setCreateAccountButtonLoading(createBtn, true, 'Creating...');
             fetch('/accounts', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'), 'Accept': 'application/json' },
@@ -3778,7 +4042,8 @@ document.addEventListener('DOMContentLoaded', function () {
                 .then(async r => { const ct = r.headers.get('content-type') || ''; const data = ct.includes('application/json') ? await r.json() : {}; return { ok: r.ok, data }; })
                 .then(({ ok, data }) => {
                     if (!ok || !data.success) {
-                        cleanupAccountUiState();
+                        hideLoadingOverlay();
+                        setCreateAccountButtonLoading(createBtn, false);
                         if (data.errors) {
                             let handledError = false;
                             Object.keys(data.errors).forEach(f => {
@@ -3797,12 +4062,14 @@ document.addEventListener('DOMContentLoaded', function () {
                         }
                         return;
                     }
+                    setCreateAccountButtonLoading(createBtn, false);
                     cleanupAccountUiState();
                     showAccountToast(data.message || 'SK Federation account created. Password setup email sent.', 'success');
                     window.setTimeout(() => window.location.reload(), 900);
                 })
                 .catch(() => {
-                    cleanupAccountUiState();
+                    hideLoadingOverlay();
+                    setCreateAccountButtonLoading(createBtn, false);
                     alert('An unexpected error occurred. Please try again.');
                 });
         });

@@ -25,9 +25,10 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Illuminate\View\View;
-use Illuminate\Support\Facades\Log;
 
 class AdminAccountController extends Controller
 {
@@ -45,7 +46,7 @@ class AdminAccountController extends Controller
 
         $tenantId = $this->resolveTenantId($request->user());
         $this->ensureTenantBarangays($tenantId);
-        $this->expiredTermProcessor->processForTenant($tenantId, $request->user());
+        $this->scheduleExpiredTermProcessing($tenantId, $request->user());
         $this->federationRosterService->syncFederationRosterAccess($tenantId);
 
         $pageCache = app(\App\Services\SkFedPageCache::class);
@@ -80,26 +81,28 @@ class AdminAccountController extends Controller
 
         $tenantId = $this->resolveTenantId($request->user());
         $this->ensureTenantBarangays($tenantId);
-        $this->expiredTermProcessor->processForTenant($tenantId, $request->user());
+
+        // Do not block page render on expired-term archival; run once per short window after response.
+        $this->scheduleExpiredTermProcessing($tenantId, $request->user());
 
         $pageCache = app(\App\Services\SkFedPageCache::class);
         $payload = $pageCache->remember('accounts.officials', function () use ($tenantId) {
+            $today = now()->toDateString();
+
             $query = User::query()
                 ->with(['barangay', 'officialProfile.latestTerm'])
                 ->where('tenant_id', $tenantId)
                 ->where('role', User::ROLE_SK_OFFICIAL)
-                ->whereHas('officialProfile.terms', function ($termQuery) {
-                    $today = now()->startOfDay();
-
+                ->whereHas('officialProfile.terms', function ($termQuery) use ($today) {
                     $termQuery->where(function ($scope) use ($today) {
                         $scope->where(function ($active) use ($today) {
                             $active
                                 ->where('status', OfficialTerm::STATUS_ACTIVE)
-                                ->whereDate('term_end', '>=', $today);
+                                ->where('term_end', '>=', $today);
                         })->orWhere(function ($upcoming) use ($today) {
                             $upcoming
                                 ->where('status', OfficialTerm::STATUS_INACTIVE)
-                                ->whereDate('term_start', '>=', $today);
+                                ->where('term_start', '>=', $today);
                         });
                     });
                 })
@@ -308,10 +311,8 @@ class AdminAccountController extends Controller
     {
         $this->authorize('create', User::class);
 
-        Log::info('AdminAccountController@store: Request received.');
         try {
             $validatedData = $request->validated();
-            Log::info('AdminAccountController@store: Validation passed.', $validatedData);
 
             if (($validatedData['role'] ?? '') === User::ROLE_SK_FED) {
                 throw \Illuminate\Validation\ValidationException::withMessages([
@@ -326,18 +327,19 @@ class AdminAccountController extends Controller
                 $validatedData,
                 $request->user()
             );
-            Log::info('AdminAccountController@store: Account created successfully.', ['user_id' => $user->id]);
             $this->bumpAccountsCache();
 
             $statusMessage = empty($validatedData['password'])
-                ? 'Account created successfully. A password setup email has been sent.'
+                ? 'Account created successfully. Password setup email is being sent.'
                 : 'Account created successfully.';
 
             if ($request->expectsJson()) {
+                $user->loadMissing(['barangay', 'officialProfile.latestTerm']);
+
                 return response([
                     'success' => true,
                     'message' => $statusMessage,
-                    'data' => ['id' => $user->id],
+                    'data' => $this->formatAccountForTable($user),
                 ]);
             }
 
@@ -350,13 +352,11 @@ class AdminAccountController extends Controller
         } catch (\Illuminate\Validation\ValidationException $e) {
             Log::error('AdminAccountController@store: Validation failed.', [
                 'errors' => $e->errors(),
-                'input' => $request->all(),
             ]);
             throw $e;
         } catch (\Illuminate\Database\QueryException $e) {
             Log::error('AdminAccountController@store: Database error creating account.', [
                 'message' => $e->getMessage(),
-                'input' => $request->all(),
             ]);
 
             $message = 'Failed to create account. Please try again.';
@@ -378,8 +378,6 @@ class AdminAccountController extends Controller
         } catch (\Exception $e) {
             Log::error('AdminAccountController@store: Error creating account.', [
                 'message' => $e->getMessage(),
-                'trace' => $e->getTraceAsString(),
-                'input' => $request->all(),
             ]);
 
             if ($request->expectsJson()) {
@@ -491,6 +489,100 @@ class AdminAccountController extends Controller
             'archive.sk_officials_records',
             'archive.sk_federation_records',
         ]);
+    }
+
+    private function scheduleExpiredTermProcessing(int $tenantId, User $actor): void
+    {
+        $lockKey = "sk_fed:expire_terms:schedule:{$tenantId}";
+
+        if (! Cache::add($lockKey, 1, now()->addMinutes(5))) {
+            return;
+        }
+
+        $actorId = (int) $actor->id;
+
+        dispatch(function () use ($tenantId, $actorId): void {
+            $actor = User::query()->find($actorId);
+            $processed = app(ExpiredTermProcessorService::class)->processForTenant($tenantId, $actor);
+
+            if ($processed > 0) {
+                app(\App\Services\SkFedPageCache::class)->bumpMany([
+                    'accounts.federation',
+                    'accounts.officials',
+                    'archive.deleted_sk_officials',
+                    'archive.sk_officials_records',
+                    'archive.sk_federation_records',
+                ]);
+            }
+        })->afterResponse();
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function formatAccountForTable(User $account): array
+    {
+        $profile = $account->officialProfile;
+        $term = $profile?->latestTerm;
+        $firstName = $profile?->first_name ? mb_strtoupper($profile->first_name, 'UTF-8') : null;
+        $lastName = $profile?->last_name ? mb_strtoupper($profile->last_name, 'UTF-8') : null;
+        $middleName = trim((string) ($profile?->middle_name ?? ''));
+        $middleInitial = $middleName !== ''
+            ? mb_strtoupper(mb_substr($middleName, 0, 1, 'UTF-8'), 'UTF-8').'.'
+            : null;
+        $suffixDisplay = $profile?->suffix;
+        if (in_array($suffixDisplay, ['NONE', 'None', null, ''], true)) {
+            $suffixDisplay = null;
+        }
+        $nameCore = collect([$lastName, $firstName])->filter()->implode(', ');
+        $fullName = trim(collect([$nameCore, $middleInitial, $suffixDisplay])->filter()->implode(' '));
+        $displayName = $fullName !== '' ? $fullName : ($account->name ?? 'N/A');
+        $sortName = strtolower(trim(collect([$lastName, $firstName, $middleInitial, $suffixDisplay])->filter()->implode(' ')));
+        $federationPosition = $profile?->displayFederationPosition();
+        $filterPosition = $account->role === User::ROLE_SK_OFFICIAL
+            ? ($profile?->position ?? '')
+            : ($profile?->federation_position ?? '');
+        $searchBlob = strtolower(trim(collect([
+            $displayName,
+            $account->email,
+            $account->barangay?->name,
+            $profile?->position,
+            $federationPosition,
+        ])->filter()->implode(' ')));
+
+        return [
+            'id' => $account->id,
+            'role' => $account->role,
+            'email' => $account->email,
+            'status' => $account->status,
+            'email_verified_at' => $account->email_verified_at?->format('m/d/Y h:i A'),
+            'display_name' => $displayName,
+            'sort_name' => $sortName,
+            'search_text' => $searchBlob,
+            'first_name' => $firstName ?? '',
+            'last_name' => $lastName ?? '',
+            'middle_name' => $middleName !== '' ? mb_strtoupper($middleName, 'UTF-8') : '',
+            'suffix' => $profile?->suffix ?? '',
+            'sex' => $profile?->sex ?? '',
+            'date_of_birth' => $profile?->date_of_birth?->toDateString() ?? '',
+            'age' => $profile?->age,
+            'contact_number' => $profile?->contact_number ?? '',
+            'position' => $profile?->position ?? '',
+            'federation_position' => $profile?->federation_position ?? '',
+            'federation_position_label' => $federationPosition,
+            'filter_position' => $filterPosition,
+            'barangay_id' => $account->barangay_id,
+            'barangay_name' => $account->barangay?->name ?? '',
+            'municipality' => $profile?->municipality ?? '',
+            'province' => $profile?->province ?? '',
+            'region' => $profile?->region ?? '',
+            'term_status' => $term?->status ?? 'ACTIVE',
+            'term_start' => $term?->term_start?->toDateString() ?? '',
+            'term_end' => $term?->term_end?->toDateString() ?? '',
+            'term_start_display' => $term?->term_start?->format('m/d/Y') ?? '—',
+            'term_end_display' => $term?->term_end?->format('m/d/Y') ?? '—',
+            'is_incoming_turnover' => $account->isIncomingTurnoverOfficer(),
+        ];
     }
 
     private function resolveTenantId(User $admin): int
