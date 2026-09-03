@@ -3,6 +3,7 @@ document.addEventListener('DOMContentLoaded', function () {
     const shell = document.getElementById('dashboardActivityApp');
     const activitiesUrl = shell?.dataset.activitiesUrl || feed.activities_url || '';
     const feedUrl = feed.feed_url || '';
+    const statsUrl = feed.stats_url || '';
     const REFRESH_MS = 45000;
 
     const els = {
@@ -24,19 +25,94 @@ document.addEventListener('DOMContentLoaded', function () {
 
     let feedRefreshTimer = null;
     let feedRefreshInFlight = false;
+    let statsAbortController = null;
+    let statsRequestSeq = 0;
 
     renderActivity(feed.recent_activity || [], els.activityList);
     renderEvents(feed.upcoming_events || []);
     renderTodayReminder(feed.today_reminder || null);
     bindActivityClicks(els.activityList);
     bindActivityClicks(els.modalList);
+    seedStatsCacheFromInitial();
+    if (feed.stats) {
+        updateStats(feed.stats);
+    }
 
     if (feedUrl) {
         startFeedPolling();
     }
 
+    function getDashboardDateRangeParams() {
+        if (typeof window.getDashboardDateRange === 'function') {
+            return window.getDashboardDateRange();
+        }
+
+        const fromInput = document.getElementById('dashDateFrom');
+        const toInput = document.getElementById('dashDateTo');
+        const today = new Date();
+        const pad = (n) => String(n).padStart(2, '0');
+        const todayIso = `${today.getFullYear()}-${pad(today.getMonth() + 1)}-${pad(today.getDate())}`;
+        let dateFrom = fromInput?.value || `${today.getFullYear()}-01-01`;
+        let dateTo = toInput?.value || todayIso;
+
+        if (dateFrom && dateTo && dateFrom > dateTo) {
+            const tmp = dateFrom;
+            dateFrom = dateTo;
+            dateTo = tmp;
+        }
+
+        return { date_from: dateFrom, date_to: dateTo };
+    }
+
+    function statsCacheKey(range) {
+        return 'sk_fed_dashboard_stats_v1_' + (range.date_from || '') + '_' + (range.date_to || '');
+    }
+
+    function seedStatsCacheFromInitial() {
+        if (!feed.stats || !window.SkLocalCache) {
+            return;
+        }
+        const range = {
+            date_from: feed.date_from || getDashboardDateRangeParams().date_from,
+            date_to: feed.date_to || getDashboardDateRangeParams().date_to,
+        };
+        const key = statsCacheKey(range);
+        if (!window.SkLocalCache.get(key)?.payload) {
+            window.SkLocalCache.set(key, { stats: feed.stats, date_from: range.date_from, date_to: range.date_to });
+        }
+    }
+
+    function buildFeedRequestUrl() {
+        if (!feedUrl) {
+            return '';
+        }
+
+        const range = getDashboardDateRangeParams();
+        const params = new URLSearchParams({
+            date_from: range.date_from || '',
+            date_to: range.date_to || '',
+        });
+
+        return feedUrl + (feedUrl.includes('?') ? '&' : '?') + params.toString();
+    }
+
+    function buildStatsRequestUrl() {
+        const endpoint = statsUrl || feedUrl;
+        if (!endpoint) {
+            return '';
+        }
+        const range = getDashboardDateRangeParams();
+        const params = new URLSearchParams({
+            date_from: range.date_from || '',
+            date_to: range.date_to || '',
+        });
+        return endpoint + (endpoint.includes('?') ? '&' : '?') + params.toString();
+    }
+
     function startFeedPolling() {
-        feedRefreshTimer = window.setInterval(refreshDashboardFeed, REFRESH_MS);
+        feedRefreshTimer = window.setInterval(function () {
+            refreshDashboardFeed();
+        }, REFRESH_MS);
         window.addEventListener('beforeunload', function () {
             if (feedRefreshTimer) {
                 window.clearInterval(feedRefreshTimer);
@@ -44,28 +120,86 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
-    async function refreshDashboardFeed() {
-        if (!feedUrl || feedRefreshInFlight) {
+    function setStatsLoading(isLoading) {
+        document.querySelectorAll('[data-stat-key] .stat-value').forEach(function (el) {
+            el.classList.toggle('is-updating', Boolean(isLoading));
+        });
+    }
+
+    async function refreshDashboardStats(immediate) {
+        const endpoint = buildStatsRequestUrl();
+        if (!endpoint) {
             return;
         }
 
-        if (els.modal && !els.modal.hidden) {
+        const requestSeq = ++statsRequestSeq;
+        const range = getDashboardDateRangeParams();
+        const cacheKey = statsCacheKey(range);
+        const cached = window.SkLocalCache?.get(cacheKey);
+
+        if (cached?.payload?.stats) {
+            updateStats(cached.payload.stats);
+        } else {
+            setStatsLoading(true);
+        }
+
+        if (statsAbortController) {
+            statsAbortController.abort();
+        }
+        statsAbortController = typeof AbortController !== 'undefined' ? new AbortController() : null;
+
+        try {
+            const response = await fetch(endpoint, {
+                headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                credentials: 'same-origin',
+                signal: statsAbortController?.signal,
+            });
+            if (!response.ok || requestSeq !== statsRequestSeq) {
+                return;
+            }
+            const payload = await response.json();
+            if (requestSeq !== statsRequestSeq) {
+                return;
+            }
+            window.SkLocalCache?.set(cacheKey, payload);
+            updateStats(payload.stats || {});
+        } catch (error) {
+            if (error && error.name === 'AbortError') {
+                return;
+            }
+        } finally {
+            if (requestSeq === statsRequestSeq) {
+                setStatsLoading(false);
+            }
+        }
+    }
+
+    async function refreshDashboardFeed(options) {
+        const opts = options || {};
+        if (!feedUrl || (feedRefreshInFlight && !opts.force)) {
+            return;
+        }
+
+        if (!opts.force && els.modal && !els.modal.hidden) {
             return;
         }
 
         feedRefreshInFlight = true;
-        const cacheKey = 'sk_fed_dashboard_feed_v1';
+        const range = getDashboardDateRangeParams();
+        const cacheKey = 'sk_fed_dashboard_feed_v3_' + (range.date_from || '') + '_' + (range.date_to || '');
         const cached = window.SkLocalCache?.get(cacheKey);
         if (cached?.payload) {
             renderActivity(cached.payload.recent_activity || [], els.activityList);
             renderEvents(cached.payload.upcoming_events || []);
             renderTodayReminder(cached.payload.today_reminder || null);
-            updateStats(cached.payload.stats || {});
+            if (cached.payload.stats) {
+                updateStats(cached.payload.stats);
+            }
         }
 
         try {
-            const response = await fetch(feedUrl, {
-                headers: { Accept: 'application/json' },
+            const response = await fetch(buildFeedRequestUrl(), {
+                headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
                 credentials: 'same-origin',
             });
 
@@ -75,6 +209,9 @@ document.addEventListener('DOMContentLoaded', function () {
 
             const payload = await response.json();
             window.SkLocalCache?.set(cacheKey, payload);
+            if (payload.stats) {
+                window.SkLocalCache?.set(statsCacheKey(range), payload);
+            }
             renderActivity(payload.recent_activity || [], els.activityList);
             renderEvents(payload.upcoming_events || []);
             renderTodayReminder(payload.today_reminder || null);
@@ -85,6 +222,11 @@ document.addEventListener('DOMContentLoaded', function () {
             feedRefreshInFlight = false;
         }
     }
+
+    window.refreshDashboardFeed = refreshDashboardFeed;
+    window.refreshDashboardStats = function (immediate) {
+        refreshDashboardStats(Boolean(immediate));
+    };
 
     function updateStats(stats) {
         document.querySelectorAll('[data-stat-key]').forEach(function (card) {

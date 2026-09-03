@@ -25,27 +25,32 @@ class DashboardController extends Controller
         $tenantId = $request->user()?->tenant_id;
         $barangays = $this->dashboardStatsService->getBarangays($tenantId);
         $dashboardYear = $this->dashboardStatsService->dashboardYear($tenantId);
+        $dateFrom = sprintf('%04d-01-01', $dashboardYear);
+        $dateTo = now()->toDateString();
         $user = $request->user();
+        $statCards = $this->dashboardStatsService->dashboardStatCards($tenantId, $dateFrom, $dateTo);
 
         $kkInitialRequest = new Request([
             'barangay_id' => 'all',
             'period' => 'monthly',
-            'year' => $dashboardYear,
+            'date_from' => $dateFrom,
+            'date_to' => $dateTo,
         ]);
 
         $purokInitialRequest = new Request([
             'barangay_id' => 'all',
             'purok' => 'all',
-            'year' => 'all',
+            'date_from' => $dateFrom,
+            'date_to' => $dateTo,
         ]);
 
         return view('dashboard::dashboard', [
             'user' => $user,
-            'totalKabataanRegistered' => $this->dashboardStatsService->totalKabataanRegistered($tenantId),
-            'totalSkOfficials' => $this->dashboardStatsService->totalSkOfficials($tenantId),
-            'totalSkChairpersons' => $this->dashboardStatsService->totalSkChairpersons($tenantId),
-            'totalAuditLogs' => $this->dashboardStatsService->totalAuditLogs($tenantId),
-            'totalBarangaysAbyipSubmitted' => $this->barangayMonitoringService->countBarangaysWithAbyipSubmission(),
+            'totalKabataanRegistered' => $statCards['total_kabataan_registered'],
+            'totalSkOfficials' => $statCards['total_sk_officials'],
+            'totalSkChairpersons' => $statCards['total_sk_chairpersons'],
+            'totalAuditLogs' => $statCards['total_audit_logs'],
+            'totalBarangaysAbyipSubmitted' => $this->barangayMonitoringService->countBarangaysWithAbyipSubmission($dateFrom, $dateTo),
             'sexDistribution' => $this->dashboardStatsService->sexDistribution($tenantId),
             'sexDistributionOfficials' => $this->dashboardStatsService->sexDistributionOfficials($tenantId),
             'federationOfficers' => $this->dashboardStatsService->federationOfficers($tenantId),
@@ -60,6 +65,8 @@ class DashboardController extends Controller
             'todayReminder' => $this->dashboardActivityService->todayCalendarNote(),
             'todayLabel' => now()->timezone(config('app.timezone', 'Asia/Manila'))->format('F j, Y | l'),
             'dashboardYear' => $dashboardYear,
+            'dateFrom' => $dateFrom,
+            'dateTo' => $dateTo,
             'abyipOverview' => $this->barangayMonitoringService->dashboardAbyipOverview(10),
             'kkProfilingInitial' => $user
                 ? $this->kkProfilingChartService->getChartData($user, $kkInitialRequest)
@@ -89,19 +96,75 @@ class DashboardController extends Controller
     public function feed(Request $request): JsonResponse
     {
         $tenantId = $request->user()?->tenant_id;
+        [$dateFrom, $dateTo] = $this->resolveFeedDates($request);
+        $statCards = $this->dashboardStatsService->dashboardStatCards($tenantId, $dateFrom, $dateTo);
 
         return response()->json([
             'recent_activity' => $this->dashboardActivityService->recentActivity($tenantId),
             'upcoming_events' => $this->dashboardActivityService->upcomingCalendarNotes(),
             'today_reminder' => $this->dashboardActivityService->todayCalendarNote(),
             'stats' => [
-                'total_kabataan_registered' => $this->dashboardStatsService->totalKabataanRegistered($tenantId),
-                'total_sk_officials' => $this->dashboardStatsService->totalSkOfficials($tenantId),
-                'total_sk_chairpersons' => $this->dashboardStatsService->totalSkChairpersons($tenantId),
-                'total_barangays_abyip_submitted' => $this->barangayMonitoringService->countBarangaysWithAbyipSubmission(),
-                'total_audit_logs' => $this->dashboardStatsService->totalAuditLogs($tenantId),
+                'total_kabataan_registered' => $statCards['total_kabataan_registered'],
+                'total_sk_officials' => $statCards['total_sk_officials'],
+                'total_sk_chairpersons' => $statCards['total_sk_chairpersons'],
+                'total_barangays_abyip_submitted' => $this->barangayMonitoringService->countBarangaysWithAbyipSubmission($dateFrom, $dateTo),
+                'total_audit_logs' => $statCards['total_audit_logs'],
             ],
+            'date_from' => $dateFrom,
+            'date_to' => $dateTo,
         ]);
+    }
+
+    public function stats(Request $request): JsonResponse
+    {
+        $tenantId = $request->user()?->tenant_id;
+        [$dateFrom, $dateTo] = $this->resolveFeedDates($request);
+        $cacheKey = sprintf(
+            'skfed:dash:stats:%s:%s:%s',
+            $tenantId === null ? 'all' : (string) $tenantId,
+            $dateFrom ?? 'none',
+            $dateTo ?? 'none'
+        );
+
+        $payload = \Illuminate\Support\Facades\Cache::remember($cacheKey, 20, function () use ($tenantId, $dateFrom, $dateTo): array {
+            $statCards = $this->dashboardStatsService->dashboardStatCards($tenantId, $dateFrom, $dateTo);
+
+            return [
+                'stats' => [
+                    'total_kabataan_registered' => $statCards['total_kabataan_registered'],
+                    'total_sk_officials' => $statCards['total_sk_officials'],
+                    'total_sk_chairpersons' => $statCards['total_sk_chairpersons'],
+                    'total_barangays_abyip_submitted' => $this->barangayMonitoringService->countBarangaysWithAbyipSubmission($dateFrom, $dateTo),
+                    'total_audit_logs' => $statCards['total_audit_logs'],
+                ],
+                'date_from' => $dateFrom,
+                'date_to' => $dateTo,
+            ];
+        });
+
+        return response()->json($payload);
+    }
+
+    /**
+     * @return array{0: ?string, 1: ?string}
+     */
+    private function resolveFeedDates(Request $request): array
+    {
+        $dateFrom = trim((string) $request->input('date_from', ''));
+        $dateTo = trim((string) $request->input('date_to', ''));
+
+        if ($dateFrom === '') {
+            $dateFrom = null;
+        }
+        if ($dateTo === '') {
+            $dateTo = null;
+        }
+
+        if ($dateFrom !== null && $dateTo !== null && $dateFrom > $dateTo) {
+            return [$dateTo, $dateFrom];
+        }
+
+        return [$dateFrom, $dateTo];
     }
 
     public function kkProfilingData(Request $request): JsonResponse

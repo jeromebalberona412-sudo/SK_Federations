@@ -36,6 +36,17 @@
 
     @include('layout::logout-modal')
     @include('layout::session-timeout-modal')
+    @include('layout::chat-modal')
+
+    @auth
+        <div
+            id="commsRealtimeBoot"
+            hidden
+            data-current-user-id="{{ auth()->id() }}"
+            data-portal-user-type="{{ config('communications.portal_user_type', 'sk_fed') }}"
+            data-unread-count-url="{{ url('/api/communications/unread-count') }}"
+        ></div>
+    @endauth
 
     @if(!empty($turnoverModal['show']))
         @vite(['app/Modules/Turnover/assets/css/turnover.css'])
@@ -45,6 +56,12 @@
     @endif
 
     <script src="{{ url('/shared/js/local-data-cache.js') }}?v={{ @filemtime(public_path('shared/js/local-data-cache.js')) ?: time() }}"></script>
+    @auth
+        @vite([
+            'app/Modules/Communications/assets/js/communication.js',
+            'app/Modules/Communications/assets/js/realtime.js',
+        ])
+    @endauth
     @vite(['app/Modules/Layout/assets/js/layout.js'])
     <script>
         window.logoutRoute = "{{ route('logout') }}";

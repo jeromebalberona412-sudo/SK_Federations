@@ -62,6 +62,54 @@ class CloudinaryService
         ];
     }
 
+    /**
+     * Upload a communication messenger image into the shared `communication` folder.
+     *
+     * @return array{public_id: string, url: string, version: int|null}
+     */
+    public function uploadCommunicationImage(UploadedFile $file): array
+    {
+        $this->ensureConfigured();
+
+        $folder = trim((string) config('services.cloudinary.communication_folder', 'communication'), '/');
+        $preset = trim((string) config('services.cloudinary.communication_upload_preset', ''));
+        $path = $file->getRealPath() ?: $file->getPathname();
+        $displayName = pathinfo((string) $file->getClientOriginalName(), PATHINFO_FILENAME);
+        $ext = strtolower((string) $file->getClientOriginalExtension());
+
+        $options = [
+            'folder' => $folder !== '' ? $folder : 'communication',
+            'resource_type' => 'image',
+            'overwrite' => false,
+            'use_filename' => false,
+            'unique_filename' => false,
+            'display_name' => $displayName !== '' ? $displayName : 'communication_image',
+        ];
+
+        // Preserve uploaded format; only force svg when the asset is intentionally an SVG.
+        if ($ext === 'svg' && (bool) config('communications.attachments.allow_svg', false)) {
+            $options['format'] = 'svg';
+        }
+
+        if ($preset !== '') {
+            $options['upload_preset'] = $preset;
+        }
+
+        $result = $this->cloudinary->uploadApi()->upload($path, $options);
+        $version = isset($result['version']) ? (int) $result['version'] : null;
+        $deliveryUrl = (string) ($result['secure_url'] ?? $result['url'] ?? '');
+
+        if ($deliveryUrl === '') {
+            $deliveryUrl = $this->deliverUrl((string) $result['public_id'], $version);
+        }
+
+        return [
+            'public_id' => (string) $result['public_id'],
+            'url' => $deliveryUrl,
+            'version' => $version,
+        ];
+    }
+
     public function delete(string $publicId): void
     {
         $this->ensureConfigured();

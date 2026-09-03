@@ -558,3 +558,55 @@ body.profile-page .account-settings-panel:not([hidden]) {
 .accounts-sort-btn--fullname .table-col-hint {
     margin-top: 0;
 }
+
+.comms-header-msg {
+    position: relative;
+    margin-right: 0.35rem;
+    display: inline-flex;
+    align-items: center;
+}
+.comms-header-msg-btn {
+    border: 0;
+    background: transparent;
+    color: #ffffff;
+    width: 40px;
+    height: 40px;
+    border-radius: 999px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    text-decoration: none;
+    position: relative;
+}
+.comms-header-msg-btn:hover,
+.comms-header-msg-btn:focus-visible {
+    background: rgba(255, 255, 255, 0.14);
+    color: #ffffff;
+    outline: none;
+}
+.comms-header-msg-btn svg {
+    display: block;
+    flex-shrink: 0;
+    color: #ffffff;
+    stroke: #ffffff;
+}
+.comms-header-msg-btn svg path {
+    stroke: #ffffff;
+}
+.comms-header-msg-badge {
+    position: absolute;
+    top: 2px;
+    right: 2px;
+    min-width: 1.1rem;
+    height: 1.1rem;
+    padding: 0 0.28rem;
+    border-radius: 999px;
+    background: #d92d20;
+    color: #fff;
+    font-size: 0.65rem;
+    font-weight: 700;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+}

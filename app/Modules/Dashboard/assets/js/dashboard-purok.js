@@ -3,6 +3,8 @@
 
     let purokChart = null;
     let purokFetchTimer = null;
+    let purokAbortController = null;
+    let purokRequestSeq = 0;
     const barColors = [
         'rgba(59,130,246,.85)',
         'rgba(34,197,94,.85)',
@@ -14,16 +16,44 @@
         'rgba(99,102,241,.85)',
     ];
 
-    function getDashboardYear() {
-        const yearSelect = document.getElementById('yearSelect');
-        return yearSelect?.value || 'all';
+    function getDashboardDateRange() {
+        if (typeof window.getDashboardDateRange === 'function') {
+            return window.getDashboardDateRange();
+        }
+
+        const fromInput = document.getElementById('dashDateFrom');
+        const toInput = document.getElementById('dashDateTo');
+        const today = new Date();
+        const pad = function (n) { return String(n).padStart(2, '0'); };
+        const defaultTo = today.getFullYear() + '-' + pad(today.getMonth() + 1) + '-' + pad(today.getDate());
+        const defaultFrom = today.getFullYear() + '-01-01';
+
+        let dateFrom = fromInput?.value || defaultFrom;
+        let dateTo = toInput?.value || defaultTo;
+
+        if (dateFrom && dateTo && dateFrom > dateTo) {
+            const tmp = dateFrom;
+            dateFrom = dateTo;
+            dateTo = tmp;
+            if (fromInput) fromInput.value = dateFrom;
+            if (toInput) toInput.value = dateTo;
+        }
+
+        if (fromInput && toInput) {
+            fromInput.max = dateTo || '';
+            toInput.min = dateFrom || '';
+        }
+
+        return { date_from: dateFrom, date_to: dateTo };
     }
 
     function getPurokFilters() {
+        const range = getDashboardDateRange();
         return {
             barangay_id: document.getElementById('purokBarangayFilter')?.value || 'all',
             purok: document.getElementById('purokZoneFilter')?.value || 'all',
-            year: getDashboardYear(),
+            date_from: range.date_from,
+            date_to: range.date_to,
         };
     }
 
@@ -94,18 +124,25 @@
                         ticks: {
                             font: { size: 9 },
                             maxRotation: 45,
-                            minRotation: 25,
-                            autoSkip: false,
+                            minRotation: 0,
                         },
                     },
                     y: {
                         beginAtZero: true,
                         ticks: { precision: 0 },
-                        grid: { color: 'rgba(0, 0, 0, 0.05)' },
+                        grid: { color: 'rgba(148,163,184,.25)' },
                     },
                 },
             },
         });
+    }
+
+    function applyPurokPayload(payload, hasBarangay) {
+        const data = payload?.data || payload || { labels: [], counts: [], zones: [] };
+        if (hasBarangay) {
+            fillZoneOptions(data.zones || [], getPurokFilters().purok);
+        }
+        renderPurokChart(data);
     }
 
     async function refreshPurokChart() {
@@ -114,6 +151,7 @@
             return;
         }
 
+        const requestSeq = ++purokRequestSeq;
         const barangayFilter = document.getElementById('purokBarangayFilter');
         const zoneSelect = document.getElementById('purokZoneFilter');
         const hasBarangay = Boolean(barangayFilter && barangayFilter.value !== 'all');
@@ -126,50 +164,37 @@
         }
 
         const params = new URLSearchParams(getPurokFilters());
-        const cacheKey = 'sk_fed_purok_chart_v1_' + params.toString();
+        const cacheKey = 'sk_fed_purok_chart_v2_' + params.toString();
         const cached = window.SkLocalCache?.get(cacheKey);
+
         if (cached?.payload) {
-            const data = cached.payload.data || { labels: [], counts: [], zones: [] };
-            if (hasBarangay) {
-                fillZoneOptions(data.zones || [], getPurokFilters().purok);
-            }
-            renderPurokChart(data);
-            if (window.SkLocalCache.isFresh(cached, 5 * 60 * 1000)) {
-                fetch(endpoint + '?' + params.toString(), {
-                    headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
-                    credentials: 'same-origin',
-                })
-                    .then((response) => (response.ok ? response.json() : null))
-                    .then((payload) => {
-                        if (!payload) return;
-                        window.SkLocalCache?.set(cacheKey, payload);
-                        const next = payload.data || { labels: [], counts: [], zones: [] };
-                        if (hasBarangay) {
-                            fillZoneOptions(next.zones || [], getPurokFilters().purok);
-                        }
-                        renderPurokChart(next);
-                    })
-                    .catch(() => {});
-                return;
-            }
+            applyPurokPayload(cached.payload, hasBarangay);
         }
+
+        if (purokAbortController) {
+            purokAbortController.abort();
+        }
+        purokAbortController = typeof AbortController !== 'undefined' ? new AbortController() : null;
 
         try {
             const response = await fetch(endpoint + '?' + params.toString(), {
                 headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
                 credentials: 'same-origin',
+                signal: purokAbortController?.signal,
             });
-            if (!response.ok) {
+            if (!response.ok || requestSeq !== purokRequestSeq) {
                 return;
             }
             const payload = await response.json();
-            window.SkLocalCache?.set(cacheKey, payload);
-            const data = payload.data || { labels: [], counts: [], zones: [] };
-            if (hasBarangay) {
-                fillZoneOptions(data.zones || [], getPurokFilters().purok);
+            if (requestSeq !== purokRequestSeq) {
+                return;
             }
-            renderPurokChart(data);
-        } catch (_) {
+            window.SkLocalCache?.set(cacheKey, payload);
+            applyPurokPayload(payload, hasBarangay);
+        } catch (error) {
+            if (error && error.name === 'AbortError') {
+                return;
+            }
             if (!cached?.payload) {
                 renderPurokChart({ labels: [], counts: [] });
             }
@@ -178,7 +203,7 @@
 
     function scheduleRefresh() {
         window.clearTimeout(purokFetchTimer);
-        purokFetchTimer = window.setTimeout(refreshPurokChart, 80);
+        purokFetchTimer = window.setTimeout(refreshPurokChart, 40);
     }
 
     function boot() {
@@ -194,10 +219,14 @@
             scheduleRefresh();
         });
         document.getElementById('purokZoneFilter')?.addEventListener('change', scheduleRefresh);
-        document.getElementById('yearSelect')?.addEventListener('change', scheduleRefresh);
 
         const initial = window.__PUROK_CHART_INITIAL__;
         if (initial) {
+            const params = new URLSearchParams(getPurokFilters());
+            const cacheKey = 'sk_fed_purok_chart_v2_' + params.toString();
+            if (!window.SkLocalCache?.get(cacheKey)?.payload) {
+                window.SkLocalCache?.set(cacheKey, { data: initial });
+            }
             renderPurokChart(initial);
         } else {
             refreshPurokChart();

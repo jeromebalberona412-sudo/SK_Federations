@@ -100,6 +100,28 @@ class AuditLogQueryService
         ];
     }
 
+    public function countInDateRange(?int $tenantId, ?string $dateFrom = null, ?string $dateTo = null): int
+    {
+        $query = AdminActivityLog::query();
+        $this->applyTenantScope($query, $tenantId);
+
+        $from = trim((string) $dateFrom);
+        $to = trim((string) $dateTo);
+
+        if ($from !== '' && $to !== '' && $from > $to) {
+            [$from, $to] = [$to, $from];
+        }
+
+        if ($from !== '') {
+            $query->whereDate('created_at', '>=', $from);
+        }
+        if ($to !== '') {
+            $query->whereDate('created_at', '<=', $to);
+        }
+
+        return (int) $query->count();
+    }
+
     /**
      * @return Collection<int, array<string, mixed>>
      */

@@ -112,6 +112,13 @@ export default defineConfig({
                 'app/Modules/Notifications/assets/css/notifications.css',
                 'app/Modules/Notifications/assets/js/notifications.js',
 
+                // ── Communications ─────────────────────────────────────────
+                'app/Modules/Communications/assets/css/communication.css',
+                'app/Modules/Communications/assets/js/communication.js',
+                'app/Modules/Communications/assets/js/chat.js',
+                'app/Modules/Communications/assets/js/realtime.js',
+                'app/Modules/Communications/assets/js/webrtc.js',
+
                 // ── Profile ─────────────────────────────────────────────────
                 'app/Modules/Profile/assets/css/profile.css',
                 'app/Modules/Profile/assets/js/profile.js',

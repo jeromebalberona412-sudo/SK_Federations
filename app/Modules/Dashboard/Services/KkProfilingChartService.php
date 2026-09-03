@@ -14,7 +14,7 @@ use Illuminate\Support\Facades\Schema;
 
 class KkProfilingChartService
 {
-    private const CACHE_TTL_SECONDS = 300;
+    private const CACHE_TTL_SECONDS = 60;
 
     /**
      * @return array<string, mixed>
@@ -28,19 +28,21 @@ class KkProfilingChartService
         $tenantId = (int) $user->tenant_id;
         $barangayId = (string) $request->input('barangay_id', 'all');
         $period = $request->input('period', 'monthly') === 'weekly' ? 'weekly' : 'monthly';
-        $year = (int) $request->input('year', now()->year);
-        $month = max(1, min(12, (int) $request->input('month', now()->month)));
+        [$dateFrom, $dateTo] = $this->resolveDateRange($request);
+        $year = (int) $dateFrom->year;
+        $month = max(1, min(12, (int) $request->input('month', $dateFrom->month)));
 
         $cacheKey = sprintf(
-            'skfed:dash:kk-chart:%d:%s:%s:%d:%d',
+            'skfed:dash:kk-chart:%d:%s:%s:%s:%s:%d',
             $tenantId,
             $barangayId === '' ? 'all' : $barangayId,
             $period,
-            $year,
+            $dateFrom->toDateString(),
+            $dateTo->toDateString(),
             $month
         );
 
-        return Cache::remember($cacheKey, self::CACHE_TTL_SECONDS, function () use ($tenantId, $barangayId, $period, $year, $month): array {
+        return Cache::remember($cacheKey, self::CACHE_TTL_SECONDS, function () use ($tenantId, $barangayId, $period, $year, $month, $dateFrom, $dateTo): array {
             $barangayIds = Barangay::query()
                 ->where('tenant_id', $tenantId)
                 ->pluck('id');
@@ -50,14 +52,14 @@ class KkProfilingChartService
             }
 
             if ($barangayIds->isEmpty()) {
-                return $this->emptyPayload($period);
+                return $this->emptyPayload($period, $dateFrom, $dateTo);
             }
 
             if ($period === 'weekly') {
-                return $this->weeklyPayload($tenantId, $barangayIds->all(), $year, $month);
+                return $this->weeklyPayload($tenantId, $barangayIds->all(), $year, $month, $dateFrom, $dateTo);
             }
 
-            return $this->monthlyPayload($tenantId, $barangayIds->all(), $year);
+            return $this->monthlyPayload($tenantId, $barangayIds->all(), $year, $dateFrom, $dateTo);
         });
     }
 
@@ -69,15 +71,15 @@ class KkProfilingChartService
         $tenantId = (int) $user->tenant_id;
         $barangayIdInput = (string) $request->input('barangay_id', 'all');
         $purokFilter = trim((string) $request->input('purok', 'all'));
-        $yearInput = $request->input('year', 'all');
-        $yearKey = ($yearInput === 'all' || $yearInput === '' || $yearInput === null) ? 'all' : (string) (int) $yearInput;
+        [$dateFrom, $dateTo] = $this->resolveDateRange($request);
 
         $cacheKey = sprintf(
-            'skfed:dash:purok-chart:%d:%s:%s:%s',
+            'skfed:dash:purok-chart:%d:%s:%s:%s:%s',
             $tenantId,
             $barangayIdInput === '' ? 'all' : $barangayIdInput,
             $purokFilter === '' ? 'all' : $purokFilter,
-            $yearKey
+            $dateFrom->toDateString(),
+            $dateTo->toDateString()
         );
 
         return Cache::remember($cacheKey, self::CACHE_TTL_SECONDS, function () use ($user, $request): array {
@@ -100,8 +102,7 @@ class KkProfilingChartService
         $tenantId = (int) $user->tenant_id;
         $barangayIdInput = $request->input('barangay_id', 'all');
         $purokFilter = trim((string) $request->input('purok', 'all'));
-        $yearInput = $request->input('year', 'all');
-        $year = ($yearInput === 'all' || $yearInput === '' || $yearInput === null) ? null : (int) $yearInput;
+        [$dateFrom, $dateTo] = $this->resolveDateRange($request);
 
         $barangays = Barangay::query()
             ->where('tenant_id', $tenantId)
@@ -134,14 +135,17 @@ class KkProfilingChartService
             $query->where('barangay_id', $barangayId);
         }
 
-        if ($year !== null) {
-            $query->where(function ($yearQuery) use ($year): void {
-                $yearQuery->whereYear('reviewed_at', $year)
-                    ->orWhere(function ($createdQuery) use ($year): void {
-                        $createdQuery->whereNull('reviewed_at')->whereYear('created_at', $year);
-                    });
+        $query->where(function ($dateQuery) use ($dateFrom, $dateTo): void {
+            $dateQuery->where(function ($reviewedQuery) use ($dateFrom, $dateTo): void {
+                $reviewedQuery->whereNotNull('reviewed_at')
+                    ->whereDate('reviewed_at', '>=', $dateFrom->toDateString())
+                    ->whereDate('reviewed_at', '<=', $dateTo->toDateString());
+            })->orWhere(function ($createdQuery) use ($dateFrom, $dateTo): void {
+                $createdQuery->whereNull('reviewed_at')
+                    ->whereDate('created_at', '>=', $dateFrom->toDateString())
+                    ->whereDate('created_at', '<=', $dateTo->toDateString());
             });
-        }
+        });
 
         $records = $query->get(['id', 'barangay_id', 'form_data']);
 
@@ -232,17 +236,19 @@ class KkProfilingChartService
      * @param  list<int>  $barangayIds
      * @return array<string, mixed>
      */
-    private function monthlyPayload(int $tenantId, array $barangayIds, int $year): array
+    private function monthlyPayload(int $tenantId, array $barangayIds, int $year, Carbon $dateFrom, Carbon $dateTo): array
     {
         $labels = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
         return [
             'period' => 'monthly',
             'year' => $year,
+            'date_from' => $dateFrom->toDateString(),
+            'date_to' => $dateTo->toDateString(),
             'labels' => $labels,
-            'approved' => $this->countMonthly($tenantId, $barangayIds, $year, 'approved'),
-            'pending' => $this->countMonthly($tenantId, $barangayIds, $year, 'pending'),
-            'rejected' => $this->countMonthly($tenantId, $barangayIds, $year, 'rejected'),
+            'approved' => $this->countMonthly($tenantId, $barangayIds, $year, 'approved', $dateFrom, $dateTo),
+            'pending' => $this->countMonthly($tenantId, $barangayIds, $year, 'pending', $dateFrom, $dateTo),
+            'rejected' => $this->countMonthly($tenantId, $barangayIds, $year, 'rejected', $dateFrom, $dateTo),
         ];
     }
 
@@ -250,7 +256,7 @@ class KkProfilingChartService
      * @param  list<int>  $barangayIds
      * @return array<string, mixed>
      */
-    private function weeklyPayload(int $tenantId, array $barangayIds, int $year, int $month): array
+    private function weeklyPayload(int $tenantId, array $barangayIds, int $year, int $month, Carbon $dateFrom, Carbon $dateTo): array
     {
         $weeks = $this->buildWeeksForMonth($year, $month);
         $labels = array_column($weeks, 'label');
@@ -259,15 +265,29 @@ class KkProfilingChartService
         $rejected = [];
 
         foreach ($weeks as $week) {
-            $approved[] = $this->countWeekly($tenantId, $barangayIds, $week['start'], $week['end'], 'approved');
-            $pending[] = $this->countWeekly($tenantId, $barangayIds, $week['start'], $week['end'], 'pending');
-            $rejected[] = $this->countWeekly($tenantId, $barangayIds, $week['start'], $week['end'], 'rejected');
+            $weekStart = Carbon::parse($week['start'])->startOfDay();
+            $weekEnd = Carbon::parse($week['end'])->endOfDay();
+            $clipStart = $weekStart->lt($dateFrom) ? $dateFrom->copy()->startOfDay() : $weekStart;
+            $clipEnd = $weekEnd->gt($dateTo) ? $dateTo->copy()->endOfDay() : $weekEnd;
+
+            if ($clipStart->gt($clipEnd)) {
+                $approved[] = 0;
+                $pending[] = 0;
+                $rejected[] = 0;
+                continue;
+            }
+
+            $approved[] = $this->countWeekly($tenantId, $barangayIds, $clipStart->toDateString(), $clipEnd->toDateString(), 'approved');
+            $pending[] = $this->countWeekly($tenantId, $barangayIds, $clipStart->toDateString(), $clipEnd->toDateString(), 'pending');
+            $rejected[] = $this->countWeekly($tenantId, $barangayIds, $clipStart->toDateString(), $clipEnd->toDateString(), 'rejected');
         }
 
         return [
             'period' => 'weekly',
             'year' => $year,
             'month' => $month,
+            'date_from' => $dateFrom->toDateString(),
+            'date_to' => $dateTo->toDateString(),
             'labels' => $labels,
             'approved' => $approved,
             'pending' => $pending,
@@ -320,12 +340,13 @@ class KkProfilingChartService
      * @param  list<int>  $barangayIds
      * @return list<int>
      */
-    private function countMonthly(int $tenantId, array $barangayIds, int $year, string $category): array
+    private function countMonthly(int $tenantId, array $barangayIds, int $year, string $category, Carbon $dateFrom, Carbon $dateTo): array
     {
         $counts = array_fill(0, 12, 0);
         $dateExpression = $this->dateExpression($category);
 
         $rows = $this->baseQuery($tenantId, $barangayIds, $category)
+            ->whereRaw("{$dateExpression}::date BETWEEN ? AND ?", [$dateFrom->toDateString(), $dateTo->toDateString()])
             ->whereRaw("EXTRACT(YEAR FROM {$dateExpression}) = ?", [$year])
             ->selectRaw("EXTRACT(MONTH FROM {$dateExpression})::int AS bucket, COUNT(*) AS total")
             ->groupBy('bucket')
@@ -382,13 +403,50 @@ class KkProfilingChartService
     }
 
     /**
+     * @return array{0: Carbon, 1: Carbon}
+     */
+    private function resolveDateRange(Request $request): array
+    {
+        $fallbackYear = (int) $request->input('year', now()->year);
+        $rawFrom = trim((string) $request->input('date_from', ''));
+        $rawTo = trim((string) $request->input('date_to', ''));
+
+        try {
+            $from = $rawFrom !== ''
+                ? Carbon::parse($rawFrom)->startOfDay()
+                : Carbon::create($fallbackYear, 1, 1)->startOfDay();
+        } catch (\Throwable $e) {
+            $from = Carbon::create($fallbackYear, 1, 1)->startOfDay();
+        }
+
+        try {
+            $to = $rawTo !== ''
+                ? Carbon::parse($rawTo)->startOfDay()
+                : now()->startOfDay();
+        } catch (\Throwable $e) {
+            $to = now()->startOfDay();
+        }
+
+        if ($from->gt($to)) {
+            [$from, $to] = [$to->copy(), $from->copy()];
+        }
+
+        return [$from, $to];
+    }
+
+    /**
      * @return array<string, mixed>
      */
-    private function emptyPayload(string $period): array
+    private function emptyPayload(string $period, ?Carbon $dateFrom = null, ?Carbon $dateTo = null): array
     {
+        $from = $dateFrom?->toDateString() ?? now()->startOfYear()->toDateString();
+        $to = $dateTo?->toDateString() ?? now()->toDateString();
+
         return [
             'period' => $period,
-            'year' => now()->year,
+            'year' => $dateFrom?->year ?? now()->year,
+            'date_from' => $from,
+            'date_to' => $to,
             'labels' => $period === 'weekly' ? [] : ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'],
             'approved' => [],
             'pending' => [],

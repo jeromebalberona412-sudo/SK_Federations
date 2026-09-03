@@ -128,15 +128,29 @@ class BarangayMonitoringService
         ];
     }
 
-    public function countBarangaysWithAbyipSubmission(): int
+    public function countBarangaysWithAbyipSubmission(?string $dateFrom = null, ?string $dateTo = null): int
     {
         if (! Schema::hasTable('abyip')) {
             return 0;
         }
 
-        return (int) Abyip::query()
+        $query = Abyip::query()
             ->documents()
-            ->whereNotNull('barangay_id')
+            ->whereNotNull('barangay_id');
+
+        $from = trim((string) $dateFrom);
+        $to = trim((string) $dateTo);
+        if ($from !== '' && $to !== '' && $from > $to) {
+            [$from, $to] = [$to, $from];
+        }
+        if ($from !== '') {
+            $query->whereDate('created_at', '>=', $from);
+        }
+        if ($to !== '') {
+            $query->whereDate('created_at', '<=', $to);
+        }
+
+        return (int) $query
             ->selectRaw('count(distinct barangay_id) as aggregate')
             ->value('aggregate');
     }

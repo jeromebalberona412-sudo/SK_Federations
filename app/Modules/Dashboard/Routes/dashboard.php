@@ -37,4 +37,6 @@ Route::middleware(['auth', 'session.timeout', 'verified', 'single.session', 'sk_
             ->name('dashboard.recent-activities');
         Route::get('/api/dashboard/feed', [DashboardController::class, 'feed'])
             ->name('dashboard.feed');
+        Route::get('/api/dashboard/stats', [DashboardController::class, 'stats'])
+            ->name('dashboard.stats');
     });

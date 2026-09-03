@@ -46,6 +46,14 @@ return [
         'api_secret' => env('CLOUDINARY_API_SECRET'),
         'folder' => env('CLOUDINARY_FOLDER', 'sk_oneportal/sk_fed_posts'),
         'barangay_logos_folder' => env('CLOUDINARY_BARANGAY_LOGOS_FOLDER', 'sk_oneportal/barangay_logos'),
+        'communication_folder' => env('CLOUDINARY_COMMUNICATION_FOLDER', 'communication'),
+        'communication_upload_preset' => env('CLOUDINARY_COMMUNICATION_UPLOAD_PRESET', ''),
+    ],
+
+    'supabase' => [
+        'url' => env('SUPABASE_URL', env('VITE_SUPABASE_URL')),
+        'service_role_key' => env('SUPABASE_SERVICE_ROLE_KEY'),
+        'communication_bucket' => env('SUPABASE_COMMUNICATION_BUCKET', 'communication'),
     ],
 
     /*

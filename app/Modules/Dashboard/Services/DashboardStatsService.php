@@ -36,12 +36,15 @@ class DashboardStatsService
 
     private ?int $cachedKabataanTenantId = null;
 
-    public function totalKabataanRegistered(?int $tenantId = null): int
+    public function totalKabataanRegistered(?int $tenantId = null, ?string $dateFrom = null, ?string $dateTo = null): int
     {
-        return $this->activeKabataanQuery($tenantId)->count();
+        $query = $this->activeKabataanQuery($tenantId);
+        $this->applyKabataanDateRange($query, $dateFrom, $dateTo);
+
+        return (int) $query->count();
     }
 
-    public function totalSkOfficials(?int $tenantId = null): int
+    public function totalSkOfficials(?int $tenantId = null, ?string $dateFrom = null, ?string $dateTo = null): int
     {
         if (! Schema::hasTable('users')) {
             return 0;
@@ -61,10 +64,12 @@ class DashboardStatsService
             $query->where('tenant_id', $tenantId);
         }
 
+        $this->applyCreatedAtDateRange($query, $dateFrom, $dateTo);
+
         return (int) $query->count();
     }
 
-    public function totalSkChairpersons(?int $tenantId = null): int
+    public function totalSkChairpersons(?int $tenantId = null, ?string $dateFrom = null, ?string $dateTo = null): int
     {
         if (! Schema::hasTable('users')) {
             return 0;
@@ -86,16 +91,35 @@ class DashboardStatsService
             $query->where('tenant_id', $tenantId);
         }
 
+        $this->applyCreatedAtDateRange($query, $dateFrom, $dateTo);
+
         return (int) $query->count();
     }
 
-    public function totalAuditLogs(?int $tenantId = null): int
+    public function totalAuditLogs(?int $tenantId = null, ?string $dateFrom = null, ?string $dateTo = null): int
     {
         if (! Schema::hasTable('admin_activity_logs')) {
             return 0;
         }
 
-        return (int) app(AuditLogQueryService::class)->stats($tenantId)['total_logs'];
+        if ($dateFrom === null && $dateTo === null) {
+            return (int) app(AuditLogQueryService::class)->stats($tenantId)['total_logs'];
+        }
+
+        return (int) app(AuditLogQueryService::class)->countInDateRange($tenantId, $dateFrom, $dateTo);
+    }
+
+    /**
+     * @return array<string, int>
+     */
+    public function dashboardStatCards(?int $tenantId = null, ?string $dateFrom = null, ?string $dateTo = null): array
+    {
+        return [
+            'total_kabataan_registered' => $this->totalKabataanRegistered($tenantId, $dateFrom, $dateTo),
+            'total_sk_officials' => $this->totalSkOfficials($tenantId, $dateFrom, $dateTo),
+            'total_sk_chairpersons' => $this->totalSkChairpersons($tenantId, $dateFrom, $dateTo),
+            'total_audit_logs' => $this->totalAuditLogs($tenantId, $dateFrom, $dateTo),
+        ];
     }
 
     /**
@@ -285,6 +309,69 @@ class DashboardStatsService
         }
 
         return $query;
+    }
+
+    /**
+     * @param  Builder<\Illuminate\Database\Eloquent\Model>  $query
+     */
+    private function applyCreatedAtDateRange(Builder $query, ?string $dateFrom, ?string $dateTo): void
+    {
+        [$from, $to] = $this->normalizeDateRange($dateFrom, $dateTo);
+        if ($from === null || $to === null) {
+            return;
+        }
+
+        $query->whereDate('created_at', '>=', $from)
+            ->whereDate('created_at', '<=', $to);
+    }
+
+    /**
+     * @param  Builder<KabataanRegistration>  $query
+     */
+    private function applyKabataanDateRange(Builder $query, ?string $dateFrom, ?string $dateTo): void
+    {
+        [$from, $to] = $this->normalizeDateRange($dateFrom, $dateTo);
+        if ($from === null || $to === null) {
+            return;
+        }
+
+        $query->where(function ($rangeQuery) use ($from, $to): void {
+            $rangeQuery->where(function ($reviewedQuery) use ($from, $to): void {
+                $reviewedQuery->whereNotNull('reviewed_at')
+                    ->whereDate('reviewed_at', '>=', $from)
+                    ->whereDate('reviewed_at', '<=', $to);
+            })->orWhere(function ($createdQuery) use ($from, $to): void {
+                $createdQuery->whereNull('reviewed_at')
+                    ->whereDate('created_at', '>=', $from)
+                    ->whereDate('created_at', '<=', $to);
+            });
+        });
+    }
+
+    /**
+     * @return array{0: ?string, 1: ?string}
+     */
+    private function normalizeDateRange(?string $dateFrom, ?string $dateTo): array
+    {
+        $from = trim((string) $dateFrom);
+        $to = trim((string) $dateTo);
+
+        if ($from === '' && $to === '') {
+            return [null, null];
+        }
+
+        if ($from === '') {
+            $from = $to;
+        }
+        if ($to === '') {
+            $to = $from;
+        }
+
+        if ($from > $to) {
+            [$from, $to] = [$to, $from];
+        }
+
+        return [$from, $to];
     }
 
     /**

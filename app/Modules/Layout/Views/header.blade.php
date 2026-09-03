@@ -16,7 +16,36 @@
         @php
             $unreadNotifCount = (int) ($unreadNotificationCount ?? 0);
             $unreadNotifLabel = $unreadNotifCount > 99 ? '99+' : (string) $unreadNotifCount;
+            $unreadMsgCount = (int) ($unreadMessagesCount ?? 0);
+            $unreadMsgLabel = $unreadMsgCount > 99 ? '99+' : (string) $unreadMsgCount;
         @endphp
+
+        {{-- Messages (Officials-style icon button + Facebook-style dropdown) --}}
+        <div class="notif-menu comms-header-msg" id="commsMsgMenu">
+            <button
+                type="button"
+                class="comms-header-msg-btn"
+                id="commsMsgBtn"
+                onclick="toggleMessagesPopover(event)"
+                aria-label="Messages"
+                title="Messages"
+                aria-expanded="false"
+                aria-haspopup="true"
+            >
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                </svg>
+                <span
+                    class="comms-header-msg-badge"
+                    id="commsMsgBadge"
+                    data-unread-total="{{ $unreadMsgCount }}"
+                    style="{{ $unreadMsgCount > 0 ? '' : 'display: none;' }}"
+                >{{ $unreadMsgLabel }}</span>
+            </button>
+
+            @include('layout::messages-dropdown')
+        </div>
+
         <div class="notif-menu" id="notifMenu">
             <button
                 type="button"

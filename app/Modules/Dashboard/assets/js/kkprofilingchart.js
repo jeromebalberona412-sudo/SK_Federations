@@ -5,6 +5,8 @@ let kkProfilingBarangayWired = false;
 let kkProfilingPeriodWired = false;
 let kkProfilingMonthWired = false;
 let kkProfilingFetchTimer = null;
+let kkProfilingAbortController = null;
+let kkProfilingRequestSeq = 0;
 
 function getSelectedBarangayName(barangayId) {
     if (barangayId === 'all') {
@@ -17,15 +19,74 @@ function getSelectedBarangayName(barangayId) {
     return match?.name || 'Barangay';
 }
 
-function getDashboardSelectedYear() {
-    const yearSelect = document.getElementById('yearSelect');
-    const selectedYear = yearSelect?.value;
+function getTodayIsoDate() {
+    const today = new Date();
+    const pad = (n) => String(n).padStart(2, '0');
+    return `${today.getFullYear()}-${pad(today.getMonth() + 1)}-${pad(today.getDate())}`;
+}
 
-    if (selectedYear && selectedYear !== 'all') {
-        return selectedYear;
+function getDashboardDateRange() {
+    const fromInput = document.getElementById('dashDateFrom');
+    const toInput = document.getElementById('dashDateTo');
+    const todayIso = getTodayIsoDate();
+    const defaultFrom = `${new Date().getFullYear()}-01-01`;
+
+    let dateFrom = fromInput?.value || defaultFrom;
+    let dateTo = toInput?.value || todayIso;
+
+    if (dateFrom && dateTo && dateFrom > dateTo) {
+        const tmp = dateFrom;
+        dateFrom = dateTo;
+        dateTo = tmp;
+        if (fromInput) fromInput.value = dateFrom;
+        if (toInput) toInput.value = dateTo;
     }
 
-    return String(new Date().getFullYear());
+    if (fromInput && toInput) {
+        fromInput.max = dateTo || '';
+        toInput.min = dateFrom || '';
+    }
+
+    return { date_from: dateFrom, date_to: dateTo };
+}
+
+window.getDashboardDateRange = getDashboardDateRange;
+
+function refreshDashboardDateFilteredViews() {
+    getDashboardDateRange();
+    // Stats first (no debounce) — charts follow without blocking cards.
+    if (typeof window.refreshDashboardStats === 'function') {
+        window.refreshDashboardStats(true);
+    }
+    window.clearTimeout(kkProfilingFetchTimer);
+    window.requestAnimationFrame(function () {
+        refreshKkProfilingChart();
+        if (typeof window.refreshPurokDistributionChart === 'function') {
+            window.refreshPurokDistributionChart();
+        }
+    });
+    document.dispatchEvent(new CustomEvent('dashboard:date-range-changed'));
+}
+
+function resetDashboardDateRange() {
+    const fromInput = document.getElementById('dashDateFrom');
+    const toInput = document.getElementById('dashDateTo');
+    const filter = document.getElementById('dashDateRangeFilter');
+    if (!fromInput || !toInput) {
+        return;
+    }
+
+    const todayIso = getTodayIsoDate();
+    const termYear = Number(filter?.dataset.termYear || new Date().getFullYear());
+    const defaultFrom = filter?.dataset.defaultFrom || `${termYear}-01-01`;
+    const defaultTo = filter?.dataset.defaultTo || todayIso;
+
+    fromInput.value = defaultFrom;
+    toInput.value = defaultTo;
+    fromInput.max = defaultTo;
+    toInput.min = defaultFrom;
+
+    refreshDashboardDateFilteredViews();
 }
 
 function getKkProfilingFilters() {
@@ -34,13 +95,27 @@ function getKkProfilingFilters() {
     const monthFilter = document.getElementById('kkProfilingMonthFilter');
     const period = periodFilter?.value || 'monthly';
     const now = new Date();
+    const range = getDashboardDateRange();
 
     return {
         barangay_id: barangayFilter?.value || 'all',
         period,
-        year: getDashboardSelectedYear(),
+        date_from: range.date_from,
+        date_to: range.date_to,
         month: period === 'weekly' ? String(monthFilter?.value || (now.getMonth() + 1)) : '',
     };
+}
+
+function seedKkProfilingCacheFromInitial() {
+    const initial = window.__KK_PROFILING_INITIAL__;
+    if (!initial || !window.SkLocalCache) {
+        return;
+    }
+    const params = new URLSearchParams(getKkProfilingFilters());
+    const cacheKey = 'sk_fed_kk_chart_v2_' + params.toString();
+    if (!window.SkLocalCache.get(cacheKey)?.payload) {
+        window.SkLocalCache.set(cacheKey, initial);
+    }
 }
 
 async function fetchKkProfilingData() {
@@ -49,63 +124,57 @@ async function fetchKkProfilingData() {
         return null;
     }
 
+    const requestSeq = ++kkProfilingRequestSeq;
     const params = new URLSearchParams(getKkProfilingFilters());
-    const cacheKey = 'sk_fed_kk_chart_v1_' + params.toString();
+    const cacheKey = 'sk_fed_kk_chart_v2_' + params.toString();
     const cached = window.SkLocalCache?.get(cacheKey);
+    const cachedPayload = cached?.payload || null;
 
-    if (cached?.payload && window.SkLocalCache.isFresh(cached, 5 * 60 * 1000)) {
-        // Soft revalidate in background; return cached for instant chart paint.
-        fetch(`${endpoint}?${params.toString()}`, {
-            headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
-            credentials: 'same-origin',
-        })
-            .then((response) => (response.ok ? response.json() : null))
-            .then((payload) => {
-                if (!payload) return;
-                window.SkLocalCache?.set(cacheKey, payload.data || null);
-            })
-            .catch(() => {});
-        return cached.payload;
+    if (kkProfilingAbortController) {
+        kkProfilingAbortController.abort();
     }
+    kkProfilingAbortController = typeof AbortController !== 'undefined' ? new AbortController() : null;
 
-    if (cached?.payload) {
-        // Stale cache: paint caller can use it while we refresh.
-        try {
-            const response = await fetch(`${endpoint}?${params.toString()}`, {
-                headers: {
-                    Accept: 'application/json',
-                    'X-Requested-With': 'XMLHttpRequest',
-                },
-                credentials: 'same-origin',
-            });
-            if (response.ok) {
-                const payload = await response.json();
-                window.SkLocalCache?.set(cacheKey, payload.data || null);
-                return payload.data || null;
-            }
-        } catch (error) {
-            // fall through to cache
-        }
-        return cached.payload;
-    }
-
-    try {
+    const fetchFresh = async () => {
         const response = await fetch(`${endpoint}?${params.toString()}`, {
             headers: {
                 Accept: 'application/json',
                 'X-Requested-With': 'XMLHttpRequest',
             },
             credentials: 'same-origin',
+            signal: kkProfilingAbortController?.signal,
         });
-
         if (!response.ok) {
             return null;
         }
-
         const payload = await response.json();
-        window.SkLocalCache?.set(cacheKey, payload.data || null);
-        return payload.data || null;
+        const data = payload.data || null;
+        if (data && requestSeq === kkProfilingRequestSeq) {
+            window.SkLocalCache?.set(cacheKey, data);
+        }
+        return data;
+    };
+
+    // Instant paint from local cache, then revalidate in background.
+    if (cachedPayload) {
+        fetchFresh()
+            .then((data) => {
+                if (!data || requestSeq !== kkProfilingRequestSeq) {
+                    return;
+                }
+                const barangayFilter = document.getElementById('kkProfilingBarangayFilter');
+                applyKkProfilingChartData(data, getSelectedBarangayName(barangayFilter?.value || 'all'));
+            })
+            .catch(() => {});
+        return cachedPayload;
+    }
+
+    try {
+        return await fetchFresh();
     } catch (error) {
+        if (error && error.name === 'AbortError') {
+            return null;
+        }
         return null;
     }
 }
@@ -116,14 +185,17 @@ function updateKkProfilingSubtitle(data) {
         return;
     }
 
+    const rangeLabel = [data.date_from, data.date_to].filter(Boolean).join(' to ');
+    const rangeSuffix = rangeLabel ? ` (${rangeLabel})` : '';
+
     if (data.period === 'weekly') {
         const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
         const monthLabel = monthNames[(data.month || 1) - 1] || 'Selected month';
-        subtitle.textContent = `Weekly submissions for ${monthLabel} ${data.year} — approved, pending, and rejected`;
+        subtitle.textContent = `Weekly submissions for ${monthLabel} ${data.year}${rangeSuffix} — approved, pending, and rejected`;
         return;
     }
 
-    subtitle.textContent = `Monthly submissions for ${data.year} — approved, pending, and rejected`;
+    subtitle.textContent = `Monthly submissions for ${data.year}${rangeSuffix} — approved, pending, and rejected`;
 }
 
 function applyKkProfilingChartData(data, barangayName) {
@@ -166,6 +238,8 @@ function initKkProfilingMonthlyChart() {
     if (!canvas || !window.Chart) {
         return;
     }
+
+    seedKkProfilingCacheFromInitial();
 
     if (kkProfilingMonthlyChart) {
         kkProfilingMonthlyChart.destroy();
@@ -260,7 +334,7 @@ function initKkProfilingMonthlyChart() {
     wireKkProfilingMonthFilter();
     wireKkProfilingDatasetFilters();
     toggleKkProfilingMonthFilter();
-    wireDashboardYearFilter();
+    wireDashboardDateRangeFilter();
 
     if (initial) {
         kkProfilingCurrentData = {
@@ -278,21 +352,37 @@ function initKkProfilingMonthlyChart() {
     }
 }
 
-function wireDashboardYearFilter() {
-    const yearSelect = document.getElementById('yearSelect');
-    if (!yearSelect || yearSelect.dataset.kkWired === 'true') {
+function wireDashboardDateRangeFilter() {
+    const fromInput = document.getElementById('dashDateFrom');
+    const toInput = document.getElementById('dashDateTo');
+    const resetBtn = document.getElementById('dashDateResetBtn');
+    if (!fromInput || !toInput) {
+        return;
+    }
+    if (fromInput.dataset.kkWired === 'true') {
         return;
     }
 
-    yearSelect.addEventListener('change', scheduleKkProfilingRefresh);
-    yearSelect.dataset.kkWired = 'true';
+    const onChange = () => {
+        refreshDashboardDateFilteredViews();
+    };
+
+    fromInput.addEventListener('change', onChange);
+    toInput.addEventListener('change', onChange);
+    fromInput.addEventListener('input', onChange);
+    toInput.addEventListener('input', onChange);
+    resetBtn?.addEventListener('click', function () {
+        resetDashboardDateRange();
+    });
+    fromInput.dataset.kkWired = 'true';
+    toInput.dataset.kkWired = 'true';
 }
 
 function scheduleKkProfilingRefresh() {
     window.clearTimeout(kkProfilingFetchTimer);
     kkProfilingFetchTimer = window.setTimeout(() => {
         refreshKkProfilingChart();
-    }, 80);
+    }, 40);
 }
 
 function wireKkProfilingBarangayFilter() {

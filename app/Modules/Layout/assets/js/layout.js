@@ -260,6 +260,9 @@ window.toggleNotifPopover = function (e) {
     if (profileBtn) {
         profileBtn.classList.remove('open');
     }
+    if (typeof window.closeMessagesPopover === 'function') {
+        window.closeMessagesPopover();
+    }
 
     var isOpen = pop && pop.classList.contains('show');
     if (isOpen) {
@@ -277,12 +280,1199 @@ window.toggleNotifPopover = function (e) {
     }
 };
 
+// ── Messages Popover (Facebook-style) ──
+function closeMessagesPopover() {
+    var pop = document.getElementById('commsMsgPopover');
+    var btn = document.getElementById('commsMsgBtn');
+    if (pop) {
+        pop.classList.remove('show');
+    }
+    if (btn) {
+        btn.setAttribute('aria-expanded', 'false');
+    }
+}
+
+window.closeMessagesPopover = closeMessagesPopover;
+
+function escapeCommsHtml(value) {
+    return String(value == null ? '' : value).replace(/[&<>"']/g, function (ch) {
+        return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch];
+    });
+}
+
+function formatCommsRelativeTime(iso) {
+    if (!iso) return '';
+    var d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return '';
+    var diffSec = Math.max(0, Math.floor((Date.now() - d.getTime()) / 1000));
+    if (diffSec < 60) return diffSec + 's';
+    if (diffSec < 3600) return Math.floor(diffSec / 60) + 'm';
+    if (diffSec < 86400) return Math.floor(diffSec / 3600) + 'h';
+    return Math.floor(diffSec / 86400) + 'd';
+}
+
+function defaultCommsAvatar(name) {
+    var label = encodeURIComponent(String(name || 'U').slice(0, 40));
+    return 'https://ui-avatars.com/api/?name=' + label + '&background=213F99&color=fff';
+}
+
+function renderMessagesPopoverList(conversations) {
+    var list = document.getElementById('commsMsgList');
+    var empty = document.getElementById('commsMsgEmpty');
+    if (!list || !empty) return;
+
+    var items = Array.isArray(conversations) ? conversations.slice(0, 8) : [];
+    window.__COMMS_HEADER_CONVERSATIONS__ = items;
+    if (!items.length) {
+        list.innerHTML = '';
+        list.style.display = 'none';
+        empty.style.display = 'flex';
+        applyMessagesPopoverFilters();
+        return;
+    }
+
+    empty.style.display = 'none';
+    list.style.display = '';
+    list.innerHTML = items.map(function (c) {
+        var peer = c.other_user || {};
+        var name = peer.name || 'User';
+        var preview = (c.last_message && c.last_message.body) || 'No messages yet';
+        var unread = Number(c.unread_count || 0);
+        var avatar = peer.profile_image_url || defaultCommsAvatar(name);
+        var searchBlob = String(name + ' ' + preview).toLowerCase();
+        return '<button type="button" class="comms-msg-item' + (unread > 0 ? ' comms-msg-unread' : '') + '" data-id="' + c.id + '" data-name="' + escapeCommsHtml(name) + '" data-avatar="' + escapeCommsHtml(avatar) + '" data-unread="' + (unread > 0 ? '1' : '0') + '" data-search="' + escapeCommsHtml(searchBlob) + '" role="menuitem">' +
+            '<img class="comms-msg-avatar" src="' + escapeCommsHtml(avatar) + '" alt="" onerror="this.onerror=null;this.src=\'' + escapeCommsHtml(defaultCommsAvatar(name)) + '\'">' +
+            '<div class="comms-msg-content">' +
+            '<div class="comms-msg-item-top">' +
+            '<span class="comms-msg-item-name">' + escapeCommsHtml(name) + '</span>' +
+            '<span class="comms-msg-item-time">' + escapeCommsHtml(formatCommsRelativeTime(c.updated_at)) + '</span>' +
+            '</div>' +
+            '<div class="comms-msg-item-preview">' + escapeCommsHtml(preview) + '</div>' +
+            '</div>' +
+            (unread > 0 ? '<span class="comms-msg-unread-dot" aria-hidden="true"></span>' : '') +
+            '</button>';
+    }).join('');
+
+    applyMessagesPopoverFilters();
+}
+
+function applyMessagesPopoverFilters() {
+    var list = document.getElementById('commsMsgList');
+    var empty = document.getElementById('commsMsgEmpty');
+    var searchInput = document.getElementById('commsMsgSearch');
+    var activeChip = document.querySelector('.comms-msg-filter-chip.is-active');
+    if (!list) return;
+
+    var query = String(searchInput && searchInput.value ? searchInput.value : '').trim().toLowerCase();
+    var filter = activeChip ? String(activeChip.getAttribute('data-filter') || 'all') : 'all';
+    var items = list.querySelectorAll('.comms-msg-item');
+    var visibleCount = 0;
+
+    items.forEach(function (item) {
+        var unread = item.getAttribute('data-unread') === '1';
+        var haystack = String(item.getAttribute('data-search') || '').toLowerCase();
+        var matchesFilter = filter === 'all' || (filter === 'unread' && unread);
+        var matchesSearch = !query || haystack.indexOf(query) !== -1;
+        var show = matchesFilter && matchesSearch;
+        item.classList.toggle('is-filtered-out', !show);
+        if (show) {
+            visibleCount += 1;
+        }
+    });
+
+    var hasSourceItems = items.length > 0;
+    if (empty) {
+        if (!hasSourceItems) {
+            empty.style.display = 'flex';
+            empty.querySelector('p') && (empty.querySelector('p').textContent = 'No messages yet');
+            list.style.display = 'none';
+        } else if (visibleCount === 0) {
+            empty.style.display = 'flex';
+            var main = empty.querySelector('p');
+            if (main) {
+                main.textContent = filter === 'unread' ? 'No unread messages' : 'No matching chats';
+            }
+            list.style.display = 'none';
+        } else {
+            empty.style.display = 'none';
+            list.style.display = '';
+        }
+    }
+}
+
+function wireMessagesPopoverControls() {
+    var searchInput = document.getElementById('commsMsgSearch');
+    var chips = document.querySelectorAll('.comms-msg-filter-chip');
+    if (searchInput && searchInput.dataset.wired !== 'true') {
+        searchInput.addEventListener('input', applyMessagesPopoverFilters);
+        searchInput.dataset.wired = 'true';
+    }
+    chips.forEach(function (chip) {
+        if (chip.dataset.wired === 'true') return;
+        chip.addEventListener('click', function () {
+            chips.forEach(function (other) {
+                other.classList.toggle('is-active', other === chip);
+                other.setAttribute('aria-selected', other === chip ? 'true' : 'false');
+            });
+            applyMessagesPopoverFilters();
+        });
+        chip.dataset.wired = 'true';
+    });
+}
+
+function refreshMessagesPopover() {
+    var csrf = document.querySelector('meta[name="csrf-token"]');
+    fetch('/api/communications/conversations', {
+        headers: {
+            'Accept': 'application/json',
+            'X-Requested-With': 'XMLHttpRequest',
+            'X-CSRF-TOKEN': csrf ? csrf.getAttribute('content') : ''
+        },
+        credentials: 'same-origin'
+    }).then(function (r) {
+        return r.ok ? r.json() : null;
+    }).then(function (data) {
+        if (!data) return;
+        renderMessagesPopoverList(data.conversations || []);
+    }).catch(function () { /* ignore */ });
+}
+
+window.toggleMessagesPopover = function (e) {
+    e.stopPropagation();
+    var pop = document.getElementById('commsMsgPopover');
+    var btn = document.getElementById('commsMsgBtn');
+    closeNotifPopover();
+    var profileDd = document.getElementById('profileDropdown');
+    if (profileDd) {
+        profileDd.classList.remove('show');
+    }
+    var profileBtn = document.querySelector('.profile-btn');
+    if (profileBtn) {
+        profileBtn.classList.remove('open');
+    }
+
+    var isOpen = pop && pop.classList.contains('show');
+    if (isOpen) {
+        closeMessagesPopover();
+        return;
+    }
+    if (pop) {
+        pop.classList.add('show');
+        if (btn) {
+            btn.setAttribute('aria-expanded', 'true');
+        }
+        wireMessagesPopoverControls();
+        refreshMessagesPopover();
+    }
+};
+
+// ── Header chat modal (open conversation without leaving page) ──
+var headerChatState = {
+    conversationId: null,
+    loading: false,
+    sending: false,
+    messages: [],
+    reactionEmojis: ['👍', '❤️', '😆', '😮', '😢', '🙏'],
+    openReactionPickerId: null,
+    editingId: null,
+    msgChangeSkipToast: {},
+    reactInFlight: {},
+    reactSkipRealtime: {},
+    reactSeq: {},
+    pendingAttachments: [],
+    pendingPreviewUrls: []
+};
+
+function getCommsCsrfToken() {
+    var csrf = document.querySelector('meta[name="csrf-token"]');
+    return csrf ? csrf.getAttribute('content') : '';
+}
+
+function clearHeaderChatAttachments() {
+    headerChatState.pendingPreviewUrls.forEach(function (u) { if (u) URL.revokeObjectURL(u); });
+    headerChatState.pendingAttachments = [];
+    headerChatState.pendingPreviewUrls = [];
+    var preview = document.getElementById('commsChatAttachPreview');
+    if (preview) preview.hidden = true;
+    var inner = document.getElementById('commsChatAttachPreviewInner');
+    if (inner) inner.innerHTML = '';
+}
+
+function isHeaderImageFile(f) {
+    return /^image\/(jpeg|png|webp|gif)$/i.test(f.type || '');
+}
+
+function renderHeaderAttachPreview() {
+    var inner = document.getElementById('commsChatAttachPreviewInner');
+    var wrap = document.getElementById('commsChatAttachPreview');
+    if (!inner || !wrap) return;
+    if (!headerChatState.pendingAttachments.length) { wrap.hidden = true; inner.innerHTML = ''; return; }
+    wrap.hidden = false;
+    inner.innerHTML = headerChatState.pendingAttachments.map(function (f, i) {
+        if (isHeaderImageFile(f) && headerChatState.pendingPreviewUrls[i]) {
+            return '<div class="comms-chat-attach-preview-item"><img src="' + headerChatState.pendingPreviewUrls[i] + '" alt="preview"></div>';
+        }
+        return '<div class="comms-chat-attach-preview-item"><span class="file-icon"><i class="fas fa-file"></i></span><span>' + escapeCommsHtml(f.name) + '</span></div>';
+    }).join('');
+}
+
+function pushHeaderFiles(files, kind) {
+    var maxImg = 100, maxFile = 10, maxBytes = 25 * 1024 * 1024;
+    var imgCount = 0, fileCount = 0, totalBytes = 0;
+    headerChatState.pendingAttachments.forEach(function (f) {
+        totalBytes += f.size || 0;
+        if (isHeaderImageFile(f)) imgCount++; else fileCount++;
+    });
+    for (var i = 0; i < files.length; i++) {
+        var f = files[i];
+        totalBytes += f.size || 0;
+        if (totalBytes > maxBytes) { alert('Total size exceeds 25 MB.'); break; }
+        if (kind === 'image') {
+            imgCount++;
+            if (imgCount > maxImg) { alert('Max ' + maxImg + ' images.'); break; }
+        } else {
+            fileCount++;
+            if (fileCount > maxFile) { alert('Max ' + maxFile + ' files.'); break; }
+        }
+        headerChatState.pendingAttachments.push(f);
+        headerChatState.pendingPreviewUrls.push(isHeaderImageFile(f) ? URL.createObjectURL(f) : null);
+    }
+    renderHeaderAttachPreview();
+}
+
+function headerFileKindClass(a) {
+    var name = String((a && a.file_name) || '');
+    var mime = String((a && a.mime_type) || '').toLowerCase();
+    if (/\.pdf$/i.test(name) || mime === 'application/pdf') return ' is-pdf';
+    if (/\.docx?$/i.test(name) || mime.indexOf('msword') !== -1 || mime.indexOf('wordprocessingml') !== -1) return ' is-word';
+    return '';
+}
+
+function renderHeaderAttachmentBubbles(attachments) {
+    if (!attachments || !attachments.length) return '';
+    var html = '<div class="comms-chat-attachment-grid">';
+    attachments.forEach(function (a) {
+        if (a.file_type === 'image' || a.storage_provider === 'cloudinary') {
+            var src = a.url || a.file_path || a.download_url || '';
+            html += '<img src="' + escapeCommsHtml(src) + '" alt="' + escapeCommsHtml(a.file_name || 'image') + '" loading="lazy">';
+        } else {
+            var dlUrl = a.download_url || '#';
+            html += '<a href="' + escapeCommsHtml(dlUrl) + '" class="comms-chat-attachment-file' + headerFileKindClass(a) + '" download="' + escapeCommsHtml(a.file_name || 'document') + '"><i class="fas fa-file-alt"></i><span>' + escapeCommsHtml(a.file_name || 'file') + '</span></a>';
+        }
+    });
+    html += '</div>';
+    return html;
+}
+
+function closeHeaderChatModal() {
+    var modal = document.getElementById('commsChatModal');
+    if (!modal) return;
+    modal.hidden = true;
+    document.body.classList.remove('comms-chat-modal-open');
+    headerChatState.conversationId = null;
+    headerChatState.messages = [];
+    headerChatState.openReactionPickerId = null;
+    clearHeaderChatAttachments();
+}
+
+function setHeaderChatAvatar(name, avatarUrl) {
+    var el = document.getElementById('commsChatModalAvatar');
+    if (!el) return;
+    var src = avatarUrl || defaultCommsAvatar(name);
+    el.innerHTML = '<img src="' + escapeCommsHtml(src) + '" alt="" onerror="this.onerror=null;this.src=\'' + escapeCommsHtml(defaultCommsAvatar(name)) + '\'">';
+    el.classList.remove('comms-chat-modal-avatar--fallback');
+}
+
+function renderHeaderReactionChips(reactions) {
+    var items = Array.isArray(reactions) ? reactions : [];
+    if (!items.length) return '';
+    return '<div class="comms-chat-reaction-chips" role="group" aria-label="Reactions">' +
+        items.map(function (r) {
+            return '<button type="button" class="comms-chat-reaction-chip' + (r.mine ? ' is-mine' : '') + '" data-react-emoji="' + escapeCommsHtml(r.emoji) + '">' +
+                '<span aria-hidden="true">' + escapeCommsHtml(r.emoji) + '</span>' +
+                '<span>' + Number(r.count || 0) + '</span>' +
+                '</button>';
+        }).join('') +
+        '</div>';
+}
+
+function renderHeaderReactionPicker(messageId) {
+    if (Number(headerChatState.openReactionPickerId) !== Number(messageId)) return '';
+    return '<div class="comms-chat-reaction-picker" data-react-picker="' + messageId + '" role="menu" aria-label="Choose reaction">' +
+        headerChatState.reactionEmojis.map(function (emoji) {
+            return '<button type="button" class="comms-chat-reaction-pick" data-react-emoji="' + escapeCommsHtml(emoji) + '" role="menuitem">' +
+                escapeCommsHtml(emoji) +
+                '</button>';
+        }).join('') +
+        '</div>';
+}
+
+var headerReactBtnIcon = '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M8.5 14.5s1.5 2 3.5 2 3.5-2 3.5-2"/><circle cx="9" cy="10" r="1" fill="currentColor" stroke="none"/><circle cx="15" cy="10" r="1" fill="currentColor" stroke="none"/></svg>';
+
+function playHeaderChatReactionSound() {
+    if (window.Comms && typeof window.Comms.playReactionSound === 'function') {
+        window.Comms.playReactionSound();
+        return;
+    }
+    try {
+        var audio = new Audio('/sounds/reactions_ux.mp3');
+        audio.volume = 0.75;
+        audio.play().catch(function () {});
+    } catch (e) {}
+}
+
+function headerCallBubbleClass(body) {
+    var t = String(body || '').toLowerCase();
+    if (t.indexOf('ended') !== -1 || t.indexOf('missed') !== -1 || t.indexOf('declined') !== -1 || t.indexOf('cancelled') !== -1 || t.indexOf('canceled') !== -1) return 'is-system is-call-ended';
+    if (t.indexOf('started') !== -1 || t.indexOf('ringing') !== -1 || t.indexOf('answered') !== -1) return 'is-system is-call-started';
+    return 'is-system';
+}
+
+var headerMsgMoreIcon = '<svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor" aria-hidden="true"><circle cx="12" cy="5" r="1.85"/><circle cx="12" cy="12" r="1.85"/><circle cx="12" cy="19" r="1.85"/></svg>';
+
+function renderHeaderMessageActions(msg, deleted) {
+    var items = '';
+    if (!deleted && msg.mine && msg.message_type === 'text') {
+        items += '<button type="button" role="menuitem" data-msg-edit="' + msg.id + '">Edit</button>';
+    }
+    items += '<button type="button" role="menuitem" data-msg-delete="' + msg.id + '">Delete</button>';
+    return '<div class="comms-chat-msg-actions">' +
+        '<button type="button" class="comms-chat-msg-more" data-msg-more="' + msg.id + '" aria-label="Message actions" aria-haspopup="menu" aria-expanded="false" title="More">' + headerMsgMoreIcon + '</button>' +
+        '<div class="comms-chat-msg-menu" data-msg-menu="' + msg.id + '" role="menu" hidden>' + items + '</div>' +
+        '</div>';
+}
+
+function closeHeaderMessageMenus() {
+    document.querySelectorAll('#commsChatModalBody [data-msg-menu]').forEach(function (menu) {
+        menu.hidden = true;
+    });
+    document.querySelectorAll('#commsChatModalBody [data-msg-more]').forEach(function (btn) {
+        btn.setAttribute('aria-expanded', 'false');
+    });
+    document.querySelectorAll('#commsChatModalBody .comms-chat-bubble-wrap.is-menu-open').forEach(function (wrap) {
+        wrap.classList.remove('is-menu-open');
+    });
+}
+
+function replaceHeaderMessage(updated) {
+    if (!updated) return;
+    var idx = headerChatState.messages.findIndex(function (m) { return Number(m.id) === Number(updated.id); });
+    if (idx === -1) return;
+    headerChatState.messages[idx] = updated;
+    renderHeaderChatMessages(headerChatState.messages, { preserveScroll: true });
+}
+
+function removeHeaderMessageLocal(messageId) {
+    headerChatState.messages = headerChatState.messages.filter(function (m) {
+        return Number(m.id) !== Number(messageId);
+    });
+    renderHeaderChatMessages(headerChatState.messages, { preserveScroll: true });
+}
+
+function saveHeaderEditedMessage(messageId) {
+    var bodyEl = document.getElementById('commsChatModalBody');
+    var input = bodyEl ? bodyEl.querySelector('[data-edit-input="' + messageId + '"]') : null;
+    if (!input) return;
+    var body = String(input.value || '').trim();
+    if (!body) {
+        if (window.Comms && typeof window.Comms.showToast === 'function') {
+            window.Comms.showToast('Message cannot be empty.', 'error');
+        }
+        return;
+    }
+    headerChatState.msgChangeSkipToast[String(messageId)] = true;
+    fetch('/api/communications/messages/' + encodeURIComponent(messageId), {
+        method: 'PATCH',
+        headers: {
+            Accept: 'application/json',
+            'Content-Type': 'application/json',
+            'X-Requested-With': 'XMLHttpRequest',
+            'X-CSRF-TOKEN': getCommsCsrfToken()
+        },
+        credentials: 'same-origin',
+        body: JSON.stringify({ body: body })
+    }).then(function (r) {
+        return r.ok ? r.json() : r.json().then(function (data) { throw new Error((data && data.message) || 'Unable to edit message.'); });
+    }).then(function (data) {
+        headerChatState.editingId = null;
+        replaceHeaderMessage(data.message);
+        if (window.Comms && typeof window.Comms.showToast === 'function') {
+            window.Comms.showToast('Message edited.', 'success');
+        }
+        window.setTimeout(function () { delete headerChatState.msgChangeSkipToast[String(messageId)]; }, 800);
+    }).catch(function (err) {
+        delete headerChatState.msgChangeSkipToast[String(messageId)];
+        if (window.Comms && typeof window.Comms.showToast === 'function') {
+            window.Comms.showToast(err.message || 'Unable to edit message.', 'error');
+        }
+    });
+}
+
+function deleteHeaderMessage(messageId, scope) {
+    headerChatState.msgChangeSkipToast[String(messageId)] = true;
+    fetch('/api/communications/messages/' + encodeURIComponent(messageId) + '?scope=' + encodeURIComponent(scope), {
+        method: 'DELETE',
+        headers: {
+            Accept: 'application/json',
+            'Content-Type': 'application/json',
+            'X-Requested-With': 'XMLHttpRequest',
+            'X-CSRF-TOKEN': getCommsCsrfToken()
+        },
+        credentials: 'same-origin',
+        body: JSON.stringify({ scope: scope })
+    }).then(function (r) {
+        return r.ok ? r.json() : r.json().then(function (data) { throw new Error((data && data.message) || 'Unable to delete message.'); });
+    }).then(function (data) {
+        headerChatState.editingId = null;
+        if (data && data.scope === 'me') {
+            removeHeaderMessageLocal(messageId);
+            if (window.Comms && typeof window.Comms.showToast === 'function') {
+                window.Comms.showToast('Message deleted for you.', 'success');
+            }
+            return;
+        }
+        if (data && data.message) {
+            replaceHeaderMessage(data.message);
+            if (window.Comms && typeof window.Comms.showToast === 'function') {
+                window.Comms.showToast('Message deleted for everyone.', 'success');
+            }
+        }
+        window.setTimeout(function () { delete headerChatState.msgChangeSkipToast[String(messageId)]; }, 800);
+    }).catch(function (err) {
+        delete headerChatState.msgChangeSkipToast[String(messageId)];
+        if (window.Comms && typeof window.Comms.showToast === 'function') {
+            window.Comms.showToast(err.message || 'Unable to delete message.', 'error');
+        }
+    });
+}
+
+function openHeaderDeletePrompt(messageId) {
+    var msg = headerChatState.messages.find(function (m) { return Number(m.id) === Number(messageId); });
+    if (!msg) return;
+    var deleted = msg.deleted_for_all || msg.message_type === 'deleted';
+    var canDeleteAll = !!msg.mine && !deleted;
+    if (!window.Comms || typeof window.Comms.openDeleteMessageDialog !== 'function') {
+        deleteHeaderMessage(messageId, canDeleteAll ? 'all' : 'me');
+        return;
+    }
+    window.Comms.openDeleteMessageDialog({ canDeleteAll: canDeleteAll }).then(function (scope) {
+        if (!scope) return;
+        deleteHeaderMessage(messageId, scope);
+    });
+}
+
+function renderHeaderChatMessages(messages, opts) {
+    opts = opts || {};
+    var body = document.getElementById('commsChatModalBody');
+    if (!body) return;
+    var prevScroll = body.scrollTop;
+    var items = Array.isArray(messages) ? messages.slice() : [];
+    headerChatState.messages = items;
+    if (!items.length) {
+        body.innerHTML = '<p class="comms-chat-modal-empty">No messages yet. Say hello.</p>';
+        return;
+    }
+    body.innerHTML = items.map(function (msg) {
+        if (msg.message_type === 'call' || msg.message_type === 'system') {
+            var callCls = headerCallBubbleClass(msg.body);
+            var callIcon = '<svg class="comms-chat-call-icon" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6A19.79 19.79 0 0 1 2.12 4.18 2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.81.36 1.6.68 2.35a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.75.32 1.54.55 2.35.68A2 2 0 0 1 22 16.92z"/></svg>';
+            return '<div class="comms-chat-bubble-wrap ' + (msg.mine ? 'is-mine' : 'is-theirs') + ' is-call" data-id="' + msg.id + '">' +
+                '<div class="comms-chat-bubble-row">' +
+                '<div class="comms-chat-bubble ' + callCls + '">' +
+                callIcon +
+                '<div class="comms-chat-bubble-text">' + escapeCommsHtml(msg.body || '') + '</div>' +
+                '<div class="comms-chat-bubble-time">' + escapeCommsHtml(formatCommsRelativeTime(msg.created_at)) + '</div>' +
+                '</div>' +
+                renderHeaderMessageActions(msg, false) +
+                '</div></div>';
+        }
+        var mine = Boolean(msg.mine);
+        var pickerOpen = Number(headerChatState.openReactionPickerId) === Number(msg.id);
+        var editing = Number(headerChatState.editingId) === Number(msg.id);
+        if (msg.deleted_for_all || msg.message_type === 'deleted') {
+            return '<div class="comms-chat-bubble-wrap ' + (mine ? 'is-mine' : 'is-theirs') + '" data-id="' + msg.id + '">' +
+                '<div class="comms-chat-bubble-row">' +
+                '<div class="comms-chat-bubble comms-chat-bubble--deleted">This message was deleted</div>' +
+                renderHeaderMessageActions(msg, true) +
+                '</div></div>';
+        }
+        var bodyHtml = '';
+        if (editing) {
+            bodyHtml = '<textarea class="comms-chat-edit-input" data-edit-input="' + msg.id + '" maxlength="5000" rows="2">' + escapeCommsHtml(msg.body || '') + '</textarea>' +
+                '<div class="comms-chat-edit-actions">' +
+                '<button type="button" class="comms-chat-edit-cancel" data-edit-cancel="' + msg.id + '">Cancel</button>' +
+                '<button type="button" class="comms-chat-edit-save" data-edit-save="' + msg.id + '">Save</button>' +
+                '</div>';
+        } else if (msg.body) {
+            bodyHtml = '<div class="comms-chat-bubble-text">' + escapeCommsHtml(msg.body) +
+                (msg.edited ? ' <em class="comms-chat-edited">edited</em>' : '') + '</div>';
+        }
+        return '<div class="comms-chat-bubble-wrap ' + (mine ? 'is-mine' : 'is-theirs') + (pickerOpen ? ' is-picker-open' : '') + '" data-id="' + msg.id + '">' +
+            '<div class="comms-chat-bubble-row">' +
+            '<div class="comms-chat-bubble-tools">' +
+            renderHeaderMessageActions(msg, false) +
+            '<button type="button" class="comms-chat-react-btn" data-react-toggle="' + msg.id + '" aria-label="Add reaction" title="React" aria-expanded="' + (pickerOpen ? 'true' : 'false') + '">' + headerReactBtnIcon + '</button>' +
+            '</div>' +
+            '<div class="comms-chat-bubble ' + (mine ? 'is-mine' : 'is-theirs') + '">' +
+            renderHeaderAttachmentBubbles(msg.attachments) +
+            bodyHtml +
+            '<div class="comms-chat-bubble-time">' + escapeCommsHtml(formatCommsRelativeTime(msg.created_at)) + '</div>' +
+            '</div>' +
+            '</div>' +
+            renderHeaderReactionPicker(msg.id) +
+            renderHeaderReactionChips(msg.reactions) +
+            '</div>';
+    }).join('');
+    if (opts.preserveScroll) {
+        body.scrollTop = prevScroll;
+    } else {
+        body.scrollTop = body.scrollHeight;
+    }
+}
+
+function cloneHeaderReactions(reactions) {
+    return (Array.isArray(reactions) ? reactions : []).map(function (r) {
+        return { emoji: r.emoji, count: Number(r.count || 0), mine: !!r.mine };
+    });
+}
+
+function optimisticHeaderToggleReactions(reactions, emoji) {
+    var list = cloneHeaderReactions(reactions).filter(function (r) { return r.count > 0; });
+    var mineEntry = null;
+    var target = null;
+    list.forEach(function (r) {
+        if (r.mine) mineEntry = r;
+        if (r.emoji === emoji) target = r;
+    });
+
+    if (target && target.mine) {
+        target.count -= 1;
+        target.mine = false;
+    } else {
+        if (mineEntry && mineEntry !== target) {
+            mineEntry.count -= 1;
+            mineEntry.mine = false;
+        }
+        if (target) {
+            target.count += 1;
+            target.mine = true;
+        } else {
+            list.push({ emoji: emoji, count: 1, mine: true });
+        }
+    }
+
+    return list.filter(function (r) { return Number(r.count) > 0; });
+}
+
+function applyHeaderMessageReactions(messageId, reactions, opts) {
+    opts = opts || {};
+    var msg = headerChatState.messages.find(function (m) {
+        return Number(m.id) === Number(messageId);
+    });
+    if (!msg) return;
+    msg.reactions = Array.isArray(reactions) ? reactions : [];
+    if (opts.closePicker !== false) {
+        headerChatState.openReactionPickerId = null;
+    }
+    renderHeaderChatMessages(headerChatState.messages, { preserveScroll: true });
+    if (headerChatState.conversationId) {
+        writeHeaderChatCache(headerChatState.conversationId, {
+            messages: headerChatState.messages,
+            reaction_emojis: headerChatState.reactionEmojis
+        });
+    }
+}
+
+function patchHeaderRemoteReaction(messageId, eventType, row) {
+    var msg = headerChatState.messages.find(function (m) {
+        return Number(m.id) === Number(messageId);
+    });
+    if (!msg || !row) return false;
+    var boot = document.getElementById('commsRealtimeBoot');
+    var list = cloneHeaderReactions(msg.reactions);
+    var emoji = String(row.emoji || '');
+    if (!emoji) return false;
+    var isMine = boot
+        && Number(row.user_id) === Number(boot.dataset.currentUserId)
+        && String(row.user_type || '') === String(boot.dataset.portalUserType || '');
+    if (isMine && headerChatState.reactSkipRealtime[String(messageId)]) return true;
+    var entry = null;
+    list.forEach(function (r) {
+        if (r.emoji === emoji) entry = r;
+    });
+
+    if (eventType === 'DELETE') {
+        if (!entry) return true;
+        entry.count = Math.max(0, entry.count - 1);
+        if (isMine) entry.mine = false;
+    } else if (eventType === 'INSERT') {
+        if (entry) {
+            entry.count += 1;
+            if (isMine) entry.mine = true;
+        } else {
+            list.push({ emoji: emoji, count: 1, mine: isMine });
+        }
+    } else if (eventType === 'UPDATE') {
+        var oldEmoji = String(row._old_emoji || '');
+        if (!oldEmoji || oldEmoji === emoji) return false;
+        var oldEntry = null;
+        list.forEach(function (r) {
+            if (r.emoji === oldEmoji) oldEntry = r;
+        });
+        if (oldEntry) {
+            oldEntry.count = Math.max(0, oldEntry.count - 1);
+            if (isMine) oldEntry.mine = false;
+        }
+        if (entry) {
+            entry.count += 1;
+            if (isMine) entry.mine = true;
+        } else {
+            list.push({ emoji: emoji, count: 1, mine: isMine });
+        }
+    } else {
+        return false;
+    }
+
+    applyHeaderMessageReactions(messageId, list.filter(function (r) { return Number(r.count) > 0; }), { closePicker: false });
+    return true;
+}
+
+function toggleHeaderChatReaction(messageId, emoji) {
+    if (!messageId || !emoji) return;
+    var key = String(messageId);
+    var msg = headerChatState.messages.find(function (m) {
+        return Number(m.id) === Number(messageId);
+    });
+    if (!msg) return;
+
+    var previous = cloneHeaderReactions(msg.reactions);
+    var next = optimisticHeaderToggleReactions(previous, emoji);
+    var added = next.some(function (r) { return r.emoji === emoji && r.mine; })
+        && !previous.some(function (r) { return r.emoji === emoji && r.mine; });
+
+    var seq = (headerChatState.reactSeq[key] || 0) + 1;
+    headerChatState.reactSeq[key] = seq;
+    headerChatState.reactSkipRealtime[key] = true;
+
+    if (added) playHeaderChatReactionSound();
+    applyHeaderMessageReactions(messageId, next);
+
+    fetch('/api/communications/messages/' + encodeURIComponent(messageId) + '/reactions', {
+        method: 'POST',
+        headers: {
+            Accept: 'application/json',
+            'Content-Type': 'application/json',
+            'X-Requested-With': 'XMLHttpRequest',
+            'X-CSRF-TOKEN': getCommsCsrfToken()
+        },
+        credentials: 'same-origin',
+        body: JSON.stringify({ emoji: emoji })
+    }).then(function (r) {
+        return r.ok ? r.json() : null;
+    }).then(function (data) {
+        if (headerChatState.reactSeq[key] !== seq) return;
+        if (!data) {
+            applyHeaderMessageReactions(messageId, previous, { closePicker: false });
+            return;
+        }
+        applyHeaderMessageReactions(
+            data.message_id || messageId,
+            Array.isArray(data.reactions) ? data.reactions : next,
+            { closePicker: false }
+        );
+    }).catch(function () {
+        if (headerChatState.reactSeq[key] !== seq) return;
+        applyHeaderMessageReactions(messageId, previous, { closePicker: false });
+    }).finally(function () {
+        if (headerChatState.reactSeq[key] !== seq) return;
+        window.setTimeout(function () {
+            if (headerChatState.reactSeq[key] !== seq) return;
+            delete headerChatState.reactSkipRealtime[key];
+        }, 500);
+    });
+}
+
+function headerChatCacheKey(conversationId) {
+    return 'comms:header-chat:' + String(conversationId);
+}
+
+function readHeaderChatCache(conversationId) {
+    if (!window.LocalDataCache || typeof window.LocalDataCache.get !== 'function') return null;
+    var entry = window.LocalDataCache.get(headerChatCacheKey(conversationId));
+    if (!entry || !entry.payload) return null;
+    return entry.payload;
+}
+
+function writeHeaderChatCache(conversationId, payload) {
+    if (!window.LocalDataCache || typeof window.LocalDataCache.set !== 'function') return;
+    window.LocalDataCache.set(headerChatCacheKey(conversationId), payload);
+}
+
+function openHeaderChatModal(conversationId, name, avatarUrl) {
+    var modal = document.getElementById('commsChatModal');
+    var title = document.getElementById('commsChatModalTitle');
+    var sub = document.getElementById('commsChatModalSub');
+    var openFull = document.getElementById('commsChatModalOpenFull');
+    var input = document.getElementById('commsChatModalInput');
+    var body = document.getElementById('commsChatModalBody');
+    if (!modal || !conversationId) return;
+
+    closeMessagesPopover();
+    headerChatState.conversationId = Number(conversationId);
+    if (title) title.textContent = name || 'Chat';
+    if (sub) sub.textContent = 'Conversation';
+    setHeaderChatAvatar(name, avatarUrl);
+    if (openFull) {
+        openFull.href = '/communications?conversation=' + encodeURIComponent(conversationId);
+    }
+    if (input) {
+        input.value = '';
+    }
+
+    var cached = readHeaderChatCache(conversationId);
+    if (cached && Array.isArray(cached.messages) && cached.messages.length) {
+        if (Array.isArray(cached.reaction_emojis) && cached.reaction_emojis.length) {
+            headerChatState.reactionEmojis = cached.reaction_emojis;
+        }
+        renderHeaderChatMessages(cached.messages);
+    } else if (body) {
+        body.innerHTML = '';
+    }
+
+    modal.hidden = false;
+    document.body.classList.add('comms-chat-modal-open');
+    loadHeaderChatMessages(conversationId);
+    markHeaderConversationRead(conversationId);
+    if (window.CommsRealtime && typeof window.CommsRealtime.subscribeConversation === 'function') {
+        window.CommsRealtime.subscribeConversation(conversationId);
+    }
+    window.setTimeout(function () {
+        if (input) input.focus();
+    }, 50);
+}
+
+function refreshHeaderChatReaction(messageId, meta) {
+    var conversationId = headerChatState.conversationId;
+    if (!conversationId || !messageId) return;
+    if (!headerChatState.messages.some(function (m) { return Number(m.id) === Number(messageId); })) return;
+    if (headerChatState.reactSkipRealtime[String(messageId)]) return;
+
+    if (meta && meta.eventType && patchHeaderRemoteReaction(messageId, meta.eventType, meta.row)) {
+        return;
+    }
+
+    var watchSeq = headerChatState.reactSeq[String(messageId)] || 0;
+    fetch('/api/communications/conversations/' + encodeURIComponent(conversationId) + '/messages', {
+        headers: {
+            Accept: 'application/json',
+            'X-Requested-With': 'XMLHttpRequest',
+            'X-CSRF-TOKEN': getCommsCsrfToken()
+        },
+        credentials: 'same-origin'
+    }).then(function (r) {
+        return r.ok ? r.json() : null;
+    }).then(function (data) {
+        if (!data || Number(headerChatState.conversationId) !== Number(conversationId)) return;
+        if ((headerChatState.reactSeq[String(messageId)] || 0) !== watchSeq) return;
+        if (headerChatState.reactSkipRealtime[String(messageId)]) return;
+        var fresh = (data.messages || []).find(function (m) {
+            return Number(m.id) === Number(messageId);
+        });
+        if (!fresh) return;
+        applyHeaderMessageReactions(messageId, Array.isArray(fresh.reactions) ? fresh.reactions : [], { closePicker: false });
+    }).catch(function () { /* ignore */ });
+}
+
+window.onCommsHeaderReactionChange = function (messageId, meta) {
+    refreshHeaderChatReaction(messageId, meta || null);
+};
+
+window.onCommsHeaderMessageInsert = function (message) {
+    if (!message || Number(message.conversation_id) !== Number(headerChatState.conversationId)) return;
+    if (headerChatState.messages.some(function (m) { return Number(m.id) === Number(message.id); })) return;
+    var boot = document.getElementById('commsRealtimeBoot');
+    var mine = boot
+        && Number(message.sender_id) === Number(boot.dataset.currentUserId)
+        && message.sender_type === boot.dataset.portalUserType;
+    message.mine = !!mine;
+    if (!message.reactions) message.reactions = [];
+    headerChatState.messages.push(message);
+    renderHeaderChatMessages(headerChatState.messages);
+};
+
+window.onCommsHeaderMessageChange = function (row) {
+    if (!row || Number(row.conversation_id) !== Number(headerChatState.conversationId)) return;
+    var idx = headerChatState.messages.findIndex(function (m) { return Number(m.id) === Number(row.id); });
+    if (idx === -1) return;
+    var skipToast = !!headerChatState.msgChangeSkipToast[String(row.id)];
+    if (row.deleted_for_all_at) {
+        headerChatState.messages[idx].deleted_for_all = true;
+        headerChatState.messages[idx].message_type = 'deleted';
+        headerChatState.messages[idx].body = null;
+        headerChatState.messages[idx].attachments = [];
+        if (!skipToast && window.Comms && typeof window.Comms.showToast === 'function') {
+            window.Comms.showToast('Message deleted.', 'info');
+        }
+    } else if (row.body != null) {
+        var prevBody = headerChatState.messages[idx].body;
+        headerChatState.messages[idx].body = row.body;
+        headerChatState.messages[idx].edited = true;
+        if (!skipToast && String(prevBody || '') !== String(row.body || '')
+            && window.Comms && typeof window.Comms.showToast === 'function') {
+            window.Comms.showToast('Message edited.', 'info');
+        }
+    }
+    renderHeaderChatMessages(headerChatState.messages, { preserveScroll: true });
+};
+
+function loadHeaderChatMessages(conversationId) {
+    if (headerChatState.loading) return;
+    headerChatState.loading = true;
+    fetch('/api/communications/conversations/' + encodeURIComponent(conversationId) + '/messages', {
+        headers: {
+            Accept: 'application/json',
+            'X-Requested-With': 'XMLHttpRequest',
+            'X-CSRF-TOKEN': getCommsCsrfToken()
+        },
+        credentials: 'same-origin'
+    }).then(function (r) {
+        return r.ok ? r.json() : null;
+    }).then(function (data) {
+        if (!data || Number(headerChatState.conversationId) !== Number(conversationId)) return;
+        var messages = Array.isArray(data.messages) ? data.messages : [];
+        if (Array.isArray(data.reaction_emojis) && data.reaction_emojis.length) {
+            headerChatState.reactionEmojis = data.reaction_emojis;
+        }
+        renderHeaderChatMessages(messages);
+        writeHeaderChatCache(conversationId, {
+            messages: messages,
+            reaction_emojis: headerChatState.reactionEmojis
+        });
+    }).catch(function () {
+        var body = document.getElementById('commsChatModalBody');
+        if (body && !headerChatState.messages.length) {
+            body.innerHTML = '<p class="comms-chat-modal-empty">Unable to load messages.</p>';
+        }
+    }).finally(function () {
+        headerChatState.loading = false;
+    });
+}
+
+function markHeaderConversationRead(conversationId) {
+    fetch('/api/communications/conversations/' + encodeURIComponent(conversationId) + '/read', {
+        method: 'POST',
+        headers: {
+            Accept: 'application/json',
+            'X-Requested-With': 'XMLHttpRequest',
+            'X-CSRF-TOKEN': getCommsCsrfToken()
+        },
+        credentials: 'same-origin'
+    }).catch(function () { /* ignore */ });
+}
+
+function sendHeaderChatMessage(event) {
+    if (event) event.preventDefault();
+    var input = document.getElementById('commsChatModalInput');
+    var conversationId = headerChatState.conversationId;
+    if (!input || !conversationId) return;
+    var body = String(input.value || '').trim();
+    var files = headerChatState.pendingAttachments.slice();
+    if (!body && !files.length) return;
+    if (headerChatState.sending && files.length) return;
+
+    var sendBtn = document.getElementById('commsChatModalSend');
+    input.value = '';
+    clearHeaderChatAttachments();
+
+    var tempId = 'local-' + Date.now();
+    if (body) {
+        headerChatState.messages.push({
+            id: tempId,
+            conversation_id: conversationId,
+            body: body,
+            message_type: 'text',
+            mine: true,
+            created_at: new Date().toISOString(),
+            reactions: [],
+            attachments: []
+        });
+        renderHeaderChatMessages(headerChatState.messages);
+    }
+
+    var headers = {
+        Accept: 'application/json',
+        'X-Requested-With': 'XMLHttpRequest',
+        'X-CSRF-TOKEN': getCommsCsrfToken()
+    };
+    var jobs = [];
+
+    if (body) {
+        jobs.push(fetch('/api/communications/conversations/' + encodeURIComponent(conversationId) + '/messages', {
+            method: 'POST',
+            headers: Object.assign({ 'Content-Type': 'application/json' }, headers),
+            credentials: 'same-origin',
+            body: JSON.stringify({ body: body })
+        }).then(function (r) { return r.ok ? r.json() : null; }).then(function (data) {
+            if (!data || !data.message) return;
+            var realIdx = headerChatState.messages.findIndex(function (m) { return Number(m.id) === Number(data.message.id); });
+            var tempIdx = headerChatState.messages.findIndex(function (m) { return String(m.id) === tempId; });
+            if (realIdx !== -1 && tempIdx !== -1) {
+                headerChatState.messages.splice(tempIdx, 1);
+            } else if (tempIdx !== -1) {
+                headerChatState.messages[tempIdx] = data.message;
+            } else {
+                headerChatState.messages.push(data.message);
+            }
+            renderHeaderChatMessages(headerChatState.messages);
+        }));
+    }
+
+    if (files.length) {
+        headerChatState.sending = true;
+        if (sendBtn) sendBtn.disabled = true;
+        var fd = new FormData();
+        files.forEach(function (f) { fd.append('attachments[]', f); });
+        jobs.push(fetch('/api/communications/conversations/' + encodeURIComponent(conversationId) + '/messages', {
+            method: 'POST',
+            headers: headers,
+            credentials: 'same-origin',
+            body: fd
+        }).then(function (r) { return r.ok ? r.json() : null; }).then(function (data) {
+            if (!data || !data.message) return;
+            headerChatState.messages.push(data.message);
+            renderHeaderChatMessages(headerChatState.messages);
+        }));
+    }
+
+    Promise.all(jobs).finally(function () {
+        headerChatState.sending = false;
+        if (sendBtn) sendBtn.disabled = false;
+        if (input) input.focus();
+        writeHeaderChatCache(conversationId, {
+            messages: headerChatState.messages,
+            reaction_emojis: headerChatState.reactionEmojis
+        });
+    });
+}
+
+function wireHeaderChatAttachButtons() {
+    var attachBtn = document.getElementById('commsChatAttachBtn');
+    var attachMenu = document.getElementById('commsChatAttachMenu');
+    var pickPhotos = document.getElementById('commsChatPickPhotos');
+    var pickFiles = document.getElementById('commsChatPickFiles');
+    var photoInput = document.getElementById('commsChatPhotoInput');
+    var fileInput = document.getElementById('commsChatFileInput');
+    var clearBtn = document.getElementById('commsChatAttachClear');
+    if (!attachBtn || attachBtn.dataset.wired === 'true') return;
+    if (attachMenu) attachMenu.hidden = true;
+
+    attachBtn.addEventListener('click', function (e) {
+        e.stopPropagation();
+        if (attachMenu) attachMenu.hidden = !attachMenu.hidden;
+    });
+    if (pickPhotos && photoInput) {
+        pickPhotos.addEventListener('click', function () { photoInput.click(); if (attachMenu) attachMenu.hidden = true; });
+    }
+    if (pickFiles && fileInput) {
+        pickFiles.addEventListener('click', function () { fileInput.click(); if (attachMenu) attachMenu.hidden = true; });
+    }
+    if (photoInput) {
+        photoInput.addEventListener('change', function () {
+            if (photoInput.files && photoInput.files.length) pushHeaderFiles(photoInput.files, 'image');
+            photoInput.value = '';
+        });
+    }
+    if (fileInput) {
+        fileInput.addEventListener('change', function () {
+            if (fileInput.files && fileInput.files.length) pushHeaderFiles(fileInput.files, 'file');
+            fileInput.value = '';
+        });
+    }
+    if (clearBtn) {
+        clearBtn.addEventListener('click', function () { clearHeaderChatAttachments(); });
+    }
+    document.addEventListener('click', function (e) {
+        if (attachMenu && !attachMenu.hidden && !e.target.closest('.comms-chat-attach-wrap')) {
+            attachMenu.hidden = true;
+        }
+    });
+    attachBtn.dataset.wired = 'true';
+}
+
+function wireHeaderChatCallButtons() {
+    var voiceBtn = document.getElementById('commsChatModalVoiceBtn');
+    var videoBtn = document.getElementById('commsChatModalVideoBtn');
+    if (voiceBtn && voiceBtn.dataset.wired !== 'true') {
+        voiceBtn.addEventListener('click', function () {
+            var cid = headerChatState.conversationId;
+            if (!cid) return;
+            if (window.CommsWebRTC && typeof window.CommsWebRTC.startCall === 'function') {
+                window.CommsWebRTC.startCall(cid, 'voice', null);
+            } else {
+                window.location.href = '/communications?conversation=' + encodeURIComponent(cid);
+            }
+        });
+        voiceBtn.dataset.wired = 'true';
+    }
+    if (videoBtn && videoBtn.dataset.wired !== 'true') {
+        videoBtn.addEventListener('click', function () {
+            var cid = headerChatState.conversationId;
+            if (!cid) return;
+            if (window.CommsWebRTC && typeof window.CommsWebRTC.startCall === 'function') {
+                window.CommsWebRTC.startCall(cid, 'video', null);
+            } else {
+                window.location.href = '/communications?conversation=' + encodeURIComponent(cid);
+            }
+        });
+        videoBtn.dataset.wired = 'true';
+    }
+}
+
+function wireHeaderChatModal() {
+    var modal = document.getElementById('commsChatModal');
+    var list = document.getElementById('commsMsgList');
+    var form = document.getElementById('commsChatModalForm');
+    var input = document.getElementById('commsChatModalInput');
+    wireHeaderChatAttachButtons();
+    wireHeaderChatCallButtons();
+    var chatBody = document.getElementById('commsChatModalBody');
+    if (chatBody && chatBody.dataset.menuScroll !== 'true') {
+        chatBody.addEventListener('scroll', function () {
+            closeHeaderMessageMenus();
+        }, { passive: true });
+        chatBody.dataset.menuScroll = 'true';
+    }
+    if (modal && modal.dataset.wired !== 'true') {
+        modal.addEventListener('click', function (e) {
+            if (e.target && e.target.closest('[data-comms-chat-close]')) {
+                closeHeaderChatModal();
+                return;
+            }
+            var editBtn = e.target.closest('[data-msg-edit]');
+            if (editBtn && e.target.closest('#commsChatModalBody')) {
+                e.preventDefault();
+                closeHeaderMessageMenus();
+                headerChatState.editingId = Number(editBtn.getAttribute('data-msg-edit'));
+                renderHeaderChatMessages(headerChatState.messages, { preserveScroll: true });
+                var editor = document.querySelector('#commsChatModalBody [data-edit-input="' + headerChatState.editingId + '"]');
+                if (editor) editor.focus();
+                return;
+            }
+            var saveBtn = e.target.closest('[data-edit-save]');
+            if (saveBtn) {
+                e.preventDefault();
+                saveHeaderEditedMessage(Number(saveBtn.getAttribute('data-edit-save')));
+                return;
+            }
+            var cancelBtn = e.target.closest('[data-edit-cancel]');
+            if (cancelBtn) {
+                e.preventDefault();
+                headerChatState.editingId = null;
+                renderHeaderChatMessages(headerChatState.messages, { preserveScroll: true });
+                return;
+            }
+            var deleteChoice = e.target.closest('[data-msg-delete]');
+            if (deleteChoice && e.target.closest('#commsChatModalBody')) {
+                e.preventDefault();
+                closeHeaderMessageMenus();
+                openHeaderDeletePrompt(Number(deleteChoice.getAttribute('data-msg-delete')));
+                return;
+            }
+            var moreBtn = e.target.closest('[data-msg-more]');
+            if (moreBtn && e.target.closest('#commsChatModalBody')) {
+                e.preventDefault();
+                e.stopPropagation();
+                var wrapMore = moreBtn.closest('.comms-chat-bubble-wrap');
+                var menu = wrapMore ? wrapMore.querySelector('[data-msg-menu]') : null;
+                var opening = menu && menu.hidden;
+                closeHeaderMessageMenus();
+                if (opening && menu) {
+                    menu.hidden = false;
+                    moreBtn.setAttribute('aria-expanded', 'true');
+                    if (wrapMore) wrapMore.classList.add('is-menu-open');
+                }
+                return;
+            }
+            var toggle = e.target.closest('[data-react-toggle]');
+            if (toggle) {
+                e.preventDefault();
+                e.stopPropagation();
+                var tid = Number(toggle.getAttribute('data-react-toggle'));
+                headerChatState.openReactionPickerId =
+                    Number(headerChatState.openReactionPickerId) === tid ? null : tid;
+                renderHeaderChatMessages(headerChatState.messages, { preserveScroll: true });
+                return;
+            }
+            var emojiBtn = e.target.closest('[data-react-emoji]');
+            if (emojiBtn && e.target.closest('#commsChatModalBody')) {
+                e.preventDefault();
+                e.stopPropagation();
+                var wrap = emojiBtn.closest('.comms-chat-bubble-wrap');
+                var mid = wrap ? Number(wrap.getAttribute('data-id')) : 0;
+                var emoji = emojiBtn.getAttribute('data-react-emoji');
+                if (mid && emoji) toggleHeaderChatReaction(mid, emoji);
+            }
+        });
+        modal.dataset.wired = 'true';
+    }
+    if (document.documentElement.dataset.commsReactOutside !== 'true') {
+        document.addEventListener('click', function (e) {
+            if (!e.target.closest('[data-msg-more]') && !e.target.closest('[data-msg-menu]')) {
+                closeHeaderMessageMenus();
+            }
+            if (!headerChatState.openReactionPickerId) return;
+            if (e.target.closest('[data-react-toggle]') || e.target.closest('.comms-chat-reaction-picker')) return;
+            headerChatState.openReactionPickerId = null;
+            if (headerChatState.messages && headerChatState.messages.length) {
+                renderHeaderChatMessages(headerChatState.messages, { preserveScroll: true });
+            }
+        });
+        document.documentElement.dataset.commsReactOutside = 'true';
+    }
+    if (list && list.dataset.chatWired !== 'true') {
+        list.addEventListener('click', function (e) {
+            var item = e.target.closest('.comms-msg-item');
+            if (!item) return;
+            e.preventDefault();
+            e.stopPropagation();
+            openHeaderChatModal(
+                item.getAttribute('data-id'),
+                item.getAttribute('data-name') || 'Chat',
+                item.getAttribute('data-avatar') || ''
+            );
+        });
+        list.dataset.chatWired = 'true';
+    }
+    if (form && form.dataset.wired !== 'true') {
+        form.addEventListener('submit', sendHeaderChatMessage);
+        form.dataset.wired = 'true';
+    }
+    if (input && input.dataset.wired !== 'true') {
+        input.addEventListener('keydown', function (e) {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendHeaderChatMessage(e);
+            }
+        });
+        input.dataset.wired = 'true';
+    }
+    document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape') {
+            closeHeaderChatModal();
+        }
+    });
+}
+
+window.openHeaderChatModal = openHeaderChatModal;
+window.closeHeaderChatModal = closeHeaderChatModal;
+
 // ── Profile Dropdown ──
 window.toggleProfileDropdown = function (e) {
     e.stopPropagation();
     var dd = document.getElementById('profileDropdown');
     var btn = document.querySelector('.profile-btn');
     closeNotifPopover();
+    closeMessagesPopover();
     if (dd) {
         dd.classList.toggle('show');
     }
@@ -293,10 +1483,19 @@ window.toggleProfileDropdown = function (e) {
 
 document.addEventListener('click', function (e) {
     var notifMenu = document.getElementById('notifMenu');
+    var msgMenu = document.getElementById('commsMsgMenu');
     var profileWrapper = document.querySelector('.profile-dropdown-wrapper');
+    var chatModal = document.getElementById('commsChatModal');
+
+    if (chatModal && !chatModal.hidden && chatModal.contains(e.target)) {
+        return;
+    }
 
     if (notifMenu && !notifMenu.contains(e.target)) {
         closeNotifPopover();
+    }
+    if (msgMenu && !msgMenu.contains(e.target)) {
+        closeMessagesPopover();
     }
     if (profileWrapper && !profileWrapper.contains(e.target)) {
         var profileDropdown = document.getElementById('profileDropdown');
@@ -314,9 +1513,17 @@ document.addEventListener('DOMContentLoaded', function () {
     var notifPopover = document.getElementById('notifPopover');
     var notifList = document.getElementById('notifList');
     var markAllBtn = document.getElementById('notifMarkAllBtn');
+    var msgPopover = document.getElementById('commsMsgPopover');
+    wireHeaderChatModal();
 
     if (notifPopover) {
         notifPopover.addEventListener('click', function (e) {
+            e.stopPropagation();
+        });
+    }
+
+    if (msgPopover) {
+        msgPopover.addEventListener('click', function (e) {
             e.stopPropagation();
         });
     }
@@ -766,3 +1973,33 @@ function initSessionTimeoutWarning() {
 
     scheduleFrom(lastActivityAt);
 }
+
+/* Communications unread badge (lightweight poll; Realtime also refreshes on Messages page) */
+(function () {
+    var badge = document.getElementById('commsMsgBadge');
+    if (!badge) return;
+    var url = '/api/communications/unread-count';
+    var csrf = document.querySelector('meta[name=\"csrf-token\"]');
+    function refresh() {
+        fetch(url, {
+            headers: {
+                'Accept': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest',
+                'X-CSRF-TOKEN': csrf ? csrf.getAttribute('content') : ''
+            },
+            credentials: 'same-origin'
+        }).then(function (r) { return r.ok ? r.json() : null; }).then(function (data) {
+            if (!data) return;
+            var n = Number(data.unread_count || 0);
+            badge.dataset.unreadTotal = String(n);
+            if (n <= 0) {
+                badge.style.display = 'none';
+                badge.textContent = '0';
+                return;
+            }
+            badge.style.display = '';
+            badge.textContent = n > 99 ? '99+' : String(n);
+        }).catch(function () { /* ignore */ });
+    }
+    setInterval(refresh, 30000);
+})();

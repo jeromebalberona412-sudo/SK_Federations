@@ -4,12 +4,16 @@
     "type": "module",
     "scripts": {
         "build": "vite build",
-        "dev": "vite"
+        "dev": "vite",
+        "dev:https": "node scripts/dev-https-proxy.cjs",
+        "serve:lan": "concurrently -n laravel,https -c blue,green \"php artisan serve --host=0.0.0.0 --port=8000\" \"node scripts/dev-https-proxy.cjs\""
     },
     "devDependencies": {
         "axios": "^1.11.0",
         "concurrently": "^9.0.1",
+        "http-proxy": "^1.18.1",
         "laravel-vite-plugin": "^2.0.0",
+        "selfsigned": "^2.4.1",
         "vite": "^7.0.7"
     },
     "allowScripts": {

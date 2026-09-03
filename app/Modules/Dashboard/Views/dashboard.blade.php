@@ -10,21 +10,65 @@
                 <p class="dash-page-sub">Welcome back, <strong>{{ $user->name ?? 'SK Federation' }}</strong> &mdash; SK Federation</p>
             </div>
             <div class="dash-page-filters">
-                <a href="{{ route('calendar') }}" class="dash-today-card" aria-label="Open calendar — Today's date">
-                    <span class="dash-today-icon" aria-hidden="true"><i class="fas fa-calendar-alt"></i></span>
-                    <div class="dash-today-text">
-                        <span class="dash-today-label">Today is</span>
-                        <span class="dash-today-value">{{ $todayLabel ?? now()->format('F j, Y | l') }}</span>
+                @php
+                    $dashYear = (int) ($dashboardYear ?? now()->year);
+                    $dashDateFrom = $dateFrom ?? sprintf('%04d-01-01', $dashYear);
+                    $dashDateTo = $dateTo ?? now()->toDateString();
+                    $dashTodayIso = now()->toDateString();
+                    $dashTermStart = sprintf('%04d-01-01', $dashYear);
+                @endphp
+                <div class="dash-header-tools" id="dashHeaderTools">
+                    <a href="{{ route('calendar') }}" class="dash-today-card" aria-label="Open calendar — Today's date">
+                        <span class="dash-today-icon" aria-hidden="true"><i class="fas fa-calendar-alt"></i></span>
+                        <div class="dash-today-text">
+                            <span class="dash-today-label">Today is</span>
+                            <span class="dash-today-value">{{ $todayLabel ?? now()->format('F j, Y | l') }}</span>
+                        </div>
+                    </a>
+                    <div
+                        class="dash-date-range-filter"
+                        id="dashDateRangeFilter"
+                        data-default-from="{{ $dashTermStart }}"
+                        data-default-to="{{ $dashTodayIso }}"
+                        data-term-year="{{ $dashYear }}"
+                    >
+                        <div class="dash-date-range-fields">
+                            <label class="dash-date-field" for="dashDateFrom">
+                                <span class="dash-date-field-label">From</span>
+                                <input
+                                    type="date"
+                                    id="dashDateFrom"
+                                    class="dash-date-input"
+                                    value="{{ $dashDateFrom }}"
+                                    max="{{ $dashDateTo }}"
+                                    aria-label="Filter from date"
+                                    title="From"
+                                >
+                            </label>
+                            <span class="dash-date-range-sep" aria-hidden="true">–</span>
+                            <label class="dash-date-field" for="dashDateTo">
+                                <span class="dash-date-field-label">To</span>
+                                <input
+                                    type="date"
+                                    id="dashDateTo"
+                                    class="dash-date-input"
+                                    value="{{ $dashDateTo }}"
+                                    min="{{ $dashDateFrom }}"
+                                    aria-label="Filter to date"
+                                    title="To"
+                                >
+                            </label>
+                            <button
+                                type="button"
+                                class="dash-date-reset-btn"
+                                id="dashDateResetBtn"
+                                title="Reset to term year (January 1 – today)"
+                                aria-label="Reset date filter to current term year start"
+                            >
+                                <i class="fas fa-undo" aria-hidden="true"></i>
+                            </button>
+                        </div>
                     </div>
-                </a>
-                <div class="dash-year-filter">
-                    <label class="dash-year-label" for="yearSelect">
-                        <i class="fas fa-calendar" aria-hidden="true"></i>
-                        Year
-                    </label>
-                    <select id="yearSelect" class="dash-year-select" aria-label="Filter dashboard by year">
-                        <option value="{{ $dashboardYear ?? now()->year }}" selected>{{ $dashboardYear ?? now()->year }}</option>
-                    </select>
                 </div>
             </div>
         </div>
@@ -340,6 +384,16 @@
         today_reminder: @json($todayReminder ?? null),
         activities_url: @json(route('dashboard.recent-activities')),
         feed_url: @json(route('dashboard.feed')),
+        stats_url: @json(route('dashboard.stats')),
+        date_from: @json($dateFrom ?? null),
+        date_to: @json($dateTo ?? null),
+        stats: {
+            total_kabataan_registered: {{ (int) ($totalKabataanRegistered ?? 0) }},
+            total_sk_officials: {{ (int) ($totalSkOfficials ?? 0) }},
+            total_sk_chairpersons: {{ (int) ($totalSkChairpersons ?? 0) }},
+            total_barangays_abyip_submitted: {{ (int) ($totalBarangaysAbyipSubmitted ?? 0) }},
+            total_audit_logs: {{ (int) ($totalAuditLogs ?? 0) }},
+        },
     };
 </script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
