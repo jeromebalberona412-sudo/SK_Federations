@@ -353,7 +353,7 @@
 <script>
     window.__KK_BARANGAYS__ = @json($kkBarangayOptions);
     window.__KK_PROFILING_DATA_URL__ = @json(route('dashboard.kk-profiling-data'));
-    window.__PUROK_DATA_URL__ = @json(route('dashboard.purok-distribution'));
+    window.__PUROK_DATA_URL__ = @json(Route::has('dashboard.purok-distribution') ? route('dashboard.purok-distribution') : url('/api/dashboard/purok-distribution'));
     window.__KK_PROFILING_INITIAL__ = @json($kkProfilingInitial ?? null);
     window.__PUROK_CHART_INITIAL__ = @json($purokChartInitial ?? null);
     window.__DASHBOARD_FEED__ = {
@@ -361,8 +361,8 @@
         upcoming_events: @json($upcomingEvents ?? []),
         today_reminder: @json($todayReminder ?? null),
         activities_url: @json(route('dashboard.recent-activities')),
-        feed_url: @json(route('dashboard.feed')),
-        stats_url: @json(route('dashboard.stats')),
+        feed_url: @json(Route::has('dashboard.feed') ? route('dashboard.feed') : url('/api/dashboard/feed')),
+        stats_url: @json(Route::has('dashboard.stats') ? route('dashboard.stats') : url('/api/dashboard/stats')),
         date_from: @json($dateFrom ?? null),
         date_to: @json($dateTo ?? null),
         stats: {
