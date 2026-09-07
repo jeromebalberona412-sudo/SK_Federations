@@ -433,9 +433,15 @@ function refreshMessagesPopover() {
         return r.ok ? r.json() : null;
     }).then(function (data) {
         if (!data) return;
-        renderMessagesPopoverList(data.conversations || []);
+        var conversations = data.conversations || [];
+        renderMessagesPopoverList(conversations);
+        if (headerChatState.fullscreen || document.getElementById('commsChatFsSidebar')) {
+            renderFullscreenChatList(conversations);
+        }
     }).catch(function () { /* ignore */ });
 }
+
+window.refreshMessagesPopover = refreshMessagesPopover;
 
 window.toggleMessagesPopover = function (e) {
     e.stopPropagation();
@@ -471,6 +477,7 @@ var headerChatState = {
     conversationId: null,
     loading: false,
     sending: false,
+    fullscreen: false,
     messages: [],
     reactionEmojis: ['👍', '❤️', '😆', '😮', '😢', '🙏'],
     openReactionPickerId: null,
@@ -568,11 +575,221 @@ function closeHeaderChatModal() {
     var modal = document.getElementById('commsChatModal');
     if (!modal) return;
     modal.hidden = true;
+    modal.classList.remove('is-fullscreen', 'is-empty-thread', 'is-thread-open');
     document.body.classList.remove('comms-chat-modal-open');
     headerChatState.conversationId = null;
     headerChatState.messages = [];
-    headerChatState.openReactionPickerId = null;
+    headerChatState.fullscreen = false;
+    hideHeaderReactionPicker();
     clearHeaderChatAttachments();
+    var sidebar = document.getElementById('commsChatFsSidebar');
+    var empty = document.getElementById('commsChatFsEmpty');
+    var active = document.getElementById('commsChatFsActive');
+    var backBtn = document.getElementById('commsChatFsBack');
+    if (sidebar) sidebar.hidden = true;
+    if (empty) empty.hidden = true;
+    if (active) active.hidden = false;
+    if (backBtn) backBtn.hidden = true;
+}
+
+function setHeaderChatEmptyThread(isEmpty) {
+    var modal = document.getElementById('commsChatModal');
+    var empty = document.getElementById('commsChatFsEmpty');
+    var active = document.getElementById('commsChatFsActive');
+    var backBtn = document.getElementById('commsChatFsBack');
+    if (!modal) return;
+
+    if (!modal.classList.contains('is-fullscreen')) {
+        modal.classList.remove('is-empty-thread');
+        modal.classList.toggle('is-thread-open', !!headerChatState.conversationId);
+        if (empty) empty.hidden = true;
+        if (active) active.hidden = false;
+        if (backBtn) backBtn.hidden = true;
+        return;
+    }
+
+    modal.classList.toggle('is-empty-thread', !!isEmpty);
+    modal.classList.toggle('is-thread-open', !isEmpty);
+    if (empty) empty.hidden = !isEmpty;
+    if (active) active.hidden = !!isEmpty;
+    if (backBtn) {
+        backBtn.hidden = !(!isEmpty && window.innerWidth <= 768);
+    }
+}
+
+function renderFullscreenChatList(conversations) {
+    var list = document.getElementById('commsChatFsList');
+    var empty = document.getElementById('commsChatFsListEmpty');
+    if (!list) return;
+
+    var items = Array.isArray(conversations) ? conversations : [];
+    window.__COMMS_HEADER_CONVERSATIONS__ = items;
+
+    if (!items.length) {
+        list.innerHTML = '';
+        if (empty) empty.hidden = false;
+        return;
+    }
+
+    if (empty) empty.hidden = true;
+    list.innerHTML = items.map(function (c) {
+        var peer = c.other_user || {};
+        var name = peer.name || 'User';
+        var preview = (c.last_message && c.last_message.body) || 'No messages yet';
+        var unread = Number(c.unread_count || 0);
+        var avatar = peer.profile_image_url || defaultCommsAvatar(name);
+        var searchBlob = String(name + ' ' + preview).toLowerCase();
+        var active = Number(c.id) === Number(headerChatState.conversationId) ? ' is-active' : '';
+        return '<button type="button" class="comms-chat-fs-item' + active + (unread > 0 ? ' is-unread' : '') + '" data-id="' + c.id + '" data-name="' + escapeCommsHtml(name) + '" data-avatar="' + escapeCommsHtml(avatar) + '" data-unread="' + (unread > 0 ? '1' : '0') + '" data-search="' + escapeCommsHtml(searchBlob) + '" role="listitem">' +
+            '<img class="comms-chat-fs-item-avatar" src="' + escapeCommsHtml(avatar) + '" alt="" onerror="this.onerror=null;this.src=\'' + escapeCommsHtml(defaultCommsAvatar(name)) + '\'">' +
+            '<div class="comms-chat-fs-item-main">' +
+            '<span class="comms-chat-fs-item-name">' + escapeCommsHtml(name) + '</span>' +
+            '<span class="comms-chat-fs-item-preview">' + escapeCommsHtml(preview) + '</span>' +
+            '</div>' +
+            '<div class="comms-chat-fs-item-meta">' +
+            '<span class="comms-chat-fs-item-time">' + escapeCommsHtml(formatCommsRelativeTime(c.updated_at)) + '</span>' +
+            (unread > 0 ? '<span class="comms-chat-fs-item-badge">' + (unread > 99 ? '99+' : unread) + '</span>' : '') +
+            '</div>' +
+            '</button>';
+    }).join('');
+
+    applyFullscreenChatFilters();
+}
+
+function applyFullscreenChatFilters() {
+    var list = document.getElementById('commsChatFsList');
+    var empty = document.getElementById('commsChatFsListEmpty');
+    var searchInput = document.getElementById('commsChatFsSearch');
+    var activeChip = document.querySelector('.comms-chat-fs-filter.is-active');
+    if (!list) return;
+
+    var query = String(searchInput && searchInput.value ? searchInput.value : '').trim().toLowerCase();
+    var filter = activeChip ? String(activeChip.getAttribute('data-fs-filter') || 'all') : 'all';
+    var items = list.querySelectorAll('.comms-chat-fs-item');
+    var visible = 0;
+
+    items.forEach(function (item) {
+        var unread = item.getAttribute('data-unread') === '1';
+        var haystack = String(item.getAttribute('data-search') || '').toLowerCase();
+        var show = (filter === 'all' || (filter === 'unread' && unread))
+            && (!query || haystack.indexOf(query) !== -1);
+        item.classList.toggle('is-filtered-out', !show);
+        if (show) visible += 1;
+    });
+
+    if (empty) {
+        empty.hidden = items.length > 0 && visible > 0;
+        if (items.length && visible === 0) {
+            empty.hidden = false;
+            empty.innerHTML = '<p>' + (filter === 'unread' ? 'No unread messages' : 'No matching chats') + '</p>';
+        } else if (!items.length) {
+            empty.hidden = false;
+            empty.innerHTML = '<p>No conversations yet</p>';
+        }
+    }
+}
+
+function setHeaderChatFullscreen(enabled) {
+    var modal = document.getElementById('commsChatModal');
+    var sidebar = document.getElementById('commsChatFsSidebar');
+    var expandBtn = document.getElementById('commsChatModalOpenFull');
+    if (!modal) return;
+
+    headerChatState.fullscreen = !!enabled;
+    modal.classList.toggle('is-fullscreen', !!enabled);
+    if (sidebar) sidebar.hidden = !enabled;
+
+    if (expandBtn) {
+        var icon = expandBtn.querySelector('i');
+        if (icon) {
+            icon.className = enabled ? 'fas fa-compress' : 'fas fa-expand';
+        }
+        expandBtn.title = enabled ? 'Exit fullscreen' : 'Toggle fullscreen';
+        expandBtn.setAttribute('aria-label', enabled ? 'Exit fullscreen' : 'Toggle fullscreen messages');
+    }
+
+    setHeaderChatEmptyThread(!headerChatState.conversationId);
+}
+
+function openHeaderMessagesFullscreen(conversationId, name, avatarUrl) {
+    var modal = document.getElementById('commsChatModal');
+    if (!modal) return;
+
+    closeMessagesPopover();
+    modal.hidden = false;
+    document.body.classList.add('comms-chat-modal-open');
+    setHeaderChatFullscreen(true);
+    wireFullscreenChatControls();
+
+    refreshMessagesPopover();
+    var cached = window.__COMMS_HEADER_CONVERSATIONS__;
+    if (Array.isArray(cached)) {
+        renderFullscreenChatList(cached);
+    }
+
+    if (conversationId) {
+        openHeaderChatModal(conversationId, name, avatarUrl);
+        setHeaderChatFullscreen(true);
+    } else {
+        headerChatState.conversationId = null;
+        headerChatState.messages = [];
+        setHeaderChatEmptyThread(true);
+        var body = document.getElementById('commsChatModalBody');
+        if (body) {
+            body.innerHTML = '<p class="comms-chat-modal-empty">Select a conversation</p>';
+        }
+    }
+}
+
+function openHeaderChatModal(conversationId, name, avatarUrl) {
+    var modal = document.getElementById('commsChatModal');
+    var title = document.getElementById('commsChatModalTitle');
+    var sub = document.getElementById('commsChatModalSub');
+    var input = document.getElementById('commsChatModalInput');
+    var body = document.getElementById('commsChatModalBody');
+    if (!modal || !conversationId) return;
+
+    closeMessagesPopover();
+    hideHeaderReactionPicker();
+    headerChatState.conversationId = Number(conversationId);
+    if (title) title.textContent = name || 'Chat';
+    if (sub) sub.textContent = 'Conversation';
+    setHeaderChatAvatar(name, avatarUrl);
+    if (input) {
+        input.value = '';
+    }
+
+    var cached = readHeaderChatCache(conversationId);
+    if (cached && Array.isArray(cached.messages) && cached.messages.length) {
+        var cachedEmojis = cached.reactionEmojis || cached.reaction_emojis;
+        if (Array.isArray(cachedEmojis) && cachedEmojis.length) {
+            headerChatState.reactionEmojis = cachedEmojis;
+        }
+        headerChatState.messages = cached.messages;
+        renderHeaderChatMessages(cached.messages);
+    } else if (body) {
+        body.innerHTML = '';
+    }
+
+    modal.hidden = false;
+    document.body.classList.add('comms-chat-modal-open');
+    setHeaderChatEmptyThread(false);
+    if (headerChatState.fullscreen) {
+        setHeaderChatFullscreen(true);
+        document.querySelectorAll('#commsChatFsList .comms-chat-fs-item').forEach(function (el) {
+            el.classList.toggle('is-active', Number(el.getAttribute('data-id')) === Number(conversationId));
+        });
+    }
+
+    // Subscribe immediately so new messages appear while history loads.
+    if (window.CommsRealtime && typeof window.CommsRealtime.subscribeConversation === 'function') {
+        window.CommsRealtime.subscribeConversation(conversationId);
+    }
+    loadHeaderChatMessages(conversationId);
+    markHeaderConversationRead(conversationId);
+    window.setTimeout(function () {
+        if (input) input.focus();
+    }, 50);
 }
 
 function setHeaderChatAvatar(name, avatarUrl) {
@@ -583,28 +800,190 @@ function setHeaderChatAvatar(name, avatarUrl) {
     el.classList.remove('comms-chat-modal-avatar--fallback');
 }
 
-function renderHeaderReactionChips(reactions) {
-    var items = Array.isArray(reactions) ? reactions : [];
-    if (!items.length) return '';
-    return '<div class="comms-chat-reaction-chips" role="group" aria-label="Reactions">' +
-        items.map(function (r) {
-            return '<button type="button" class="comms-chat-reaction-chip' + (r.mine ? ' is-mine' : '') + '" data-react-emoji="' + escapeCommsHtml(r.emoji) + '">' +
-                '<span aria-hidden="true">' + escapeCommsHtml(r.emoji) + '</span>' +
-                '<span>' + Number(r.count || 0) + '</span>' +
-                '</button>';
-        }).join('') +
-        '</div>';
+function wireFullscreenChatControls() {
+    var searchInput = document.getElementById('commsChatFsSearch');
+    var chips = document.querySelectorAll('.comms-chat-fs-filter');
+    var list = document.getElementById('commsChatFsList');
+    var expandBtn = document.getElementById('commsChatModalOpenFull');
+    var headerExpand = document.getElementById('commsMsgOpenFull');
+    var backBtn = document.getElementById('commsChatFsBack');
+
+    if (searchInput && searchInput.dataset.wired !== 'true') {
+        searchInput.addEventListener('input', applyFullscreenChatFilters);
+        searchInput.dataset.wired = 'true';
+    }
+    chips.forEach(function (chip) {
+        if (chip.dataset.wired === 'true') return;
+        chip.addEventListener('click', function () {
+            chips.forEach(function (other) {
+                other.classList.toggle('is-active', other === chip);
+                other.setAttribute('aria-selected', other === chip ? 'true' : 'false');
+            });
+            applyFullscreenChatFilters();
+        });
+        chip.dataset.wired = 'true';
+    });
+    if (list && list.dataset.fsWired !== 'true') {
+        list.addEventListener('click', function (e) {
+            var item = e.target.closest('.comms-chat-fs-item');
+            if (!item) return;
+            e.preventDefault();
+            openHeaderChatModal(
+                item.getAttribute('data-id'),
+                item.getAttribute('data-name') || 'Chat',
+                item.getAttribute('data-avatar') || ''
+            );
+        });
+        list.dataset.fsWired = 'true';
+    }
+    if (expandBtn && expandBtn.dataset.fsToggleWired !== 'true') {
+        expandBtn.addEventListener('click', function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            var modal = document.getElementById('commsChatModal');
+            if (!modal || modal.hidden) {
+                openHeaderMessagesFullscreen(headerChatState.conversationId || null);
+                return;
+            }
+            if (headerChatState.fullscreen) {
+                setHeaderChatFullscreen(false);
+                if (!headerChatState.conversationId) {
+                    closeHeaderChatModal();
+                }
+                return;
+            }
+            setHeaderChatFullscreen(true);
+            wireFullscreenChatControls();
+            refreshMessagesPopover();
+        });
+        expandBtn.dataset.fsToggleWired = 'true';
+    }
+    if (headerExpand && headerExpand.dataset.fsWired !== 'true') {
+        headerExpand.addEventListener('click', function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            openHeaderMessagesFullscreen(null);
+        });
+        headerExpand.dataset.fsWired = 'true';
+    }
+    if (backBtn && backBtn.dataset.wired !== 'true') {
+        backBtn.addEventListener('click', function (e) {
+            e.preventDefault();
+            headerChatState.conversationId = null;
+            headerChatState.messages = [];
+            setHeaderChatEmptyThread(true);
+            var body = document.getElementById('commsChatModalBody');
+            if (body) body.innerHTML = '<p class="comms-chat-modal-empty">Select a conversation</p>';
+        });
+        backBtn.dataset.wired = 'true';
+    }
 }
 
-function renderHeaderReactionPicker(messageId) {
-    if (Number(headerChatState.openReactionPickerId) !== Number(messageId)) return '';
-    return '<div class="comms-chat-reaction-picker" data-react-picker="' + messageId + '" role="menu" aria-label="Choose reaction">' +
-        headerChatState.reactionEmojis.map(function (emoji) {
-            return '<button type="button" class="comms-chat-reaction-pick" data-react-emoji="' + escapeCommsHtml(emoji) + '" role="menuitem">' +
-                escapeCommsHtml(emoji) +
-                '</button>';
+function renderHeaderReactionChips(reactions, messageId) {
+    var items = Array.isArray(reactions)
+        ? reactions.filter(function (r) { return Number(r.count || 0) > 0; })
+        : [];
+    if (!items.length) return '';
+    var total = 0;
+    var anyMine = false;
+    items.forEach(function (r) {
+        total += Number(r.count || 0);
+        if (r.mine) anyMine = true;
+    });
+    var escape = window.Comms && Comms.escapeHtml ? Comms.escapeHtml : escapeCommsHtml;
+    return '<div class="comms-chat-reaction-chips" role="group" aria-label="Reactions">' +
+        '<button type="button" class="comms-reaction-summary' + (anyMine ? ' is-mine' : '') + '"' +
+        ' data-react-people="' + Number(messageId || 0) + '"' +
+        ' aria-haspopup="true" aria-label="See who reacted">' +
+        '<span class="comms-reaction-stack">' +
+        items.map(function (r) {
+            return '<span class="comms-reaction-stack-btn' + (r.mine ? ' is-mine' : '') + '" data-react-people-emoji="' + escape(r.emoji) + '">' +
+                escape(r.emoji) +
+                '</span>';
         }).join('') +
-        '</div>';
+        '</span>' +
+        (total > 1 ? '<span class="comms-reaction-count">' + total + '</span>' : '') +
+        '</button></div>';
+}
+
+function renderHeaderReactionPicker() {
+    return '';
+}
+
+function getHeaderReactionPickerEl() {
+    var el = document.getElementById('commsChatReactionPicker');
+    if (el) return el;
+    el = document.createElement('div');
+    el.id = 'commsChatReactionPicker';
+    el.className = 'comms-chat-reaction-picker comms-chat-reaction-picker--fixed';
+    el.setAttribute('role', 'menu');
+    el.setAttribute('aria-label', 'Choose reaction');
+    el.style.display = 'none';
+    el.style.position = 'fixed';
+    el.style.zIndex = '40050';
+    document.body.appendChild(el);
+    return el;
+}
+
+function hideHeaderReactionPicker() {
+    headerChatState.openReactionPickerId = null;
+    var el = document.getElementById('commsChatReactionPicker');
+    if (el) {
+        el.style.display = 'none';
+        el.innerHTML = '';
+        el.removeAttribute('data-react-picker');
+    }
+    document.querySelectorAll('#commsChatModalBody .comms-chat-bubble-wrap.is-picker-open').forEach(function (wrap) {
+        wrap.classList.remove('is-picker-open');
+        var btn = wrap.querySelector('[data-react-toggle]');
+        if (btn) btn.setAttribute('aria-expanded', 'false');
+    });
+}
+
+function positionHeaderReactionPicker(triggerBtn) {
+    var el = getHeaderReactionPickerEl();
+    if (!triggerBtn) return;
+    var rect = triggerBtn.getBoundingClientRect();
+    var pickerW = el.offsetWidth || 240;
+    var pickerH = el.offsetHeight || 48;
+    var pad = 8;
+    var vw = window.innerWidth;
+    var vh = window.innerHeight;
+    var top = rect.top - pickerH - 8;
+    var left = rect.left + (rect.width / 2) - (pickerW / 2);
+    if (top < pad) {
+        top = rect.bottom + 8;
+    }
+    left = Math.max(pad, Math.min(left, vw - pickerW - pad));
+    top = Math.max(pad, Math.min(top, vh - pickerH - pad));
+    el.style.top = top + 'px';
+    el.style.left = left + 'px';
+}
+
+function showHeaderReactionPicker(messageId, triggerBtn) {
+    headerChatState.openReactionPickerId = Number(messageId) || null;
+    if (!headerChatState.openReactionPickerId || !triggerBtn) {
+        hideHeaderReactionPicker();
+        return;
+    }
+    var el = getHeaderReactionPickerEl();
+    el.setAttribute('data-react-picker', String(headerChatState.openReactionPickerId));
+    el.innerHTML = headerChatState.reactionEmojis.map(function (emoji) {
+        return '<button type="button" class="comms-chat-reaction-pick" data-react-emoji="' +
+            escapeCommsHtml(emoji) + '" role="menuitem">' +
+            escapeCommsHtml(emoji) + '</button>';
+    }).join('');
+    document.querySelectorAll('#commsChatModalBody .comms-chat-bubble-wrap').forEach(function (wrap) {
+        var isOpen = Number(wrap.getAttribute('data-id')) === headerChatState.openReactionPickerId;
+        wrap.classList.toggle('is-picker-open', isOpen);
+        var btn = wrap.querySelector('[data-react-toggle]');
+        if (btn) btn.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+    });
+    el.style.display = 'inline-flex';
+    positionHeaderReactionPicker(triggerBtn);
+    requestAnimationFrame(function () {
+        positionHeaderReactionPicker(triggerBtn);
+    });
 }
 
 var headerReactBtnIcon = '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M8.5 14.5s1.5 2 3.5 2 3.5-2 3.5-2"/><circle cx="9" cy="10" r="1" fill="currentColor" stroke="none"/><circle cx="15" cy="10" r="1" fill="currentColor" stroke="none"/></svg>';
@@ -673,10 +1052,17 @@ function saveHeaderEditedMessage(messageId) {
     var bodyEl = document.getElementById('commsChatModalBody');
     var input = bodyEl ? bodyEl.querySelector('[data-edit-input="' + messageId + '"]') : null;
     if (!input) return;
-    var body = String(input.value || '').trim();
+    var raw = String(input.value || '');
+    var body = raw.trim();
     if (!body) {
         if (window.Comms && typeof window.Comms.showToast === 'function') {
-            window.Comms.showToast('Message cannot be empty.', 'error');
+            window.Comms.showToast('Message cannot be empty or only spaces.', 'error');
+        }
+        return;
+    }
+    if (raw.length > 1000 || body.length > 1000) {
+        if (window.Comms && typeof window.Comms.showToast === 'function') {
+            window.Comms.showToast('Message must be 1000 characters or less.', 'error');
         }
         return;
     }
@@ -769,6 +1155,7 @@ function renderHeaderChatMessages(messages, opts) {
     var items = Array.isArray(messages) ? messages.slice() : [];
     headerChatState.messages = items;
     if (!items.length) {
+        hideHeaderReactionPicker();
         body.innerHTML = '<p class="comms-chat-modal-empty">No messages yet. Say hello.</p>';
         return;
     }
@@ -798,7 +1185,7 @@ function renderHeaderChatMessages(messages, opts) {
         }
         var bodyHtml = '';
         if (editing) {
-            bodyHtml = '<textarea class="comms-chat-edit-input" data-edit-input="' + msg.id + '" maxlength="5000" rows="2">' + escapeCommsHtml(msg.body || '') + '</textarea>' +
+            bodyHtml = '<textarea class="comms-chat-edit-input" data-edit-input="' + msg.id + '" maxlength="1000" rows="2">' + escapeCommsHtml(msg.body || '') + '</textarea>' +
                 '<div class="comms-chat-edit-actions">' +
                 '<button type="button" class="comms-chat-edit-cancel" data-edit-cancel="' + msg.id + '">Cancel</button>' +
                 '<button type="button" class="comms-chat-edit-save" data-edit-save="' + msg.id + '">Save</button>' +
@@ -820,13 +1207,21 @@ function renderHeaderChatMessages(messages, opts) {
             '</div>' +
             '</div>' +
             renderHeaderReactionPicker(msg.id) +
-            renderHeaderReactionChips(msg.reactions) +
+            renderHeaderReactionChips(msg.reactions, msg.id) +
             '</div>';
     }).join('');
     if (opts.preserveScroll) {
         body.scrollTop = prevScroll;
     } else {
         body.scrollTop = body.scrollHeight;
+    }
+    if (headerChatState.openReactionPickerId) {
+        var pickerBtn = body.querySelector('[data-react-toggle="' + headerChatState.openReactionPickerId + '"]');
+        if (pickerBtn) {
+            positionHeaderReactionPicker(pickerBtn);
+        } else {
+            hideHeaderReactionPicker();
+        }
     }
 }
 
@@ -872,7 +1267,7 @@ function applyHeaderMessageReactions(messageId, reactions, opts) {
     if (!msg) return;
     msg.reactions = Array.isArray(reactions) ? reactions : [];
     if (opts.closePicker !== false) {
-        headerChatState.openReactionPickerId = null;
+        hideHeaderReactionPicker();
     }
     renderHeaderChatMessages(headerChatState.messages, { preserveScroll: true });
     if (headerChatState.conversationId) {
@@ -993,62 +1388,34 @@ function toggleHeaderChatReaction(messageId, emoji) {
 }
 
 function headerChatCacheKey(conversationId) {
-    return 'comms:header-chat:' + String(conversationId);
+    return 'comms:thread:' + String(conversationId);
 }
 
 function readHeaderChatCache(conversationId) {
-    if (!window.LocalDataCache || typeof window.LocalDataCache.get !== 'function') return null;
-    var entry = window.LocalDataCache.get(headerChatCacheKey(conversationId));
-    if (!entry || !entry.payload) return null;
-    return entry.payload;
+    if (window.Comms && typeof window.Comms.readThreadCache === 'function') {
+        var payload = window.Comms.readThreadCache(conversationId);
+        if (payload && Array.isArray(payload.messages)) return payload;
+    }
+    if (window.SkLocalCache && typeof window.SkLocalCache.get === 'function') {
+        var entry = window.SkLocalCache.get(headerChatCacheKey(conversationId));
+        if (entry && entry.payload && Array.isArray(entry.payload.messages)) return entry.payload;
+    }
+    return null;
 }
 
 function writeHeaderChatCache(conversationId, payload) {
-    if (!window.LocalDataCache || typeof window.LocalDataCache.set !== 'function') return;
-    window.LocalDataCache.set(headerChatCacheKey(conversationId), payload);
-}
-
-function openHeaderChatModal(conversationId, name, avatarUrl) {
-    var modal = document.getElementById('commsChatModal');
-    var title = document.getElementById('commsChatModalTitle');
-    var sub = document.getElementById('commsChatModalSub');
-    var openFull = document.getElementById('commsChatModalOpenFull');
-    var input = document.getElementById('commsChatModalInput');
-    var body = document.getElementById('commsChatModalBody');
-    if (!modal || !conversationId) return;
-
-    closeMessagesPopover();
-    headerChatState.conversationId = Number(conversationId);
-    if (title) title.textContent = name || 'Chat';
-    if (sub) sub.textContent = 'Conversation';
-    setHeaderChatAvatar(name, avatarUrl);
-    if (openFull) {
-        openFull.href = '/communications?conversation=' + encodeURIComponent(conversationId);
+    var stored = {
+        messages: payload.messages || [],
+        reactionEmojis: payload.reactionEmojis || payload.reaction_emojis || [],
+        ts: Date.now()
+    };
+    if (window.Comms && typeof window.Comms.writeThreadCache === 'function') {
+        window.Comms.writeThreadCache(conversationId, stored);
+        return;
     }
-    if (input) {
-        input.value = '';
+    if (window.SkLocalCache && typeof window.SkLocalCache.set === 'function') {
+        window.SkLocalCache.set(headerChatCacheKey(conversationId), stored);
     }
-
-    var cached = readHeaderChatCache(conversationId);
-    if (cached && Array.isArray(cached.messages) && cached.messages.length) {
-        if (Array.isArray(cached.reaction_emojis) && cached.reaction_emojis.length) {
-            headerChatState.reactionEmojis = cached.reaction_emojis;
-        }
-        renderHeaderChatMessages(cached.messages);
-    } else if (body) {
-        body.innerHTML = '';
-    }
-
-    modal.hidden = false;
-    document.body.classList.add('comms-chat-modal-open');
-    loadHeaderChatMessages(conversationId);
-    markHeaderConversationRead(conversationId);
-    if (window.CommsRealtime && typeof window.CommsRealtime.subscribeConversation === 'function') {
-        window.CommsRealtime.subscribeConversation(conversationId);
-    }
-    window.setTimeout(function () {
-        if (input) input.focus();
-    }, 50);
 }
 
 function refreshHeaderChatReaction(messageId, meta) {
@@ -1098,6 +1465,9 @@ window.onCommsHeaderMessageInsert = function (message) {
     if (!message.reactions) message.reactions = [];
     headerChatState.messages.push(message);
     renderHeaderChatMessages(headerChatState.messages);
+    if (typeof window.refreshMessagesPopover === 'function') {
+        window.refreshMessagesPopover();
+    }
 };
 
 window.onCommsHeaderMessageChange = function (row) {
@@ -1175,9 +1545,21 @@ function sendHeaderChatMessage(event) {
     var input = document.getElementById('commsChatModalInput');
     var conversationId = headerChatState.conversationId;
     if (!input || !conversationId) return;
-    var body = String(input.value || '').trim();
+    var raw = String(input.value || '');
+    var body = raw.trim();
     var files = headerChatState.pendingAttachments.slice();
-    if (!body && !files.length) return;
+    if (!body && !files.length) {
+        if (raw.length > 0 && window.Comms && typeof window.Comms.showToast === 'function') {
+            window.Comms.showToast('Message cannot be only spaces.', 'error');
+        }
+        return;
+    }
+    if (body && (raw.length > 1000 || body.length > 1000)) {
+        if (window.Comms && typeof window.Comms.showToast === 'function') {
+            window.Comms.showToast('Message must be 1000 characters or less.', 'error');
+        }
+        return;
+    }
     if (headerChatState.sending && files.length) return;
 
     var sendBtn = document.getElementById('commsChatModalSend');
@@ -1335,12 +1717,37 @@ function wireHeaderChatModal() {
     var input = document.getElementById('commsChatModalInput');
     wireHeaderChatAttachButtons();
     wireHeaderChatCallButtons();
+    wireFullscreenChatControls();
     var chatBody = document.getElementById('commsChatModalBody');
     if (chatBody && chatBody.dataset.menuScroll !== 'true') {
         chatBody.addEventListener('scroll', function () {
             closeHeaderMessageMenus();
+            if (headerChatState.openReactionPickerId) {
+                hideHeaderReactionPicker();
+            }
         }, { passive: true });
         chatBody.dataset.menuScroll = 'true';
+    }
+    var headerPicker = getHeaderReactionPickerEl();
+    if (headerPicker && headerPicker.dataset.wired !== 'true') {
+        headerPicker.addEventListener('click', function (e) {
+            var pick = e.target.closest('[data-react-emoji]');
+            if (!pick) return;
+            e.preventDefault();
+            e.stopPropagation();
+            var mid = Number(headerChatState.openReactionPickerId);
+            var emoji = pick.getAttribute('data-react-emoji');
+            if (mid && emoji) toggleHeaderChatReaction(mid, emoji);
+        });
+        headerPicker.dataset.wired = 'true';
+    }
+    if (document.documentElement.dataset.commsHeaderPickerResize !== 'true') {
+        window.addEventListener('resize', function () {
+            if (headerChatState.openReactionPickerId) {
+                hideHeaderReactionPicker();
+            }
+        }, { passive: true });
+        document.documentElement.dataset.commsHeaderPickerResize = 'true';
     }
     if (modal && modal.dataset.wired !== 'true') {
         modal.addEventListener('click', function (e) {
@@ -1393,14 +1800,31 @@ function wireHeaderChatModal() {
                 }
                 return;
             }
+            var peopleBtn = e.target.closest('[data-react-people]');
+            if (peopleBtn && e.target.closest('#commsChatModal')) {
+                e.preventDefault();
+                e.stopPropagation();
+                var pid = Number(peopleBtn.getAttribute('data-react-people'));
+                var pmsg = headerChatState.messages.find(function (m) { return Number(m.id) === pid; });
+                var emojiEl = e.target.closest('[data-react-people-emoji]');
+                if (window.Comms && Comms.toggleReactionPeople) {
+                    Comms.toggleReactionPeople(peopleBtn, pmsg ? pmsg.reactions : [], {
+                        pinned: true,
+                        emoji: emojiEl ? (emojiEl.getAttribute('data-react-people-emoji') || '') : ''
+                    });
+                }
+                return;
+            }
             var toggle = e.target.closest('[data-react-toggle]');
             if (toggle) {
                 e.preventDefault();
                 e.stopPropagation();
                 var tid = Number(toggle.getAttribute('data-react-toggle'));
-                headerChatState.openReactionPickerId =
-                    Number(headerChatState.openReactionPickerId) === tid ? null : tid;
-                renderHeaderChatMessages(headerChatState.messages, { preserveScroll: true });
+                if (Number(headerChatState.openReactionPickerId) === tid) {
+                    hideHeaderReactionPicker();
+                } else {
+                    showHeaderReactionPicker(tid, toggle);
+                }
                 return;
             }
             var emojiBtn = e.target.closest('[data-react-emoji]');
@@ -1413,6 +1837,28 @@ function wireHeaderChatModal() {
                 if (mid && emoji) toggleHeaderChatReaction(mid, emoji);
             }
         });
+        modal.addEventListener('pointerover', function (e) {
+            var peopleBtn = e.target.closest('[data-react-people]');
+            if (!peopleBtn || !modal.contains(peopleBtn)) return;
+            var pid = Number(peopleBtn.getAttribute('data-react-people'));
+            var pmsg = headerChatState.messages.find(function (m) { return Number(m.id) === pid; });
+            var emojiEl = e.target.closest('[data-react-people-emoji]');
+            if (window.Comms && Comms.showReactionPeople) {
+                Comms.showReactionPeople(peopleBtn, pmsg ? pmsg.reactions : [], {
+                    pinned: false,
+                    emoji: emojiEl ? (emojiEl.getAttribute('data-react-people-emoji') || '') : ''
+                });
+            }
+        });
+        modal.addEventListener('pointerout', function (e) {
+            var peopleBtn = e.target.closest('[data-react-people]');
+            if (!peopleBtn) return;
+            var related = e.relatedTarget;
+            if (related && (peopleBtn.contains(related) || (related.closest && related.closest('#commsReactionPeople')))) {
+                return;
+            }
+            if (window.Comms && Comms.scheduleHideReactionPeople) Comms.scheduleHideReactionPeople();
+        });
         modal.dataset.wired = 'true';
     }
     if (document.documentElement.dataset.commsReactOutside !== 'true') {
@@ -1422,10 +1868,7 @@ function wireHeaderChatModal() {
             }
             if (!headerChatState.openReactionPickerId) return;
             if (e.target.closest('[data-react-toggle]') || e.target.closest('.comms-chat-reaction-picker')) return;
-            headerChatState.openReactionPickerId = null;
-            if (headerChatState.messages && headerChatState.messages.length) {
-                renderHeaderChatMessages(headerChatState.messages, { preserveScroll: true });
-            }
+            hideHeaderReactionPicker();
         });
         document.documentElement.dataset.commsReactOutside = 'true';
     }
@@ -1465,6 +1908,7 @@ function wireHeaderChatModal() {
 
 window.openHeaderChatModal = openHeaderChatModal;
 window.closeHeaderChatModal = closeHeaderChatModal;
+window.openHeaderMessagesFullscreen = openHeaderMessagesFullscreen;
 
 // ── Profile Dropdown ──
 window.toggleProfileDropdown = function (e) {
@@ -1998,7 +2442,9 @@ function initSessionTimeoutWarning() {
                 return;
             }
             badge.style.display = '';
-            badge.textContent = n > 99 ? '99+' : String(n);
+            badge.textContent = (window.Comms && typeof window.Comms.formatHeaderMsgCount === 'function')
+                ? window.Comms.formatHeaderMsgCount(n)
+                : (n >= 9 ? '9+' : String(n));
         }).catch(function () { /* ignore */ });
     }
     setInterval(refresh, 30000);

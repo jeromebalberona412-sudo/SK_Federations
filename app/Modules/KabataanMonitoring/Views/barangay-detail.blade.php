@@ -258,6 +258,7 @@
             updateUrl: @json(url('/api/kabataan-monitoring/__ID__')),
             destroyUrl: @json(url('/api/kabataan-monitoring/__ID__')),
             batchPrintUrl: @json(route('kabataan-monitoring.batch-print')),
+            printUrl: @json(url('/kabataan-monitoring/__ID__/print')),
             csrfToken: @json(csrf_token()),
             viewCssUrl: @json(\Illuminate\Support\Facades\Vite::asset('app/Modules/KabataanMonitoring/assets/css/kk-questionnaire-view.css')),
         };

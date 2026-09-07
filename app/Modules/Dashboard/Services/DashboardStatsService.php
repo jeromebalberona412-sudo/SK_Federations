@@ -125,15 +125,22 @@ class DashboardStatsService
     /**
      * @return array{labels: list<string>, values: list<int>}
      */
-    public function sexDistribution(?int $tenantId = null): array
+    public function sexDistribution(?int $tenantId = null, ?string $dateFrom = null, ?string $dateTo = null): array
     {
-        return $this->sexDistributionFromRecords($this->activeKabataanRecords($tenantId));
+        if (! Schema::hasTable('kabataan_registrations')) {
+            return ['labels' => ['Male', 'Female'], 'values' => [0, 0]];
+        }
+
+        $query = $this->activeKabataanQuery($tenantId);
+        $this->applyKabataanDateRange($query, $dateFrom, $dateTo);
+
+        return $this->sexDistributionFromRecords($query->get(['id', 'form_data']));
     }
 
     /**
      * @return array{labels: list<string>, values: list<int>}
      */
-    public function sexDistributionOfficials(?int $tenantId = null): array
+    public function sexDistributionOfficials(?int $tenantId = null, ?string $dateFrom = null, ?string $dateTo = null): array
     {
         if (! Schema::hasTable('users') || ! Schema::hasTable('official_profiles')) {
             return ['labels' => ['Male', 'Female'], 'values' => [0, 0]];
@@ -153,6 +160,8 @@ class DashboardStatsService
         if ($tenantId !== null) {
             $query->where('tenant_id', $tenantId);
         }
+
+        $this->applyCreatedAtDateRange($query, $dateFrom, $dateTo);
 
         $male = 0;
         $female = 0;
@@ -176,13 +185,17 @@ class DashboardStatsService
     /**
      * @return list<array{rank: int, barangay: string, count: int}>
      */
-    public function topBarangaysByYouth(?int $tenantId = null, int $limit = 5): array
+    public function topBarangaysByYouth(?int $tenantId = null, int $limit = 5, ?string $dateFrom = null, ?string $dateTo = null): array
     {
         if (! Schema::hasTable('kabataan_registrations')) {
             return [];
         }
 
-        $records = $this->cachedActiveKabataanRecords($tenantId);
+        $query = $this->activeKabataanQuery($tenantId);
+        $this->applyKabataanDateRange($query, $dateFrom, $dateTo);
+        $records = $query
+            ->with('barangay:id,name')
+            ->get(['id', 'barangay_id', 'form_data']);
         $counts = [];
 
         foreach ($records as $record) {

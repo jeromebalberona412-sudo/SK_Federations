@@ -25,6 +25,10 @@ function getTodayIsoDate() {
     return `${today.getFullYear()}-${pad(today.getMonth() + 1)}-${pad(today.getDate())}`;
 }
 
+function isValidIsoDate(value) {
+    return /^\d{4}-\d{2}-\d{2}$/.test(String(value || ''));
+}
+
 function getDashboardDateRange() {
     const fromInput = document.getElementById('dashDateFrom');
     const toInput = document.getElementById('dashDateTo');
@@ -33,6 +37,10 @@ function getDashboardDateRange() {
 
     let dateFrom = fromInput?.value || defaultFrom;
     let dateTo = toInput?.value || todayIso;
+
+    if (!isValidIsoDate(dateFrom) || !isValidIsoDate(dateTo)) {
+        return { date_from: defaultFrom, date_to: todayIso, valid: false };
+    }
 
     if (dateFrom && dateTo && dateFrom > dateTo) {
         const tmp = dateFrom;
@@ -47,24 +55,23 @@ function getDashboardDateRange() {
         toInput.min = dateFrom || '';
     }
 
-    return { date_from: dateFrom, date_to: dateTo };
+    return { date_from: dateFrom, date_to: dateTo, valid: true };
 }
 
 window.getDashboardDateRange = getDashboardDateRange;
 
 function refreshDashboardDateFilteredViews() {
-    getDashboardDateRange();
-    // Stats first (no debounce) — charts follow without blocking cards.
+    const range = getDashboardDateRange();
+    if (range.valid === false) {
+        return;
+    }
     if (typeof window.refreshDashboardStats === 'function') {
         window.refreshDashboardStats(true);
     }
-    window.clearTimeout(kkProfilingFetchTimer);
-    window.requestAnimationFrame(function () {
-        refreshKkProfilingChart();
-        if (typeof window.refreshPurokDistributionChart === 'function') {
-            window.refreshPurokDistributionChart();
-        }
-    });
+    refreshKkProfilingChart();
+    if (typeof window.refreshPurokDistributionChart === 'function') {
+        window.refreshPurokDistributionChart();
+    }
     document.dispatchEvent(new CustomEvent('dashboard:date-range-changed'));
 }
 
@@ -217,7 +224,7 @@ function applyKkProfilingChartData(data, barangayName) {
     kkProfilingMonthlyChart.data.datasets[0].data = kkProfilingCurrentData.monthlyApproved;
     kkProfilingMonthlyChart.data.datasets[1].data = kkProfilingCurrentData.monthlyRejected;
     kkProfilingMonthlyChart.data.datasets[2].data = kkProfilingCurrentData.monthlyPending;
-    kkProfilingMonthlyChart.update();
+    kkProfilingMonthlyChart.update('none');
     updateKkProfilingSubtitle(data);
 }
 
@@ -460,7 +467,7 @@ function wireKkProfilingDatasetFilters() {
             kkProfilingMonthlyChart.data.datasets[2].hidden = !cbPending.checked;
         }
 
-        kkProfilingMonthlyChart.update();
+        kkProfilingMonthlyChart.update('none');
     }
 
     [cbApproved, cbRejected, cbPending].forEach((checkbox) => {

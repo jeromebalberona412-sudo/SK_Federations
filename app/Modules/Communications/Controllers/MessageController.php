@@ -34,7 +34,7 @@ class MessageController extends Controller
     {
         Gate::authorize('send', $conversation);
 
-        $max = (int) config('communications.message_max_length', 5000);
+        $max = (int) config('communications.message_max_length', 1000);
         $hasFiles = $request->hasFile('attachments');
 
         $validated = $request->validate([
@@ -78,7 +78,7 @@ class MessageController extends Controller
         abort_if($conversation === null, 404);
         Gate::authorize('send', $conversation);
 
-        $max = (int) config('communications.message_max_length', 5000);
+        $max = (int) config('communications.message_max_length', 1000);
         $validated = $request->validate([
             'body' => ['required', 'string', 'max:'.$max],
         ]);

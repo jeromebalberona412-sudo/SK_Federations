@@ -6,12 +6,13 @@
 (function () {
     'use strict';
 
-    var RING_TIMEOUT_MS = 3000;
-    var CALL_START_DELAY_MS = 1500;
+    var RING_TIMEOUT_MS = 45000;
+    var CALL_START_DELAY_MS = 3000;
 
     var pc = null;
     var localStream = null;
     var currentCall = null;
+    var lastCallContext = null;
     var callTimer = null;
     var callStartedAt = null;
     var iceQueue = [];
@@ -57,7 +58,10 @@
         endedPeer: document.getElementById('commsCallEndedPeer'),
         endedReason: document.getElementById('commsCallEndedReason'),
         endedTitle: document.getElementById('commsCallEndedTitle'),
-        endedClose: document.getElementById('commsCallEndedClose')
+        endedClose: document.getElementById('commsCallEndedClose'),
+        endedRedial: document.getElementById('commsCallEndedRedial'),
+        callAvatar: document.getElementById('commsCallPeerAvatar'),
+        callCenter: document.getElementById('commsCallCenter')
     };
 
     function mountCallUiToBody() {
@@ -72,11 +76,17 @@
         els.reject = document.getElementById('commsRejectCall');
         els.endBtn = document.getElementById('commsEndCall');
         els.endedClose = document.getElementById('commsCallEndedClose');
+        els.endedRedial = document.getElementById('commsCallEndedRedial');
         els.muteBtn = document.getElementById('commsMuteBtn');
         els.cameraBtn = document.getElementById('commsCameraBtn');
         els.incoming = document.getElementById('commsIncomingCall');
         els.inCall = document.getElementById('commsInCall');
         els.ended = document.getElementById('commsCallEnded');
+        els.callAvatar = document.getElementById('commsCallPeerAvatar');
+        els.callCenter = document.getElementById('commsCallCenter');
+        els.peerName = document.getElementById('commsCallPeerName');
+        els.callStatus = document.getElementById('commsCallStatus');
+        els.timer = document.getElementById('commsCallTimer');
     }
 
     function refreshCallChat(conversationId) {
@@ -267,12 +277,72 @@
         }
     }
 
+    function rememberCallContext(call) {
+        if (!call) return;
+        lastCallContext = {
+            conversationId: call.conversation_id,
+            callType: call.call_type || 'voice',
+            conversation: {
+                id: call.conversation_id,
+                other_user: call.peer || null
+            },
+            peerName: (call.peer && call.peer.name) || ''
+        };
+    }
+
+    function setMuteUi(muted) {
+        if (!els.muteBtn) return;
+        setCtrlLabel(els.muteBtn, muted ? 'Unmute' : 'Mute');
+        els.muteBtn.setAttribute('aria-pressed', muted ? 'true' : 'false');
+        els.muteBtn.classList.toggle('is-off', !!muted);
+        var iconWrap = els.muteBtn.querySelector('[data-mute-icon]');
+        if (!iconWrap) return;
+        if (muted) {
+            iconWrap.innerHTML = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">' +
+                '<path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>' +
+                '<path d="M19 10v2a7 7 0 0 1-14 0v-2"/>' +
+                '<line x1="12" y1="19" x2="12" y2="23"/>' +
+                '<line x1="8" y1="23" x2="16" y2="23"/>' +
+                '<line x1="4" y1="4" x2="20" y2="20"/>' +
+                '</svg>';
+        } else {
+            iconWrap.innerHTML = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">' +
+                '<path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>' +
+                '<path d="M19 10v2a7 7 0 0 1-14 0v-2"/>' +
+                '<line x1="12" y1="19" x2="12" y2="23"/>' +
+                '<line x1="8" y1="23" x2="16" y2="23"/>' +
+                '</svg>';
+        }
+    }
+
+    function setCtrlLabel(btn, label) {
+        if (!btn) return;
+        var labelEl = btn.querySelector('.comms-call-ctrl-label');
+        if (labelEl) labelEl.textContent = label;
+        btn.setAttribute('aria-label', label);
+        btn.removeAttribute('title');
+    }
+
+    function setCallPeerAvatar(call) {
+        if (!els.callAvatar) return;
+        var peer = (call && call.peer) || {};
+        var name = peer.name || 'U';
+        var src = peer.profile_image_url || '';
+        if (src) {
+            els.callAvatar.innerHTML = '<img src="' + String(src).replace(/"/g, '&quot;') + '" alt="">';
+            return;
+        }
+        var initial = String(name).trim().charAt(0).toUpperCase() || 'U';
+        els.callAvatar.textContent = initial;
+    }
+
     function hideEnded() {
         if (endedAutoClose) {
             clearTimeout(endedAutoClose);
             endedAutoClose = null;
         }
         if (els.ended) els.ended.hidden = true;
+        if (els.endedRedial) els.endedRedial.hidden = true;
     }
 
     function showCallEnded(reason, peerName, callId) {
@@ -291,15 +361,32 @@
         if (els.endedReason) els.endedReason.textContent = copy.reason;
         if (els.endedPeer) {
             els.endedPeer.textContent = peerName
+                || (lastCallContext && lastCallContext.peerName)
                 || (currentCall && currentCall.peer && currentCall.peer.name)
                 || '';
         }
+
+        var canRedial = !!(lastCallContext && lastCallContext.conversationId)
+            && (reason === 'missed' || reason === 'rejected' || reason === 'cancelled' || reason === 'ended');
+        if (els.endedRedial) {
+            els.endedRedial.hidden = !canRedial;
+            els.endedRedial.textContent = role === 'callee' ? 'Call back' : 'Redial';
+        }
+
         if (els.ended) els.ended.hidden = false;
 
         if (endedAutoClose) clearTimeout(endedAutoClose);
         endedAutoClose = setTimeout(function () {
             hideEnded();
-        }, 8000);
+        }, 12000);
+    }
+
+    function redialLastCall() {
+        if (!lastCallContext || !lastCallContext.conversationId) return;
+        var ctx = lastCallContext;
+        hideEnded();
+        lastEndedCallId = null;
+        startCall(ctx.conversationId, ctx.callType || 'voice', ctx.conversation || null);
     }
 
     function signalPeer(payload) {
@@ -327,19 +414,46 @@
         });
     }
 
+    function setCameraUi(enabled) {
+        if (!els.cameraBtn) return;
+        setCtrlLabel(els.cameraBtn, enabled ? 'Camera on' : 'Camera off');
+        els.cameraBtn.setAttribute('aria-pressed', enabled ? 'true' : 'false');
+        els.cameraBtn.classList.toggle('is-off', !enabled);
+        var iconWrap = els.cameraBtn.querySelector('[data-camera-icon]');
+        if (!iconWrap) return;
+        if (enabled) {
+            iconWrap.innerHTML = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">' +
+                '<polygon points="23 7 16 12 23 17 23 7"/>' +
+                '<rect x="1" y="5" width="15" height="14" rx="2" ry="2"/>' +
+                '</svg>';
+        } else {
+            iconWrap.innerHTML = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">' +
+                '<polygon points="23 7 16 12 23 17 23 7"/>' +
+                '<rect x="1" y="5" width="15" height="14" rx="2" ry="2"/>' +
+                '<line x1="4" y1="4" x2="20" y2="20"/>' +
+                '</svg>';
+        }
+    }
+
     function updateCameraUi() {
         if (els.cameraBtn) {
             els.cameraBtn.hidden = false;
-            els.cameraBtn.textContent = cameraEnabled ? 'Camera on' : 'Camera off';
-            els.cameraBtn.setAttribute('aria-pressed', cameraEnabled ? 'true' : 'false');
+            setCameraUi(!!cameraEnabled);
         }
         if (els.localVideo) {
             els.localVideo.hidden = !cameraEnabled;
+        }
+        if (els.callCenter) {
+            var showCenter = !cameraEnabled || !callConnected;
+            els.callCenter.hidden = !showCenter && !!(els.remoteVideo && els.remoteVideo.srcObject);
         }
     }
 
     function setCallStatus(text) {
         if (els.callStatus) els.callStatus.textContent = text || '';
+        if (els.timer) {
+            els.timer.hidden = !callConnected;
+        }
     }
 
     async function getLocalStream(videoEnabled) {
@@ -387,6 +501,7 @@
         role = 'callee';
         callConnected = false;
         currentCall = Object.assign({}, currentCall || {}, call);
+        rememberCallContext(currentCall);
         hideEnded();
         if (els.incomingPeer) {
             els.incomingPeer.textContent = (call.peer && call.peer.name) || 'Incoming caller';
@@ -455,7 +570,7 @@
         if (els.localVideo) {
             els.localVideo.srcObject = localStream;
         }
-        if (els.muteBtn) els.muteBtn.textContent = 'Mute';
+        if (els.muteBtn) setMuteUi(false);
         updateCameraUi();
         return pc;
     }
@@ -519,11 +634,13 @@
         if (els.peerName) {
             els.peerName.textContent = (call.peer && call.peer.name) || 'Call';
         }
+        setCallPeerAvatar(call);
         setCallStatus(statusText || (callConnected ? 'Connected' : 'Calling...'));
         if (els.timer) els.timer.textContent = callConnected ? (els.timer.textContent || '00:00') : '00:00';
         if (callConnected && !callStartedAt) {
             startTimer();
         }
+        setMuteUi(false);
         updateCameraUi();
     }
 
@@ -537,8 +654,11 @@
         cameraEnabled = false;
         wantsVideo = false;
         callConnected = false;
-        if (els.endBtn) els.endBtn.textContent = 'End';
-        if (els.muteBtn) els.muteBtn.hidden = false;
+        if (els.endBtn) setCtrlLabel(els.endBtn, 'End');
+        if (els.muteBtn) {
+            els.muteBtn.hidden = false;
+            setMuteUi(false);
+        }
         if (els.cameraBtn) els.cameraBtn.hidden = false;
         if (localStream) {
             localStream.getTracks().forEach(function (t) { t.stop(); });
@@ -569,6 +689,7 @@
     async function finishUnanswered(reason) {
         if (!currentCall || callConnected) return;
         var callSnapshot = currentCall;
+        rememberCallContext(callSnapshot);
         var peerName = (callSnapshot.peer && callSnapshot.peer.name) || '';
         var status = reason === 'rejected' ? 'rejected'
             : (reason === 'cancelled' ? 'cancelled' : 'missed');
@@ -650,7 +771,7 @@
         showInCall({ peer: peer }, 'Starting in 5...');
         if (els.muteBtn) els.muteBtn.hidden = true;
         if (els.cameraBtn) els.cameraBtn.hidden = true;
-        if (els.endBtn) els.endBtn.textContent = 'Cancel';
+        setCtrlLabel(els.endBtn, 'Cancel');
 
         var remaining = Math.ceil(CALL_START_DELAY_MS / 1000);
         setCallStatus('Starting in ' + remaining + 's — tap Cancel to stop');
@@ -664,7 +785,7 @@
             clearPendingStart();
             if (els.muteBtn) els.muteBtn.hidden = false;
             if (els.cameraBtn) els.cameraBtn.hidden = false;
-            if (els.endBtn) els.endBtn.textContent = 'End';
+            setCtrlLabel(els.endBtn, 'End');
             placeCall(conversationId, callType, conversation);
         }, CALL_START_DELAY_MS);
     }
@@ -689,9 +810,13 @@
             lastEndedCallId = null;
             currentCall = data.call;
             wantsVideo = callType === 'video';
+            if (conversation && conversation.other_user) {
+                currentCall.peer = conversation.other_user;
+            }
+            rememberCallContext(currentCall);
             if (els.muteBtn) els.muteBtn.hidden = false;
             if (els.cameraBtn) els.cameraBtn.hidden = false;
-            if (els.endBtn) els.endBtn.textContent = 'End';
+            setCtrlLabel(els.endBtn, 'End');
             showInCall(Object.assign({}, currentCall, {
                 peer: (conversation && conversation.other_user) || currentCall.peer
             }), 'Calling...');
@@ -806,7 +931,7 @@
     async function endCall() {
         if (pendingStart) {
             await cancelPendingStart();
-            if (els.endBtn) els.endBtn.textContent = 'End';
+            setCtrlLabel(els.endBtn, 'End');
             return;
         }
 
@@ -822,6 +947,7 @@
 
         var peerName = (currentCall.peer && currentCall.peer.name) || '';
         var callSnapshot = currentCall;
+        rememberCallContext(callSnapshot);
         stopRingtone();
         try { await updateCallStatus(callSnapshot.id, 'ended'); } catch (e) { /* ignore */ }
         try {
@@ -980,7 +1106,8 @@
         var acceptBtn = e.target && e.target.closest('#commsAcceptCall');
         var rejectBtn = e.target && e.target.closest('#commsRejectCall');
         var endBtn = e.target && e.target.closest('#commsEndCall');
-        var endedClose = e.target && e.target.closest('#commsCallEndedClose');
+        var endedClose = e.target && e.target.closest('#commsCallEndedClose, #commsCallEndedCloseSide');
+        var endedRedial = e.target && e.target.closest('#commsCallEndedRedial');
         if (acceptBtn) {
             e.preventDefault();
             acceptIncoming();
@@ -996,6 +1123,11 @@
             endCall();
             return;
         }
+        if (endedRedial) {
+            e.preventDefault();
+            redialLastCall();
+            return;
+        }
         if (endedClose) {
             e.preventDefault();
             hideEnded();
@@ -1007,7 +1139,7 @@
             if (!localStream) return;
             localStream.getAudioTracks().forEach(function (t) {
                 t.enabled = !t.enabled;
-                els.muteBtn.textContent = t.enabled ? 'Mute' : 'Unmute';
+                setMuteUi(!t.enabled);
             });
         });
     }

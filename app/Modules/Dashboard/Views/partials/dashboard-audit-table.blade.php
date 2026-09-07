@@ -21,7 +21,7 @@
                     </tr>
                 </thead>
                 <tbody id="dashAuditLogsTableBody">
-                    <tr><td colspan="7" class="dash-audit-empty-row">Loading audit logs...</td></tr>
+                    <tr><td colspan="7" class="dash-audit-empty-row">No audit logs found.</td></tr>
                 </tbody>
             </table>
         </div>

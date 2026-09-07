@@ -100,6 +100,7 @@ export default defineConfig({
                 'app/Modules/KabataanMonitoring/assets/js/kabataan-monitoring-upload.js',
                 'app/Modules/KabataanMonitoring/assets/css/kk-questionnaire-view.css',
                 'app/Modules/KabataanMonitoring/assets/css/kkprofiling.css',
+                'app/Modules/KabataanMonitoring/assets/css/kabataan-print-questionnaire.css',
                 'app/Modules/KabataanMonitoring/assets/js/kabataan-monitoring-table.js',
                 'app/Modules/KabataanMonitoring/assets/js/kabataan-monitoring-validation.js',
                 'app/Modules/KabataanMonitoring/assets/js/kabataan-monitoring-edit.js',

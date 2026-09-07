@@ -27,22 +27,8 @@
         const pad = function (n) { return String(n).padStart(2, '0'); };
         const defaultTo = today.getFullYear() + '-' + pad(today.getMonth() + 1) + '-' + pad(today.getDate());
         const defaultFrom = today.getFullYear() + '-01-01';
-
         let dateFrom = fromInput?.value || defaultFrom;
         let dateTo = toInput?.value || defaultTo;
-
-        if (dateFrom && dateTo && dateFrom > dateTo) {
-            const tmp = dateFrom;
-            dateFrom = dateTo;
-            dateTo = tmp;
-            if (fromInput) fromInput.value = dateFrom;
-            if (toInput) toInput.value = dateTo;
-        }
-
-        if (fromInput && toInput) {
-            fromInput.max = dateTo || '';
-            toInput.min = dateFrom || '';
-        }
 
         return { date_from: dateFrom, date_to: dateTo };
     }
@@ -82,15 +68,19 @@
             return;
         }
 
-        if (purokChart) {
-            purokChart.destroy();
-            purokChart = null;
-        }
-
         const labels = data.labels || [];
+        const counts = data.counts || [];
         const colors = labels.map(function (_, index) {
             return barColors[index % barColors.length];
         });
+
+        if (purokChart) {
+            purokChart.data.labels = labels;
+            purokChart.data.datasets[0].data = counts;
+            purokChart.data.datasets[0].backgroundColor = colors;
+            purokChart.update('none');
+            return;
+        }
 
         purokChart = new window.Chart(canvas, {
             type: 'bar',
@@ -98,7 +88,7 @@
                 labels: labels,
                 datasets: [{
                     label: 'Kabataan',
-                    data: data.counts || [],
+                    data: counts,
                     backgroundColor: colors,
                     borderRadius: 8,
                     borderSkipped: false,
@@ -196,7 +186,7 @@
                 return;
             }
             if (!cached?.payload) {
-                renderPurokChart({ labels: [], counts: [] });
+                return;
             }
         }
     }

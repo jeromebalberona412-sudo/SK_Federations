@@ -7,7 +7,7 @@ return [
     */
     'portal_user_type' => env('COMMUNICATIONS_PORTAL_USER_TYPE', 'sk_fed'),
 
-    'message_max_length' => 5000,
+    'message_max_length' => 1000,
 
     'messages_per_page' => 40,
 

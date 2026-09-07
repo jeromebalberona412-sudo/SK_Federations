@@ -52,6 +52,7 @@
     };
     window.kmConfig = {
         dataUrl: @json(route('api.kabataan-monitoring.index')),
+        printUrl: @json(url('/kabataan-monitoring/__ID__/print')),
         viewCssUrl: @json(\Illuminate\Support\Facades\Vite::asset('app/Modules/KabataanMonitoring/assets/css/kk-questionnaire-view.css')),
     };
 </script>

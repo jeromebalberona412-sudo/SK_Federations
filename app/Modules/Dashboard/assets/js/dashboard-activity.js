@@ -34,9 +34,7 @@ document.addEventListener('DOMContentLoaded', function () {
     bindActivityClicks(els.activityList);
     bindActivityClicks(els.modalList);
     seedStatsCacheFromInitial();
-    if (feed.stats) {
-        updateStats(feed.stats);
-    }
+    applyLiveDashboardPayload(feed);
 
     if (feedUrl) {
         startFeedPolling();
@@ -65,7 +63,7 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     function statsCacheKey(range) {
-        return 'sk_fed_dashboard_stats_v1_' + (range.date_from || '') + '_' + (range.date_to || '');
+        return 'sk_fed_dashboard_stats_v3_' + (range.date_from || '') + '_' + (range.date_to || '');
     }
 
     function seedStatsCacheFromInitial() {
@@ -78,7 +76,17 @@ document.addEventListener('DOMContentLoaded', function () {
         };
         const key = statsCacheKey(range);
         if (!window.SkLocalCache.get(key)?.payload) {
-            window.SkLocalCache.set(key, { stats: feed.stats, date_from: range.date_from, date_to: range.date_to });
+            window.SkLocalCache.set(key, {
+                stats: feed.stats,
+                sex_distribution: feed.sex_distribution || null,
+                sex_distribution_officials: feed.sex_distribution_officials || null,
+                abyip_overview: feed.abyip_overview || null,
+                top_barangays: feed.top_barangays || [],
+                recent_activity: feed.recent_activity || [],
+                upcoming_events: feed.upcoming_events || [],
+                date_from: range.date_from,
+                date_to: range.date_to,
+            });
         }
     }
 
@@ -120,13 +128,7 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
-    function setStatsLoading(isLoading) {
-        document.querySelectorAll('[data-stat-key] .stat-value').forEach(function (el) {
-            el.classList.toggle('is-updating', Boolean(isLoading));
-        });
-    }
-
-    async function refreshDashboardStats(immediate) {
+    async function refreshDashboardStats() {
         const endpoint = buildStatsRequestUrl();
         if (!endpoint) {
             return;
@@ -138,9 +140,7 @@ document.addEventListener('DOMContentLoaded', function () {
         const cached = window.SkLocalCache?.get(cacheKey);
 
         if (cached?.payload?.stats) {
-            updateStats(cached.payload.stats);
-        } else {
-            setStatsLoading(true);
+            applyLiveDashboardPayload(cached.payload);
         }
 
         if (statsAbortController) {
@@ -162,14 +162,10 @@ document.addEventListener('DOMContentLoaded', function () {
                 return;
             }
             window.SkLocalCache?.set(cacheKey, payload);
-            updateStats(payload.stats || {});
+            applyLiveDashboardPayload(payload);
         } catch (error) {
             if (error && error.name === 'AbortError') {
                 return;
-            }
-        } finally {
-            if (requestSeq === statsRequestSeq) {
-                setStatsLoading(false);
             }
         }
     }
@@ -186,15 +182,13 @@ document.addEventListener('DOMContentLoaded', function () {
 
         feedRefreshInFlight = true;
         const range = getDashboardDateRangeParams();
-        const cacheKey = 'sk_fed_dashboard_feed_v3_' + (range.date_from || '') + '_' + (range.date_to || '');
+        const cacheKey = 'sk_fed_dashboard_feed_v5_' + (range.date_from || '') + '_' + (range.date_to || '');
         const cached = window.SkLocalCache?.get(cacheKey);
         if (cached?.payload) {
             renderActivity(cached.payload.recent_activity || [], els.activityList);
             renderEvents(cached.payload.upcoming_events || []);
             renderTodayReminder(cached.payload.today_reminder || null);
-            if (cached.payload.stats) {
-                updateStats(cached.payload.stats);
-            }
+            applyLiveDashboardPayload(cached.payload);
         }
 
         try {
@@ -215,7 +209,7 @@ document.addEventListener('DOMContentLoaded', function () {
             renderActivity(payload.recent_activity || [], els.activityList);
             renderEvents(payload.upcoming_events || []);
             renderTodayReminder(payload.today_reminder || null);
-            updateStats(payload.stats || {});
+            applyLiveDashboardPayload(payload);
         } catch (_) {
             // Keep cached paint when refresh fails.
         } finally {
@@ -227,6 +221,102 @@ document.addEventListener('DOMContentLoaded', function () {
     window.refreshDashboardStats = function (immediate) {
         refreshDashboardStats(Boolean(immediate));
     };
+
+    function applyLiveDashboardPayload(payload) {
+        if (!payload) {
+            return;
+        }
+        if (payload.stats) {
+            updateStats(payload.stats);
+        }
+        if (typeof window.applyDashboardSexDistribution === 'function') {
+            window.applyDashboardSexDistribution(
+                payload.sex_distribution || null,
+                payload.sex_distribution_officials || null
+            );
+        }
+        if (payload.abyip_overview) {
+            applyAbyipOverview(payload.abyip_overview);
+        }
+        if (payload.top_barangays) {
+            applyTopBarangays(payload.top_barangays);
+        }
+        if (payload.recent_activity) {
+            renderActivity(payload.recent_activity, els.activityList);
+        }
+        if (payload.upcoming_events) {
+            renderEvents(payload.upcoming_events);
+        }
+    }
+
+    function applyAbyipOverview(overview) {
+        const subtitle = document.getElementById('dashAbyipSubtitle');
+        const list = document.getElementById('dashAbyipList');
+        const empty = document.getElementById('dashAbyipEmpty');
+        const stats = overview.stats || {};
+        const yearLabel = stats.fiscal_year_label || ('CY ' + (stats.fiscal_year || ''));
+        const rows = overview.recent || [];
+
+        if (subtitle) {
+            subtitle.textContent = 'Barangays that submitted ABYIP — ' + yearLabel;
+        }
+
+        if (empty) {
+            empty.textContent = 'No ABYIP submissions yet for ' + yearLabel + '.';
+            empty.hidden = rows.length > 0;
+        }
+
+        if (!list) {
+            return;
+        }
+
+        list.hidden = rows.length === 0;
+        list.innerHTML = rows.map(function (row) {
+            const status = String(row.status || 'pending');
+            const statusClass = status === 'approved' ? 'is-approved' : (status === 'rejected' ? 'is-rejected' : 'is-pending');
+            const statusLabel = status === 'approved' ? 'Approved' : (status === 'rejected' ? 'Rejected' : 'Pending');
+            const href = row.detail_url || '#';
+
+            return '<li>'
+                + '<a href="' + escapeHtml(href) + '" class="dash-abyip-item" data-no-loading>'
+                + '<span class="dash-abyip-item-barangay">' + escapeHtml(row.barangay || 'Unknown') + '</span>'
+                + '<span class="dash-abyip-item-date">' + escapeHtml(row.date_submitted || '—') + '</span>'
+                + '<span class="dash-abyip-status ' + statusClass + '">' + escapeHtml(statusLabel) + '</span>'
+                + '</a></li>';
+        }).join('');
+    }
+
+    function applyTopBarangays(rows) {
+        const body = document.getElementById('dashTopBarangaysBody');
+        if (!body) {
+            return;
+        }
+
+        const recordsUrl = body.getAttribute('data-records-url') || '#';
+        const items = Array.isArray(rows) ? rows : [];
+
+        if (!items.length) {
+            body.innerHTML = '<p class="dash-empty-note">No youth registration data available yet.</p>';
+            return;
+        }
+
+        const maxCount = Math.max(1, Number(items[0].count || 0));
+        body.innerHTML = items.map(function (row) {
+            const rank = Number(row.rank || 0);
+            const rankClass = (rank === 1 || rank === 2 || rank === 3) ? ' top-barangay-item--rank-' + rank : '';
+            const width = Math.round((Number(row.count || 0) / maxCount) * 100);
+
+            return '<a href="' + escapeHtml(recordsUrl) + '" class="top-barangay-item' + rankClass + '" style="text-decoration:none;cursor:pointer;">'
+                + '<div class="top-barangay-rank top-barangay-rank--' + rank + '">' + rank + '</div>'
+                + '<div class="top-barangay-info">'
+                + '<div class="top-barangay-name">' + escapeHtml(row.barangay || '—') + '</div>'
+                + '<div class="top-barangay-count">' + Number(row.count || 0).toLocaleString() + ' youth registered</div>'
+                + '</div>'
+                + '<div class="top-barangay-bar-wrap">'
+                + '<div class="top-barangay-bar top-barangay-bar--' + rank + '" style="width: ' + width + '%;"></div>'
+                + '</div></a>';
+        }).join('');
+    }
 
     function updateStats(stats) {
         document.querySelectorAll('[data-stat-key]').forEach(function (card) {
@@ -455,11 +545,13 @@ document.addEventListener('DOMContentLoaded', function () {
         }
 
         modalState.loading = true;
-        els.modalList.innerHTML = '<p class="dash-empty-msg">Loading activities...</p>';
 
+        const range = getDashboardDateRangeParams();
         const params = new URLSearchParams({
             page: String(modalState.page),
             per_page: String(modalState.perPage),
+            date_from: range.date_from || '',
+            date_to: range.date_to || '',
         });
 
         try {

@@ -90,21 +90,21 @@
 
         {{-- ── STAT CARDS ── --}}
         <div class="dash-stats-grid">
-            <a href="{{ route('kabataan-monitoring') }}" class="stat-card stat-card-link stat-card-clickable" data-stat-key="total_kabataan_registered">
+            <a href="{{ route('kabataan-monitoring') }}" class="stat-card stat-card-link stat-card-clickable" data-no-loading data-stat-key="total_kabataan_registered">
                 <div class="stat-icon blue"><i class="fas fa-users"></i></div>
                 <div class="stat-info">
                     <div class="stat-value">{{ number_format($totalKabataanRegistered ?? 0) }}</div>
                     <div class="stat-label">Total Kabataan Registered</div>
                 </div>
             </a>
-            <a href="{{ route('accounts.officials.index') }}" class="stat-card stat-card-link stat-card-clickable" data-stat-key="total_sk_officials">
+            <a href="{{ route('accounts.officials.index') }}" class="stat-card stat-card-link stat-card-clickable" data-no-loading data-stat-key="total_sk_officials">
                 <div class="stat-icon indigo"><i class="fas fa-user-tie"></i></div>
                 <div class="stat-info">
                     <div class="stat-value">{{ number_format($totalSkOfficials ?? 0) }}</div>
                     <div class="stat-label">Total SK Officials</div>
                 </div>
             </a>
-            <a href="{{ route('accounts.federation.index') }}" class="stat-card stat-card-link stat-card-clickable" data-stat-key="total_sk_chairpersons">
+            <a href="{{ route('accounts.federation.index') }}" class="stat-card stat-card-link stat-card-clickable" data-no-loading data-stat-key="total_sk_chairpersons">
                 <div class="stat-icon teal"><i class="fas fa-crown"></i></div>
                 <div class="stat-info">
                     <div class="stat-value">{{ number_format($totalSkChairpersons ?? 0) }}</div>
@@ -118,7 +118,7 @@
                     <div class="stat-label">Barangays with ABYIP Submissions</div>
                 </div>
             </a>
-            <a href="{{ route('auditlogs.index') }}" class="stat-card stat-card-link stat-card-clickable" data-stat-key="total_audit_logs">
+            <a href="{{ route('auditlogs.index') }}" class="stat-card stat-card-link stat-card-clickable" data-no-loading data-stat-key="total_audit_logs">
                 <div class="stat-icon purple"><i class="fas fa-clipboard-list"></i></div>
                 <div class="stat-info">
                     <div class="stat-value">{{ number_format($totalAuditLogs ?? 0) }}</div>
@@ -127,28 +127,6 @@
             </a>
         </div>
         
-        <script>
-            document.addEventListener('DOMContentLoaded', function() {
-                document.querySelectorAll('.stat-card-clickable').forEach(function(card) {
-                    if (card.hasAttribute('data-no-loading')) {
-                        return;
-                    }
-                    card.addEventListener('click', function(e) {
-                        var href = this.getAttribute('href');
-                        if (!href) {
-                            return;
-                        }
-                        e.preventDefault();
-                        var label = this.querySelector('.stat-label').textContent.trim();
-                        if (typeof LoadingScreen !== 'undefined') {
-                            LoadingScreen.show('Loading ' + label, 'Please wait...');
-                        }
-                        window.location.href = href;
-                    });
-                });
-            });
-        </script>
-
         {{-- ── Purok + Quick Actions ── --}}
         <div class="dash-row dash-row--top-split">
             <div class="content-card dash-main-chart-card" id="purok-distribution-section">
@@ -340,7 +318,7 @@
                 <div class="card-header">
                     <h3><i class="fas fa-trophy" style="color:#F7D31E;margin-right:8px;"></i>Top 5 Barangays by Youth Population</h3>
                 </div>
-                <div class="card-body top-barangays-body">
+                <div class="card-body top-barangays-body" id="dashTopBarangaysBody" data-records-url="{{ route('kabataan-monitoring') }}">
                     @forelse ($topBarangays as $row)
                         @php
                             $rankClass = in_array($row['rank'], [1, 2, 3], true) ? ' top-barangay-item--rank-' . $row['rank'] : '';
@@ -394,6 +372,10 @@
             total_barangays_abyip_submitted: {{ (int) ($totalBarangaysAbyipSubmitted ?? 0) }},
             total_audit_logs: {{ (int) ($totalAuditLogs ?? 0) }},
         },
+        sex_distribution: @json($sexDistribution),
+        sex_distribution_officials: @json($sexDistributionOfficials),
+        abyip_overview: @json($abyipOverview),
+        top_barangays: @json($topBarangays ?? []),
     };
 </script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
@@ -433,19 +415,37 @@
         }
 
         function updateSexChart() {
+            if (!sexChart) {
+                return;
+            }
             const typeFilter = document.getElementById('sexDistributionTypeFilter')?.value || 'officials';
             const source = getSexDistributionByType(typeFilter);
             sexChart.data.labels = source.labels || ['Male', 'Female'];
             sexChart.data.datasets[0].data = source.values || [0, 0];
             sexChart.data.datasets[0].backgroundColor = sexChartColors;
-            sexChart.update();
+            sexChart.update('none');
         }
 
+        window.applyDashboardSexDistribution = function (kabataan, officials) {
+            if (kabataan && Array.isArray(kabataan.values)) {
+                sexDistributionKabataan.labels = kabataan.labels || ['Male', 'Female'];
+                sexDistributionKabataan.values = kabataan.values;
+            }
+            if (officials && Array.isArray(officials.values)) {
+                sexDistributionOfficials.labels = officials.labels || ['Male', 'Female'];
+                sexDistributionOfficials.values = officials.values;
+            }
+            sexDistributionAll.labels = ['Male', 'Female'];
+            sexDistributionAll.values = combineSexDistribution(sexDistributionOfficials, sexDistributionKabataan).values;
+            updateSexChart();
+        };
+
+        let sexChart = null;
         let sexChartLabels = sexDistributionOfficials.labels || ['Male', 'Female'];
         let sexChartValues = sexDistributionOfficials.values || [0, 0];
         const sexChartColors = [fedBlue, fedRed];
 
-        const sexChart = new Chart(document.getElementById('sexChart'), {
+        sexChart = new Chart(document.getElementById('sexChart'), {
             type: 'pie',
             data: {
                 labels: sexChartLabels,
@@ -459,6 +459,7 @@
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
+                animation: false,
                 plugins: {
                     legend: {
                         position: 'bottom',

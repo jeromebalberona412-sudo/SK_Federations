@@ -27,31 +27,31 @@
                 {{-- Filter tabs: hide on scroll down, show on scroll up --}}
                 <div class="feed-sticky-toolbar">
                 <div class="feed-filter-bar">
-                    <button type="button" class="feed-tab feed-tab--icon active" data-filter="all" onclick="setFeedFilter(this,'all')" aria-label="All">
+                    <button type="button" class="feed-tab feed-tab--icon active" data-filter="all" aria-label="All">
                         <span class="feed-tab-icon" aria-hidden="true">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
                         </span>
                         <span class="feed-tab-text">All</span>
                     </button>
-                    <button type="button" class="feed-tab feed-tab--icon" data-filter="announcement" onclick="setFeedFilter(this,'announcement')" aria-label="Announcements">
+                    <button type="button" class="feed-tab feed-tab--icon" data-filter="announcement" aria-label="Announcements">
                         <span class="feed-tab-icon" aria-hidden="true">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 11l18-5v12L3 13v-2z"/><path d="M11 13v8a2 2 0 004 0v-6"/></svg>
                         </span>
                         <span class="feed-tab-text">Announcements</span>
                     </button>
-                    <button type="button" class="feed-tab feed-tab--icon" data-filter="event" onclick="setFeedFilter(this,'event')" aria-label="Events">
+                    <button type="button" class="feed-tab feed-tab--icon" data-filter="event" aria-label="Events">
                         <span class="feed-tab-icon" aria-hidden="true">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
                         </span>
                         <span class="feed-tab-text">Events</span>
                     </button>
-                    <button type="button" class="feed-tab feed-tab--icon" data-filter="activity" onclick="setFeedFilter(this,'activity')" aria-label="Activities">
+                    <button type="button" class="feed-tab feed-tab--icon" data-filter="activity" aria-label="Activities">
                         <span class="feed-tab-icon" aria-hidden="true">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2L3 14h8l-1 8 10-12h-8l1-8z"/></svg>
                         </span>
                         <span class="feed-tab-text">Activities</span>
                     </button>
-                    <button type="button" class="feed-tab feed-tab--icon" data-filter="program" onclick="setFeedFilter(this,'program')" aria-label="Programs">
+                    <button type="button" class="feed-tab feed-tab--icon" data-filter="program" aria-label="Programs">
                         <span class="feed-tab-icon" aria-hidden="true">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/></svg>
                         </span>
@@ -65,20 +65,20 @@
                 <div class="post-card compose-card">
                     <div class="compose-row">
                         <img src="{{ $avatar }}" alt="Avatar" class="post-avatar">
-                        <button class="compose-trigger" onclick="openComposeModal()">
+                        <button type="button" class="compose-trigger" data-compose-open>
                             What's happening in your barangay?
                         </button>
                     </div>
                     <div class="compose-actions">
-                        <button class="compose-action-btn" onclick="openComposeModal('announcement')">
+                        <button type="button" class="compose-action-btn" data-compose-open="announcement">
                             <svg viewBox="0 0 20 20" fill="currentColor"><path d="M18 3a1 1 0 00-1.447-.894L8.763 6H5a3 3 0 000 6h.28l1.771 5.316A1 1 0 008 18h1a1 1 0 001-1v-4.382l6.553 3.276A1 1 0 0018 15V3z"/></svg>
                             Announcement
                         </button>
-                        <button class="compose-action-btn" onclick="openComposeModal('event')">
+                        <button type="button" class="compose-action-btn" data-compose-open="event">
                             <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clip-rule="evenodd"/></svg>
                             Event
                         </button>
-                        <button class="compose-action-btn" onclick="openComposeModal('photo')">
+                        <button type="button" class="compose-action-btn" data-compose-open="photo">
                             <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clip-rule="evenodd"/></svg>
                             Photo
                         </button>
@@ -99,6 +99,7 @@
                 </div>
 
                 {{-- Feed Posts --}}
+                <div id="feed-empty" class="post-card feed-empty-card" hidden>No posts found.</div>
                 <div id="feed-posts"></div>
             </div>
 

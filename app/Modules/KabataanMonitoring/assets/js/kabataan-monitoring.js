@@ -1214,6 +1214,10 @@
         if (!modal || !container) return;
 
         var recordId = profile.id || profile.slug;
+        var modalEl = document.getElementById('kmKKPModal');
+        if (modalEl) {
+            modalEl.setAttribute('data-print-id', String(profile.id || recordId || ''));
+        }
         var cached = modalCache[String(recordId)];
         if (cached && cached.html) {
             container.innerHTML = window.kmWrapKkQuestionnaireHtml(cached.html);
@@ -1371,51 +1375,24 @@
         window.kmScheduleKkFormScale();
     });
 
-    function printKKPHtml(formHTML) {
-        if (!formHTML || !String(formHTML).trim()) return;
-        var printWindow = window.open('', '', 'height=800,width=900');
-        if (!printWindow) {
-            alert('Please allow pop-ups to print this questionnaire.');
-            return;
-        }
-        var viewCssHref = (window.kmConfig && window.kmConfig.viewCssUrl) || '';
-        if (!viewCssHref) {
-            alert('Unable to load print stylesheet. Please refresh and try again.');
-            printWindow.close();
-            return;
-        }
-        printWindow.document.write('<html><head><title>KK Survey Questionnaire</title>');
-        printWindow.document.write('<link rel="stylesheet" href="' + viewCssHref + '">');
-        printWindow.document.write('<style>@page{size:Letter portrait;margin:.35in;}body{margin:0;} .kk-view-paper{zoom:.88;box-shadow:none;border:none;padding:0;} .kkp-notice-body br{display:none;}</style>');
-        printWindow.document.write('</head><body>');
-        printWindow.document.write(formHTML);
-        printWindow.document.write('</body></html>');
-        printWindow.document.close();
-        printWindow.onload = function() {
-            printWindow.print();
-        };
+    function printRecordUrl(recordId) {
+        var template = (window.kmConfig && window.kmConfig.printUrl) || '/kabataan-monitoring/__ID__/print';
+        return String(template).replace('__ID__', String(recordId));
     }
 
     window.printKKPById = function(recordId) {
         if (!recordId) return;
-        var cached = modalCache[String(recordId)];
-        if (cached && cached.html) {
-            printKKPHtml(cached.html);
-            return;
+        var printWindow = window.open(printRecordUrl(recordId), '_blank');
+        if (!printWindow) {
+            alert('Please allow pop-ups to print this questionnaire.');
         }
-        window.kmFetchModalPayload(recordId)
-            .then(function(data) {
-                printKKPHtml((data && data.html) || '');
-            })
-            .catch(function() {
-                alert('Unable to print questionnaire. Please try again.');
-            });
     };
 
     window.printKKPForm = function() {
-        var container = document.getElementById('kmKKPViewRoot') || document.getElementById('kmKKPFormContainer');
-        if (!container) return;
-        var paper = container.querySelector('.kk-view-paper');
-        printKKPHtml(paper ? paper.outerHTML : container.innerHTML);
+        var modal = document.getElementById('kmKKPModal');
+        var recordId = modal ? modal.getAttribute('data-print-id') : '';
+        if (recordId) {
+            window.printKKPById(recordId);
+        }
     };
 })();

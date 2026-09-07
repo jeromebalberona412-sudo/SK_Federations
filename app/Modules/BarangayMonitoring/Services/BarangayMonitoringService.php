@@ -138,17 +138,7 @@ class BarangayMonitoringService
             ->documents()
             ->whereNotNull('barangay_id');
 
-        $from = trim((string) $dateFrom);
-        $to = trim((string) $dateTo);
-        if ($from !== '' && $to !== '' && $from > $to) {
-            [$from, $to] = [$to, $from];
-        }
-        if ($from !== '') {
-            $query->whereDate('created_at', '>=', $from);
-        }
-        if ($to !== '') {
-            $query->whereDate('created_at', '<=', $to);
-        }
+        $this->applyDashboardAbyipFilters($query, $dateFrom, $dateTo);
 
         return (int) $query
             ->selectRaw('count(distinct barangay_id) as aggregate')
@@ -157,18 +147,22 @@ class BarangayMonitoringService
 
     /**
      * @return array{
-     *     stats: array{submitted: int, pending: int, approved: int, rejected: int, fiscal_year: int, total_barangays: int},
-     *     recent: list<array{barangay: string, slug: ?string, title: string, fiscal_year: int, submitted_by: string, submitted_by_role: ?string, status: string, date_submitted: ?string}>
+     *     stats: array{submitted: int, pending: int, approved: int, rejected: int, fiscal_year: int, fiscal_year_label: string, total_barangays: int},
+     *     recent: list<array{barangay: string, slug: ?string, detail_url: string, title: string, fiscal_year: int, submitted_by: string, submitted_by_role: ?string, status: string, date_submitted: ?string}>
      * }
      */
-    public function dashboardAbyipOverview(int $limit = 8): array
+    public function dashboardAbyipOverview(int $limit = 8, ?string $dateFrom = null, ?string $dateTo = null): array
     {
+        [$fromYear, $toYear] = $this->yearsFromDateRange($dateFrom, $dateTo);
+        $yearLabel = $fromYear === $toYear ? 'CY '.$fromYear : 'CY '.$fromYear.'–'.$toYear;
+
         $emptyStats = [
             'submitted' => 0,
             'pending' => 0,
             'approved' => 0,
             'rejected' => 0,
-            'fiscal_year' => (int) now()->format('Y'),
+            'fiscal_year' => $toYear,
+            'fiscal_year_label' => $yearLabel,
             'total_barangays' => count($this->slugToNameMap()),
         ];
 
@@ -176,34 +170,22 @@ class BarangayMonitoringService
             return ['stats' => $emptyStats, 'recent' => []];
         }
 
-        $currentYear = (int) now()->format('Y');
         $nameToSlug = array_flip($this->slugToNameMap());
 
-        $documents = Abyip::query()
+        $documentsQuery = Abyip::query()
             ->documents()
             ->with([
                 'barangay:id,name',
                 'creator:id,name',
                 'creator.officialProfile:id,user_id,position',
             ])
-            ->whereNotNull('barangay_id')
-            ->where('fiscal_year', $currentYear)
+            ->whereNotNull('barangay_id');
+
+        $this->applyDashboardAbyipFilters($documentsQuery, $dateFrom, $dateTo);
+
+        $documents = $documentsQuery
             ->orderByDesc('created_at')
             ->get();
-
-        if ($documents->isEmpty()) {
-            $documents = Abyip::query()
-                ->documents()
-                ->with([
-                    'barangay:id,name',
-                    'creator:id,name',
-                    'creator.officialProfile:id,user_id,position',
-                ])
-                ->whereNotNull('barangay_id')
-                ->orderByDesc('created_at')
-                ->get();
-            $currentYear = (int) ($documents->first()?->fiscal_year ?? $currentYear);
-        }
 
         $latestByBarangay = $documents->unique('barangay_id')->values();
 
@@ -212,7 +194,8 @@ class BarangayMonitoringService
             'pending' => $latestByBarangay->filter(fn (Abyip $doc) => strtolower((string) ($doc->status ?? '')) === Abyip::STATUS_PENDING)->count(),
             'approved' => $latestByBarangay->filter(fn (Abyip $doc) => strtolower((string) ($doc->status ?? '')) === Abyip::STATUS_APPROVED)->count(),
             'rejected' => $latestByBarangay->filter(fn (Abyip $doc) => strtolower((string) ($doc->status ?? '')) === Abyip::STATUS_REJECTED)->count(),
-            'fiscal_year' => $currentYear,
+            'fiscal_year' => $toYear,
+            'fiscal_year_label' => $yearLabel,
             'total_barangays' => count($this->slugToNameMap()),
         ];
 
@@ -229,6 +212,9 @@ class BarangayMonitoringService
                 return [
                     'barangay' => $barangayName,
                     'slug' => $nameToSlug[$barangayName] ?? null,
+                    'detail_url' => ($nameToSlug[$barangayName] ?? null)
+                        ? route('barangay-monitoring.show', ['barangay' => $nameToSlug[$barangayName]])
+                        : route('barangay-monitoring'),
                     'title' => filled($document->document_title) ? (string) $document->document_title : 'ABYIP '.$document->fiscal_year,
                     'fiscal_year' => (int) $document->fiscal_year,
                     'submitted_by' => $document->creator?->name ?? 'N/A',
@@ -243,6 +229,67 @@ class BarangayMonitoringService
             'stats' => $stats,
             'recent' => $recent,
         ];
+    }
+
+    /**
+     * @param  \Illuminate\Database\Eloquent\Builder<\App\Models\Abyip>  $query
+     */
+    private function applyDashboardAbyipFilters($query, ?string $dateFrom, ?string $dateTo): void
+    {
+        [$from, $to] = $this->normalizeDashboardDateRange($dateFrom, $dateTo);
+        [$fromYear, $toYear] = $this->yearsFromDateRange($from, $to);
+
+        $query->whereBetween('fiscal_year', [$fromYear, $toYear]);
+
+        if ($from !== null) {
+            $query->whereDate('created_at', '>=', $from);
+        }
+        if ($to !== null) {
+            $query->whereDate('created_at', '<=', $to);
+        }
+    }
+
+    /**
+     * @return array{0: ?string, 1: ?string}
+     */
+    private function normalizeDashboardDateRange(?string $dateFrom, ?string $dateTo): array
+    {
+        $from = trim((string) $dateFrom);
+        $to = trim((string) $dateTo);
+
+        if ($from === '') {
+            $from = null;
+        }
+        if ($to === '') {
+            $to = null;
+        }
+
+        if ($from !== null && $to !== null && $from > $to) {
+            return [$to, $from];
+        }
+
+        return [$from, $to];
+    }
+
+    /**
+     * @return array{0: int, 1: int}
+     */
+    private function yearsFromDateRange(?string $dateFrom, ?string $dateTo): array
+    {
+        [$from, $to] = $this->normalizeDashboardDateRange($dateFrom, $dateTo);
+        $fallbackYear = (int) now()->format('Y');
+        $fromYear = $from !== null ? (int) substr($from, 0, 4) : $fallbackYear;
+        $toYear = $to !== null ? (int) substr($to, 0, 4) : $fromYear;
+
+        if ($from === null && $to === null) {
+            return [$fallbackYear, $fallbackYear];
+        }
+
+        if ($fromYear > $toYear) {
+            return [$toYear, $fromYear];
+        }
+
+        return [$fromYear, $toYear];
     }
 
     private function formatOfficialPosition(?string $position): ?string

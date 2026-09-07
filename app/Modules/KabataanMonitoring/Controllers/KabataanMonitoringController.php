@@ -152,18 +152,22 @@ class KabataanMonitoringController extends Controller
             'ids.*' => ['integer'],
         ]);
 
-        $sheets = [];
-        foreach (array_values(array_unique($validated['ids'])) as $id) {
-            $html = $this->service->renderQuestionnaireHtml((int) $id);
-            if ($html !== null) {
-                $sheets[] = $html;
-            }
-        }
+        $sheets = $this->service->printSheets(array_map('intval', $validated['ids']));
 
         abort_if($sheets === [], 404, 'No KK profiling records found for print.');
 
         return view('kabataan_monitoring::print-batch', [
             'sheets' => $sheets,
+        ]);
+    }
+
+    public function print(int $id): View
+    {
+        $sheet = $this->service->printSheetData($id);
+        abort_if($sheet === null, 404, 'KK profiling record not found for print.');
+
+        return view('kabataan_monitoring::print', [
+            'sheet' => $sheet,
         ]);
     }
 

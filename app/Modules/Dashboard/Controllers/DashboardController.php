@@ -9,6 +9,7 @@ use App\Modules\Dashboard\Services\SkFedDashboardActivityService;
 use App\Modules\Shared\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\View\View;
 
 class DashboardController extends Controller
@@ -29,6 +30,7 @@ class DashboardController extends Controller
         $dateTo = now()->toDateString();
         $user = $request->user();
         $statCards = $this->dashboardStatsService->dashboardStatCards($tenantId, $dateFrom, $dateTo);
+        $abyipOverview = $this->barangayMonitoringService->dashboardAbyipOverview(10, $dateFrom, $dateTo);
 
         $kkInitialRequest = new Request([
             'barangay_id' => 'all',
@@ -50,24 +52,24 @@ class DashboardController extends Controller
             'totalSkOfficials' => $statCards['total_sk_officials'],
             'totalSkChairpersons' => $statCards['total_sk_chairpersons'],
             'totalAuditLogs' => $statCards['total_audit_logs'],
-            'totalBarangaysAbyipSubmitted' => $this->barangayMonitoringService->countBarangaysWithAbyipSubmission($dateFrom, $dateTo),
-            'sexDistribution' => $this->dashboardStatsService->sexDistribution($tenantId),
-            'sexDistributionOfficials' => $this->dashboardStatsService->sexDistributionOfficials($tenantId),
+            'totalBarangaysAbyipSubmitted' => $abyipOverview['stats']['submitted'],
+            'sexDistribution' => $this->dashboardStatsService->sexDistribution($tenantId, $dateFrom, $dateTo),
+            'sexDistributionOfficials' => $this->dashboardStatsService->sexDistributionOfficials($tenantId, $dateFrom, $dateTo),
             'federationOfficers' => $this->dashboardStatsService->federationOfficers($tenantId),
-            'topBarangays' => $this->dashboardStatsService->topBarangaysByYouth($tenantId),
+            'topBarangays' => $this->dashboardStatsService->topBarangaysByYouth($tenantId, 5, $dateFrom, $dateTo),
             'barangays' => $barangays,
             'kkBarangayOptions' => $barangays
                 ->map(fn ($barangay) => ['id' => $barangay->id, 'name' => $barangay->name])
                 ->values()
                 ->all(),
-            'recentActivity' => $this->dashboardActivityService->recentActivity($tenantId),
-            'upcomingEvents' => $this->dashboardActivityService->upcomingCalendarNotes(),
+            'recentActivity' => $this->dashboardActivityService->recentActivity($tenantId, 12, $dateFrom, $dateTo),
+            'upcomingEvents' => $this->dashboardActivityService->upcomingCalendarNotes(6, $dateFrom, $dateTo),
             'todayReminder' => $this->dashboardActivityService->todayCalendarNote(),
             'todayLabel' => now()->timezone(config('app.timezone', 'Asia/Manila'))->format('F j, Y | l'),
             'dashboardYear' => $dashboardYear,
             'dateFrom' => $dateFrom,
             'dateTo' => $dateTo,
-            'abyipOverview' => $this->barangayMonitoringService->dashboardAbyipOverview(10),
+            'abyipOverview' => $abyipOverview,
             'kkProfilingInitial' => $user
                 ? $this->kkProfilingChartService->getChartData($user, $kkInitialRequest)
                 : null,
@@ -82,14 +84,17 @@ class DashboardController extends Controller
         $validated = $request->validate([
             'page' => ['sometimes', 'integer', 'min:1'],
             'per_page' => ['sometimes', 'integer', 'min:5', 'max:50'],
+            'date_from' => ['sometimes', 'nullable', 'date'],
+            'date_to' => ['sometimes', 'nullable', 'date'],
         ]);
 
         $tenantId = $request->user()?->tenant_id;
         $page = (int) ($validated['page'] ?? 1);
         $perPage = (int) ($validated['per_page'] ?? 20);
+        [$dateFrom, $dateTo] = $this->resolveFeedDates($request);
 
         return response()->json(
-            $this->dashboardActivityService->paginatedActivities($tenantId, $page, $perPage)
+            $this->dashboardActivityService->paginatedActivities($tenantId, $page, $perPage, $dateFrom, $dateTo)
         );
     }
 
@@ -97,21 +102,11 @@ class DashboardController extends Controller
     {
         $tenantId = $request->user()?->tenant_id;
         [$dateFrom, $dateTo] = $this->resolveFeedDates($request);
-        $statCards = $this->dashboardStatsService->dashboardStatCards($tenantId, $dateFrom, $dateTo);
+        $live = $this->dashboardLivePayload($tenantId, $dateFrom, $dateTo);
 
         return response()->json([
-            'recent_activity' => $this->dashboardActivityService->recentActivity($tenantId),
-            'upcoming_events' => $this->dashboardActivityService->upcomingCalendarNotes(),
             'today_reminder' => $this->dashboardActivityService->todayCalendarNote(),
-            'stats' => [
-                'total_kabataan_registered' => $statCards['total_kabataan_registered'],
-                'total_sk_officials' => $statCards['total_sk_officials'],
-                'total_sk_chairpersons' => $statCards['total_sk_chairpersons'],
-                'total_barangays_abyip_submitted' => $this->barangayMonitoringService->countBarangaysWithAbyipSubmission($dateFrom, $dateTo),
-                'total_audit_logs' => $statCards['total_audit_logs'],
-            ],
-            'date_from' => $dateFrom,
-            'date_to' => $dateTo,
+            ...$live,
         ]);
     }
 
@@ -120,29 +115,53 @@ class DashboardController extends Controller
         $tenantId = $request->user()?->tenant_id;
         [$dateFrom, $dateTo] = $this->resolveFeedDates($request);
         $cacheKey = sprintf(
-            'skfed:dash:stats:%s:%s:%s',
+            'skfed:dash:stats:v3:%s:%s:%s',
             $tenantId === null ? 'all' : (string) $tenantId,
             $dateFrom ?? 'none',
             $dateTo ?? 'none'
         );
 
-        $payload = \Illuminate\Support\Facades\Cache::remember($cacheKey, 20, function () use ($tenantId, $dateFrom, $dateTo): array {
-            $statCards = $this->dashboardStatsService->dashboardStatCards($tenantId, $dateFrom, $dateTo);
-
-            return [
-                'stats' => [
-                    'total_kabataan_registered' => $statCards['total_kabataan_registered'],
-                    'total_sk_officials' => $statCards['total_sk_officials'],
-                    'total_sk_chairpersons' => $statCards['total_sk_chairpersons'],
-                    'total_barangays_abyip_submitted' => $this->barangayMonitoringService->countBarangaysWithAbyipSubmission($dateFrom, $dateTo),
-                    'total_audit_logs' => $statCards['total_audit_logs'],
-                ],
-                'date_from' => $dateFrom,
-                'date_to' => $dateTo,
-            ];
-        });
+        $payload = Cache::remember(
+            $cacheKey,
+            20,
+            fn (): array => $this->dashboardLivePayload($tenantId, $dateFrom, $dateTo)
+        );
 
         return response()->json($payload);
+    }
+
+    /**
+     * @return array{
+     *     stats: array<string, int>,
+     *     sex_distribution: array{labels: list<string>, values: list<int>},
+     *     sex_distribution_officials: array{labels: list<string>, values: list<int>},
+     *     abyip_overview: array<string, mixed>,
+     *     date_from: ?string,
+     *     date_to: ?string
+     * }
+     */
+    private function dashboardLivePayload(?int $tenantId, ?string $dateFrom, ?string $dateTo): array
+    {
+        $statCards = $this->dashboardStatsService->dashboardStatCards($tenantId, $dateFrom, $dateTo);
+        $abyipOverview = $this->barangayMonitoringService->dashboardAbyipOverview(10, $dateFrom, $dateTo);
+
+        return [
+            'stats' => [
+                'total_kabataan_registered' => $statCards['total_kabataan_registered'],
+                'total_sk_officials' => $statCards['total_sk_officials'],
+                'total_sk_chairpersons' => $statCards['total_sk_chairpersons'],
+                'total_barangays_abyip_submitted' => (int) ($abyipOverview['stats']['submitted'] ?? 0),
+                'total_audit_logs' => $statCards['total_audit_logs'],
+            ],
+            'sex_distribution' => $this->dashboardStatsService->sexDistribution($tenantId, $dateFrom, $dateTo),
+            'sex_distribution_officials' => $this->dashboardStatsService->sexDistributionOfficials($tenantId, $dateFrom, $dateTo),
+            'abyip_overview' => $abyipOverview,
+            'top_barangays' => $this->dashboardStatsService->topBarangaysByYouth($tenantId, 5, $dateFrom, $dateTo),
+            'recent_activity' => $this->dashboardActivityService->recentActivity($tenantId, 12, $dateFrom, $dateTo),
+            'upcoming_events' => $this->dashboardActivityService->upcomingCalendarNotes(6, $dateFrom, $dateTo),
+            'date_from' => $dateFrom,
+            'date_to' => $dateTo,
+        ];
     }
 
     /**

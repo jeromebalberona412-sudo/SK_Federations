@@ -45,7 +45,9 @@ import { createClient } from '@supabase/supabase-js';
             return;
         }
         badge.style.display = '';
-        badge.textContent = n > 99 ? '99+' : String(n);
+        badge.textContent = (window.Comms && typeof window.Comms.formatHeaderMsgCount === 'function')
+            ? window.Comms.formatHeaderMsgCount(n)
+            : (n >= 9 ? '9+' : String(n));
     }
 
     function refreshUnread() {
@@ -281,15 +283,31 @@ import { createClient } from '@supabase/supabase-js';
         });
 
         presenceChannel
-            .on('presence', { event: 'sync' }, function () { /* peers available via presenceState */ })
-            .subscribe(async function (status) {
-                if (status === 'SUBSCRIBED') {
-                    await presenceChannel.track({
-                        user_id: Number(userId),
-                        portal: root.dataset.portalUserType,
-                        online_at: new Date().toISOString()
-                    });
+            .on('presence', { event: 'sync' }, function () {
+                var stateMap = presenceChannel.presenceState ? presenceChannel.presenceState() : {};
+                if (window.CommsChat && typeof window.CommsChat.updatePeerOnlineFromPresence === 'function') {
+                    window.CommsChat.updatePeerOnlineFromPresence(stateMap);
                 }
+            })
+            .on('presence', { event: 'join' }, function () {
+                var stateMap = presenceChannel.presenceState ? presenceChannel.presenceState() : {};
+                if (window.CommsChat && typeof window.CommsChat.updatePeerOnlineFromPresence === 'function') {
+                    window.CommsChat.updatePeerOnlineFromPresence(stateMap);
+                }
+            })
+            .on('presence', { event: 'leave' }, function () {
+                var stateMap = presenceChannel.presenceState ? presenceChannel.presenceState() : {};
+                if (window.CommsChat && typeof window.CommsChat.updatePeerOnlineFromPresence === 'function') {
+                    window.CommsChat.updatePeerOnlineFromPresence(stateMap);
+                }
+            })
+            .subscribe(async function (status) {
+                if (status !== 'SUBSCRIBED') return;
+                await presenceChannel.track({
+                    user_id: Number(userId),
+                    portal: root.dataset.portalUserType,
+                    online_at: new Date().toISOString()
+                });
             });
 
         var routes = (window.CommsChat && window.CommsChat.routes) || {};
@@ -335,6 +353,9 @@ import { createClient } from '@supabase/supabase-js';
                 table: 'messages'
             }, function () {
                 if (window.CommsChat) window.CommsChat.reloadConversations();
+                if (typeof window.refreshMessagesPopover === 'function') {
+                    window.refreshMessagesPopover();
+                }
                 refreshUnread();
             })
             .on('postgres_changes', {
@@ -343,6 +364,9 @@ import { createClient } from '@supabase/supabase-js';
                 table: 'messages'
             }, function () {
                 if (window.CommsChat) window.CommsChat.reloadConversations();
+                if (typeof window.refreshMessagesPopover === 'function') {
+                    window.refreshMessagesPopover();
+                }
             })
             .on('postgres_changes', {
                 event: '*',

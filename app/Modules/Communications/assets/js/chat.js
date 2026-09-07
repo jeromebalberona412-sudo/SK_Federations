@@ -37,7 +37,8 @@
         maxImageCount: 100,
         maxFileCount: 10,
         // Local message cache: conversationId (string) → { messages, reactionEmojis, ts }
-        messageCache: {}
+        messageCache: {},
+        peerProfileRefreshTimer: null
     };
 
     var els = {
@@ -51,12 +52,13 @@
         composer: document.getElementById('commsComposer'),
         input: document.getElementById('commsMessageInput'),
         sendBtn: document.getElementById('commsSendBtn'),
-        userSearch: document.getElementById('commsUserSearch'),
+        userSearch: document.getElementById('commsConvFilter'),
         searchResults: document.getElementById('commsSearchResults'),
         convFilter: document.getElementById('commsConvFilter'),
         peerName: document.getElementById('commsPeerName'),
         peerMeta: document.getElementById('commsPeerMeta'),
         peerAvatar: document.getElementById('commsPeerAvatar'),
+        peerStatusDot: document.getElementById('commsPeerStatusDot'),
         backBtn: document.getElementById('commsBackBtn'),
         typing: document.getElementById('commsTyping'),
         voiceBtn: document.getElementById('commsVoiceBtn'),
@@ -117,8 +119,13 @@
             }
             var unread = Number(c.unread_count || 0);
             var active = Number(c.id) === Number(state.activeId) ? ' is-active' : '';
-            var avatar = peer.profile_image_url || Comms.defaultAvatar(peer.name);
-            return '<button type="button" class="comms-conv-item' + active + '" data-id="' + c.id + '" role="listitem">' +
+            var avatar = resolvePeerAvatar(peer);
+            var online = String(peer.online_status || '').toLowerCase() === 'online' ? 'online' : 'offline';
+            return '<button type="button" class="comms-conv-item' + active + '" data-id="' + c.id + '"' +
+                ' data-peer-name="' + Comms.escapeHtml(peer.name || 'User') + '"' +
+                ' data-peer-avatar="' + Comms.escapeHtml(avatar) + '"' +
+                ' data-peer-status="' + online + '"' +
+                ' role="listitem">' +
                 '<img class="comms-avatar" src="' + Comms.escapeHtml(avatar) + '" alt="" onerror="this.onerror=null;this.src=\'' + Comms.escapeHtml(Comms.defaultAvatar(peer.name)) + '\'">' +
                 '<div class="comms-conv-main">' +
                 '<div class="comms-conv-name">' + Comms.escapeHtml(peer.name || 'User') + '</div>' +
@@ -156,17 +163,34 @@
             '</div></div>';
     }
 
-    function renderReactionChips(reactions) {
-        var items = Array.isArray(reactions) ? reactions : [];
+    function renderReactionChips(reactions, messageId) {
+        var items = Array.isArray(reactions)
+            ? reactions.filter(function (r) { return Number(r.count || 0) > 0; })
+            : [];
         if (!items.length) return '';
+
+        var total = 0;
+        var anyMine = false;
+        items.forEach(function (r) {
+            total += Number(r.count || 0);
+            if (r.mine) anyMine = true;
+        });
+
+        // Messenger-style: stacked emojis in one pill + single total when 2+.
         return '<div class="comms-reaction-chips" role="group" aria-label="Reactions">' +
+            '<button type="button" class="comms-reaction-summary' + (anyMine ? ' is-mine' : '') + '"' +
+            ' data-react-people="' + Number(messageId || 0) + '"' +
+            ' aria-haspopup="true" aria-label="See who reacted">' +
+            '<span class="comms-reaction-stack">' +
             items.map(function (r) {
-                return '<button type="button" class="comms-reaction-chip' + (r.mine ? ' is-mine' : '') + '" data-react-emoji="' + Comms.escapeHtml(r.emoji) + '" title="React ' + Comms.escapeHtml(r.emoji) + '">' +
-                    '<span aria-hidden="true">' + Comms.escapeHtml(r.emoji) + '</span>' +
-                    '<span class="comms-reaction-count">' + Number(r.count || 0) + '</span>' +
-                    '</button>';
+                return '<span class="comms-reaction-stack-btn' + (r.mine ? ' is-mine' : '') + '"' +
+                    ' data-react-people-emoji="' + Comms.escapeHtml(r.emoji) + '">' +
+                    Comms.escapeHtml(r.emoji) +
+                    '</span>';
             }).join('') +
-            '</div>';
+            '</span>' +
+            (total > 1 ? '<span class="comms-reaction-count" aria-hidden="true">' + total + '</span>' : '') +
+            '</button></div>';
     }
 
     // Reaction picker is a fixed-position singleton on <body> to escape overflow:hidden clip contexts.
@@ -188,24 +212,22 @@
     }
 
     function positionPicker(triggerBtn) {
+        if (!triggerBtn) return;
         var rect = triggerBtn.getBoundingClientRect();
-        var pickerW = pickerEl.offsetWidth || 280;
-        var pickerH = pickerEl.offsetHeight || 52;
+        var pickerW = pickerEl.offsetWidth || 240;
+        var pickerH = pickerEl.offsetHeight || 48;
+        var pad = 8;
         var vw = window.innerWidth;
         var vh = window.innerHeight;
 
-        // Default: above the button, horizontally centred on it
         var top = rect.top - pickerH - 8;
         var left = rect.left + (rect.width / 2) - (pickerW / 2);
 
-        // If too close to the top, put it below instead
-        if (top < 8) {
+        if (top < pad) {
             top = rect.bottom + 8;
         }
-        // Clamp left so picker doesn't overflow viewport edges
-        left = Math.max(8, Math.min(left, vw - pickerW - 8));
-        // Clamp top
-        top = Math.max(8, Math.min(top, vh - pickerH - 8));
+        left = Math.max(pad, Math.min(left, vw - pickerW - pad));
+        top = Math.max(pad, Math.min(top, vh - pickerH - pad));
 
         pickerEl.style.top = top + 'px';
         pickerEl.style.left = left + 'px';
@@ -222,6 +244,9 @@
         }).join('');
         pickerEl.style.display = 'inline-flex';
         positionPicker(triggerBtn);
+        requestAnimationFrame(function () {
+            positionPicker(triggerBtn);
+        });
     }
 
     function hideGlobalPicker() {
@@ -413,9 +438,14 @@
     function saveEditedMessage(messageId) {
         var input = els.messages.querySelector('[data-edit-input="' + messageId + '"]');
         if (!input || !routes.updateMessage) return;
-        var body = String(input.value || '').trim();
+        var raw = String(input.value || '');
+        var body = raw.trim();
         if (!body) {
-            Comms.showToast('Message cannot be empty.', 'error');
+            Comms.showToast('Message cannot be empty or only spaces.', 'error');
+            return;
+        }
+        if (raw.length > 1000 || body.length > 1000) {
+            Comms.showToast('Message must be 1000 characters or less.', 'error');
             return;
         }
         state.msgChangeSkipToast[String(messageId)] = true;
@@ -503,7 +533,7 @@
             var editing = Number(state.editingId) === Number(m.id);
             var bodyHtml = '';
             if (editing) {
-                bodyHtml = '<textarea class="comms-edit-input" data-edit-input="' + m.id + '" maxlength="5000" rows="2">' + Comms.escapeHtml(m.body || '') + '</textarea>' +
+                bodyHtml = '<textarea class="comms-edit-input" data-edit-input="' + m.id + '" maxlength="1000" rows="2">' + Comms.escapeHtml(m.body || '') + '</textarea>' +
                     '<div class="comms-edit-actions">' +
                     '<button type="button" class="comms-edit-cancel" data-edit-cancel="' + m.id + '">Cancel</button>' +
                     '<button type="button" class="comms-edit-save" data-edit-save="' + m.id + '">Save</button>' +
@@ -526,7 +556,7 @@
                 '</div>' +
                 '</div>' +
                 renderReactionPicker(m.id) +
-                renderReactionChips(m.reactions) +
+                renderReactionChips(m.reactions, m.id) +
                 '</div>';
         }).join('');
         if (!els.messages) return;
@@ -564,7 +594,7 @@
         if (!els.messages) return false;
         var wrap = els.messages.querySelector('.comms-bubble-wrap[data-id="' + messageId + '"]');
         if (!wrap) return false;
-        var chipsHtml = renderReactionChips(reactions);
+        var chipsHtml = renderReactionChips(reactions, messageId);
         var existing = wrap.querySelector('.comms-reaction-chips');
         if (existing) {
             if (chipsHtml) existing.outerHTML = chipsHtml;
@@ -576,37 +606,17 @@
     }
 
     function cloneReactions(reactions) {
-        return (Array.isArray(reactions) ? reactions : []).map(function (r) {
-            return { emoji: r.emoji, count: Number(r.count || 0), mine: !!r.mine };
-        });
+        return Comms.cloneReactions ? Comms.cloneReactions(reactions) : (Array.isArray(reactions) ? reactions.slice() : []);
     }
 
     function optimisticToggleReactions(reactions, emoji) {
-        var list = cloneReactions(reactions).filter(function (r) { return r.count > 0; });
-        var mineEntry = null;
-        var target = null;
-        list.forEach(function (r) {
-            if (r.mine) mineEntry = r;
-            if (r.emoji === emoji) target = r;
-        });
-
-        if (target && target.mine) {
-            target.count -= 1;
-            target.mine = false;
-        } else {
-            if (mineEntry && mineEntry !== target) {
-                mineEntry.count -= 1;
-                mineEntry.mine = false;
-            }
-            if (target) {
-                target.count += 1;
-                target.mine = true;
-            } else {
-                list.push({ emoji: emoji, count: 1, mine: true });
-            }
+        if (Comms.optimisticToggleReactions) {
+            return Comms.optimisticToggleReactions(reactions, emoji, {
+                currentUserId: state.currentUserId,
+                portalUserType: state.portalUserType
+            });
         }
-
-        return list.filter(function (r) { return Number(r.count) > 0; });
+        return reactions;
     }
 
     function applyMessageReactions(messageId, reactions, opts) {
@@ -646,12 +656,24 @@
             if (!entry) return true;
             entry.count = Math.max(0, entry.count - 1);
             if (isMine) entry.mine = false;
+            entry.users = (entry.users || []).filter(function (u) {
+                return !(Number(u.id) === Number(row.user_id) && String(u.user_type || '') === String(row.user_type || ''));
+            });
         } else if (eventType === 'INSERT') {
+            var newUser = {
+                id: Number(row.user_id || 0),
+                user_type: String(row.user_type || ''),
+                name: isMine ? 'You' : String((state.activeConversation && state.activeConversation.other_user && state.activeConversation.other_user.name) || 'Someone'),
+                mine: isMine
+            };
             if (entry) {
                 entry.count += 1;
                 if (isMine) entry.mine = true;
+                entry.users = (entry.users || []).filter(function (u) {
+                    return !(Number(u.id) === newUser.id && String(u.user_type || '') === newUser.user_type);
+                }).concat([newUser]);
             } else {
-                list.push({ emoji: emoji, count: 1, mine: isMine });
+                list.push({ emoji: emoji, count: 1, mine: isMine, users: [newUser] });
             }
         } else if (eventType === 'UPDATE') {
             var oldEmoji = String((row._old_emoji) || '');
@@ -749,21 +771,146 @@
         });
     }
 
+    function resolvePeerAvatar(peer) {
+        var name = (peer && peer.name) || 'User';
+        var url = peer && peer.profile_image_url ? String(peer.profile_image_url).trim() : '';
+        if (!url || url === 'null' || url === 'undefined') {
+            return Comms.defaultAvatar(name);
+        }
+        return url;
+    }
+
+    function formatPresenceLabel(peer) {
+        var status = String((peer && peer.online_status) || '').toLowerCase();
+        if (status === 'online') return 'Online';
+        if (status === 'offline') {
+            if (peer && peer.last_seen) return 'Offline · Last seen ' + Comms.formatTime(peer.last_seen);
+            return 'Offline';
+        }
+        if (peer && peer.last_seen) return 'Last seen ' + Comms.formatTime(peer.last_seen);
+        return 'Offline';
+    }
+
     function updatePeerHeader(conversation) {
         var peer = (conversation && conversation.other_user) || {};
-        els.peerName.textContent = peer.name || 'User';
-        var statusBits = [peer.user_type_label || ''];
+        var name = peer.name || 'User';
+        if (els.peerName) els.peerName.textContent = name;
+
+        var statusBits = [];
+        if (peer.user_type_label) statusBits.push(String(peer.user_type_label));
         if (peer.position) statusBits.push(String(peer.position));
         if (peer.barangay_name) statusBits.push(String(peer.barangay_name));
-        if (peer.online_status) statusBits.push(String(peer.online_status));
-        else if (peer.last_seen) statusBits.push('Last seen ' + Comms.formatTime(peer.last_seen));
-        els.peerMeta.textContent = statusBits.filter(Boolean).join(' · ');
-        els.peerAvatar.src = peer.profile_image_url || Comms.defaultAvatar(peer.name);
-        els.peerAvatar.alt = peer.name || 'User';
-        els.peerAvatar.onerror = function () {
-            els.peerAvatar.onerror = null;
-            els.peerAvatar.src = Comms.defaultAvatar(peer.name);
-        };
+        statusBits.push(formatPresenceLabel(peer));
+        if (els.peerMeta) els.peerMeta.textContent = statusBits.filter(Boolean).join(' · ');
+
+        var isOnline = String(peer.online_status || '').toLowerCase() === 'online';
+        if (els.peerStatusDot) {
+            els.peerStatusDot.setAttribute('data-status', isOnline ? 'online' : 'offline');
+            els.peerStatusDot.title = isOnline ? 'Online' : 'Offline';
+        }
+
+        if (els.peerAvatar) {
+            var avatarUrl = resolvePeerAvatar(peer);
+            els.peerAvatar.alt = name;
+            els.peerAvatar.onerror = function () {
+                els.peerAvatar.onerror = null;
+                els.peerAvatar.src = Comms.defaultAvatar(name);
+            };
+            if (els.peerAvatar.getAttribute('src') !== avatarUrl) {
+                els.peerAvatar.src = avatarUrl;
+            }
+        }
+
+        if (conversation && conversation.id) {
+            savePeerProfileCache(conversation.id, peer);
+        }
+    }
+
+    function peerProfileCacheKey(conversationId) {
+        return 'comms:peer-profile:' + String(conversationId);
+    }
+
+    function loadPeerProfileCache(conversationId) {
+        if (!window.SkLocalCache || typeof window.SkLocalCache.get !== 'function') return null;
+        var entry = window.SkLocalCache.get(peerProfileCacheKey(conversationId));
+        if (!entry || !entry.payload) return null;
+        return entry.payload;
+    }
+
+    function savePeerProfileCache(conversationId, peer) {
+        if (!conversationId || !peer || !window.SkLocalCache || typeof window.SkLocalCache.set !== 'function') return;
+        window.SkLocalCache.set(peerProfileCacheKey(conversationId), {
+            id: peer.id || null,
+            name: peer.name || '',
+            user_type_label: peer.user_type_label || '',
+            position: peer.position || '',
+            barangay_name: peer.barangay_name || '',
+            profile_image_url: peer.profile_image_url || '',
+            online_status: peer.online_status || '',
+            last_seen: peer.last_seen || null,
+            user_type: peer.user_type || ''
+        });
+    }
+
+    function applyCachedPeerHeader(conversationId) {
+        var cached = loadPeerProfileCache(conversationId);
+        if (!cached) return;
+        updatePeerHeader({ id: conversationId, other_user: cached });
+    }
+
+    function refreshActivePeerProfile() {
+        if (!state.activeId || !routes.showConversation) return Promise.resolve();
+        var cid = state.activeId;
+        return Comms.api(Comms.route(routes.showConversation, cid), { dedupe: true }).then(function (data) {
+            if (Number(state.activeId) !== Number(cid) || !data || !data.conversation) return;
+            state.activeConversation = data.conversation;
+            updatePeerHeader(data.conversation);
+        }).catch(function () { /* ignore */ });
+    }
+
+    function startPeerProfileRealtime() {
+        if (state.peerProfileRefreshTimer) {
+            clearInterval(state.peerProfileRefreshTimer);
+        }
+        state.peerProfileRefreshTimer = setInterval(function () {
+            if (!state.activeId) return;
+            refreshActivePeerProfile();
+        }, 20000);
+    }
+
+    function updatePeerOnlineFromPresence(presenceMap) {
+        if (!presenceMap) return;
+
+        var onlineIds = {};
+        Object.keys(presenceMap).forEach(function (key) {
+            var metas = presenceMap[key] || [];
+            metas.forEach(function (meta) {
+                var uid = Number(meta.user_id || key || 0);
+                if (uid) onlineIds[uid] = true;
+            });
+        });
+
+        state.conversations.forEach(function (c) {
+            var peer = c.other_user;
+            if (!peer || !peer.id) return;
+            var next = onlineIds[Number(peer.id)] ? 'online' : 'offline';
+            if (String(peer.online_status || '') === next) return;
+            peer.online_status = next;
+            if (next === 'offline') peer.last_seen = new Date().toISOString();
+            if (c.id) savePeerProfileCache(c.id, peer);
+        });
+
+        if (!state.activeConversation || !state.activeConversation.other_user) return;
+        var activePeer = state.activeConversation.other_user;
+        var peerId = Number(activePeer.id || 0);
+        if (!peerId) return;
+
+        var nextStatus = onlineIds[peerId] ? 'online' : 'offline';
+        if (String(activePeer.online_status || '') === nextStatus) return;
+        activePeer.online_status = nextStatus;
+        if (nextStatus === 'offline') activePeer.last_seen = new Date().toISOString();
+        state.activeConversation.other_user = activePeer;
+        updatePeerHeader(state.activeConversation);
     }
 
     function setListMode(mode) {
@@ -771,9 +918,10 @@
         var isChats = mode === 'conversations';
         if (els.convList) els.convList.hidden = !isChats;
         if (els.directoryList) els.directoryList.hidden = isChats;
-        if (els.convFilter) els.convFilter.hidden = !isChats;
+        // Keep Search always visible (filters chats or people).
+        if (els.convFilter) els.convFilter.hidden = false;
         var convFilterWrap = document.querySelector('.comms-search-wrap--filter');
-        if (convFilterWrap) convFilterWrap.hidden = !isChats;
+        if (convFilterWrap) convFilterWrap.hidden = false;
         if (els.barangayFilter) {
             var showBarangay = mode === 'officials' || mode === 'chairpersons';
             els.barangayFilter.hidden = !showBarangay;
@@ -782,6 +930,10 @@
         }
         if (els.convEmpty && !isChats) {
             els.convEmpty.hidden = true;
+        }
+        if (els.searchResults) {
+            els.searchResults.hidden = true;
+            els.searchResults.innerHTML = '';
         }
     }
 
@@ -817,11 +969,13 @@
                         '<div class="comms-dir-meta">' + Comms.escapeHtml(meta) + '</div>' +
                         '</button>' +
                         '<div class="comms-dir-actions">' +
-                        '<button type="button" class="comms-icon-btn" data-dir-call="voice" data-user-id="' + u.id + '" title="Voice call" aria-label="Voice call">' +
-                        '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6A19.79 19.79 0 0 1 2.12 4.18 2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.81.36 1.6.68 2.35a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.75.32 1.54.55 2.35.68A2 2 0 0 1 22 16.92z"/></svg>' +
+                        '<button type="button" class="comms-icon-btn comms-call-action-btn" data-dir-call="voice" data-user-id="' + u.id + '" aria-label="Voice call">' +
+                        '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6A19.79 19.79 0 0 1 2.12 4.18 2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.81.36 1.6.68 2.35a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.75.32 1.54.55 2.35.68A2 2 0 0 1 22 16.92z"/></svg>' +
+                        '<span class="comms-call-action-label">Voice call</span>' +
                         '</button>' +
-                        '<button type="button" class="comms-icon-btn" data-dir-call="video" data-user-id="' + u.id + '" title="Video call" aria-label="Video call">' +
-                        '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>' +
+                        '<button type="button" class="comms-icon-btn comms-call-action-btn" data-dir-call="video" data-user-id="' + u.id + '" aria-label="Video call">' +
+                        '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>' +
+                        '<span class="comms-call-action-label">Video call</span>' +
                         '</button>' +
                         '</div></div>';
                 }).join('');
@@ -855,15 +1009,23 @@
     }
 
     function saveMsgCache(id, messages, emojis) {
-        state.messageCache[String(id)] = {
+        var payload = {
             messages: messages,
             reactionEmojis: emojis,
             ts: Date.now()
         };
+        state.messageCache[String(id)] = payload;
+        if (Comms.writeThreadCache) Comms.writeThreadCache(id, payload);
     }
 
     function loadMsgCache(id) {
-        return state.messageCache[String(id)] || null;
+        if (state.messageCache[String(id)]) return state.messageCache[String(id)];
+        var stored = Comms.readThreadCache ? Comms.readThreadCache(id) : null;
+        if (stored) {
+            state.messageCache[String(id)] = stored;
+            return stored;
+        }
+        return null;
     }
 
     function applyMessages(messages, emojis, opts) {
@@ -880,11 +1042,28 @@
         setThreadOpen(true);
         els.threadEmpty.hidden = true;
         els.threadActive.hidden = false;
-        renderConversations(els.convFilter.value);
+        renderConversations(els.convFilter ? els.convFilter.value : '');
+
+        if (window.CommsRealtime && typeof window.CommsRealtime.subscribeConversation === 'function') {
+            window.CommsRealtime.subscribeConversation(state.activeId);
+        }
+
+        // Instant header: list row → SkLocalCache → then API refresh.
+        var listConv = state.conversations.find(function (c) {
+            return Number(c.id) === Number(id);
+        });
+        if (listConv && listConv.other_user) {
+            updatePeerHeader(listConv);
+        } else {
+            applyCachedPeerHeader(id);
+        }
+        if (state.activeConversation && Number(state.activeConversation.id) === Number(id)) {
+            updatePeerHeader(state.activeConversation);
+        }
 
         // Show cached messages immediately so the thread appears instantly
         var cached = loadMsgCache(id);
-        if (cached) {
+        if (cached && Array.isArray(cached.messages) && cached.messages.length) {
             state.messages = cached.messages;
             if (Array.isArray(cached.reactionEmojis) && cached.reactionEmojis.length) {
                 state.reactionEmojis = cached.reactionEmojis;
@@ -897,8 +1076,20 @@
         var msgPromise = Comms.api(Comms.route(routes.messages, id));
 
         convPromise.then(function (data) {
-            state.activeConversation = data.conversation;
-            updatePeerHeader(data.conversation);
+            if (!data || !data.conversation) return;
+            if (Number(state.activeId) !== Number(id)) return;
+            var conv = data.conversation;
+            var peer = conv.other_user || {};
+            // Keep a working list/cache avatar if API returns empty/broken placeholder.
+            if (listConv && listConv.other_user && listConv.other_user.profile_image_url) {
+                var apiAvatar = String(peer.profile_image_url || '').trim();
+                if (!apiAvatar) {
+                    peer.profile_image_url = listConv.other_user.profile_image_url;
+                    conv.other_user = peer;
+                }
+            }
+            state.activeConversation = conv;
+            updatePeerHeader(conv);
         }).catch(function () { /* non-fatal */ });
 
         return msgPromise.then(function (data) {
@@ -914,9 +1105,6 @@
 
             return Comms.api(Comms.route(routes.read, id), { method: 'POST', body: '{}' });
         }).then(function () {
-            if (window.CommsRealtime && typeof window.CommsRealtime.subscribeConversation === 'function') {
-                window.CommsRealtime.subscribeConversation(state.activeId);
-            }
             if (!opts.skipReloadList) {
                 return loadConversations();
             }
@@ -959,9 +1147,19 @@
 
     function sendMessage(body) {
         if (!state.activeId) return;
-        var text = String(body || '').trim();
+        var raw = String(body || '');
+        var text = raw.trim();
         var files = (state.pendingAttachments || []).slice();
-        if (!text && !files.length) return;
+        if (!text && !files.length) {
+            if (raw.length > 0) {
+                Comms.showToast('Message cannot be only spaces.', 'error');
+            }
+            return;
+        }
+        if (text && (raw.length > 1000 || text.length > 1000)) {
+            Comms.showToast('Message must be 1000 characters or less.', 'error');
+            return;
+        }
         if (state.sendInFlight && files.length) return;
 
         els.input.value = '';
@@ -1043,8 +1241,8 @@
             body: JSON.stringify({ user_id: Number(userId) }),
             dedupe: false
         }).then(function (data) {
-            els.searchResults.hidden = true;
-            els.userSearch.value = '';
+            if (els.searchResults) els.searchResults.hidden = true;
+            if (els.convFilter) els.convFilter.value = '';
             return loadConversations().then(function () {
                 return openConversation(data.conversation.id);
             });
@@ -1054,6 +1252,7 @@
     }
 
     function searchUsers(q) {
+        if (!els.searchResults) return;
         if (!q || q.length < 1) {
             els.searchResults.hidden = true;
             els.searchResults.innerHTML = '';
@@ -1080,11 +1279,37 @@
     els.convList.addEventListener('click', function (e) {
         var btn = e.target.closest('.comms-conv-item');
         if (!btn) return;
+        // Instant header paint from list row while API loads.
+        if (btn.dataset.peerName) {
+            updatePeerHeader({
+                id: btn.dataset.id,
+                other_user: {
+                    name: btn.dataset.peerName,
+                    profile_image_url: btn.dataset.peerAvatar || '',
+                    online_status: btn.dataset.peerStatus || 'offline'
+                }
+            });
+        }
         openConversation(btn.dataset.id);
     });
 
     if (els.messages) {
         els.messages.addEventListener('click', function (e) {
+            var peopleBtn = e.target.closest('[data-react-people]');
+            if (peopleBtn) {
+                e.preventDefault();
+                e.stopPropagation();
+                var pid = Number(peopleBtn.getAttribute('data-react-people'));
+                var pmsg = state.messages.find(function (m) { return Number(m.id) === pid; });
+                var emojiEl = e.target.closest('[data-react-people-emoji]');
+                if (Comms.toggleReactionPeople) {
+                    Comms.toggleReactionPeople(peopleBtn, pmsg ? pmsg.reactions : [], {
+                        pinned: true,
+                        emoji: emojiEl ? (emojiEl.getAttribute('data-react-people-emoji') || '') : ''
+                    });
+                }
+                return;
+            }
             var toggle = e.target.closest('[data-react-toggle]');
             if (toggle) {
                 e.preventDefault();
@@ -1152,9 +1377,29 @@
                 }
             }
         });
+        els.messages.addEventListener('pointerover', function (e) {
+            var peopleBtn = e.target.closest('[data-react-people]');
+            if (!peopleBtn || !els.messages.contains(peopleBtn)) return;
+            var pid = Number(peopleBtn.getAttribute('data-react-people'));
+            var pmsg = state.messages.find(function (m) { return Number(m.id) === pid; });
+            var emojiEl = e.target.closest('[data-react-people-emoji]');
+            if (Comms.showReactionPeople) {
+                Comms.showReactionPeople(peopleBtn, pmsg ? pmsg.reactions : [], {
+                    pinned: false,
+                    emoji: emojiEl ? (emojiEl.getAttribute('data-react-people-emoji') || '') : ''
+                });
+            }
+        });
+        els.messages.addEventListener('pointerout', function (e) {
+            var peopleBtn = e.target.closest('[data-react-people]');
+            if (!peopleBtn) return;
+            var related = e.relatedTarget;
+            if (related && (peopleBtn.contains(related) || (related.closest && related.closest('#commsReactionPeople')))) {
+                return;
+            }
+            if (Comms.scheduleHideReactionPeople) Comms.scheduleHideReactionPeople();
+        });
     }
-
-    // Handle clicks on the global fixed picker
     pickerEl.addEventListener('click', function (e) {
         var emojiBtn = e.target.closest('[data-react-emoji]');
         if (!emojiBtn) return;
@@ -1260,24 +1505,29 @@
         });
     }
 
-    els.searchResults.addEventListener('click', function (e) {
-        var btn = e.target.closest('[data-user-id]');
-        if (!btn) return;
-        startConversationWithUser(btn.dataset.userId);
-    });
+    if (els.searchResults) {
+        els.searchResults.addEventListener('click', function (e) {
+            var btn = e.target.closest('[data-user-id]');
+            if (!btn) return;
+            startConversationWithUser(btn.dataset.userId);
+        });
+    }
 
-    els.userSearch.addEventListener('input', function () {
-        clearTimeout(state.searchTimer);
-        var q = els.userSearch.value.trim();
-        state.searchTimer = setTimeout(function () { searchUsers(q); }, 250);
-    });
-
-    els.convFilter.addEventListener('input', function () {
-        clearTimeout(state.filterTimer);
-        state.filterTimer = setTimeout(function () {
-            renderConversations(els.convFilter.value);
-        }, 120);
-    });
+    if (els.convFilter) {
+        els.convFilter.addEventListener('input', function () {
+            clearTimeout(state.filterTimer);
+            clearTimeout(state.searchTimer);
+            var q = els.convFilter.value.trim();
+            state.filterTimer = setTimeout(function () {
+                if (state.listMode === 'conversations') {
+                    renderConversations(q);
+                }
+            }, 120);
+            state.searchTimer = setTimeout(function () {
+                searchUsers(q);
+            }, 250);
+        });
+    }
 
     els.composer.addEventListener('submit', function (e) {
         e.preventDefault();
@@ -1353,7 +1603,7 @@
     });
 
     document.addEventListener('click', function (e) {
-        if (!els.searchResults.contains(e.target) && e.target !== els.userSearch) {
+        if (els.searchResults && !els.searchResults.contains(e.target) && e.target !== els.convFilter) {
             els.searchResults.hidden = true;
         }
         if (els.attachMenu && !els.attachMenu.hidden && !e.target.closest('.comms-attach-menu-wrap')) {
@@ -1393,12 +1643,16 @@
         setTyping: function (visible) {
             els.typing.hidden = !visible;
         },
+        updatePeerOnlineFromPresence: updatePeerOnlineFromPresence,
+        refreshActivePeerProfile: refreshActivePeerProfile,
         routes: routes,
         state: state
     };
 
     if (els.attachMenu) els.attachMenu.hidden = true;
     if (els.attachPreview) els.attachPreview.hidden = true;
+
+    startPeerProfileRealtime();
 
     loadConversations().then(function () {
         var initial = root.dataset.initialConversation;

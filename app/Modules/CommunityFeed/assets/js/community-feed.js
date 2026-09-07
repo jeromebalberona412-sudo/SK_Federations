@@ -58,29 +58,38 @@ function loadPosts(reset) {
 
     var container = document.getElementById('feed-posts');
     var url = '/api/community-feed?per_page=100&page=1'
-        + (currentFilter !== 'all' ? '&filter=' + encodeURIComponent(currentFilter) : '')
         + (feedSearch ? '&search=' + encodeURIComponent(feedSearch) : '');
-    var cacheKey = 'sk_fed_community_feed_v1_' + currentFilter + '_' + (feedSearch || '');
+    var cacheKey = 'sk_fed_community_feed_v2_all_' + (feedSearch || '');
 
     function paintFeed(data) {
-        if (reset) container.innerHTML = '';
         posts = (data.data || []).filter(function(p) { return p && p.id; });
         knownPostIds.clear();
-        if (!posts.length) {
-            container.innerHTML = '<div class="post-card" style="text-align:center;color:#999;padding:32px;">No posts found.</div>';
-        } else {
-            posts.forEach(function(p) {
+        var signature = posts.map(function (p) { return String(p.id); }).join(',');
+        if (container.dataset.feedSignature === signature && container.querySelector('[data-post-id]')) {
+            posts.forEach(function (p) {
                 knownPostIds.add(Number(p.id));
                 postCache.set(Number(p.id), p);
-                var el = document.createElement('div');
-                el.className = 'post-card';
-                el.dataset.postId = p.id;
-                el.innerHTML = buildPost(p);
-                bindPostImageClicks(el, p);
-                bindReactionControls(el);
-                container.appendChild(el);
+                var existing = container.querySelector('[data-post-id="' + p.id + '"]');
+                if (existing) existing.dataset.postType = p.type || '';
             });
+            applyFeedView();
+            return;
         }
+        container.dataset.feedSignature = signature;
+        container.innerHTML = '';
+        posts.forEach(function(p) {
+            knownPostIds.add(Number(p.id));
+            postCache.set(Number(p.id), p);
+            var el = document.createElement('div');
+            el.className = 'post-card';
+            el.dataset.postId = p.id;
+            el.dataset.postType = p.type || '';
+            el.innerHTML = buildPost(p);
+            bindPostImageClicks(el, p);
+            bindReactionControls(el);
+            container.appendChild(el);
+        });
+        applyFeedView();
     }
 
     var cached = window.SkLocalCache && window.SkLocalCache.get(cacheKey);
@@ -92,7 +101,6 @@ function loadPosts(reset) {
         paintFeed(cached.payload);
         if (cacheFresh) {
             isLoading = false;
-            setFilterTabsDisabled(false);
             startFeedPolling();
             // Soft revalidate without blocking UI.
             apiFetch(url, { method: 'GET' })
@@ -110,9 +118,9 @@ function loadPosts(reset) {
                 .catch(function () {});
             return Promise.resolve();
         }
-    } else if (reset) {
+    } else if (reset && !container.querySelector('[data-post-id]')) {
         posts = []; knownPostIds.clear(); postCache.clear();
-        container.innerHTML = '<div class="post-card" style="text-align:center;color:#999;padding:32px;">Loading...</div>';
+        applyFeedView();
     }
 
     return apiFetch(url, { method: 'GET' })
@@ -138,7 +146,6 @@ function loadPosts(reset) {
         })
         .finally(function() {
             isLoading = false;
-            setFilterTabsDisabled(false);
             startFeedPolling();
         });
 }
@@ -153,7 +160,6 @@ function pollFeedUpdates() {
     if (document.getElementById('commentPreviewShell')?.classList.contains('is-open')) return;
 
     var params = '/api/community-feed?per_page=100&page=1'
-        + (currentFilter !== 'all' ? '&filter=' + encodeURIComponent(currentFilter) : '')
         + (feedSearch ? '&search=' + encodeURIComponent(feedSearch) : '');
 
     apiFetch(params, { method: 'GET' })
@@ -173,12 +179,14 @@ function pollFeedUpdates() {
                 var el = document.createElement('div');
                 el.className = 'post-card post-card-new';
                 el.dataset.postId = p.id;
+                el.dataset.postType = p.type || '';
                 el.innerHTML = buildPost(p);
                 bindPostImageClicks(el, p);
                 bindReactionControls(el);
                 if (container.firstChild) container.insertBefore(el, container.firstChild);
                 else container.appendChild(el);
             });
+            applyFeedView();
             setTimeout(function () {
                 document.querySelectorAll('.post-card-new').forEach(function (el) { el.classList.remove('post-card-new'); });
             }, 1200);
@@ -1368,7 +1376,13 @@ function confirmDeleteComment() {
         });
 }
 
-window.editComment = editComment;
+window.openComposeModal = openComposeModal;
+window.closeComposeModal = closeComposeModal;
+window.setFeedFilter = setFeedFilter;
+window.submitPost = submitPost;
+window.toggleLinkInput = toggleLinkInput;
+window.toggleComposeFullscreen = toggleComposeFullscreen;
+window.previewImages = previewImages;
 window.deleteComment = deleteComment;
 window.closeEditCommentModal = closeEditCommentModal;
 window.confirmEditComment = confirmEditComment;
@@ -1416,78 +1430,35 @@ window.mountFeedPostsList = mountFeedPostsList;
 function bindFilterBarScrollHide() {
     var toolbar = document.querySelector('.feed-sticky-toolbar');
     var bar = document.querySelector('.feed-filter-bar:not(.bfp-filter-bar)');
-    var anchor = document.querySelector('.feed-filter-anchor');
-    var feedSection = document.querySelector('.feed-section');
     if (!toolbar || !bar) return;
 
-    var DOWN_THRESHOLD = 8;
-    var UP_THRESHOLD = 4;
-    var TOP_SHOW = 12;
-    var overlayQuery = window.matchMedia('(max-width: 1024px)');
+    var DOWN_THRESHOLD = 14;
+    var UP_THRESHOLD = 8;
+    var TOP_SHOW = 24;
     var lastY = 0;
     var ticking = false;
-    var barHeight = 64;
+    var hidden = false;
 
-    function headerHeight() {
-        var header = document.querySelector('.navbar.sk-fed-navbar, .navbar');
-        return Math.round((header && header.getBoundingClientRect().height) || 64);
-    }
-
-    function scrollRoot() {
-        if (!feedSection) return window;
-        var overflowY = getComputedStyle(feedSection).overflowY;
-        if (overflowY === 'auto' || overflowY === 'scroll') {
-            return feedSection;
-        }
-        return window;
-    }
-
-    function currentY() {
-        var root = scrollRoot();
-        return root === window
-            ? (window.scrollY || document.documentElement.scrollTop || 0)
-            : root.scrollTop;
-    }
-
-    function measureBar() {
-        var height = toolbar.scrollHeight || bar.offsetHeight;
-        if (height > 8) barHeight = height;
-        return barHeight;
-    }
-
-    function updateAnchor() {
-        if (!anchor) return;
-        if (!overlayQuery.matches) {
-            anchor.style.height = '0px';
-            return;
-        }
-        anchor.style.height = toolbar.classList.contains('is-hidden') ? '0px' : (measureBar() + 'px');
-    }
-
-    function syncStickyTop() {
-        toolbar.style.top = headerHeight() + 'px';
-        updateAnchor();
+    function scrollY() {
+        return window.scrollY || document.documentElement.scrollTop || 0;
     }
 
     function showBar() {
+        if (!hidden && !toolbar.classList.contains('is-hidden')) return;
+        hidden = false;
         toolbar.classList.remove('is-hidden');
         bar.classList.remove('is-hidden');
-        updateAnchor();
     }
 
     function hideBar() {
-        measureBar();
+        if (hidden && toolbar.classList.contains('is-hidden')) return;
+        hidden = true;
         toolbar.classList.add('is-hidden');
-        updateAnchor();
     }
-
-    lastY = currentY();
-    showBar();
-    syncStickyTop();
 
     function apply() {
         ticking = false;
-        var y = Math.max(0, currentY());
+        var y = Math.max(0, scrollY());
         var delta = y - lastY;
         lastY = y;
 
@@ -1510,49 +1481,71 @@ function bindFilterBarScrollHide() {
         requestAnimationFrame(apply);
     }
 
+    lastY = scrollY();
+    showBar();
+
     window.addEventListener('scroll', onScroll, { passive: true });
-    document.addEventListener('scroll', onScroll, { passive: true });
-    if (feedSection) feedSection.addEventListener('scroll', onScroll, { passive: true });
     window.addEventListener('resize', function () {
-        lastY = currentY();
-        syncStickyTop();
-        if (currentY() <= TOP_SHOW) showBar();
+        lastY = scrollY();
+        if (scrollY() <= TOP_SHOW) showBar();
     });
-    if (overlayQuery.addEventListener) {
-        overlayQuery.addEventListener('change', function () {
-            lastY = currentY();
-            syncStickyTop();
-            if (currentY() <= TOP_SHOW) showBar();
-        });
-    }
     bar.addEventListener('focusin', showBar);
 }
 
-function setFeedFilter(btn, filter) {
-    if (isLoading) return;
-    var toolbar = document.querySelector('.feed-sticky-toolbar');
-    if (toolbar) toolbar.classList.remove('is-hidden');
-    var bar = document.querySelector('.feed-filter-bar');
-    if (bar) bar.classList.remove('is-hidden');
-    var goHome = filter === 'all';
-    currentFilter = filter;
-    document.querySelectorAll('.feed-tab').forEach(function(t) { t.classList.remove('active'); });
-    btn.classList.add('active');
-    if (goHome) {
-        feedSearch = '';
-        var search = document.getElementById('feedSearchInput');
-        if (search) search.value = '';
-    }
-    setFilterTabsDisabled(true);
-    loadPosts(true).then(function () {
-        if (goHome) window.scrollTo({ top: 0, behavior: 'smooth' });
-    });
+function postMatchesView(post) {
+    if (!post) return false;
+    if (currentFilter !== 'all' && String(post.type || '') !== currentFilter) return false;
+    if (!feedSearch) return true;
+    var query = feedSearch.toLowerCase();
+    var haystack = [post.body, post.title, post.type, post.author_name].join(' ').toLowerCase();
+    return haystack.indexOf(query) !== -1;
 }
 
-function setFilterTabsDisabled(disabled) {
-    document.querySelectorAll('.feed-tab').forEach(function (tab) {
-        tab.disabled = disabled;
-        tab.classList.toggle('is-loading', disabled);
+function applyFeedView() {
+    var container = document.getElementById('feed-posts');
+    var empty = document.getElementById('feed-empty');
+    if (!container) return;
+
+    var cards = container.querySelectorAll('.post-card[data-post-id]');
+    var visible = 0;
+    cards.forEach(function (card) {
+        var id = Number(card.dataset.postId);
+        var post = postCache.get(id) || posts.find(function (item) { return Number(item.id) === id; });
+        var show = postMatchesView(post || { type: card.dataset.postType || '' });
+        card.hidden = !show;
+        card.style.display = show ? '' : 'none';
+        if (show) visible += 1;
+    });
+
+    if (empty) {
+        empty.hidden = visible > 0 || (cards.length === 0 && isLoading);
+        if (cards.length === 0 && !isLoading) empty.hidden = false;
+        if (visible > 0) empty.hidden = true;
+    }
+}
+
+function setFeedFilter(btn, filter) {
+    currentFilter = filter || 'all';
+    var toolbar = document.querySelector('.feed-sticky-toolbar');
+    if (toolbar) toolbar.classList.remove('is-hidden');
+    document.querySelectorAll('.feed-filter-bar:not(.bfp-filter-bar) .feed-tab').forEach(function (tab) {
+        tab.classList.toggle('active', tab.getAttribute('data-filter') === currentFilter);
+    });
+    if (btn) btn.classList.add('active');
+    applyFeedView();
+}
+
+function bindFeedToolbar() {
+    document.querySelectorAll('.feed-filter-bar:not(.bfp-filter-bar) .feed-tab').forEach(function (tab) {
+        tab.addEventListener('click', function () {
+            setFeedFilter(tab, tab.getAttribute('data-filter') || 'all');
+        });
+    });
+    document.querySelectorAll('[data-compose-open]').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            var type = btn.getAttribute('data-compose-open') || '';
+            openComposeModal(type || undefined);
+        });
     });
 }
 
@@ -1764,10 +1757,11 @@ function openComposeModal(type) {
     if (fileInput) fileInput.value = '';
     if (type && document.getElementById('compose-type')) {
         var sel = document.getElementById('compose-type');
-        var map = { announcement:'announcement', event:'event', photo:'activity' };
-        sel.value = map[type] || 'update';
+        var map = { announcement:'announcement', event:'event', activity:'activity', program:'program', photo:'update' };
+        sel.value = map[type] || type || 'update';
     }
     var modal = document.getElementById('composeModal');
+    if (!modal) return;
     modal.classList.add('active');
     modal.classList.remove('compose-maximized');
     var btn = document.getElementById('composeFullscreenBtn');
@@ -1776,6 +1770,12 @@ function openComposeModal(type) {
         btn.setAttribute('aria-label', 'Fullscreen');
     }
     updateCharCount();
+    if (type === 'photo') {
+        var fileInput = document.getElementById('compose-image-input');
+        window.setTimeout(function () {
+            if (fileInput) fileInput.click();
+        }, 50);
+    }
 }
 
 function closeComposeModal() {
@@ -1904,6 +1904,7 @@ function toggleLinkInput() {
 document.addEventListener('DOMContentLoaded', function() {
     ensureFeedReactionAudio();
     bindFilterBarScrollHide();
+    bindFeedToolbar();
     document.querySelector('.feed-sticky-toolbar')?.classList.remove('is-hidden');
     document.querySelector('.feed-filter-bar')?.classList.remove('is-hidden');
     document.addEventListener('pointerdown', ensureFeedReactionAudio, { once: true, capture: true });
@@ -1936,15 +1937,15 @@ document.addEventListener('DOMContentLoaded', function() {
             var input = this;
             searchTimer = setTimeout(function() {
                 feedSearch = input.value.trim();
-                renderPosts(true);
-            }, 300);
+                applyFeedView();
+            }, 120);
         });
         searchInput.addEventListener('keydown', function(e) {
             if (e.key === 'Enter') {
                 e.preventDefault();
                 clearTimeout(searchTimer);
                 feedSearch = searchInput.value.trim();
-                renderPosts(true);
+                applyFeedView();
             }
         });
     }

@@ -49,7 +49,7 @@ class MessageService
             ->whereDoesntHave('hides', function ($hideQuery) use ($userId, $userType) {
                 $hideQuery->where('user_id', $userId)->where('user_type', $userType);
             })
-            ->with(['sender', 'reactions', 'attachments'])
+            ->with(['sender', 'reactions.user', 'attachments'])
             ->orderByDesc('id');
 
         if ($beforeId) {
@@ -87,7 +87,7 @@ class MessageService
         $this->conversations->assertCanMessagePeer($conversation, $user);
 
         $body = trim($body);
-        $max = (int) config('communications.message_max_length', 5000);
+        $max = (int) config('communications.message_max_length', 1000);
 
         if (mb_strlen($body) > $max) {
             abort(422, 'Message is too long.');
@@ -165,11 +165,11 @@ class MessageService
         $conversation->touch();
         $this->conversations->markRead($conversation, $user);
 
-        return $message->load(['sender', 'reactions', 'attachments']);
+        return $message->load(['sender', 'reactions.user', 'attachments']);
     }
 
     /**
-     * @return array{message_id: int, reactions: list<array{emoji: string, count: int, mine: bool}>}
+     * @return array{message_id: int, reactions: list<array{emoji: string, count: int, mine: bool, users: list<array{id: int, user_type: string, name: string, mine: bool}>}>}
      */
     public function toggleReaction(Message $message, Authenticatable $user, string $emoji): array
     {
@@ -207,7 +207,7 @@ class MessageService
         }
 
         $message->unsetRelation('reactions');
-        $message->load('reactions');
+        $message->load('reactions.user');
 
         return [
             'message_id' => (int) $message->id,
@@ -223,7 +223,7 @@ class MessageService
         abort_if($message->message_type !== 'text', 422, 'Only text messages can be edited.');
 
         $body = trim($body);
-        $max = (int) config('communications.message_max_length', 5000);
+        $max = (int) config('communications.message_max_length', 1000);
         if ($body === '') {
             abort(422, 'Message body is required.');
         }
@@ -235,7 +235,7 @@ class MessageService
         $message->edited_at = now();
         $message->save();
 
-        return $message->load(['sender', 'reactions', 'attachments']);
+        return $message->load(['sender', 'reactions.user', 'attachments']);
     }
 
     public function deleteForMe(Message $message, Authenticatable $user): void
@@ -258,7 +258,7 @@ class MessageService
         $message->deleted_for_all_at = now();
         $message->save();
 
-        return $message->load(['sender', 'reactions', 'attachments']);
+        return $message->load(['sender', 'reactions.user', 'attachments']);
     }
 
     protected function assertCanViewMessage(Message $message, Authenticatable $user): void
@@ -359,12 +359,16 @@ class MessageService
     }
 
     /**
-     * @return list<array{emoji: string, count: int, mine: bool}>
+     * @return list<array{emoji: string, count: int, mine: bool, users: list<array{id: int, user_type: string, name: string, mine: bool}>}>
      */
     public function serializeReactions(Message $message, Authenticatable $viewer): array
     {
         $portalType = $this->types->portalType();
         $viewerId = (int) $viewer->id;
+        $viewerName = trim((string) ($viewer->name ?? ''));
+        if ($viewerName === '') {
+            $viewerName = 'You';
+        }
         $grouped = [];
 
         foreach ($message->reactions as $reaction) {
@@ -373,12 +377,25 @@ class MessageService
                 continue;
             }
             if (! isset($grouped[$emoji])) {
-                $grouped[$emoji] = ['emoji' => $emoji, 'count' => 0, 'mine' => false];
+                $grouped[$emoji] = ['emoji' => $emoji, 'count' => 0, 'mine' => false, 'users' => []];
             }
+
+            $isMine = (int) $reaction->user_id === $viewerId && $reaction->user_type === $portalType;
+            $name = $isMine ? $viewerName : trim((string) ($reaction->user?->name ?? ''));
+            if ($name === '') {
+                $name = 'Someone';
+            }
+
             $grouped[$emoji]['count']++;
-            if ((int) $reaction->user_id === $viewerId && $reaction->user_type === $portalType) {
+            if ($isMine) {
                 $grouped[$emoji]['mine'] = true;
             }
+            $grouped[$emoji]['users'][] = [
+                'id' => (int) $reaction->user_id,
+                'user_type' => (string) $reaction->user_type,
+                'name' => $name,
+                'mine' => $isMine,
+            ];
         }
 
         return array_values($grouped);

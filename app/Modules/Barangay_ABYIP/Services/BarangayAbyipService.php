@@ -28,6 +28,10 @@ class BarangayAbyipService
 
         return Abyip::query()
             ->documents()
+            ->where(function ($query) {
+                $query->whereNull('status')
+                    ->orWhere('status', '!=', 'draft');
+            })
             ->with(['barangay:id,name', 'creator:id,name', 'creator.officialProfile:id,user_id,position'])
             ->orderByDesc('created_at')
             ->get()
@@ -51,7 +55,7 @@ class BarangayAbyipService
     {
         $document = $this->findDocument($id);
 
-        if ($document->source_type !== 'pdf' || ! filled($document->pdf_data)) {
+        if (! filled($document->pdf_data)) {
             throw ValidationException::withMessages([
                 'document' => ['PDF file not found for this submission.'],
             ]);
@@ -150,6 +154,10 @@ class BarangayAbyipService
     {
         $document = Abyip::query()
             ->documents()
+            ->where(function ($query) {
+                $query->whereNull('status')
+                    ->orWhere('status', '!=', 'draft');
+            })
             ->with(['barangay:id,name', 'creator:id,name', 'creator.officialProfile:id,user_id,position'])
             ->find($id);
 

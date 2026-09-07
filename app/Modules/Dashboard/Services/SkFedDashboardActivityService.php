@@ -11,13 +11,13 @@ use Illuminate\Support\Facades\Schema;
 
 class SkFedDashboardActivityService
 {
-    public function recentActivity(?int $tenantId, int $limit = 12): array
+    public function recentActivity(?int $tenantId, int $limit = 12, ?string $dateFrom = null, ?string $dateTo = null): array
     {
         if (! Schema::hasTable('sk_fed_activities')) {
             return [];
         }
 
-        return $this->baseQuery($tenantId)
+        return $this->baseQuery($tenantId, $dateFrom, $dateTo)
             ->limit($limit)
             ->get()
             ->map(fn (SkFedActivity $activity) => $this->formatActivity($activity))
@@ -27,7 +27,13 @@ class SkFedDashboardActivityService
     /**
      * @return array{data: list<array<string, string>>, meta: array<string, int>}
      */
-    public function paginatedActivities(?int $tenantId, int $page = 1, int $perPage = 20): array
+    public function paginatedActivities(
+        ?int $tenantId,
+        int $page = 1,
+        int $perPage = 20,
+        ?string $dateFrom = null,
+        ?string $dateTo = null,
+    ): array
     {
         if (! Schema::hasTable('sk_fed_activities')) {
             return [
@@ -44,7 +50,7 @@ class SkFedDashboardActivityService
         }
 
         /** @var LengthAwarePaginator $paginator */
-        $paginator = $this->baseQuery($tenantId)
+        $paginator = $this->baseQuery($tenantId, $dateFrom, $dateTo)
             ->paginate($perPage, ['*'], 'page', $page);
 
         return [
@@ -62,14 +68,36 @@ class SkFedDashboardActivityService
         ];
     }
 
-    public function upcomingCalendarNotes(int $limit = 6): array
+    public function upcomingCalendarNotes(int $limit = 6, ?string $dateFrom = null, ?string $dateTo = null): array
     {
         if (! Schema::hasTable('sk_federations_calendar')) {
             return [];
         }
 
-        return SkFederationCalendarNote::query()
-            ->whereDate('note_date', '>', now()->toDateString())
+        $from = trim((string) $dateFrom);
+        $to = trim((string) $dateTo);
+        $today = now()->toDateString();
+
+        $query = SkFederationCalendarNote::query();
+
+        if ($from !== '' && $to !== '') {
+            if ($from > $to) {
+                [$from, $to] = [$to, $from];
+            }
+
+            $query->where(function ($rangeQuery) use ($from, $to, $today): void {
+                $rangeQuery->whereDate('note_date', '>=', $from)
+                    ->whereDate('note_date', '<=', $to);
+
+                if ($to >= $today) {
+                    $rangeQuery->orWhereDate('note_date', '>', $today);
+                }
+            });
+        } else {
+            $query->whereDate('note_date', '>', $today);
+        }
+
+        return $query
             ->orderBy('note_date')
             ->limit($limit)
             ->get()
@@ -111,14 +139,28 @@ class SkFedDashboardActivityService
     /**
      * @return Builder<SkFedActivity>
      */
-    private function baseQuery(?int $tenantId)
+    private function baseQuery(?int $tenantId, ?string $dateFrom = null, ?string $dateTo = null)
     {
-        return SkFedActivity::query()
+        $query = SkFedActivity::query()
             ->with(['user.officialProfile'])
             ->when($tenantId !== null, function ($query) use ($tenantId) {
                 $query->whereHas('user', fn ($userQuery) => $userQuery->where('tenant_id', $tenantId));
             })
             ->orderByDesc('created_at');
+
+        $from = trim((string) $dateFrom);
+        $to = trim((string) $dateTo);
+        if ($from !== '' && $to !== '' && $from > $to) {
+            [$from, $to] = [$to, $from];
+        }
+        if ($from !== '') {
+            $query->whereDate('created_at', '>=', $from);
+        }
+        if ($to !== '') {
+            $query->whereDate('created_at', '<=', $to);
+        }
+
+        return $query;
     }
 
     /**

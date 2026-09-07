@@ -1,0 +1,632 @@
+@page {
+    margin: 0;
+}
+
+body.kk-print-body {
+    margin: 0;
+    padding: 0;
+    background: #fff;
+    color: #111;
+}
+
+.kk-print-root {
+    width: 100%;
+    margin: 0 auto;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+.kk-print-sheet {
+    width: 100%;
+    max-width: none;
+    margin: 0;
+    padding: 0.7in 0.45in 0.35in;
+    box-sizing: border-box;
+    page-break-after: always;
+    break-after: page;
+}
+
+.kk-print-sheet:last-child {
+    page-break-after: auto;
+    break-after: auto;
+}
+
+.kk-print-questionnaire.kk-view-paper,
+.kk-print-questionnaire.kkp-paper {
+    box-shadow: none !important;
+    border: none !important;
+    border-radius: 0 !important;
+    padding: 0 !important;
+    margin: 0;
+    max-width: none;
+    overflow: visible;
+    background: #fff;
+}
+
+.kk-print-questionnaire .kkp-form-main-title,
+.kk-print-questionnaire .kkf-section-title {
+    color: #111;
+}
+
+/* Title on the left, respondent/date + logo on the right */
+.kk-print-questionnaire .kkp-form-header {
+    display: flex;
+    flex-direction: row;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    padding-bottom: 8px;
+    margin-bottom: 12px;
+}
+
+.kk-print-questionnaire .kkp-form-title-col {
+    display: flex;
+    flex-direction: row;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    text-align: left;
+    flex: 1;
+}
+
+.kk-print-questionnaire .kkp-form-main-title {
+    font-size: 13px;
+    font-weight: 900;
+    text-align: left;
+    margin: 0;
+    align-self: flex-start;
+}
+
+.kk-print-questionnaire .kkp-form-header-right {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    margin-left: auto;
+    gap: 2px;
+}
+
+.kk-print-questionnaire .kkp-form-annex {
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.5px;
+    color: #333;
+}
+
+.kk-print-questionnaire .kkp-form-header-fields {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 2px;
+    margin: 0;
+}
+
+.kk-print-questionnaire .kkp-hdr-field {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    white-space: nowrap;
+}
+
+.kk-print-questionnaire .kkp-hdr-input,
+.kk-print-questionnaire .kkp-hdr-input-readonly {
+    display: inline-block;
+    min-width: 120px;
+    border: none;
+    border-bottom: 1px solid #555;
+    text-align: center;
+    padding: 1px 4px;
+    font-size: 11px;
+    line-height: 1.3;
+    white-space: nowrap;
+}
+
+.kk-print-questionnaire .kkp-form-logo {
+    display: none !important;
+}
+
+.kk-print-questionnaire .kkp-uline-age {
+    width: 64px;
+    min-width: 64px;
+}
+
+.kk-print-questionnaire .kkp-birthday-field {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0;
+}
+
+.kk-print-questionnaire .kkp-birthday-hint,
+.kk-print-questionnaire .kkp-hint {
+    font-size: 8px;
+    color: #555;
+    line-height: 1.2;
+}
+
+.kk-print-questionnaire.kk-view-paper .kkp-demo-block-options.kkp-youth-class-layout,
+.kk-print-questionnaire .kkp-demo-block-options.kkp-youth-class-layout {
+    grid-template-columns: auto minmax(0, 1fr) !important;
+    min-width: 0 !important;
+    overflow: hidden !important;
+}
+
+.kk-print-questionnaire.kk-view-paper .kkp-youth-class-side,
+.kk-print-questionnaire .kkp-youth-class-side,
+.kk-print-questionnaire.kk-view-paper .kkp-youth-specific-options,
+.kk-print-questionnaire .kkp-youth-specific-options {
+    min-width: 0 !important;
+    max-width: 100% !important;
+}
+
+.kk-print-questionnaire .kkp-youth-specific-options {
+    flex: 1 1 auto !important;
+}
+
+.kk-print-questionnaire.kk-view-paper .kkp-youth-specific-options .kkp-chk-lbl,
+.kk-print-questionnaire .kkp-youth-specific-options .kkp-chk-lbl {
+    white-space: normal !important;
+    align-items: flex-start !important;
+    max-width: 100% !important;
+    font-size: 9px !important;
+    line-height: 1.2 !important;
+    overflow-wrap: break-word;
+}
+
+.kk-print-questionnaire .kkp-name-row {
+    display: grid !important;
+    grid-template-columns: 2.5fr 2.5fr 2.5fr 1.2fr !important;
+}
+
+.kk-print-questionnaire .kkp-loc-row {
+    display: grid !important;
+    grid-template-columns: repeat(5, 1fr) !important;
+}
+
+.kk-print-questionnaire .kkp-loc-col:nth-child(5) {
+    grid-column: auto !important;
+}
+
+.kk-print-questionnaire .kkp-name-col {
+    grid-column: auto !important;
+}
+
+.kk-print-questionnaire .kkp-personal-row {
+    display: grid !important;
+    grid-template-columns: minmax(120px, auto) minmax(140px, 1fr) minmax(160px, 1.2fr) !important;
+}
+
+.kk-print-questionnaire .kkp-demo-grid,
+.kk-print-questionnaire .kkp-voter-questions-grid {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr !important;
+}
+
+.kk-print-questionnaire .kkp-form-clear-bar,
+.kk-print-questionnaire .kkp-form-clear-btn,
+.kk-print-questionnaire .kkp-assembly-arrow {
+    display: none !important;
+}
+
+.kk-print-questionnaire .kkp-sig-section-left {
+    display: block;
+    width: 280px;
+    max-width: 42%;
+    margin: 20px 0 0;
+    padding-top: 0;
+}
+
+.kk-print-questionnaire .kkp-sig-container,
+.kk-print-questionnaire .kkp-sig-container--print {
+    position: static;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 100%;
+    margin: 0;
+}
+
+.kk-print-questionnaire .kkp-sig-overlay,
+.kk-print-questionnaire .kkp-sig-overlay-img {
+    display: none !important;
+}
+
+.kk-print-questionnaire .kkp-sig-print-img {
+    display: block;
+    position: static;
+    margin: 0 auto 4px;
+    max-width: 220px;
+    max-height: 48px;
+    width: auto;
+    height: auto;
+    object-fit: contain;
+}
+
+.kk-print-questionnaire .kkp-sig-name-wrapper,
+.kk-print-questionnaire .kkp-sig-name-input,
+.kk-print-questionnaire .kkp-sig-name-input.kkp-view-value {
+    display: block;
+    width: 100%;
+    text-align: center;
+}
+
+.kk-print-questionnaire .kkp-sig-label-bottom {
+    width: 100%;
+    text-align: center;
+}
+
+@media print {
+    @page {
+        margin: 0;
+    }
+
+    body.kk-print-body {
+        background: #fff;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+        margin: 0;
+        padding: 0;
+    }
+
+    .kk-print-sheet {
+        max-width: none;
+        padding: 0.7in 0.45in 0.35in;
+        box-sizing: border-box;
+        page-break-after: always;
+        page-break-inside: avoid;
+        break-inside: avoid-page;
+        break-after: page;
+    }
+
+    .kk-print-sheet:last-child {
+        page-break-after: auto;
+        break-after: auto;
+    }
+
+    .kk-print-questionnaire.kk-view-paper,
+    .kk-print-questionnaire.kkp-paper {
+        font-size: 12px;
+        padding: 0 !important;
+        box-shadow: none !important;
+        border: none !important;
+        outline: none !important;
+        width: 100%;
+        box-sizing: border-box;
+        background: #fff !important;
+        overflow: visible;
+        zoom: 1 !important;
+    }
+
+    .kk-print-questionnaire .kkp-form-header {
+        display: flex !important;
+        flex-direction: row !important;
+        align-items: flex-start !important;
+        justify-content: space-between !important;
+        margin-bottom: 6px;
+        padding-bottom: 4px;
+    }
+
+    .kk-print-questionnaire .kkp-form-title-col {
+        display: flex !important;
+        flex-direction: row !important;
+        align-items: flex-start !important;
+        justify-content: space-between !important;
+        text-align: left !important;
+        flex: 1;
+    }
+
+    .kk-print-questionnaire .kkp-form-main-title {
+        text-align: left !important;
+        align-self: flex-start !important;
+    }
+
+    .kk-print-questionnaire .kkp-form-header-right {
+        display: flex !important;
+        flex-direction: column !important;
+        align-items: flex-end !important;
+        margin-left: auto !important;
+        gap: 2px !important;
+    }
+
+    .kk-print-questionnaire .kkp-form-header-fields {
+        display: flex !important;
+        flex-direction: column !important;
+        align-items: flex-end !important;
+        justify-content: flex-start !important;
+        margin-left: 0 !important;
+        margin-right: 0 !important;
+    }
+
+    .kk-print-questionnaire .kkp-form-logo,
+    .kk-print-questionnaire .kkp-form-logo img {
+        display: none !important;
+    }
+
+    .kk-print-questionnaire .kkp-name-row,
+    .kk-print-questionnaire .kkp-loc-row {
+        display: grid !important;
+        flex-wrap: unset;
+        align-items: flex-end;
+    }
+
+    .kk-print-questionnaire .kkp-name-row {
+        grid-template-columns: 2.5fr 2.5fr 2.5fr 1.2fr !important;
+    }
+
+    .kk-print-questionnaire .kkp-loc-row {
+        grid-template-columns: repeat(5, 1fr) !important;
+    }
+
+    .kk-print-questionnaire .kkp-personal-center {
+        border-left: 1px solid #ddd !important;
+        border-right: 1px solid #ddd !important;
+        border-top: none !important;
+        border-bottom: none !important;
+        padding: 0 10px !important;
+    }
+
+    .kk-print-questionnaire .kkp-demo-block {
+        min-width: 0;
+        flex-direction: row !important;
+        flex-wrap: nowrap !important;
+        align-items: stretch !important;
+    }
+
+    .kk-print-questionnaire .kkp-demo-block-label {
+        min-width: 80px;
+        max-width: 80px;
+        width: 80px;
+        padding: 4px 5px;
+        font-size: 10px;
+        border-right: 1px solid #bbb;
+        border-bottom: none;
+    }
+
+    .kk-print-questionnaire .kkp-demo-block-options {
+        min-width: 0;
+        padding: 4px 6px !important;
+        gap: 1px !important;
+    }
+
+    .kk-print-questionnaire .kkp-demo-two-col {
+        gap: 12px;
+    }
+
+    .kk-print-questionnaire .kkp-sq-chk {
+        width: 12px;
+        height: 12px;
+        margin: 0;
+        flex-shrink: 0;
+    }
+
+    .kk-print-questionnaire .kkp-assembly-why {
+        overflow: visible;
+        min-width: 0;
+        flex: 1;
+    }
+
+    .kk-print-questionnaire .kkp-assembly-why .kkp-demo-block-label {
+        min-width: 72px;
+        max-width: 72px;
+        width: 72px;
+    }
+
+    .kk-print-questionnaire .kkp-assembly-why .kkp-demo-block-options {
+        overflow: visible;
+        min-width: 0;
+        flex: 1;
+        padding: 3px 4px !important;
+    }
+
+    .kk-print-questionnaire .kkp-assembly-why .kkp-chk-lbl {
+        white-space: normal !important;
+        flex-wrap: nowrap;
+        align-items: flex-start;
+        width: 100%;
+        max-width: 100%;
+        font-size: 9px !important;
+        line-height: 1.25;
+        gap: 4px;
+    }
+
+    .kk-print-questionnaire .kkp-assembly-why .kkp-chk-lbl span {
+        display: block;
+        flex: 1;
+        min-width: 0;
+        white-space: normal;
+        overflow: visible;
+        word-break: normal;
+        overflow-wrap: break-word;
+    }
+
+    .kk-print-questionnaire .kkp-assembly-why .kkp-sq-chk {
+        margin-top: 1px;
+    }
+
+    .kk-print-questionnaire .kkp-chk-lbl {
+        white-space: nowrap;
+        font-size: 11px;
+        line-height: 1.4;
+        gap: 4px;
+        padding: 1px 0;
+    }
+
+    .kk-print-questionnaire.kk-view-paper .kkp-demo-block-options.kkp-youth-class-layout,
+    .kk-print-questionnaire .kkp-demo-block-options.kkp-youth-class-layout {
+        grid-template-columns: auto minmax(0, 1fr) !important;
+        min-width: 0 !important;
+        overflow: hidden !important;
+    }
+
+    .kk-print-questionnaire.kk-view-paper .kkp-youth-class-side,
+    .kk-print-questionnaire .kkp-youth-class-side,
+    .kk-print-questionnaire.kk-view-paper .kkp-youth-specific-options,
+    .kk-print-questionnaire .kkp-youth-specific-options {
+        min-width: 0 !important;
+        max-width: 100% !important;
+    }
+
+    .kk-print-questionnaire.kk-view-paper .kkp-youth-specific-options .kkp-chk-lbl,
+    .kk-print-questionnaire .kkp-youth-specific-options .kkp-chk-lbl {
+        white-space: normal !important;
+        align-items: flex-start !important;
+        max-width: 100% !important;
+        font-size: 9px !important;
+        line-height: 1.2 !important;
+        overflow-wrap: break-word;
+    }
+
+    .kk-view-evaluation-banner {
+        display: none !important;
+    }
+
+    .kk-print-questionnaire .kkp-personal-row {
+        display: grid !important;
+        grid-template-columns: minmax(120px, auto) minmax(140px, 1fr) minmax(160px, 1.2fr) !important;
+    }
+
+    .kk-print-questionnaire .kkp-demo-grid,
+    .kk-print-questionnaire .kkp-voter-questions-grid {
+        display: grid !important;
+        grid-template-columns: 1fr 1fr !important;
+        min-width: 0;
+    }
+
+    .kk-print-questionnaire .kkp-voter-questions-col {
+        min-width: 0;
+        overflow: visible;
+    }
+
+    .kk-print-questionnaire .kkf-notice-box,
+    .kk-print-questionnaire .kkp-notice-box {
+        padding: 3px 6px;
+        margin: 2px 0 4px;
+    }
+
+    .kk-print-questionnaire .kkf-notice-body,
+    .kk-print-questionnaire .kkp-notice-body {
+        line-height: 1.2;
+        margin-bottom: 2px;
+        font-size: 8px;
+    }
+
+    .kk-print-questionnaire .kkf-notice-body br,
+    .kk-print-questionnaire .kkp-notice-body br {
+        display: none;
+    }
+
+    .kk-print-questionnaire .kkf-section-title,
+    .kk-print-questionnaire .kkp-section-heading {
+        margin: 3px 0 2px;
+        padding-bottom: 1px;
+        font-size: 9px;
+    }
+
+    .kk-print-questionnaire .kkf-instruction,
+    .kk-print-questionnaire .kkp-instruction,
+    .kk-print-questionnaire .kkp-demo-instruction {
+        margin-bottom: 2px;
+        font-size: 8px;
+    }
+
+    .kk-print-questionnaire .kkf-name-row,
+    .kk-print-questionnaire .kkf-loc-row,
+    .kk-print-questionnaire .kkp-name-row,
+    .kk-print-questionnaire .kkp-loc-row {
+        margin-bottom: 2px;
+        gap: 3px;
+    }
+
+    .kk-print-questionnaire .kkf-personal-row {
+        margin-bottom: 3px;
+    }
+
+    .kk-print-questionnaire .kkf-demo-grid,
+    .kk-print-questionnaire .kkp-demo-grid {
+        gap: 4px;
+        margin-bottom: 2px;
+    }
+
+    .kk-print-questionnaire .kkf-demo-col {
+        gap: 5px;
+    }
+
+    .kk-print-questionnaire .kkf-demo-block-options,
+    .kk-print-questionnaire .kkp-demo-block-options {
+        padding: 4px 6px;
+        gap: 1px;
+    }
+
+    .kk-print-questionnaire .kkf-chk-lbl {
+        font-size: 11px;
+        line-height: 1.4;
+    }
+
+    .kk-print-questionnaire .kkf-footer-row,
+    .kk-print-questionnaire .kkp-footer-row {
+        margin-top: 10px;
+        padding-top: 6px;
+        margin-bottom: 4px;
+    }
+
+    .kk-print-questionnaire .kkp-thankyou {
+        margin-top: 6px;
+        margin-bottom: 4px;
+        font-size: 9px;
+    }
+
+    .kk-print-questionnaire .kkf-sig-section,
+    .kk-print-questionnaire .kkp-sig-section,
+    .kk-print-questionnaire .kkp-sig-section-left {
+        display: block !important;
+        width: 280px;
+        max-width: 42%;
+        margin-top: 16px;
+        padding-top: 0;
+        page-break-inside: avoid;
+    }
+
+    .kk-print-questionnaire .kkp-sig-container,
+    .kk-print-questionnaire .kkp-sig-container--print {
+        position: static !important;
+        display: flex !important;
+        flex-direction: column !important;
+        align-items: center !important;
+        width: 100% !important;
+        margin: 0 !important;
+    }
+
+    .kk-print-questionnaire .kkp-sig-overlay,
+    .kk-print-questionnaire .kkf-sig-overlay,
+    .kk-print-questionnaire .kkp-sig-overlay-img {
+        display: none !important;
+    }
+
+    .kk-print-questionnaire .kkp-sig-print-img {
+        display: block !important;
+        position: static !important;
+        margin: 0 auto 4px !important;
+        max-width: 220px !important;
+        max-height: 48px !important;
+        width: auto !important;
+        height: auto !important;
+        object-fit: contain;
+    }
+
+    .kk-print-questionnaire .kkf-voter-section,
+    .kk-print-questionnaire .kkf-voter-row {
+        margin-top: 2px;
+        gap: 3px;
+    }
+
+    .kk-print-questionnaire .kkf-row-label,
+    .kk-print-questionnaire .kkp-row-label {
+        margin-bottom: 1px;
+    }
+
+    .kk-print-questionnaire .kkp-responsive-container {
+        padding: 0 !important;
+        margin: 0 !important;
+        max-width: none !important;
+        overflow: visible !important;
+    }
+}

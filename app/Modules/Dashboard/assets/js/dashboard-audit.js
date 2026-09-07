@@ -76,9 +76,14 @@ document.addEventListener('DOMContentLoaded', function () {
             return;
         }
 
+        const range = typeof window.getDashboardDateRange === 'function'
+            ? window.getDashboardDateRange()
+            : { date_from: '', date_to: '' };
         const params = new URLSearchParams({
             page: String(state.page),
             per_page: String(state.perPage),
+            date_from: range.date_from || '',
+            date_to: range.date_to || '',
         });
         const cacheKey = 'sk_fed_dash_audit_v1_' + params.toString();
         const cached = window.SkLocalCache?.get(cacheKey);
@@ -205,14 +210,7 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     });
 
-    scheduleDashboardAuditFetch(fetchLogs);
+    document.addEventListener('dashboard:date-range-changed', fetchLogs);
+
+    fetchLogs();
 });
-
-function scheduleDashboardAuditFetch(callback) {
-    if (typeof window.requestIdleCallback === 'function') {
-        window.requestIdleCallback(callback, { timeout: 1500 });
-        return;
-    }
-
-    window.setTimeout(callback, 120);
-}

@@ -79,6 +79,17 @@
     text-align: center;
 }
 
+.kk-view-paper .kkp-hdr-field .kkp-view-value,
+.kk-view-paper .kkp-hdr-field .kkp-hdr-input {
+    display: inline-block;
+    width: auto;
+    min-width: 120px;
+    max-width: none;
+    word-break: normal;
+    overflow-wrap: normal;
+    white-space: nowrap;
+}
+
 .kk-view-paper .kkp-hdr-input-auto,
 .kkp-hdr-input-auto {
     min-width: 130px !important;

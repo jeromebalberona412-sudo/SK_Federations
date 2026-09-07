@@ -11,7 +11,9 @@
 <div class="comms-msg-popover" id="commsMsgPopover" role="menu" aria-label="Messages">
     <div class="comms-msg-popover-header">
         <div class="comms-msg-popover-title">
-            <i class="fas fa-comments" aria-hidden="true"></i>
+            <span class="comms-msg-header-icon-btn comms-msg-header-icon-btn--title" aria-hidden="true">
+                <i class="fas fa-comments"></i>
+            </span>
             <h4>Chats</h4>
             <span
                 class="comms-msg-count-pill"
@@ -20,16 +22,16 @@
             >{{ $unreadMsgLabel }}</span>
         </div>
         <div class="comms-msg-header-actions">
-            <a
-                href="{{ $messagesIndexUrl }}"
+            <button
+                type="button"
                 class="comms-msg-header-icon-btn"
                 id="commsMsgOpenFull"
                 data-no-loading
-                title="Open Messages"
-                aria-label="Open full Messages page"
+                title="Open fullscreen Messages"
+                aria-label="Open fullscreen Messages"
             >
                 <i class="fas fa-expand" aria-hidden="true"></i>
-            </a>
+            </button>
             <a
                 href="{{ $messagesIndexUrl }}"
                 class="comms-msg-header-icon-btn"

@@ -4,6 +4,7 @@ namespace App\Modules\KabataanMonitoring\Services;
 
 use App\Models\KabataanRegistration;
 use App\Modules\AuditLog\Contracts\AuditLogInterface;
+use App\Modules\KabataanMonitoring\Support\KabataanQuestionnairePrintPresenter;
 use App\Modules\Shared\Models\User;
 use App\Services\BarangayLogoUrlService;
 use Illuminate\Http\UploadedFile;
@@ -202,6 +203,43 @@ class KabataanMonitoringService
             $record,
             $this->buildQuestionnaireFields($record, $formData),
         ))->render();
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    public function printSheetData(int $id): ?array
+    {
+        $record = $this->find($id);
+        if ($record === null) {
+            return null;
+        }
+
+        $formData = is_array($record->form_data) ? $record->form_data : [];
+        $form = $this->buildQuestionnaireFields($record, $formData);
+        $view = $this->questionnaireViewData($record, $form);
+
+        return KabataanQuestionnairePrintPresenter::fromForm(
+            $form,
+            $view['barangayLogoUrl'] ?? null,
+        );
+    }
+
+    /**
+     * @param  list<int>  $ids
+     * @return list<array<string, mixed>>
+     */
+    public function printSheets(array $ids): array
+    {
+        $sheets = [];
+        foreach (array_values(array_unique($ids)) as $id) {
+            $sheet = $this->printSheetData((int) $id);
+            if ($sheet !== null) {
+                $sheets[] = $sheet;
+            }
+        }
+
+        return $sheets;
     }
 
     /**

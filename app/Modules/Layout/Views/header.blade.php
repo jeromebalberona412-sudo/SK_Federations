@@ -17,7 +17,7 @@
             $unreadNotifCount = (int) ($unreadNotificationCount ?? 0);
             $unreadNotifLabel = $unreadNotifCount > 99 ? '99+' : (string) $unreadNotifCount;
             $unreadMsgCount = (int) ($unreadMessagesCount ?? 0);
-            $unreadMsgLabel = $unreadMsgCount > 99 ? '99+' : (string) $unreadMsgCount;
+            $unreadMsgLabel = $unreadMsgCount >= 9 ? '9+' : (string) $unreadMsgCount;
         @endphp
 
         {{-- Messages (Officials-style icon button + Facebook-style dropdown) --}}
