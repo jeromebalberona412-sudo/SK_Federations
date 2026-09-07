@@ -17,10 +17,15 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" media="print" onload="this.media='all'">
     <noscript><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"></noscript>
-    @vite([
-        'app/Modules/Dashboard/assets/css/dashboard.css',
-        'app/Modules/Layout/assets/css/layout.css',
-    ])
+    @php
+        $layoutVite = \App\Support\ViteManifest::existing([
+            'app/Modules/Dashboard/assets/css/dashboard.css',
+            'app/Modules/Layout/assets/css/layout.css',
+        ]);
+    @endphp
+    @if ($layoutVite !== [])
+        @vite($layoutVite)
+    @endif
     @stack('styles')
     <link rel="stylesheet" href="{{ url('/shared/css/federations-responsive.css') }}?v={{ @filemtime(public_path('shared/css/federations-responsive.css')) ?: time() }}">
 </head>
@@ -49,20 +54,40 @@
     @endauth
 
     @if(!empty($turnoverModal['show']))
-        @vite(['app/Modules/Turnover/assets/css/turnover.css'])
+        @php
+            $turnoverVite = \App\Support\ViteManifest::existing([
+                'app/Modules/Turnover/assets/css/turnover.css',
+                'app/Modules/Turnover/assets/js/turnover.js',
+            ]);
+        @endphp
+        @if ($turnoverVite !== [])
+            @vite($turnoverVite)
+        @endif
         @include('turnover::partials.global-modal', ['turnoverModal' => $turnoverModal])
         <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js" defer></script>
-        @vite(['app/Modules/Turnover/assets/js/turnover.js'])
     @endif
 
     <script src="{{ url('/shared/js/local-data-cache.js') }}?v={{ @filemtime(public_path('shared/js/local-data-cache.js')) ?: time() }}"></script>
     @auth
-        @vite([
-            'app/Modules/Communications/assets/js/communication.js',
-            'app/Modules/Communications/assets/js/realtime.js',
-        ])
+        @php
+            $commsVite = \App\Support\ViteManifest::existing([
+                'app/Modules/Communications/assets/css/communication.css',
+                'app/Modules/Communications/assets/js/communication.js',
+                'app/Modules/Communications/assets/js/realtime.js',
+            ]);
+        @endphp
+        @if ($commsVite !== [])
+            @vite($commsVite)
+        @endif
     @endauth
-    @vite(['app/Modules/Layout/assets/js/layout.js'])
+    @php
+        $layoutJsVite = \App\Support\ViteManifest::existing([
+            'app/Modules/Layout/assets/js/layout.js',
+        ]);
+    @endphp
+    @if ($layoutJsVite !== [])
+        @vite($layoutJsVite)
+    @endif
     <script>
         window.logoutRoute = "{{ route('logout') }}";
         window.loginRoute  = "{{ route('login') }}";
