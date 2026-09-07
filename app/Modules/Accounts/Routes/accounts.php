@@ -38,6 +38,7 @@ Route::middleware(['auth', 'session.timeout', 'verified', 'single.session', 'sk_
 
         Route::put('/accounts/{user}', [AdminAccountController::class, 'update'])->name('accounts.update');
         Route::put('/accounts/{user}/federation-position', [AdminAccountController::class, 'updateFederationPosition'])->name('accounts.federation-position.update');
+        Route::post('/accounts/{user}/resend-setup-email', [AdminAccountController::class, 'resendSetupEmail'])->name('accounts.resend-setup-email');
 
         Route::post('/accounts/{user}/deactivate', [AdminAccountController::class, 'deactivate'])->name('accounts.deactivate');
         Route::post('/accounts/{user}/reset-password', [AdminAccountController::class, 'resetPassword'])->name('accounts.reset-password');

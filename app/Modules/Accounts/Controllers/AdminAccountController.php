@@ -15,6 +15,7 @@ use App\Modules\Accounts\Requests\UpdateAccountRequest;
 use App\Modules\Accounts\Requests\BulkDeactivateAccountsRequest;
 use App\Modules\Accounts\Services\AccountBatchTemplateService;
 use App\Modules\Accounts\Services\AccountService;
+use App\Modules\Accounts\Services\AccountSetupService;
 use App\Modules\Accounts\Services\FederationRosterService;
 use App\Modules\Accounts\Support\SkOfficialTermDates;
 use App\Modules\Shared\Controllers\Controller;
@@ -28,6 +29,7 @@ use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 
 class AdminAccountController extends Controller
@@ -330,7 +332,7 @@ class AdminAccountController extends Controller
             $this->bumpAccountsCache();
 
             $statusMessage = empty($validatedData['password'])
-                ? 'Account created successfully. Password setup email is being sent.'
+                ? AccountSetupService::CREATE_SENT_MESSAGE
                 : 'Account created successfully.';
 
             if ($request->expectsJson()) {
@@ -397,17 +399,70 @@ class AdminAccountController extends Controller
 
         $this->authorize('update', $user);
 
-        $this->accountService->updateAccount($user, $request->validated(), $request->user());
+        $result = $this->accountService->updateAccount($user, $request->validated(), $request->user());
+        $account = $result['account'];
         $this->bumpAccountsCache();
 
+        if ($result['email_changed']) {
+            $message = $result['setup_email_sent']
+                ? AccountSetupService::EMAIL_CHANGED_SENT_MESSAGE
+                : ($result['setup_email_error'] ?: AccountSetupService::EMAIL_CHANGED_FAILED_MESSAGE);
+        } else {
+            $message = 'Account updated successfully.';
+        }
+
         if ($request->expectsJson()) {
+            $account->loadMissing(['barangay', 'officialProfile.latestTerm', 'officialProfile.terms']);
+
             return response()->json([
                 'success' => true,
-                'message' => 'Account updated successfully.',
+                'message' => $message,
+                'email_changed' => $result['email_changed'],
+                'setup_email_sent' => $result['setup_email_sent'],
+                'needs_setup' => app(AccountSetupService::class)->needsAccountSetup($account),
+                'data' => $this->formatAccountForTable($account),
             ]);
         }
 
-        return back()->with('status', 'Account updated successfully.');
+        return back()->with('status', $message);
+    }
+
+    public function resendSetupEmail(Request $request, User $user): JsonResponse
+    {
+        $this->resolveTenantId($request->user());
+        $this->authorize('resendSetupEmail', $user);
+
+        try {
+            $this->accountService->resendAccountSetupEmail($user, $request->user());
+            $this->bumpAccountsCache();
+
+            return response()->json([
+                'success' => true,
+                'message' => AccountSetupService::EMAIL_SENT_MESSAGE,
+            ]);
+        } catch (ValidationException $exception) {
+            $message = collect($exception->errors())->flatten()->first()
+                ?: AccountSetupService::EMAIL_FAILED_MESSAGE;
+
+            return response()->json([
+                'success' => false,
+                'message' => $message,
+                'errors' => $exception->errors(),
+            ], 422);
+        } catch (\Throwable $exception) {
+            report($exception);
+            Log::error('Account setup email sending failed', [
+                'operation' => 'resend_setup_email_controller',
+                'user_id' => $user->id,
+                'exception' => $exception::class,
+                'message' => $exception->getMessage(),
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => AccountSetupService::EMAIL_FAILED_MESSAGE,
+            ], 500);
+        }
     }
 
     public function updateFederationPosition(AssignFederationPositionRequest $request, User $user): JsonResponse
@@ -556,6 +611,7 @@ class AdminAccountController extends Controller
             'email' => $account->email,
             'status' => $account->status,
             'email_verified_at' => $account->email_verified_at?->format('m/d/Y h:i A'),
+            'needs_setup' => app(AccountSetupService::class)->needsAccountSetup($account),
             'display_name' => $displayName,
             'sort_name' => $sortName,
             'search_text' => $searchBlob,

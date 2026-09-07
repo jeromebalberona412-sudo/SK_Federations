@@ -33,5 +33,8 @@
 @endsection
 
 @push('scripts')
+    <script>
+        window.__SK_FED_CALENDAR_BOOT__ = @json($calendarBoot);
+    </script>
     @vite(['app/Modules/Calendar/assets/js/calendar.js'])
 @endpush

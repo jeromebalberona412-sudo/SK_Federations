@@ -35,6 +35,11 @@ class AccountPolicy
         return $this->update($user, $target);
     }
 
+    public function resendSetupEmail(User $user, User $target): bool
+    {
+        return $this->update($user, $target);
+    }
+
     public function extendTerm(User $user, OfficialProfile $profile): bool
     {
         return $user->isFederationAdministrator()

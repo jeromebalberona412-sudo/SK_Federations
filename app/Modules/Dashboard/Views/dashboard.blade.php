@@ -14,8 +14,8 @@
                     $dashYear = (int) ($dashboardYear ?? now()->year);
                     $dashDateFrom = $dateFrom ?? sprintf('%04d-01-01', $dashYear);
                     $dashDateTo = $dateTo ?? now()->toDateString();
-                    $dashTodayIso = now()->toDateString();
-                    $dashTermStart = sprintf('%04d-01-01', $dashYear);
+                    $dashTermStart = $dashDateFrom;
+                    $dashTermEnd = $dashDateTo;
                 @endphp
                 <div class="dash-header-tools" id="dashHeaderTools">
                     <a href="{{ route('calendar') }}" class="dash-today-card" aria-label="Open calendar — Today's date">
@@ -29,7 +29,7 @@
                         class="dash-date-range-filter"
                         id="dashDateRangeFilter"
                         data-default-from="{{ $dashTermStart }}"
-                        data-default-to="{{ $dashTodayIso }}"
+                        data-default-to="{{ $dashTermEnd }}"
                         data-term-year="{{ $dashYear }}"
                     >
                         <div class="dash-date-range-fields">
@@ -62,8 +62,8 @@
                                 type="button"
                                 class="dash-date-reset-btn"
                                 id="dashDateResetBtn"
-                                title="Reset to term year (January 1 – today)"
-                                aria-label="Reset date filter to current term year start"
+                                title="Reset to SK Officials term start and term end"
+                                aria-label="Reset date filter to SK Officials term dates"
                             >
                                 <i class="fas fa-undo" aria-hidden="true"></i>
                             </button>

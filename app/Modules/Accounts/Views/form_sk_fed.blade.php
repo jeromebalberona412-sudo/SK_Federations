@@ -194,7 +194,7 @@
                     <div class="form-grid">
                         <div class="form-group-light">
                             <label class="form-label-light required">Email Address</label>
-                            <input type="email" id="email" name="email" class="form-input-light" placeholder="Email Address" required>
+                            <input type="email" id="email" name="email" class="form-input-light" placeholder="example@email.com" maxlength="64" required autocomplete="off" style="text-transform:lowercase;">
                             <span class="form-error-light"></span>
                         </div>
                     </div>
@@ -289,12 +289,12 @@
                         </div>
                         <div class="form-group-light">
                             <label for="edit_email" class="form-label-light required">Email Address</label>
-                            <input type="email" id="edit_email" name="email" class="form-input-light" required>
+                            <input type="email" id="edit_email" name="email" class="form-input-light" placeholder="example@email.com" maxlength="64" required autocomplete="off" style="text-transform:lowercase;">
                             <span class="form-error-light"></span>
                         </div>
                         <div class="form-group-light">
                             <label for="edit_contact_number" class="form-label-light required">Contact Number</label>
-                            <input type="text" id="edit_contact_number" name="contact_number" class="form-input-light" maxlength="20" placeholder="09XXXXXXXXX" required>
+                            <input type="text" id="edit_contact_number" name="contact_number" class="form-input-light" value="09" maxlength="11" inputmode="numeric" placeholder="09XXXXXXXXX" required>
                             <span class="form-error-light"></span>
                         </div>
                         <div class="form-group-light">
@@ -354,7 +354,7 @@
                         <div class="form-group-light" id="edit_federation_position_group" style="display:none;">
                             <label for="edit_federation_position" class="form-label-light">Assign Federation Position</label>
                             <select id="edit_federation_position" name="federation_position" class="form-input-light">
-                                <option value="">Not assigned yet</option>
+                                <option value="">Select federation position</option>
                                 @foreach(\App\Modules\Accounts\Models\OfficialProfile::federationPositionOptions() as $value => $label)
                                     <option value="{{ $value }}">{{ $label }}</option>
                                 @endforeach

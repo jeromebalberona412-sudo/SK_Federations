@@ -32,14 +32,16 @@ function isValidIsoDate(value) {
 function getDashboardDateRange() {
     const fromInput = document.getElementById('dashDateFrom');
     const toInput = document.getElementById('dashDateTo');
+    const filter = document.getElementById('dashDateRangeFilter');
     const todayIso = getTodayIsoDate();
-    const defaultFrom = `${new Date().getFullYear()}-01-01`;
+    const defaultFrom = filter?.dataset.defaultFrom || `${new Date().getFullYear()}-01-01`;
+    const defaultTo = filter?.dataset.defaultTo || todayIso;
 
     let dateFrom = fromInput?.value || defaultFrom;
-    let dateTo = toInput?.value || todayIso;
+    let dateTo = toInput?.value || defaultTo;
 
     if (!isValidIsoDate(dateFrom) || !isValidIsoDate(dateTo)) {
-        return { date_from: defaultFrom, date_to: todayIso, valid: false };
+        return { date_from: defaultFrom, date_to: defaultTo, valid: false };
     }
 
     if (dateFrom && dateTo && dateFrom > dateTo) {
@@ -84,8 +86,7 @@ function resetDashboardDateRange() {
     }
 
     const todayIso = getTodayIsoDate();
-    const termYear = Number(filter?.dataset.termYear || new Date().getFullYear());
-    const defaultFrom = filter?.dataset.defaultFrom || `${termYear}-01-01`;
+    const defaultFrom = filter?.dataset.defaultFrom || `${new Date().getFullYear()}-01-01`;
     const defaultTo = filter?.dataset.defaultTo || todayIso;
 
     fromInput.value = defaultFrom;

@@ -29,6 +29,23 @@ class PhoneNumberService
         return $this->getCanonicalNumber($input, $region);
     }
 
+    /**
+     * Store-friendly local mobile (09XXXXXXXXX) when parseable; otherwise null.
+     */
+    public function toLocalMobile(?string $input, string $region = self::REGION_PH): ?string
+    {
+        $canonical = $this->getCanonicalNumber($input, $region);
+        if ($canonical === null) {
+            return null;
+        }
+
+        if (preg_match('/^\+63(\d{10})$/', $canonical, $matches) === 1) {
+            return '0'.$matches[1];
+        }
+
+        return $this->toLocal11(preg_replace('/\D+/', '', $canonical) ?? '');
+    }
+
     public function getCanonicalNumber(?string $input, string $region = self::REGION_PH): ?string
     {
         $raw = trim((string) $input);

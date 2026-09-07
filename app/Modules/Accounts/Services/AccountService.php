@@ -5,7 +5,6 @@ namespace App\Modules\Accounts\Services;
 use App\Modules\Accounts\Models\Barangay;
 use App\Modules\Accounts\Models\OfficialProfile;
 use App\Modules\Accounts\Models\OfficialTerm;
-use App\Modules\Accounts\Notifications\AccountResetPasswordNotification;
 use App\Modules\Archive_Management\Services\TermRecordsArchiveService;
 use App\Modules\AuditLog\Contracts\AuditLogInterface;
 use App\Modules\Authentication\Services\BootstrapSkFedAdminService;
@@ -14,9 +13,6 @@ use Carbon\Carbon;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Mail;
-use Illuminate\Support\Facades\Notification;
-use Illuminate\Support\Facades\Password;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
@@ -29,6 +25,7 @@ class AccountService
         private readonly ChairpersonFederationSyncService $chairpersonFederationSyncService,
         private readonly FederationRosterService $federationRosterService,
         private readonly SkOfficialRosterLimitsService $skOfficialRosterLimitsService,
+        private readonly AccountSetupService $accountSetupService,
     ) {}
 
     /**
@@ -87,6 +84,7 @@ class AccountService
                     'row' => $rowNumber,
                     'user' => $user,
                     'role' => $role,
+                    'email' => strtolower(trim((string) $user->email)),
                 ];
                 $created++;
             } catch (ValidationException $exception) {
@@ -129,10 +127,23 @@ class AccountService
 
         foreach ($pendingEmails as $pending) {
             /** @var User $user */
-            $user = $pending['user'];
+            $user = $pending['user']->fresh() ?? $pending['user'];
+            $expectedEmail = strtolower(trim((string) ($pending['email'] ?? $user->email)));
+            $currentEmail = strtolower(trim((string) $user->email));
+
+            // Admin may have edited the email before batch invites finished — never
+            // send a set-up/activation email to a different address than create time.
+            if ($currentEmail === '' || $currentEmail !== $expectedEmail) {
+                Log::info('Skipped batch password setup email because account email changed after create.', [
+                    'user_id' => $user->id,
+                    'operation' => 'batch_setup_email_skipped',
+                ]);
+
+                continue;
+            }
 
             try {
-                $this->sendInitialResetLink($user, $pending['role'], resetMailTransport: false);
+                $this->accountSetupService->sendSetupEmail($user, $pending['role'], resetMailTransport: false);
                 $emailsSent++;
             } catch (\Throwable $exception) {
                 report($exception);
@@ -145,8 +156,8 @@ class AccountService
             }
         }
 
-        if (method_exists(Mail::class, 'purgeSymfonyTransport')) {
-            Mail::purgeSymfonyTransport();
+        if (method_exists(\Illuminate\Support\Facades\Mail::class, 'purgeSymfonyTransport')) {
+            \Illuminate\Support\Facades\Mail::purgeSymfonyTransport();
         }
 
         return [
@@ -250,9 +261,22 @@ class AccountService
         });
 
         if ($shouldSendReset && $sendPasswordEmail) {
-            // Validate portal URL now, but send SMTP after the HTTP response so
-            // slow mail servers cannot time out / roll back account creation.
-            $this->queueInitialResetLinkAfterResponse($user, $normalizedData['role'] ?? null);
+            try {
+                // Send immediately (sendNow) so setup mail is not lost when no queue worker runs.
+                $this->accountSetupService->sendSetupEmailOrFail($user, $normalizedData['role'] ?? null);
+            } catch (ValidationException $exception) {
+                // Account already exists — keep it and let the admin resend from the actions menu.
+                Log::error('Account setup email sending failed', [
+                    'operation' => 'create_account_setup',
+                    'user_id' => $user->id,
+                    'exception' => ValidationException::class,
+                    'message' => collect($exception->errors())->flatten()->first(),
+                ]);
+
+                throw ValidationException::withMessages([
+                    'email' => 'Account was created, but the account setup email could not be sent. Please use Resend Account Setup Email.',
+                ]);
+            }
         }
 
         $this->logAuditAction(
@@ -300,35 +324,19 @@ class AccountService
             $this->rollbackCreatedAccount($existing);
         }
 
-        $this->clearPasswordResetTokensForEmail($normalizedEmail);
+        $this->accountSetupService->invalidateTokensForEmail($normalizedEmail);
     }
 
     private function clearInvitationStateForUser(User $user): void
     {
-        $this->clearPasswordResetTokensForEmail((string) $user->email);
-
-        if (Schema::hasTable('sk_official_email_verified_devices')) {
-            DB::table('sk_official_email_verified_devices')->where('user_id', $user->id)->delete();
-        }
-
-        if (Schema::hasTable('sk_fed_email_verified_devices')) {
-            DB::table('sk_fed_email_verified_devices')->where('user_id', $user->id)->delete();
-        }
+        $this->accountSetupService->invalidateTokensForUser($user);
     }
 
-    private function clearPasswordResetTokensForEmail(string $email): void
-    {
-        $normalizedEmail = strtolower(trim($email));
-
-        if ($normalizedEmail === '') {
-            return;
-        }
-
-        $table = (string) config('auth.passwords.users.table', 'password_reset_tokens');
-        DB::table($table)->where('email', $normalizedEmail)->delete();
-    }
-
-    public function updateAccount(User $account, array $data, User $admin): User
+    /**
+     * @param  array<string, mixed>  $data
+     * @return array{account: User, email_changed: bool, setup_email_sent: bool, setup_email_error: ?string}
+     */
+    public function updateAccount(User $account, array $data, User $admin): array
     {
         $this->assertSameTenant($account->tenant_id, $admin->tenant_id, 'Target account is outside your tenant scope.');
 
@@ -339,24 +347,33 @@ class AccountService
         }
 
         $normalizedData = $this->withNormalizedMiddleName($data);
+        $previousEmail = strtolower(trim((string) $account->email));
+        $newEmail = strtolower(trim((string) $normalizedData['email']));
+        $emailChanged = $previousEmail !== $newEmail;
 
-        if ($account->role === User::ROLE_SK_OFFICIAL) {
-            $this->skOfficialRosterLimitsService->assertRosterLimits(
-                (int) $admin->tenant_id,
-                (int) ($normalizedData['barangay_id'] ?? $account->barangay_id),
-                (string) ($normalizedData['position'] ?? $account->officialProfile?->position ?? ''),
-                (int) $account->id,
-                (string) ($normalizedData['term_start'] ?? ''),
-                (string) ($normalizedData['term_end'] ?? ''),
-            );
-        }
+        $fresh = DB::transaction(function () use ($account, $normalizedData, $admin, $previousEmail, $newEmail, $emailChanged) {
+            if ($account->role === User::ROLE_SK_OFFICIAL) {
+                $this->skOfficialRosterLimitsService->assertRosterLimits(
+                    (int) $admin->tenant_id,
+                    (int) ($normalizedData['barangay_id'] ?? $account->barangay_id),
+                    (string) ($normalizedData['position'] ?? $account->officialProfile?->position ?? ''),
+                    (int) $account->id,
+                    (string) ($normalizedData['term_start'] ?? ''),
+                    (string) ($normalizedData['term_end'] ?? ''),
+                );
+            }
 
-        return DB::transaction(function () use ($account, $normalizedData, $admin) {
             $account->forceFill([
                 'name' => $this->buildFullName($normalizedData),
-                'email' => $normalizedData['email'],
-                'status' => $normalizedData['status'],
+                'email' => $newEmail,
+                'status' => $emailChanged
+                    ? User::STATUS_PENDING_APPROVAL
+                    : $normalizedData['status'],
             ])->save();
+
+            if ($emailChanged) {
+                $this->accountSetupService->prepareAccountForEmailChange($account->fresh(), $previousEmail);
+            }
 
             $this->assignBarangay($account, (int) $normalizedData['barangay_id']);
 
@@ -451,78 +468,87 @@ class AccountService
                 'account_updated',
                 'users',
                 (string) $account->id,
-                ['email' => $account->email]
+                [
+                    'email' => $newEmail,
+                    'email_changed' => $emailChanged,
+                    'previous_email_changed' => $emailChanged,
+                ]
             );
 
-            $fresh = $account->fresh(['officialProfile.terms', 'barangay']);
+            $updated = $account->fresh(['officialProfile.terms', 'barangay']);
 
-            if ($fresh->officialProfile) {
-                $this->chairpersonFederationSyncService->syncForUser($fresh, (string) $fresh->officialProfile->position);
+            if ($updated->officialProfile) {
+                $this->chairpersonFederationSyncService->syncForUser($updated, (string) $updated->officialProfile->position);
             }
 
-            return $fresh;
+            return $updated;
         });
-    }
 
-    private function sendInitialResetLinkOrFail(User $user, ?string $role = null): void
-    {
-        try {
-            $this->sendInitialResetLink($user, $role);
-        } catch (ValidationException $exception) {
-            throw $exception;
-        } catch (\RuntimeException $exception) {
-            if (str_contains($exception->getMessage(), 'target application URL is not configured')) {
-                throw ValidationException::withMessages([
-                    'email' => 'Password setup email could not be sent because the portal URL is not configured. Set SK_OFFICIALS_APP_URL (and SK_FED_APP_URL if needed) in .env, then run php artisan config:clear.',
-                ]);
-            }
+        $setupEmailSent = false;
+        $setupEmailError = null;
 
-            report($exception);
-
-            throw ValidationException::withMessages([
-                'email' => 'Unable to send password setup email. Please check mail settings and try again.',
-            ]);
-        } catch (\Throwable $exception) {
-            report($exception);
-
-            throw ValidationException::withMessages([
-                'email' => 'Unable to send password setup email. Please check mail settings and try again.',
-            ]);
-        }
-    }
-
-    private function queueInitialResetLinkAfterResponse(User $user, ?string $role = null): void
-    {
-        [$label, $baseUrl] = $this->resolvePasswordSetupTarget($user, $role);
-
-        if (! is_string($baseUrl) || $baseUrl === '' || ! is_string($label) || $label === '') {
-            throw ValidationException::withMessages([
-                'email' => 'Password setup email could not be sent because the portal URL is not configured. Set SK_OFFICIALS_APP_URL (and SK_FED_APP_URL if needed) in .env, then run php artisan config:clear.',
-            ]);
-        }
-
-        $userId = (int) $user->id;
-        $resolvedRole = $role ?? $user->role;
-
-        dispatch(function () use ($userId, $resolvedRole): void {
-            $user = User::query()->find($userId);
-
-            if ($user === null) {
-                return;
-            }
-
+        if ($emailChanged) {
             try {
-                $this->sendInitialResetLink($user, $resolvedRole);
+                // Auto-resend account setup / activation email to the NEW email only.
+                $this->accountSetupService->sendSetupEmailAfterEmailChange($fresh, $previousEmail);
+                $setupEmailSent = true;
+            } catch (ValidationException $exception) {
+                $setupEmailError = collect($exception->errors())->flatten()->first()
+                    ?: AccountSetupService::EMAIL_CHANGED_FAILED_MESSAGE;
+                Log::error('Account setup email sending failed', [
+                    'operation' => 'email_change_setup',
+                    'user_id' => $fresh->id,
+                    'exception' => ValidationException::class,
+                    'message' => $setupEmailError,
+                ]);
             } catch (\Throwable $exception) {
                 report($exception);
-                Log::error('Deferred password setup email failed after account create.', [
-                    'user_id' => $userId,
-                    'email' => $user->email,
-                    'role' => $resolvedRole,
+                $setupEmailError = AccountSetupService::EMAIL_CHANGED_FAILED_MESSAGE;
+                Log::error('Account setup email sending failed', [
+                    'operation' => 'email_change_setup',
+                    'user_id' => $fresh->id,
+                    'exception' => $exception::class,
                     'message' => $exception->getMessage(),
                 ]);
             }
-        })->afterResponse();
+        }
+
+        return [
+            'account' => $fresh->fresh(['officialProfile.terms', 'barangay', 'officialProfile.latestTerm']),
+            'email_changed' => $emailChanged,
+            'setup_email_sent' => $setupEmailSent,
+            'setup_email_error' => $setupEmailError,
+        ];
+    }
+
+    public function resendAccountSetupEmail(User $target, User $admin): void
+    {
+        $this->assertSameTenant($target->tenant_id, $admin->tenant_id, 'Target account is outside your tenant scope.');
+
+        if ($target->isIncomingTurnoverOfficer()) {
+            throw ValidationException::withMessages([
+                'account' => 'Incoming turnover officers cannot receive setup emails until federation turnover is completed.',
+            ]);
+        }
+
+        $target->refresh();
+
+        if ($this->accountSetupService->isAccountAlreadyActivated($target)
+            || ! $this->accountSetupService->needsAccountSetup($target)) {
+            throw ValidationException::withMessages([
+                'account' => AccountSetupService::ALREADY_ACTIVATED_MESSAGE,
+            ]);
+        }
+
+        $this->accountSetupService->resendSetupEmail($target, $admin);
+
+        $this->logAuditAction(
+            $admin,
+            'account_setup_email_resent',
+            'users',
+            (string) $target->id,
+            ['email' => $target->email, 'role' => $target->role]
+        );
     }
 
     public function createUser(array $data, User $admin): User
@@ -554,69 +580,6 @@ class AccountService
             'status' => $data['status'] ?? User::STATUS_PENDING_APPROVAL,
             'must_change_password' => $defaultMustChange,
         ]);
-    }
-
-    private function sendInitialResetLink(User $user, ?string $role = null, bool $resetMailTransport = true): void
-    {
-        $user->refresh();
-
-        $this->clearPasswordResetTokensForEmail((string) $user->email);
-
-        $token = Password::createToken($user);
-        [$label, $baseUrl] = $this->resolvePasswordSetupTarget($user, $role);
-
-        if (! is_string($baseUrl) || $baseUrl === '' || ! is_string($label) || $label === '') {
-            throw new \RuntimeException('Password setup email could not be sent because the target application URL is not configured.');
-        }
-
-        Notification::sendNow(
-            $user,
-            new AccountResetPasswordNotification(
-                $token,
-                $baseUrl,
-                $label,
-                ($role ?? $user->role) === User::ROLE_SK_OFFICIAL,
-            )
-        );
-
-        if ($resetMailTransport && method_exists(Mail::class, 'purgeSymfonyTransport')) {
-            Mail::purgeSymfonyTransport();
-        }
-
-        Log::info('Password setup email sent.', [
-            'user_id' => $user->id,
-            'email' => $user->email,
-            'role' => $role ?? $user->role,
-            'target' => $baseUrl,
-        ]);
-    }
-
-    /**
-     * @return array{0: ?string, 1: ?string}
-     */
-    private function resolvePasswordSetupTarget(User $user, ?string $role = null): array
-    {
-        $role = $role ?? $user->role;
-
-        if ($role === User::ROLE_SK_OFFICIAL) {
-            $baseUrl = rtrim(trim((string) config('services.sk_officials_app_url')), '/');
-            $federationUrl = rtrim(trim((string) config('app.url')), '/');
-
-            // Never send Officials to the Federations host — /activate-account does not exist there.
-            if ($baseUrl === '' || strcasecmp($baseUrl, $federationUrl) === 0) {
-                return ['SK Official', null];
-            }
-
-            return ['SK Official', $baseUrl];
-        }
-
-        if ($role === User::ROLE_SK_FED) {
-            $baseUrl = trim((string) config('services.sk_fed_app_url'));
-
-            return ['SK Federation', $baseUrl !== '' ? $baseUrl : null];
-        }
-
-        return [null, null];
     }
 
     public function assignRole(User $user, string $role): void

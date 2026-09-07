@@ -21,26 +21,25 @@ class CalendarController extends Controller
 
     public function page(Request $request): View
     {
-        return view('Calendar::calendar', ['user' => $request->user()]);
+        $year = (int) now()->year;
+        $month = (int) now()->month;
+        $notes = $this->cachedNotesForMonth($request, $year, $month);
+
+        return view('Calendar::calendar', [
+            'user' => $request->user(),
+            'calendarBoot' => [
+                'year' => $year,
+                'month' => $month,
+                'notes' => $notes,
+            ],
+        ]);
     }
 
     public function index(Request $request): JsonResponse
     {
         $year = (int) $request->query('year', now()->year);
         $month = (int) $request->query('month', now()->month);
-
-        $notes = $this->pageCache->remember('calendar.notes', function () use ($year, $month) {
-            $start = sprintf('%04d-%02d-01', $year, $month);
-            $end = date('Y-m-t', strtotime($start));
-
-            return SkFederationCalendarNote::query()
-                ->whereBetween('note_date', [$start, $end])
-                ->orderBy('note_date')
-                ->get()
-                ->map(fn (SkFederationCalendarNote $note) => $this->formatNote($note))
-                ->values()
-                ->all();
-        }, ['year' => $year, 'month' => $month]);
+        $notes = $this->cachedNotesForMonth($request, $year, $month);
 
         return response()->json(['data' => $notes])->header('Cache-Control', 'private, max-age=60');
     }
@@ -192,6 +191,29 @@ class CalendarController extends Controller
                 'note_date' => ['Notes cannot be edited or deleted for next year or beyond.'],
             ]);
         }
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function cachedNotesForMonth(Request $request, int $year, int $month): array
+    {
+        return $this->pageCache->remember('calendar.notes', function () use ($year, $month) {
+            $start = sprintf('%04d-%02d-01', $year, $month);
+            $end = date('Y-m-t', strtotime($start));
+
+            return SkFederationCalendarNote::query()
+                ->whereBetween('note_date', [$start, $end])
+                ->orderBy('note_date')
+                ->get()
+                ->map(fn (SkFederationCalendarNote $note) => $this->formatNote($note))
+                ->values()
+                ->all();
+        }, [
+            'tenant_id' => $request->user()?->tenant_id,
+            'year' => $year,
+            'month' => $month,
+        ]);
     }
 
     protected function formatNote(SkFederationCalendarNote $note): array

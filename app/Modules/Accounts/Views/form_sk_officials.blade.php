@@ -196,7 +196,7 @@
                         <div class="form-grid">
                             <div class="form-group-light">
                                 <label class="form-label-light required">Email Address</label>
-                                <input type="email" name="email" id="official_email" class="form-input-light" placeholder="example@gmail.com" maxlength="40" required autocomplete="off" style="text-transform:lowercase;">
+                                <input type="email" name="email" id="official_email" class="form-input-light" placeholder="example@email.com" maxlength="64" required autocomplete="off" style="text-transform:lowercase;">
                                 <span class="form-error-light"></span>
                             </div>
                         </div>
@@ -292,12 +292,13 @@
                         </div>
                         <div class="form-group-light">
                             <label for="edit_sk_officials_email" class="form-label-light required">Email Address</label>
-                            <input type="email" id="edit_sk_officials_email" name="email" class="form-input-light" required>
+                            <input type="email" id="edit_sk_officials_email" name="email" class="form-input-light" placeholder="example@email.com" maxlength="64" required autocomplete="off" style="text-transform:lowercase;">
+                            <p class="form-hint-light">If you change this email, a new account setup email is automatically sent to the new address.</p>
                             <span class="form-error-light"></span>
                         </div>
                         <div class="form-group-light">
                             <label for="edit_sk_officials_contact_number" class="form-label-light required">Contact Number</label>
-                            <input type="text" id="edit_sk_officials_contact_number" name="contact_number" class="form-input-light" maxlength="11" placeholder="09XXXXXXXXX" required>
+                            <input type="text" id="edit_sk_officials_contact_number" name="contact_number" class="form-input-light" value="09" maxlength="11" inputmode="numeric" placeholder="09XXXXXXXXX" required>
                             <span class="form-error-light"></span>
                         </div>
                         <div class="form-group-light">

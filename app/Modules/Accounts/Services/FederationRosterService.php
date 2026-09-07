@@ -156,6 +156,13 @@ class FederationRosterService
         $this->chairpersonFederationSyncService->syncForUser($account, $position);
 
         $normalizedPosition = trim((string) $federationPosition);
+        $currentPosition = trim((string) ($profile->federation_position ?? ''));
+
+        if ($normalizedPosition !== '' && $normalizedPosition === $currentPosition) {
+            throw ValidationException::withMessages([
+                'federation_position' => 'This federation position is already assigned to this member.',
+            ]);
+        }
 
         $this->assertUniqueFederationPosition(
             (int) $account->tenant_id,
@@ -168,7 +175,7 @@ class FederationRosterService
         ])->save();
 
         $this->chairpersonFederationSyncService->syncPortalAccessFromFederationPosition(
-            $account->fresh(),
+            $account,
             $normalizedPosition !== '' ? $normalizedPosition : null,
         );
 
@@ -176,18 +183,29 @@ class FederationRosterService
             $normalizedPosition !== ''
             && in_array($normalizedPosition, OfficialProfile::FEDERATION_PORTAL_ACCESS_POSITIONS, true)
         ) {
-            try {
-                $portalUrl = rtrim((string) config('app.url'), '/');
-                $account->notify(new FederationPositionAssignedNotification($normalizedPosition, $portalUrl));
-            } catch (\Throwable $exception) {
-                Log::warning('Failed to send federation position assignment email.', [
-                    'user_id' => $account->getKey(),
-                    'position' => $normalizedPosition,
-                    'error' => $exception->getMessage(),
-                ]);
-            }
+            $userId = (int) $account->getKey();
+            $portalUrl = rtrim((string) config('app.url'), '/');
+
+            dispatch(function () use ($userId, $normalizedPosition, $portalUrl): void {
+                $user = User::query()->find($userId);
+                if (! $user) {
+                    return;
+                }
+
+                try {
+                    $user->notify(new FederationPositionAssignedNotification($normalizedPosition, $portalUrl));
+                } catch (\Throwable $exception) {
+                    Log::warning('Failed to send federation position assignment email.', [
+                        'user_id' => $userId,
+                        'position' => $normalizedPosition,
+                        'error' => $exception->getMessage(),
+                    ]);
+                }
+            })->afterResponse();
         }
 
-        return $account->fresh(['officialProfile.latestTerm', 'barangay']);
+        $account->setRelation('officialProfile', $profile);
+
+        return $account;
     }
 }

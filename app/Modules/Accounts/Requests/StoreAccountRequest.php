@@ -5,6 +5,9 @@ namespace App\Modules\Accounts\Requests;
 use App\Modules\Accounts\Models\OfficialProfile;
 use App\Modules\Accounts\Support\SkOfficialTermDates;
 use App\Modules\Shared\Models\User;
+use App\Rules\PhilippineMobileNumber;
+use App\Rules\ValidEmailAddress;
+use App\Services\PhoneNumberService;
 use Carbon\Carbon;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -45,12 +48,9 @@ class StoreAccountRequest extends FormRequest
         }
 
         if ($this->filled('contact_number')) {
-            $digits = preg_replace('/\D+/', '', (string) $this->input('contact_number')) ?? '';
-            if (! str_starts_with($digits, '09')) {
-                $digits = '09'.ltrim($digits, '0');
-            }
-
-            $this->merge(['contact_number' => substr($digits, 0, 11)]);
+            $this->merge([
+                'contact_number' => trim((string) $this->input('contact_number')),
+            ]);
         }
 
         foreach (['date_of_birth', 'term_start', 'term_end'] as $field) {
@@ -118,15 +118,9 @@ class StoreAccountRequest extends FormRequest
             : ['nullable', 'integer', 'min:0', 'max:150'];
 
         $emailRules = [
-            'required',
-            'email',
-            'max:255',
+            ...ValidEmailAddress::profilingRules(),
             Rule::unique('users', 'email')->whereNull('deleted_at'),
         ];
-
-        if ($isOfficial) {
-            $emailRules[] = 'regex:/^[a-z0-9._%+-]{6,30}@gmail\.com$/i';
-        }
 
         return [
             'first_name' => $nameRules,
@@ -146,7 +140,9 @@ class StoreAccountRequest extends FormRequest
             'sex' => [$requiresDemographics ? 'required' : 'nullable', Rule::in(['Male', 'Female']), 'not_in:'],
             'date_of_birth' => $dateOfBirthRules,
             'age' => $ageRules,
-            'contact_number' => [$requiresDemographics ? 'required' : 'nullable', 'regex:/^09\d{9}$/'],
+            'contact_number' => $requiresDemographics
+                ? ['required', 'string', 'max:30', new PhilippineMobileNumber]
+                : ['nullable', 'string', 'max:30', new PhilippineMobileNumber],
             'email' => $emailRules,
             'password' => ['nullable', 'string', 'min:8', 'confirmed'],
             'role' => ['required', Rule::in([
@@ -200,14 +196,40 @@ class StoreAccountRequest extends FormRequest
     }
 
     /**
+     * @param  string|null  $key
+     * @param  mixed  $default
+     */
+    public function validated($key = null, $default = null): mixed
+    {
+        $data = parent::validated($key, $default);
+        if ($key !== null) {
+            return $data;
+        }
+
+        if (($data['suffix'] ?? null) === '__other__') {
+            $other = mb_strtoupper(trim((string) ($data['suffix_other'] ?? '')), 'UTF-8');
+            $data['suffix'] = $other !== '' ? $other : 'NONE';
+        }
+
+        if (isset($data['contact_number']) && $data['contact_number'] !== null && $data['contact_number'] !== '') {
+            $local = app(PhoneNumberService::class)->toLocalMobile((string) $data['contact_number']);
+            if ($local !== null) {
+                $data['contact_number'] = $local;
+            }
+        }
+
+        return $data;
+    }
+
+    /**
      * @return array<string, string>
      */
     public function messages(): array
     {
         return [
             'email.unique' => 'This email is already taken.',
-            'email.required' => 'Email address is required.',
-            'email.email' => 'Please enter a valid email address.',
+            'email.required' => ValidEmailAddress::MSG_REQUIRED,
+            'email.max' => ValidEmailAddress::MSG_MAX,
             'first_name.regex' => 'First name must use uppercase letters only; need a letter before each space; no pure spaces.',
             'first_name.min' => 'First name must be at least 2 characters.',
             'first_name.max' => 'First name must not exceed 150 characters.',
@@ -217,7 +239,6 @@ class StoreAccountRequest extends FormRequest
             'middle_name.regex' => 'Middle name must use uppercase letters only; need a letter before each space; no pure spaces.',
             'middle_name.min' => 'Middle name must be at least 2 characters when provided.',
             'middle_name.max' => 'Middle name must not exceed 150 characters.',
-            'email.regex' => 'Email must be a @gmail.com address with 6-30 characters before @.',
             'date_of_birth.before' => 'Birthdate must be before today.',
             'date_of_birth.after_or_equal' => 'Birthdate must correspond to age 18–24 only.',
             'date_of_birth.before_or_equal' => 'Birthdate must correspond to age 18–24 only.',
@@ -226,13 +247,13 @@ class StoreAccountRequest extends FormRequest
             'suffix_other.regex' => 'Other suffix must not contain spaces.',
             'suffix_other.min' => 'Other suffix must be at least 1 character.',
             'suffix_other.max' => 'Other suffix must not exceed 5 characters.',
-            'contact_number.regex' => 'Contact number must be 11 digits starting with 09.',
+            'contact_number.required' => PhoneNumberService::MSG_REQUIRED,
             'region.in' => 'Region must be IV-A CALABARZON.',
             'province.in' => 'Province must be Laguna.',
             'municipality.in' => 'Municipality must be Santa Cruz.',
             'term_start.after_or_equal' => SkOfficialTermDates::startRuleMessage(),
             'term_start.before_or_equal' => SkOfficialTermDates::startRuleMessage(),
             'term_end.after' => SkOfficialTermDates::endRuleMessage(),
-        ];
+        ] + ValidEmailAddress::profilingMessages();
     }
 }

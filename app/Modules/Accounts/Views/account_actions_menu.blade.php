@@ -52,6 +52,32 @@
             <span>{{ ($hideDelete ?? false) ? 'Assign Federation Position' : 'Edit Member' }}</span>
         </button>
         @if(empty($hideDelete))
+        @php
+            $needsSetup = app(\App\Modules\Accounts\Services\AccountSetupService::class)->needsAccountSetup($account);
+        @endphp
+        @if($needsSetup)
+        <button type="button"
+                class="account-actions-item btn-resend-setup-email"
+                role="menuitem"
+                data-account-id="{{ $account->id }}"
+                data-display-name="{{ $displayName }}"
+                data-email="{{ $account->email ?? '' }}"
+                data-needs-setup="1">
+            <i class="fas fa-envelope" aria-hidden="true"></i>
+            <span>Resend Account Setup Email</span>
+        </button>
+        @else
+        <button type="button"
+                class="account-actions-item account-actions-item-muted btn-resend-setup-email-disabled"
+                role="menuitem"
+                disabled
+                aria-disabled="true"
+                data-already-activated="1"
+                title="This account is already verified and activated.">
+            <i class="fas fa-envelope" aria-hidden="true"></i>
+            <span>Already verified / activated</span>
+        </button>
+        @endif
         <button type="button"
                 class="account-actions-item account-actions-item-danger btn-delete-account"
                 role="menuitem"

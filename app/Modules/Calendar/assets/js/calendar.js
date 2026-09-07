@@ -44,9 +44,9 @@ function showConfirm(options) {
             overlay.id = 'calendar-confirm-overlay';
             overlay.className = 'calendar-confirm-overlay';
             overlay.innerHTML = `
-                <div class="calendar-confirm-modal">
-                    <div class="calendar-confirm-header"></div>
-                    <div class="calendar-confirm-body"></div>
+                <div class="calendar-confirm-modal" role="dialog" aria-modal="true" aria-labelledby="calendarConfirmTitle" aria-describedby="calendarConfirmMessage">
+                    <h2 class="calendar-confirm-header" id="calendarConfirmTitle"></h2>
+                    <p class="calendar-confirm-body" id="calendarConfirmMessage"></p>
                     <div class="calendar-confirm-actions">
                         <button type="button" class="calendar-confirm-cancel"></button>
                         <button type="button" class="calendar-confirm-ok"></button>
@@ -62,29 +62,41 @@ function showConfirm(options) {
 
         headerEl.textContent = title;
         bodyEl.textContent = message;
-        cancelBtn.textContent = cancelText;
+        cancelBtn.textContent = cancelText || 'Cancel';
         cancelBtn.style.display = isAlert ? 'none' : '';
         okBtn.textContent = confirmText;
         okBtn.className = 'calendar-confirm-ok ' + confirmClass;
         overlay.className = 'calendar-confirm-overlay theme-' + theme;
 
-        const cleanup = () => {
+        const cleanup = (result) => {
             overlay.classList.remove('show');
             cancelBtn.onclick = null;
             okBtn.onclick = null;
             overlay.onclick = null;
+            document.removeEventListener('keydown', onKeyDown, true);
+            resolve(result);
         };
 
-        cancelBtn.onclick = () => { cleanup(); resolve(false); };
-        okBtn.onclick = () => { cleanup(); resolve(true); };
-        overlay.onclick = (e) => {
-            if (e.target === overlay) {
-                cleanup();
-                resolve(isAlert ? true : false);
+        const onKeyDown = (e) => {
+            if (e.key === 'Escape') {
+                e.preventDefault();
+                cleanup(isAlert ? true : false);
             }
         };
 
+        cancelBtn.onclick = () => cleanup(false);
+        okBtn.onclick = () => cleanup(true);
+        overlay.onclick = (e) => {
+            if (e.target === overlay) {
+                cleanup(isAlert ? true : false);
+            }
+        };
+        document.addEventListener('keydown', onKeyDown, true);
+
         overlay.classList.add('show');
+        window.setTimeout(() => {
+            (isAlert ? okBtn : cancelBtn)?.focus();
+        }, 20);
     });
 }
 
@@ -142,7 +154,9 @@ function initializeCalendar() {
     const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
     const monthNamesShort = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
     const notes = {};
-    let isLoadingNotes = false;
+    let notesLoadToken = 0;
+    const NOTES_CACHE_TTL_MS = 5 * 60 * 1000;
+    const NOTES_CACHE_PREFIX = 'sk_fed_calendar_notes_v1_';
 
     const today = new Date();
     const currentYear = today.getFullYear();
@@ -222,52 +236,105 @@ function initializeCalendar() {
         openEditor(dateKey, day, monthName, year, monthIndex);
     }
 
-    async function loadNotes() {
-        if (isLoadingNotes) return;
-        isLoadingNotes = true;
+    function notesCacheKey(year, month) {
+        return NOTES_CACHE_PREFIX + year + '_' + month;
+    }
+
+    function applyNotesPayload(payload) {
+        Object.keys(notes).forEach((k) => delete notes[k]);
+        (payload?.data || []).forEach((note) => {
+            const key = isoToDateKey(note.note_date);
+            notes[key] = {
+                id: note.id,
+                title: note.title,
+                content: note.content,
+            };
+        });
+        render();
+    }
+
+    function persistCurrentMonthCache() {
         const year = current.getFullYear();
         const month = current.getMonth() + 1;
-        const cacheKey = `sk_fed_calendar_notes_v1_${year}_${month}`;
-        const cached = window.SkLocalCache?.get(cacheKey);
-        const applyNotes = (payload) => {
-            Object.keys(notes).forEach((k) => delete notes[k]);
-            (payload?.data || []).forEach((note) => {
-                const key = isoToDateKey(note.note_date);
-                notes[key] = {
-                    id: note.id,
-                    title: note.title,
-                    content: note.content,
-                };
-            });
-            render();
-        };
+        const data = [];
+        Object.keys(notes).forEach((key) => {
+            const [y, m, d] = key.split('-').map(Number);
+            if (y === year && m === month - 1) {
+                data.push({
+                    id: notes[key].id,
+                    note_date: dateKeyToIso(y, m, d),
+                    title: notes[key].title,
+                    content: notes[key].content,
+                });
+            }
+        });
+        window.SkLocalCache?.set(notesCacheKey(year, month), { data });
+    }
 
-        if (cached?.payload) {
-            applyNotes(cached.payload);
-            if (window.SkLocalCache.isFresh(cached, 5 * 60 * 1000)) {
-                isLoadingNotes = false;
-                calendarApiFetch(`/api/calendar/notes?year=${year}&month=${month}`)
-                    .then((json) => {
-                        window.SkLocalCache?.set(cacheKey, json);
-                        applyNotes(json);
-                    })
-                    .catch(() => {});
+    function prefetchAdjacentMonths(year, month) {
+        const neighbors = month === 1
+            ? [{ year: year - 1, month: 12 }, { year, month: 2 }]
+            : month === 12
+                ? [{ year, month: 11 }, { year: year + 1, month: 1 }]
+                : [{ year, month: month - 1 }, { year, month: month + 1 }];
+
+        neighbors.forEach(({ year: y, month: m }) => {
+            const cached = window.SkLocalCache?.get(notesCacheKey(y, m));
+            if (cached?.payload && window.SkLocalCache.isFresh(cached, NOTES_CACHE_TTL_MS)) {
                 return;
             }
+            calendarApiFetch(`/api/calendar/notes?year=${y}&month=${m}`)
+                .then((json) => window.SkLocalCache?.set(notesCacheKey(y, m), json))
+                .catch(() => {});
+        });
+    }
+
+    async function loadNotes() {
+        const token = ++notesLoadToken;
+        const year = current.getFullYear();
+        const month = current.getMonth() + 1;
+        const cacheKey = notesCacheKey(year, month);
+        const cached = window.SkLocalCache?.get(cacheKey);
+
+        if (cached?.payload) {
+            applyNotesPayload(cached.payload);
+            if (window.SkLocalCache.isFresh(cached, NOTES_CACHE_TTL_MS)) {
+                prefetchAdjacentMonths(year, month);
+                return;
+            }
+        } else {
+            Object.keys(notes).forEach((k) => delete notes[k]);
+            render();
         }
 
         try {
             const json = await calendarApiFetch(`/api/calendar/notes?year=${year}&month=${month}`);
+            if (token !== notesLoadToken) return;
             window.SkLocalCache?.set(cacheKey, json);
-            applyNotes(json);
+            applyNotesPayload(json);
+            prefetchAdjacentMonths(year, month);
         } catch (err) {
+            if (token !== notesLoadToken) return;
             if (!cached?.payload) {
                 showToast(err.message || 'Failed to load calendar notes.', 'error');
+                render();
             }
-        } finally {
-            isLoadingNotes = false;
-            render();
         }
+    }
+
+    function hydrateBootNotes() {
+        const boot = window.__SK_FED_CALENDAR_BOOT__;
+        if (!boot || !Array.isArray(boot.notes)) {
+            return;
+        }
+        const year = current.getFullYear();
+        const month = current.getMonth() + 1;
+        if (Number(boot.year) !== year || Number(boot.month) !== month) {
+            return;
+        }
+        const payload = { data: boot.notes };
+        window.SkLocalCache?.set(notesCacheKey(year, month), payload);
+        applyNotesPayload(payload);
     }
 
     prevBtn.addEventListener('click', () => {
@@ -624,14 +691,31 @@ function initializeCalendar() {
             if (titleInput) titleInput.oninput = null;
         }
 
-        function onClose() {
-            if (isEditMode) {
-                const t = titleInput.value.trim();
-                const c = contentArea.value.trim();
-                if (t !== originalNote.title || c !== originalNote.content) {
-                    showConfirm({ title: 'Unsaved Changes', message: 'Discard unsaved changes?', confirmText: 'Discard', cancelText: 'Stay', theme: 'edit' }).then((ok) => { if (ok) hide(); });
-                    return;
-                }
+        function isNoteDirty() {
+            if (!isEditMode || !originalNote) {
+                return false;
+            }
+            return titleInput.value.trim() !== originalNote.title
+                || contentArea.value.trim() !== originalNote.content;
+        }
+
+        function confirmDiscardIfDirty() {
+            if (!isNoteDirty()) {
+                return Promise.resolve(true);
+            }
+            return showConfirm({
+                title: 'Unsaved Changes',
+                message: 'Discard unsaved changes?',
+                confirmText: 'Discard',
+                cancelText: 'Stay',
+                confirmClass: 'confirm-edit',
+                theme: 'edit',
+            });
+        }
+
+        async function onClose() {
+            if (!(await confirmDiscardIfDirty())) {
+                return;
             }
             hide();
         }
@@ -672,10 +756,10 @@ function initializeCalendar() {
 
             try {
                 await calendarApiFetch(`/api/calendar/notes/${noteId}`, { method: 'DELETE' });
-                window.SkLocalCache?.clearByPrefix('sk_fed_calendar_notes_v1_');
                 delete notes[dateKey];
+                persistCurrentMonthCache();
                 hide();
-                await loadNotes();
+                render();
                 showToast('Note deleted.');
             } catch (err) {
                 showToast(err.message || 'Failed to delete note.', 'error');
@@ -748,7 +832,7 @@ function initializeCalendar() {
                     title: saved.title,
                     content: saved.content,
                 };
-                window.SkLocalCache?.clearByPrefix('sk_fed_calendar_notes_v1_');
+                persistCurrentMonthCache();
                 originalNote = { title, content };
                 switchToViewMode();
                 render();
@@ -760,7 +844,10 @@ function initializeCalendar() {
             }
         }
 
-        function onCancel() {
+        async function onCancel() {
+            if (!(await confirmDiscardIfDirty())) {
+                return;
+            }
             titleInput.value = originalNote.title;
             contentArea.value = originalNote.content;
             updateCharCounter();
@@ -787,5 +874,7 @@ function initializeCalendar() {
         (titleInput.value ? contentArea : titleInput).focus();
     }
 
+    render();
+    hydrateBootNotes();
     loadNotes();
 }

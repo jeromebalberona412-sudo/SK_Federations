@@ -6,7 +6,10 @@ use App\Modules\Accounts\Models\Barangay;
 use App\Modules\Accounts\Models\OfficialProfile;
 use App\Modules\Accounts\Support\SkOfficialTermDates;
 use App\Modules\Shared\Models\User;
+use App\Rules\ValidEmailAddress;
+use App\Services\PhoneNumberService;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
@@ -298,12 +301,13 @@ class BatchAccountImportService
             $errors[] = 'Suffix must not exceed 5 characters.';
         }
 
-        if ($data['email'] === '' || ! filter_var($data['email'], FILTER_VALIDATE_EMAIL)) {
-            $errors[] = 'Invalid email';
-        } elseif (strlen($data['email']) > 254) {
-            $errors[] = 'Email must not exceed 254 characters.';
-        } elseif ($isOfficial && ! preg_match('/^[a-z0-9._%+-]{6,30}@gmail\.com$/i', $data['email'])) {
-            $errors[] = 'Email must be a @gmail.com address with 6–30 characters before @.';
+        $emailValidator = Validator::make(
+            ['email' => $data['email']],
+            ['email' => ValidEmailAddress::profilingRules()],
+            ValidEmailAddress::profilingMessages()
+        );
+        if ($emailValidator->fails()) {
+            $errors[] = (string) $emailValidator->errors()->first('email');
         }
 
         if ($strictDemographics && trim((string) ($data['region'] ?? '')) !== 'IV-A CALABARZON') {
@@ -352,9 +356,16 @@ class BatchAccountImportService
             }
 
             if ($data['contact_number'] === '') {
-                $errors[] = 'Contact number is required.';
-            } elseif (! preg_match('/^09\d{9}$/', $data['contact_number'])) {
-                $errors[] = 'Contact number must be 11 digits starting with 09.';
+                $errors[] = PhoneNumberService::MSG_REQUIRED;
+            } else {
+                $phoneResult = app(PhoneNumberService::class)->validatePhilippineMobile(
+                    $data['contact_number'],
+                    null,
+                    false,
+                );
+                if (! $phoneResult['ok']) {
+                    $errors[] = $phoneResult['error'] ?? PhoneNumberService::MSG_INVALID;
+                }
             }
 
             if ($data['term_start'] === null) {
@@ -412,10 +423,20 @@ class BatchAccountImportService
 
     private function normalizeContactNumber(string $value): string
     {
+        $phone = app(PhoneNumberService::class);
+        $local = $phone->toLocalMobile($value);
+        if ($local !== null) {
+            return $local;
+        }
+
         $digits = preg_replace('/\D+/', '', $value) ?? '';
 
         if ($digits === '') {
             return '';
+        }
+
+        if (str_starts_with($digits, '63') && strlen($digits) >= 12) {
+            $digits = '0'.substr($digits, 2);
         }
 
         if (! str_starts_with($digits, '09')) {

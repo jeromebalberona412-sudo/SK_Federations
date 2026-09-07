@@ -42,7 +42,7 @@ class AccountResetPasswordNotification extends Notification
                 ->greeting('Hello '.$name.',')
                 ->line('Your account has been created for the SK OnePortal system.')
                 ->line('Please activate your account and set your password using the button below:')
-                ->action('Activate / Set Up My Account', $actionUrl)
+                ->action('Set Up Account', $actionUrl)
                 ->line('This activation link is temporary and can only be used once. It expires in '.$this->passwordExpiryLabel().'.')
                 ->line('Important: If the link expires, you do not need to ask the SK Federation to resend the activation email.')
                 ->line('Simply go to the '.$loginLabel.' login page and select: Activate Account')
@@ -57,7 +57,7 @@ class AccountResetPasswordNotification extends Notification
             ->greeting('Hello!')
             ->line('You have been invited to set up a password for your '.$this->audienceLabel.' account.')
             ->line('Invitation sent on '.$sentAt.'.')
-            ->action('Set Your Password', $actionUrl)
+            ->action('Set Up Account', $actionUrl)
             ->line('This link will expire in '.$this->passwordExpiryLabel().'.')
             ->line('If you did not expect this email, you can ignore it.');
     }

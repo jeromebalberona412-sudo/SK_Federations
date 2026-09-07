@@ -11,6 +11,7 @@ class AccountsServiceProvider extends ServiceProvider
     public function register(): void
     {
         $this->app->singleton(AccountService::class);
+        $this->app->singleton(\App\Modules\Accounts\Services\AccountSetupService::class);
     }
 
     public function boot(): void

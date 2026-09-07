@@ -5,6 +5,9 @@ namespace App\Modules\Accounts\Requests;
 use App\Modules\Accounts\Models\OfficialProfile;
 use App\Modules\Accounts\Support\SkOfficialTermDates;
 use App\Modules\Shared\Models\User;
+use App\Rules\PhilippineMobileNumber;
+use App\Rules\ValidEmailAddress;
+use App\Services\PhoneNumberService;
 use Carbon\Carbon;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -42,11 +45,9 @@ class UpdateAccountRequest extends FormRequest
         }
 
         if ($this->filled('contact_number')) {
-            $digits = preg_replace('/\D+/', '', (string) $this->input('contact_number')) ?? '';
-            if (! str_starts_with($digits, '09')) {
-                $digits = '09'.ltrim($digits, '0');
-            }
-            $this->merge(['contact_number' => substr($digits, 0, 11)]);
+            $this->merge([
+                'contact_number' => trim((string) $this->input('contact_number')),
+            ]);
         }
 
         foreach (['date_of_birth', 'term_start', 'term_end'] as $field) {
@@ -120,11 +121,11 @@ class UpdateAccountRequest extends FormRequest
             'sex' => [$requiresDemographics ? 'required' : 'nullable', Rule::in(['Male', 'Female'])],
             'date_of_birth' => $dateOfBirthRules,
             'age' => $ageRules,
-            'contact_number' => [$requiresDemographics ? 'required' : 'nullable', 'regex:/^09\d{9}$/'],
+            'contact_number' => $requiresDemographics
+                ? ['required', 'string', 'max:30', new PhilippineMobileNumber]
+                : ['nullable', 'string', 'max:30', new PhilippineMobileNumber],
             'email' => [
-                'required',
-                'email',
-                'max:255',
+                ...ValidEmailAddress::profilingRules(),
                 Rule::unique('users', 'email')->ignore($userId)->whereNull('deleted_at'),
             ],
             'status' => ['required', Rule::in([
@@ -201,6 +202,13 @@ class UpdateAccountRequest extends FormRequest
             $data['suffix'] = $other !== '' ? $other : null;
         }
 
+        if (isset($data['contact_number']) && $data['contact_number'] !== null && $data['contact_number'] !== '') {
+            $local = app(PhoneNumberService::class)->toLocalMobile((string) $data['contact_number']);
+            if ($local !== null) {
+                $data['contact_number'] = $local;
+            }
+        }
+
         return $data;
     }
 
@@ -211,15 +219,15 @@ class UpdateAccountRequest extends FormRequest
     {
         return [
             'email.unique' => 'This email is already taken.',
-            'email.required' => 'Email address is required.',
-            'email.email' => 'Please enter a valid email address.',
+            'email.required' => ValidEmailAddress::MSG_REQUIRED,
+            'email.max' => ValidEmailAddress::MSG_MAX,
             'first_name.regex' => 'First name must use uppercase letters only; need a letter before each space; no pure spaces.',
             'last_name.regex' => 'Last name must use uppercase letters only; need a letter before each space; no pure spaces.',
             'middle_name.regex' => 'Middle name must use uppercase letters only; need a letter before each space; no pure spaces.',
             'date_of_birth.before' => 'Birthdate must be before today.',
             'age.min' => 'Age must be a valid number.',
             'age.max' => 'Age must be a valid number.',
-            'contact_number.regex' => 'Contact number must be 11 digits starting with 09.',
+            'contact_number.required' => PhoneNumberService::MSG_REQUIRED,
             'suffix_other.max' => 'Other suffix must not exceed 5 characters.',
             'suffix_other.min' => 'Other suffix must be at least 1 character.',
             'region.in' => 'Region must be IV-A CALABARZON.',
@@ -228,6 +236,6 @@ class UpdateAccountRequest extends FormRequest
             'term_start.after_or_equal' => SkOfficialTermDates::startRuleMessage(),
             'term_start.before_or_equal' => SkOfficialTermDates::startRuleMessage(),
             'term_end.after' => SkOfficialTermDates::endRuleMessage(),
-        ];
+        ] + ValidEmailAddress::profilingMessages();
     }
 }

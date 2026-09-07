@@ -16,7 +16,15 @@ class AssignFederationPositionRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'federation_position' => ['nullable', 'string', Rule::in(OfficialProfile::FEDERATION_POSITIONS)],
+            'federation_position' => ['required', 'string', Rule::in(OfficialProfile::FEDERATION_POSITIONS)],
+        ];
+    }
+
+    public function messages(): array
+    {
+        return [
+            'federation_position.required' => 'Please select a federation position.',
+            'federation_position.in' => 'Please choose a valid SK Federation position.',
         ];
     }
 }

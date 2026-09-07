@@ -2,6 +2,7 @@
 
 namespace App\Modules\Dashboard\Controllers;
 
+use App\Modules\Accounts\Support\SkOfficialTermDates;
 use App\Modules\BarangayMonitoring\Services\BarangayMonitoringService;
 use App\Modules\Dashboard\Services\DashboardStatsService;
 use App\Modules\Dashboard\Services\KkProfilingChartService;
@@ -25,9 +26,10 @@ class DashboardController extends Controller
     {
         $tenantId = $request->user()?->tenant_id;
         $barangays = $this->dashboardStatsService->getBarangays($tenantId);
-        $dashboardYear = $this->dashboardStatsService->dashboardYear($tenantId);
-        $dateFrom = sprintf('%04d-01-01', $dashboardYear);
-        $dateTo = now()->toDateString();
+        $termDefaults = SkOfficialTermDates::leadershipDefaults((int) ($tenantId ?? 0));
+        $dateFrom = $termDefaults['term_start'];
+        $dateTo = $termDefaults['term_end'];
+        $dashboardYear = (int) substr($dateFrom, 0, 4);
         $user = $request->user();
         $statCards = $this->dashboardStatsService->dashboardStatCards($tenantId, $dateFrom, $dateTo);
         $abyipOverview = $this->barangayMonitoringService->dashboardAbyipOverview(10, $dateFrom, $dateTo);
@@ -172,11 +174,15 @@ class DashboardController extends Controller
         $dateFrom = trim((string) $request->input('date_from', ''));
         $dateTo = trim((string) $request->input('date_to', ''));
 
-        if ($dateFrom === '') {
-            $dateFrom = null;
-        }
-        if ($dateTo === '') {
-            $dateTo = null;
+        if ($dateFrom === '' || $dateTo === '') {
+            $tenantId = (int) ($request->user()?->tenant_id ?? 0);
+            $defaults = SkOfficialTermDates::leadershipDefaults($tenantId);
+            if ($dateFrom === '') {
+                $dateFrom = $defaults['term_start'];
+            }
+            if ($dateTo === '') {
+                $dateTo = $defaults['term_end'];
+            }
         }
 
         if ($dateFrom !== null && $dateTo !== null && $dateFrom > $dateTo) {

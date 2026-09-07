@@ -14,7 +14,50 @@ document.addEventListener('DOMContentLoaded', function () {
         modalDialog: document.querySelector('#dashActivityModal .dash-activity-modal-dialog'),
         modalList: document.getElementById('dashActivityModalList'),
         modalPagination: document.getElementById('dashActivityModalPagination'),
-        fullscreenBtn: document.getElementById('dashActivityFullscreenBtn'),
+    };
+
+    let suppressActivityOpenUntil = 0;
+
+    function isActivityModalOpen(modal) {
+        return !!(modal && !modal.hidden && modal.classList.contains('is-open'));
+    }
+
+    function showActivityModal(modal) {
+        if (!modal) {
+            return;
+        }
+        modal.hidden = false;
+        modal.classList.add('is-open');
+        document.body.classList.add('dash-activity-modal-open');
+    }
+
+    function hideActivityModal(modal) {
+        if (!modal) {
+            return;
+        }
+        modal.classList.remove('is-open');
+        modal.hidden = true;
+        modal.setAttribute('hidden', '');
+    }
+
+    function suppressActivityReopen() {
+        suppressActivityOpenUntil = Date.now() + 500;
+    }
+
+    window.closeDashActivityModal = function (event) {
+        if (event) {
+            event.preventDefault();
+            event.stopPropagation();
+        }
+        closeActivityModal();
+    };
+
+    window.closeDashActivityDetailModal = function (event) {
+        if (event) {
+            event.preventDefault();
+            event.stopPropagation();
+        }
+        closeActivityDetail();
     };
 
     const modalState = {
@@ -47,11 +90,12 @@ document.addEventListener('DOMContentLoaded', function () {
 
         const fromInput = document.getElementById('dashDateFrom');
         const toInput = document.getElementById('dashDateTo');
+        const filter = document.getElementById('dashDateRangeFilter');
         const today = new Date();
         const pad = (n) => String(n).padStart(2, '0');
         const todayIso = `${today.getFullYear()}-${pad(today.getMonth() + 1)}-${pad(today.getDate())}`;
-        let dateFrom = fromInput?.value || `${today.getFullYear()}-01-01`;
-        let dateTo = toInput?.value || todayIso;
+        let dateFrom = fromInput?.value || filter?.dataset?.defaultFrom || `${today.getFullYear()}-01-01`;
+        let dateTo = toInput?.value || filter?.dataset?.defaultTo || todayIso;
 
         if (dateFrom && dateTo && dateFrom > dateTo) {
             const tmp = dateFrom;
@@ -353,24 +397,38 @@ document.addEventListener('DOMContentLoaded', function () {
         els.viewAllBtn.addEventListener('click', openActivityModal);
     }
 
-    document.querySelectorAll('[data-dash-activity-close]').forEach(function (button) {
-        button.addEventListener('click', closeActivityModal);
-    });
+    document.addEventListener('click', function (event) {
+        const detailClose = event.target.closest('[data-dash-activity-detail-close]');
+        if (detailClose) {
+            event.preventDefault();
+            event.stopPropagation();
+            closeActivityDetail();
+            return;
+        }
 
-    document.querySelectorAll('[data-dash-activity-detail-close]').forEach(function (button) {
-        button.addEventListener('click', closeActivityDetail);
-    });
-
-    if (els.fullscreenBtn) {
-        els.fullscreenBtn.addEventListener('click', toggleActivityFullscreen);
-    }
-
-    document.addEventListener('keydown', function (event) {
-        if (event.key === 'Escape' && els.modal && !els.modal.hidden) {
+        const listClose = event.target.closest('[data-dash-activity-close]');
+        if (listClose) {
+            event.preventDefault();
+            event.stopPropagation();
             closeActivityModal();
         }
-        if (event.key === 'Escape') {
+    }, true);
+
+    document.addEventListener('keydown', function (event) {
+        if (event.key !== 'Escape') {
+            return;
+        }
+
+        const detailModal = document.getElementById('dashActivityDetailModal');
+        if (isActivityModalOpen(detailModal)) {
+            event.preventDefault();
             closeActivityDetail();
+            return;
+        }
+
+        if (isActivityModalOpen(els.modal)) {
+            event.preventDefault();
+            closeActivityModal();
         }
     });
 
@@ -390,6 +448,10 @@ document.addEventListener('DOMContentLoaded', function () {
 
         target.dataset.activityBound = '1';
         target.addEventListener('click', function (event) {
+            if (Date.now() < suppressActivityOpenUntil) {
+                return;
+            }
+
             const button = event.target.closest('.activity-item--clickable');
             if (!button) {
                 return;
@@ -398,6 +460,7 @@ document.addEventListener('DOMContentLoaded', function () {
             openActivityDetail({
                 text: button.getAttribute('data-activity-text') || '',
                 who: button.getAttribute('data-activity-who') || '',
+                position: button.getAttribute('data-activity-position') || '',
                 time: button.getAttribute('data-activity-time') || '',
             });
         });
@@ -419,19 +482,21 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     function buildActivityItem(item) {
-        const whoText = item.position
-            ? String(item.who || '') + ' · ' + String(item.position || '')
-            : String(item.who || '');
+        const who = String(item.who || '');
+        const position = String(item.position || '');
+        const whoLine = position ? who + ' · ' + position : who;
 
         return '<button type="button" class="activity-item activity-item-no-icon activity-item--clickable"' +
             ' data-activity-view="' + escapeHtml(item.id || '') + '"' +
             ' data-activity-text="' + escapeHtml(item.text) + '"' +
-            ' data-activity-who="' + escapeHtml(whoText) + '"' +
+            ' data-activity-who="' + escapeHtml(who) + '"' +
+            ' data-activity-position="' + escapeHtml(position) + '"' +
             ' data-activity-time="' + escapeHtml(item.time) + '">' +
             '<div class="activity-body">' +
             '<strong>' + escapeHtml(item.text) + '</strong>' +
-            '<span>' + escapeHtml(whoText) + '</span>' +
+            '<span>' + escapeHtml(whoLine) + '</span>' +
             '</div>' +
+            '<div class="activity-time">' + escapeHtml(item.time || '') + '</div>' +
             '</button>';
     }
 
@@ -471,72 +536,46 @@ document.addEventListener('DOMContentLoaded', function () {
         }
 
         modalState.page = 1;
-        setActivityFullscreen(false);
-        els.modal.hidden = false;
-        document.body.classList.add('dash-activity-modal-open');
+        showActivityModal(els.modal);
         fetchModalActivities();
     }
 
     function closeActivityModal() {
-        if (!els.modal) {
-            return;
+        suppressActivityReopen();
+        closeActivityDetail();
+        hideActivityModal(els.modal);
+        if (!isActivityModalOpen(document.getElementById('dashActivityDetailModal'))) {
+            document.body.classList.remove('dash-activity-modal-open');
         }
-
-        setActivityFullscreen(false);
-        els.modal.hidden = true;
-        document.body.classList.remove('dash-activity-modal-open');
     }
 
     function openActivityDetail(item) {
         const modal = document.getElementById('dashActivityDetailModal');
         const textEl = document.getElementById('dashActivityDetailText');
-        const metaEl = document.getElementById('dashActivityDetailMeta');
-        if (!modal || !textEl || !metaEl) {
+        const whoEl = document.getElementById('dashActivityDetailWho');
+        const positionEl = document.getElementById('dashActivityDetailPosition');
+        const timeEl = document.getElementById('dashActivityDetailTime');
+        if (!modal || !textEl || !whoEl || !timeEl) {
             return;
         }
 
         textEl.textContent = item.text || '—';
-        metaEl.textContent = [item.who, item.time].filter(Boolean).join(' · ');
-        modal.hidden = false;
-        document.body.classList.add('dash-activity-modal-open');
+        whoEl.textContent = item.who || '—';
+        if (positionEl) {
+            positionEl.textContent = item.position || '';
+            positionEl.hidden = !item.position;
+        }
+        timeEl.textContent = item.time || '—';
+        showActivityModal(modal);
     }
 
     function closeActivityDetail() {
         const modal = document.getElementById('dashActivityDetailModal');
-        if (!modal) {
-            return;
-        }
-
-        modal.hidden = true;
-        if (!els.modal || els.modal.hidden) {
+        suppressActivityReopen();
+        hideActivityModal(modal);
+        if (!isActivityModalOpen(els.modal)) {
             document.body.classList.remove('dash-activity-modal-open');
         }
-    }
-
-    function setActivityFullscreen(enabled) {
-        if (!els.modalDialog || !els.modal) {
-            return;
-        }
-
-        els.modalDialog.classList.toggle('dash-activity-modal-dialog--fullscreen', enabled);
-        els.modal.classList.toggle('dash-activity-modal--fullscreen', enabled);
-
-        if (els.fullscreenBtn) {
-            const icon = els.fullscreenBtn.querySelector('.dash-fs-icon');
-            if (icon) {
-                icon.textContent = enabled ? '⧉' : '□';
-            }
-            els.fullscreenBtn.setAttribute('aria-label', enabled ? 'Restore down' : 'Enter fullscreen');
-        }
-    }
-
-    function toggleActivityFullscreen() {
-        if (!els.modalDialog) {
-            return;
-        }
-
-        const isFullscreen = els.modalDialog.classList.contains('dash-activity-modal-dialog--fullscreen');
-        setActivityFullscreen(!isFullscreen);
     }
 
     async function fetchModalActivities() {

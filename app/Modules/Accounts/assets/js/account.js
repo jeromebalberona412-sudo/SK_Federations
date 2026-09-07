@@ -626,13 +626,40 @@ function buildOfficialAccountRowHtml(account) {
                 <i class="fas fa-lock" aria-hidden="true"></i>
                 <span>Incoming Officer (read-only)</span>
            </div>`
-        : `<button type="button"
+        : (() => {
+            const needsSetup = account.needs_setup === true
+                || account.needs_setup === 1
+                || account.needs_setup === '1';
+            const resendItem = needsSetup
+                ? `<button type="button"
+                        class="account-actions-item btn-resend-setup-email"
+                        role="menuitem"
+                        data-account-id="${id}"
+                        data-display-name="${escapeAttr(displayName)}"
+                        data-email="${escapeAttr(email)}"
+                        data-needs-setup="1">
+                        <i class="fas fa-envelope" aria-hidden="true"></i>
+                        <span>Resend Account Setup Email</span>
+                   </button>`
+                : `<button type="button"
+                        class="account-actions-item account-actions-item-muted btn-resend-setup-email-disabled"
+                        role="menuitem"
+                        disabled
+                        aria-disabled="true"
+                        data-already-activated="1"
+                        title="This account is already verified and activated.">
+                        <i class="fas fa-envelope" aria-hidden="true"></i>
+                        <span>Already verified / activated</span>
+                   </button>`;
+
+            return `<button type="button"
                 class="account-actions-item account-actions-item-edit btn-edit-account"
                 role="menuitem"
                 ${sharedAttrs}>
                 <i class="fas fa-pen" aria-hidden="true"></i>
                 <span>Edit Member</span>
             </button>
+            ${resendItem}
             <button type="button"
                 class="account-actions-item account-actions-item-danger btn-delete-account"
                 role="menuitem"
@@ -641,6 +668,7 @@ function buildOfficialAccountRowHtml(account) {
                 <i class="fas fa-trash" aria-hidden="true"></i>
                 <span>Delete Account</span>
             </button>`;
+        })();
 
     return `
         <tr data-account-id="${id}"
@@ -717,6 +745,91 @@ function prependOfficialAccountRow(account) {
     return true;
 }
 
+function replaceOfficialAccountRow(account) {
+    const tableBody = document.getElementById('accountsTableBody');
+    if (!tableBody || !account?.id) {
+        return false;
+    }
+
+    const existing = tableBody.querySelector(`tr[data-account-id="${account.id}"]`);
+    if (!existing) {
+        return prependOfficialAccountRow(account);
+    }
+
+    existing.outerHTML = buildOfficialAccountRowHtml(account);
+
+    if (typeof window.refreshAccountsPagination === 'function') {
+        window.refreshAccountsPagination();
+    }
+
+    const root = document.getElementById('mainContent');
+    root?._x_dataStack?.[0]?.syncSelectAllState?.();
+
+    return true;
+}
+
+function resendAccountSetupEmail(button) {
+    const accountId = button?.dataset?.accountId;
+    if (!accountId) {
+        return;
+    }
+    if (button.disabled || button.getAttribute('aria-disabled') === 'true' || button.dataset.alreadyActivated === '1') {
+        showAccountToast(
+            'This account is already verified and activated. A setup email cannot be sent.',
+            'error'
+        );
+        return;
+    }
+    if (button.dataset.sending === '1') {
+        return;
+    }
+
+    const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+    if (!csrf) {
+        showAccountToast('Unable to send the account setup email. Please try again.', 'error');
+        return;
+    }
+
+    button.dataset.sending = '1';
+    button.setAttribute('aria-busy', 'true');
+    showLoadingOverlay('Sending setup email', 'Please wait...');
+
+    fetch(`/accounts/${accountId}/resend-setup-email`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRF-TOKEN': csrf,
+            'Accept': 'application/json',
+        },
+        body: JSON.stringify({}),
+    })
+        .then(async (response) => {
+            const contentType = response.headers.get('content-type') || '';
+            const data = contentType.includes('application/json') ? await response.json() : {};
+            return { ok: response.ok, status: response.status, data };
+        })
+        .then(({ ok, status, data }) => {
+            hideLoadingOverlay();
+            delete button.dataset.sending;
+            button.removeAttribute('aria-busy');
+            if (!ok || !data.success) {
+                const message = data.message
+                    || (status === 403
+                        ? 'This account is already verified and activated. A setup email cannot be sent.'
+                        : 'Unable to send the account setup email. Please try again.');
+                showAccountToast(message, 'error');
+                return;
+            }
+            showAccountToast(data.message || 'Account setup email resent successfully.', 'success');
+        })
+        .catch(() => {
+            hideLoadingOverlay();
+            delete button.dataset.sending;
+            button.removeAttribute('aria-busy');
+            showAccountToast('Unable to send the account setup email. Please try again.', 'error');
+        });
+}
+
 // ── Inline validation helpers (light-theme forms) ─────────────
 const ACCOUNT_TERM_YEARS = 5;
 const SK_OFFICIAL_TERM_YEARS = 5;
@@ -733,9 +846,12 @@ const SK_OFFICIAL_FIRST_NAME_REGEX = PERSON_NAME_ONE_SPACE_REGEX;
 const SK_OFFICIAL_SUFFIX_OTHER_MAX = 5;
 const SK_OFFICIAL_AGE_MIN = 18;
 const SK_OFFICIAL_AGE_MAX = 24;
-const SK_OFFICIAL_GMAIL_REGEX = /^[a-z0-9._%+-]{6,30}@gmail\.com$/i;
+/** KK Profiling practical email limits (not RFC 254). Any mail domain allowed. */
+const SK_EMAIL_TOTAL_MAX = 64;
+const SK_EMAIL_LOCAL_MIN = 6;
+const SK_EMAIL_LOCAL_MAX = 30;
 const SK_OFFICIAL_MAX_MSG = 'Maximum of 150 characters reached';
-const BATCH_EMAIL_MAX = 254;
+const BATCH_EMAIL_MAX = SK_EMAIL_TOTAL_MAX;
 const BATCH_SK_FED_NAME_MAX = 35;
 const BATCH_LOCATION_MAX = 100;
 const BATCH_POSITION_MAX = 100;
@@ -1340,6 +1456,24 @@ function wireSkFedManualValidation(form) {
         });
         suffixOther.addEventListener('blur', () => _validateFedSuffix(form));
     }
+
+    const email = form.querySelector('[name="email"]');
+    if (email) {
+        email.maxLength = SK_EMAIL_TOTAL_MAX;
+        email.addEventListener('input', () => _validateAccountEmail(email, { strict: false }));
+        email.addEventListener('blur', () => _validateAccountEmail(email, { strict: true }));
+        email.addEventListener('keydown', (e) => {
+            if (e.key === ' ') e.preventDefault();
+        });
+    }
+
+    const contact = form.querySelector('[name="contact_number"]');
+    if (contact) {
+        contact.maxLength = 11;
+        contact.setAttribute('inputmode', 'numeric');
+        contact.addEventListener('input', () => _validateContactNumber(contact));
+        contact.addEventListener('blur', () => _validateContactNumber(contact));
+    }
 }
 
 function validateSkFedManualForm(form) {
@@ -1347,6 +1481,10 @@ function validateSkFedManualForm(form) {
     form.querySelectorAll('[required]').forEach((el) => {
         if (el.name === 'date_of_birth') {
             if (!_validateSkFedBirthdate(form)) valid = false;
+            return;
+        }
+        if (el.name === 'email' || el.type === 'email') {
+            if (!_validateAccountEmail(el, { strict: true })) valid = false;
             return;
         }
         if (!_validateField(el)) valid = false;
@@ -1466,21 +1604,136 @@ function _validateSkOfficialAge(input, form = null) {
     return true;
 }
 
-function _validateSkOfficialEmail(input) {
-    if (!input) return true;
-    let val = (input.value || '').toLowerCase().replace(/\s+/g, '');
-    input.value = val;
+function skHasAnySpace(value) {
+    return /\s/.test(value || '');
+}
 
-    if (!val) {
-        _showErr(input, 'Email address is required');
+function skEmailLooksComplete(value) {
+    const v = String(value || '').trim().toLowerCase();
+    if (!v || skHasAnySpace(v)) {
         return false;
     }
-    if (!SK_OFFICIAL_GMAIL_REGEX.test(val)) {
-        _showErr(input, 'Enter a valid @gmail.com address (6–30 characters before @)');
+    const atCount = (v.match(/@/g) || []).length;
+    if (atCount !== 1) {
         return false;
+    }
+    const atIndex = v.indexOf('@');
+    const localPart = v.slice(0, atIndex);
+    const domain = v.slice(atIndex + 1);
+    if (!localPart || !domain || !domain.includes('.')) {
+        return false;
+    }
+    return /^[a-z0-9](?:[a-z0-9._+-]*[a-z0-9])?$/i.test(localPart)
+        && /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)+$/i.test(domain);
+}
+
+/**
+ * Kabataan KK Profiling email rules: local-part min 6 / max 30, total max 64, any domain.
+ * @param {string} value
+ * @param {{ strict?: boolean, required?: boolean }} [options]
+ * @returns {string|null} error message or null when valid
+ */
+function skValidateEmailValue(value, options = {}) {
+    const strict = options.strict !== false;
+    const required = options.required !== false;
+    const v = String(value || '').trim().toLowerCase();
+
+    if (!v) {
+        return (strict && required) ? 'Email is required.' : null;
+    }
+
+    if (v.length > SK_EMAIL_TOTAL_MAX) {
+        return 'Email must not exceed 64 characters.';
+    }
+
+    if (skHasAnySpace(v) || (v.match(/@/g) || []).length > 1) {
+        return 'Please enter a valid email address.';
+    }
+
+    const atIndex = v.indexOf('@');
+
+    if (atIndex >= 0) {
+        const localPart = v.slice(0, atIndex);
+        if (localPart.length < SK_EMAIL_LOCAL_MIN) {
+            return 'Email username must be at least 6 characters.';
+        }
+        if (localPart.length > SK_EMAIL_LOCAL_MAX) {
+            return 'Email username must not exceed 30 characters.';
+        }
+    } else if (strict && v.length < SK_EMAIL_LOCAL_MIN) {
+        return 'Email username must be at least 6 characters.';
+    } else if (!strict && v.length > SK_EMAIL_LOCAL_MAX) {
+        return 'Email username must not exceed 30 characters.';
+    }
+
+    const complete = skEmailLooksComplete(v);
+    if (!strict && !complete) {
+        return null;
+    }
+
+    if ((v.match(/@/g) || []).length !== 1) {
+        return 'Please enter a valid email address.';
+    }
+
+    const localPart = v.slice(0, atIndex);
+    const domain = v.slice(atIndex + 1);
+
+    if (!localPart || !domain) {
+        return 'Please enter a valid email address.';
+    }
+    if (
+        localPart.startsWith('.')
+        || localPart.endsWith('.')
+        || localPart.includes('..')
+        || domain.startsWith('.')
+        || domain.endsWith('.')
+        || domain.includes('..')
+        || domain.startsWith('-')
+        || domain.endsWith('-')
+    ) {
+        return 'Please enter a valid email address.';
+    }
+    if (!/^[a-z0-9](?:[a-z0-9._+-]*[a-z0-9])?$/i.test(localPart)) {
+        return 'Please enter a valid email address.';
+    }
+    if (!/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)+$/i.test(domain)) {
+        return 'Please enter a valid email address.';
+    }
+
+    return null;
+}
+
+function _validateAccountEmail(input, options = {}) {
+    if (!input) return true;
+    const strict = options.strict !== false;
+    let val = String(input.value || '').toLowerCase().replace(/\s+/g, '');
+    if (val.length > SK_EMAIL_TOTAL_MAX) {
+        val = val.slice(0, SK_EMAIL_TOTAL_MAX);
+    }
+    input.value = val;
+    if (input.maxLength !== SK_EMAIL_TOTAL_MAX) {
+        input.maxLength = SK_EMAIL_TOTAL_MAX;
+    }
+
+    const message = skValidateEmailValue(val, {
+        strict,
+        required: input.hasAttribute('required'),
+    });
+    if (message) {
+        _showErr(input, message);
+        return false;
+    }
+    if (!val) {
+        _clearErr(input);
+        return true;
     }
     _markValid(input);
     return true;
+}
+
+/** @deprecated Use _validateAccountEmail — kept as alias for officials callers. */
+function _validateSkOfficialEmail(input, options = {}) {
+    return _validateAccountEmail(input, options);
 }
 
 function validateSkOfficialsManualForm(form) {
@@ -1601,8 +1854,9 @@ function wireSkOfficialsManualValidation(form) {
 
     const email = form.querySelector('[name="email"]');
     if (email) {
-        email.addEventListener('input', () => _validateSkOfficialEmail(email));
-        email.addEventListener('blur', () => _validateSkOfficialEmail(email));
+        email.maxLength = SK_EMAIL_TOTAL_MAX;
+        email.addEventListener('input', () => _validateAccountEmail(email, { strict: false }));
+        email.addEventListener('blur', () => _validateAccountEmail(email, { strict: true }));
         email.addEventListener('keydown', (e) => {
             if (e.key === ' ') e.preventDefault();
         });
@@ -1684,18 +1938,61 @@ function _validateNameField(input, options = {}) {
     return true;
 }
 
+function isObviouslyFakeMobile(digits) {
+    const body = digits.length === 11 && digits.startsWith('09') ? digits.slice(2) : digits;
+    if (!body || body.length < 8) return false;
+    if (/^(\d)\1+$/.test(digits) || /^(\d)\1+$/.test(body)) return true;
+    let asc = true;
+    let desc = true;
+    for (let i = 1; i < body.length; i += 1) {
+        const diff = Number(body[i]) - Number(body[i - 1]);
+        if (diff !== 1) asc = false;
+        if (diff !== -1) desc = false;
+    }
+    if (asc || desc) return true;
+    for (let block = 2; block <= 4; block += 1) {
+        const unit = body.slice(0, block);
+        if (unit && unit.repeat(Math.ceil(body.length / block)).startsWith(body) && body.length >= block * 3) {
+            return true;
+        }
+    }
+    return false;
+}
+
 function _validateContactNumber(input) {
-    const val = (input.value || '').trim();
-    if (input.hasAttribute('required') && !val) {
-        _showErr(input, 'Contact number is required');
+    if (!input) return true;
+    let raw = String(input.value || '').trim();
+    let digits = raw.replace(/\D/g, '');
+
+    if (digits.startsWith('63') && digits.length >= 12) {
+        digits = `0${digits.slice(2)}`;
+    }
+    if (!digits.startsWith('09') && digits.startsWith('9') && digits.length <= 10) {
+        digits = `0${digits}`;
+    }
+    if (digits.startsWith('09')) {
+        digits = digits.slice(0, 11);
+        input.value = digits;
+    }
+
+    if (input.hasAttribute('required') && (!digits || digits === '09')) {
+        _showErr(input, 'Contact number is required.');
         return false;
     }
-    if (val && !/^09\d{9}$/.test(val)) {
-        _showErr(input, 'Contact number must be 11 digits starting with 09');
+    if (!digits || digits === '09') {
+        _clearErr(input);
+        return true;
+    }
+    if (!/^09\d{9}$/.test(digits)) {
+        _showErr(input, 'Please enter a valid Philippine mobile number.');
+        return false;
+    }
+    if (isObviouslyFakeMobile(digits)) {
+        _showErr(input, 'Please enter your actual mobile number.');
         return false;
     }
     _clearErr(input);
-    if (val) input.classList.add('is-valid');
+    input.classList.add('is-valid');
     return true;
 }
 
@@ -1773,8 +2070,10 @@ function _validateField(input) {
     if (isTermField(input)) {
         return validateTermRange(input.closest('form'));
     }
+    if (input.type === 'email' || input.name === 'email') {
+        return _validateAccountEmail(input, { strict: true });
+    }
     if (input.hasAttribute('required') && !val) { _showErr(input, 'This field is required'); return false; }
-    if (input.type === 'email' && val && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val)) { _showErr(input, 'Enter a valid email address'); return false; }
     if (input.tagName === 'SELECT' && input.hasAttribute('required') && (!val || val === '')) { _showErr(input, 'Please select an option'); return false; }
     _clearErr(input);
     if (val) input.classList.add('is-valid');
@@ -1978,10 +2277,32 @@ function wireCreateAccountForm(form) {
     applySkFedDobConstraints(form);
     initCreateAccountFormDefaults(form);
 
-    if (form.id === 'editSkOfficialsForm') {
+    if (form.id === 'editSkOfficialsForm' || form.id === 'editAccountForm') {
         ['date_of_birth', 'term_start', 'term_end'].forEach((name) => {
-            applyUsDateTextInput(form.querySelector(`[name="${name}"]`));
+            if (form.id === 'editSkOfficialsForm') {
+                applyUsDateTextInput(form.querySelector(`[name="${name}"]`));
+            }
         });
+        const editEmail = form.querySelector('[name="email"]');
+        if (editEmail && editEmail.dataset.lowercaseBound !== '1') {
+            editEmail.dataset.lowercaseBound = '1';
+            editEmail.maxLength = SK_EMAIL_TOTAL_MAX;
+            editEmail.addEventListener('input', () => {
+                const start = editEmail.selectionStart;
+                let next = String(editEmail.value || '').toLowerCase().replace(/\s+/g, '');
+                if (next.length > SK_EMAIL_TOTAL_MAX) {
+                    next = next.slice(0, SK_EMAIL_TOTAL_MAX);
+                }
+                editEmail.value = next;
+                if (typeof start === 'number') {
+                    try {
+                        editEmail.setSelectionRange(Math.min(start, next.length), Math.min(start, next.length));
+                    } catch (_) { /* ignore */ }
+                }
+                _validateAccountEmail(editEmail, { strict: false });
+            });
+            editEmail.addEventListener('blur', () => _validateAccountEmail(editEmail, { strict: true }));
+        }
     }
 
     if (!isSkOfficialsForm(form) && !isSkFedManualForm(form)) {
@@ -2485,15 +2806,6 @@ function batchBarangaySuggestion(rawBarangay) {
     return nearestSuggestion(rawBarangay, values);
 }
 
-function batchEmailSuggestion(rawEmail) {
-    const email = String(rawEmail || '').trim().toLowerCase();
-    if (!email || !email.includes('@')) return null;
-    const [localPart, domain] = email.split('@');
-    if (!localPart || !domain || domain === 'gmail.com') return null;
-    const suggestionDomain = nearestSuggestion(domain, ['gmail.com']);
-    return suggestionDomain ? `${localPart}@${suggestionDomain}` : null;
-}
-
 function normalizeBatchPosition(value, role) {
     const normalized = String(value || '').trim().toLowerCase().replace(/^(sk\s+|sangguniang kabataan\s+)/i, '');
     const aliases = {
@@ -2927,19 +3239,9 @@ function validateBatchAccountRow(row, rowNumber, role, seenEmails, seenFingerpri
     }
 
     if (data.email) {
-        if (String(data.email).length > BATCH_EMAIL_MAX) {
-            errors.push({ row: rowNumber, field: 'email', error: `Email must not exceed ${BATCH_EMAIL_MAX} characters.` });
-        } else if (isOfficial && !SK_OFFICIAL_GMAIL_REGEX.test(String(data.email).trim())) {
-            const suggestion = batchEmailSuggestion(data.email);
-            errors.push({
-                row: rowNumber,
-                field: 'email',
-                error: suggestion
-                    ? `Email must be a @gmail.com address with 6–30 characters before @. Suggested: ${suggestion}`
-                    : 'Email must be a @gmail.com address with 6–30 characters before @.',
-            });
-        } else if (!isOfficial && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(data.email).trim())) {
-            errors.push({ row: rowNumber, field: 'email', error: 'Invalid email format.' });
+        const emailMessage = skValidateEmailValue(String(data.email).trim(), { strict: true, required: true });
+        if (emailMessage) {
+            errors.push({ row: rowNumber, field: 'email', error: emailMessage });
         }
         if (seenEmails.has(data.email)) {
             errors.push({ row: rowNumber, field: 'email', error: 'Duplicate email in upload file.' });
@@ -2957,8 +3259,14 @@ function validateBatchAccountRow(row, rowNumber, role, seenEmails, seenFingerpri
         }
     }
 
-    if (data.contact_number && !/^09\d{9}$/.test(data.contact_number)) {
-        errors.push({ row: rowNumber, field: 'contact_number', error: 'Contact number must be 11 digits starting with 09.' });
+    if (data.contact_number) {
+        if (data.contact_number === '09') {
+            errors.push({ row: rowNumber, field: 'contact_number', error: 'Contact number is required.' });
+        } else if (!/^09\d{9}$/.test(data.contact_number)) {
+            errors.push({ row: rowNumber, field: 'contact_number', error: 'Please enter a valid Philippine mobile number.' });
+        } else if (isObviouslyFakeMobile(data.contact_number)) {
+            errors.push({ row: rowNumber, field: 'contact_number', error: 'Please enter your actual mobile number.' });
+        }
     }
 
     if (data.sex && !['Male', 'Female'].includes(data.sex)) {
@@ -4092,6 +4400,11 @@ document.addEventListener('DOMContentLoaded', function () {
                 if (first) first.focus();
                 return;
             }
+            if (form.id === 'editAccountForm' && !validateSkFedManualForm(form)) {
+                const first = form.querySelector('.is-invalid');
+                if (first) first.focus();
+                return;
+            }
 
             const formData = new FormData(form);
             const payload = {};
@@ -4103,14 +4416,33 @@ document.addEventListener('DOMContentLoaded', function () {
                     }
                 });
             }
+            if (payload.email) {
+                payload.email = String(payload.email).trim().toLowerCase();
+            }
+
+            const originalEmail = String(form.dataset.originalEmail || '').trim().toLowerCase();
+            const emailChanged = form.id === 'editSkOfficialsForm'
+                && originalEmail !== ''
+                && payload.email
+                && payload.email !== originalEmail;
 
             const submitBtn = document.querySelector(`button[type="submit"][form="${form.id}"]`)
                 || form.querySelector('button[type="submit"]');
-            if (submitBtn) {
-                submitBtn.disabled = true;
-                submitBtn.setAttribute('aria-busy', 'true');
+            if (submitBtn?.dataset.updating === '1') {
+                return;
             }
-            document.body.style.cursor = 'progress';
+
+            showLoadingOverlay(
+                emailChanged ? 'Updating email' : 'Updating account',
+                emailChanged
+                    ? 'Saving changes and sending account setup email to the new address...'
+                    : 'Saving changes...'
+            );
+            setCreateAccountButtonLoading(submitBtn, true, emailChanged ? 'Sending...' : 'Updating...');
+            if (submitBtn) submitBtn.dataset.updating = '1';
+
+            const controller = new AbortController();
+            const timeoutId = window.setTimeout(() => controller.abort(), emailChanged ? 60000 : 30000);
 
             fetch(`/accounts/${accountId}`, {
                 method: 'PUT',
@@ -4119,7 +4451,8 @@ document.addEventListener('DOMContentLoaded', function () {
                     'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
                     'Accept': 'application/json'
                 },
-                body: JSON.stringify(payload)
+                body: JSON.stringify(payload),
+                signal: controller.signal,
             })
                 .then(async r => {
                     const ct = r.headers.get('content-type') || '';
@@ -4127,12 +4460,10 @@ document.addEventListener('DOMContentLoaded', function () {
                     return { ok: r.ok, data };
                 })
                 .then(({ ok, data }) => {
-                    if (submitBtn) {
-                        submitBtn.disabled = false;
-                        submitBtn.removeAttribute('aria-busy');
-                    }
-                    document.body.style.cursor = '';
                     if (!ok || !data.success) {
+                        hideLoadingOverlay();
+                        setCreateAccountButtonLoading(submitBtn, false);
+                        if (submitBtn) delete submitBtn.dataset.updating;
                         if (data.errors) {
                             const firstError = displayFormValidationErrors(form, data.errors)
                                 || Object.values(data.errors).flat()[0]
@@ -4145,17 +4476,38 @@ document.addEventListener('DOMContentLoaded', function () {
                         }
                         return;
                     }
-                    _closeEditByType();
-                    showAccountToast('SK Officials account updated successfully!', 'edit');
-                    window.setTimeout(() => window.location.reload(), 700);
-                })
-                .catch(() => {
-                    if (submitBtn) {
-                        submitBtn.disabled = false;
-                        submitBtn.removeAttribute('aria-busy');
+
+                    setCreateAccountButtonLoading(submitBtn, false);
+                    if (submitBtn) delete submitBtn.dataset.updating;
+                    cleanupAccountUiState();
+                    const toastType = data.email_changed && !data.setup_email_sent ? 'error' : 'edit';
+                    showAccountToast(
+                        data.message
+                            || (data.email_changed
+                                ? (data.setup_email_sent
+                                    ? 'Email updated successfully. A new account setup email has been sent to the new email address.'
+                                    : 'Member email was updated, but the account setup email could not be sent. Please try Resend Account Setup Email.')
+                                : 'Account updated successfully!'),
+                        toastType
+                    );
+                    if (data.data && !replaceOfficialAccountRow(data.data)) {
+                        window.setTimeout(() => window.location.reload(), 500);
                     }
-                    document.body.style.cursor = '';
-                    alert('An unexpected error occurred. Please try again.');
+                })
+                .catch((err) => {
+                    hideLoadingOverlay();
+                    setCreateAccountButtonLoading(submitBtn, false);
+                    if (submitBtn) delete submitBtn.dataset.updating;
+                    const timedOut = err && err.name === 'AbortError';
+                    showAccountToast(
+                        timedOut
+                            ? 'Update is taking too long. Please check if the changes were saved, then try again.'
+                            : 'An unexpected error occurred. Please try again.',
+                        'error'
+                    );
+                })
+                .finally(() => {
+                    window.clearTimeout(timeoutId);
                 });
         });
     }
@@ -4184,7 +4536,28 @@ document.addEventListener('DOMContentLoaded', function () {
         if (!form) return;
         resetEditSkOfficialsFormState(form);
         form.dataset.accountId = data.accountId || '';
+        const originalEmail = String(data[_camel('email')] ?? data.email ?? '').trim().toLowerCase();
+        form.dataset.originalEmail = originalEmail;
         ['first_name', 'last_name', 'middle_name', 'sex', 'age', 'contact_number', 'email', 'position', 'barangay_id', 'term_status'].forEach(n => setFormFieldValue(form, n, data[_camel(n)] ?? data[n] ?? ''));
+        const emailInput = form.querySelector('[name="email"]');
+        if (emailInput) {
+            emailInput.maxLength = SK_EMAIL_TOTAL_MAX;
+            if (form.id === 'editSkOfficialsForm' || form.id === 'editAccountForm') {
+                emailInput.value = originalEmail;
+            }
+        }
+        const contactInput = form.querySelector('[name="contact_number"]');
+        if (contactInput) {
+            contactInput.maxLength = 11;
+            contactInput.setAttribute('inputmode', 'numeric');
+            let digits = String(contactInput.value || '').replace(/\D/g, '');
+            if (!digits || digits.length < 2) {
+                digits = '09';
+            } else if (!digits.startsWith('09')) {
+                digits = `09${digits.replace(/^0+/, '')}`;
+            }
+            contactInput.value = digits.slice(0, 11);
+        }
         ['date_of_birth', 'term_start', 'term_end'].forEach((name) => {
             const value = data[_camel(name)] ?? data[name] ?? '';
             setFormFieldValue(form, name, form.id === 'editSkOfficialsForm' ? formatDateForTextInput(value) : value);
@@ -4233,11 +4606,178 @@ document.addEventListener('DOMContentLoaded', function () {
         const taken = getTakenFederationPositions().filter((pos) => pos && pos !== currentPosition);
         Array.from(select.options).forEach((option) => {
             if (!option.value) {
-                option.disabled = false;
+                option.disabled = true;
                 return;
             }
             option.disabled = taken.includes(option.value);
         });
+    }
+
+    function capAssignConfirmValue(input) {
+        const capped = String(input?.value || '')
+            .toUpperCase()
+            .replace(/[^A-Z]/g, '')
+            .slice(0, 6);
+        if (input && input.value !== capped) {
+            input.value = capped;
+        }
+        return capped;
+    }
+
+    function getCurrentAssignedPosition() {
+        const form = document.getElementById('assignFederationPositionForm');
+        return String(form?.dataset.currentPosition || '').trim();
+    }
+
+    function isSameAssignedPosition(position) {
+        const selected = String(position || '').trim();
+        return selected !== '' && selected === getCurrentAssignedPosition();
+    }
+
+    function setAssignFederationSubmitEnabled(enabled) {
+        const submitBtn = document.getElementById('assignFederationPositionSubmitBtn');
+        if (!submitBtn) return;
+        if (submitBtn.classList.contains('is-loading')) {
+            submitBtn.disabled = true;
+            submitBtn.setAttribute('aria-disabled', 'true');
+            return;
+        }
+        submitBtn.disabled = !enabled;
+        submitBtn.classList.toggle('is-disabled', !enabled);
+        submitBtn.setAttribute('aria-disabled', enabled ? 'false' : 'true');
+    }
+
+    function setAssignFederationSaving(isSaving) {
+        const submitBtn = document.getElementById('assignFederationPositionSubmitBtn');
+        if (!submitBtn) return;
+        submitBtn.classList.toggle('is-loading', isSaving);
+        if (isSaving) {
+            if (!submitBtn.dataset.originalLabel) {
+                submitBtn.dataset.originalLabel = submitBtn.textContent.trim() || 'Save Position';
+            }
+            submitBtn.disabled = true;
+            submitBtn.classList.remove('is-disabled');
+            submitBtn.innerHTML = '<span class="accounts-btn-spinner" aria-hidden="true"></span> Saving...';
+            submitBtn.setAttribute('aria-disabled', 'true');
+            return;
+        }
+        submitBtn.textContent = submitBtn.dataset.originalLabel || 'Save Position';
+        refreshAssignFederationSubmitState();
+    }
+
+    function syncAssignPositionPlaceholder(select) {
+        if (!select) return;
+        select.classList.toggle('is-placeholder', !select.value);
+    }
+
+    function refreshAssignFederationSubmitState() {
+        const confirmInput = document.getElementById('assign_position_confirm');
+        const positionSelect = document.getElementById('assign_federation_position');
+        const matched = capAssignConfirmValue(confirmInput) === 'ASSIGN';
+        const position = String(positionSelect?.value || '').trim();
+        setAssignFederationSubmitEnabled(matched && position !== '' && !isSameAssignedPosition(position));
+    }
+
+    function updateAssignFederationConfirmState(showEmptyError = false) {
+        const confirmInput = document.getElementById('assign_position_confirm');
+        if (!confirmInput) {
+            setAssignFederationSubmitEnabled(false);
+            return false;
+        }
+
+        const capped = capAssignConfirmValue(confirmInput);
+        const matched = capped === 'ASSIGN';
+
+        if (!capped) {
+            if (showEmptyError) {
+                _showErr(confirmInput, 'Please type ASSIGN to confirm this position assignment.');
+            } else {
+                _clearErr(confirmInput);
+            }
+            refreshAssignFederationSubmitState();
+            return false;
+        }
+
+        if (matched) {
+            _markValid(confirmInput);
+            if (isSameAssignedPosition(document.getElementById('assign_federation_position')?.value)) {
+                validateAssignFederationPosition(true);
+            }
+            refreshAssignFederationSubmitState();
+            return true;
+        }
+
+        _showErr(confirmInput, 'Please type ASSIGN to confirm this position assignment.');
+        refreshAssignFederationSubmitState();
+        return false;
+    }
+
+    function validateAssignFederationPosition(showEmptyError = false) {
+        const positionSelect = document.getElementById('assign_federation_position');
+        const federationPosition = String(positionSelect?.value || '').trim();
+        syncAssignPositionPlaceholder(positionSelect);
+
+        if (!federationPosition) {
+            if (showEmptyError) {
+                _showErr(positionSelect, 'Please select a federation position.');
+            } else {
+                _clearErr(positionSelect);
+            }
+            refreshAssignFederationSubmitState();
+            return '';
+        }
+
+        if (isSameAssignedPosition(federationPosition)) {
+            _showErr(positionSelect, 'This federation position is already assigned to this member.');
+            refreshAssignFederationSubmitState();
+            return '';
+        }
+
+        const taken = getTakenFederationPositions();
+        const selectedOption = Array.from(positionSelect?.options || []).find((option) => option.value === federationPosition);
+        if (taken.includes(federationPosition) && selectedOption?.disabled) {
+            _showErr(positionSelect, 'This federation position is already assigned to another member.');
+            refreshAssignFederationSubmitState();
+            return '';
+        }
+
+        _clearErr(positionSelect);
+        refreshAssignFederationSubmitState();
+        return federationPosition;
+    }
+
+    function applyAssignedFederationPositionToTable(accountId, position) {
+        const form = document.getElementById('assignFederationPositionForm');
+        const previous = String(form?.dataset.currentPosition || '').trim();
+        const next = String(position || '').trim();
+        const root = document.getElementById('mainContent');
+
+        if (root) {
+            const taken = getTakenFederationPositions().filter((pos) => pos && pos !== previous);
+            if (next && !taken.includes(next)) {
+                taken.push(next);
+            }
+            root.dataset.takenFederationPositions = JSON.stringify(taken);
+        }
+
+        document.querySelectorAll(`[data-account-id="${accountId}"]`).forEach((el) => {
+            if (el.hasAttribute('data-federation-position')) {
+                el.setAttribute('data-federation-position', next);
+            }
+        });
+
+        const editBtn = document.querySelector(`.btn-edit-account[data-account-id="${accountId}"]`);
+        const row = editBtn?.closest('tr');
+        if (!row) return;
+
+        row.setAttribute('data-sort-federation-position', next.toLowerCase());
+        const cell = row.querySelector('.td-federation-position');
+        if (!cell) return;
+        if (next) {
+            cell.textContent = next;
+        } else {
+            cell.innerHTML = '<span class="text-muted">Not assigned</span>';
+        }
     }
 
     window.openAssignFederationPositionWithData = function (btn) {
@@ -4247,15 +4787,22 @@ document.addEventListener('DOMContentLoaded', function () {
 
         const d = btn.dataset;
         const displayName = [d.firstName, d.middleName, d.lastName].filter(Boolean).join(' ').trim() || 'Member';
+        const currentPosition = String(d.federationPosition || '').trim();
         form.dataset.accountId = d.accountId || '';
+        form.dataset.currentPosition = currentPosition;
         document.getElementById('assignFedDisplayName').textContent = displayName;
         document.getElementById('assignFedBarangayName').textContent = d.barangayName || '—';
 
         const positionSelect = document.getElementById('assign_federation_position');
-        const currentPosition = d.federationPosition || '';
         if (positionSelect) {
-            positionSelect.value = currentPosition;
             refreshFederationPositionOptions(currentPosition);
+            if (currentPosition) {
+                positionSelect.value = currentPosition;
+            } else {
+                positionSelect.selectedIndex = 0;
+            }
+            _clearErr(positionSelect);
+            syncAssignPositionPlaceholder(positionSelect);
         }
 
         const confirmInput = document.getElementById('assign_position_confirm');
@@ -4263,12 +4810,17 @@ document.addEventListener('DOMContentLoaded', function () {
             confirmInput.value = '';
             _clearErr(confirmInput);
         }
-
-        const positionError = positionSelect?.parentNode?.querySelector('.form-error-light');
-        if (positionError) positionError.textContent = '';
+        updateAssignFederationConfirmState(false);
 
         modal.style.display = 'flex';
         document.body.style.overflow = 'hidden';
+        window.setTimeout(() => {
+            if (currentPosition) {
+                confirmInput?.focus();
+            } else {
+                positionSelect?.focus();
+            }
+        }, 50);
     };
 
     window.closeAssignFederationPositionModal = function () {
@@ -4276,44 +4828,48 @@ document.addEventListener('DOMContentLoaded', function () {
         if (!modal) return;
         modal.style.display = 'none';
         document.body.style.overflow = '';
+        setAssignFederationSaving(false);
+        setAssignFederationSubmitEnabled(false);
     };
 
     const assignFederationForm = document.getElementById('assignFederationPositionForm');
     if (assignFederationForm) {
+        const confirmInput = document.getElementById('assign_position_confirm');
+        const positionSelect = document.getElementById('assign_federation_position');
+
+        confirmInput?.addEventListener('input', function () {
+            updateAssignFederationConfirmState(false);
+        });
+        confirmInput?.addEventListener('blur', function () {
+            updateAssignFederationConfirmState(Boolean(this.value));
+        });
+        positionSelect?.addEventListener('change', function () {
+            validateAssignFederationPosition(true);
+        });
+
         assignFederationForm.addEventListener('submit', function (e) {
             e.preventDefault();
 
+            const submitBtn = document.getElementById('assignFederationPositionSubmitBtn');
+            if (submitBtn?.classList.contains('is-loading')) {
+                return;
+            }
+
             const accountId = assignFederationForm.dataset.accountId || '';
-            const positionSelect = document.getElementById('assign_federation_position');
-            const confirmInput = document.getElementById('assign_position_confirm');
-            const federationPosition = positionSelect?.value ?? '';
-            const confirmValue = (confirmInput?.value || '').trim().toUpperCase();
+            const confirmMatched = updateAssignFederationConfirmState(true);
+            const federationPosition = validateAssignFederationPosition(true);
 
-            let valid = true;
-            if (confirmValue !== 'ASSIGN') {
-                _showErr(confirmInput, 'Please type ASSIGN to confirm this position assignment');
-                valid = false;
-            } else {
-                _markValid(confirmInput);
-            }
-
-            if (federationPosition) {
-                const taken = getTakenFederationPositions();
-                const currentRowPosition = positionSelect?.querySelector(`option[value="${federationPosition}"]`)?.disabled;
-                if (taken.includes(federationPosition) && currentRowPosition) {
-                    _showErr(positionSelect, 'This federation position is already assigned to another member.');
-                    valid = false;
-                } else {
-                    _clearErr(positionSelect);
-                }
-            }
-
-            if (!valid || !accountId) {
+            if (!confirmMatched || !federationPosition) {
                 if (!accountId) alert('Missing account id. Please refresh and try again.');
                 return;
             }
 
-            showLoadingOverlay('Assigning position...');
+            if (!accountId) {
+                alert('Missing account id. Please refresh and try again.');
+                return;
+            }
+
+            setAssignFederationSaving(true);
             fetch(`/accounts/${accountId}/federation-position`, {
                 method: 'PUT',
                 headers: {
@@ -4321,33 +4877,35 @@ document.addEventListener('DOMContentLoaded', function () {
                     'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
                     'Accept': 'application/json',
                 },
-                body: JSON.stringify({ federation_position: federationPosition || null }),
+                body: JSON.stringify({ federation_position: federationPosition }),
             })
                 .then(async (r) => {
                     const data = r.headers.get('content-type')?.includes('application/json') ? await r.json() : {};
                     return { ok: r.ok, data };
                 })
                 .then(({ ok, data }) => {
-                    hideLoadingOverlay();
                     if (!ok || !data.success) {
+                        setAssignFederationSaving(false);
                         const message = data.errors?.federation_position?.[0]
                             || data.message
                             || Object.values(data.errors || {}).flat()[0]
                             || 'Failed to assign federation position.';
-                        if (data.errors?.federation_position && positionSelect) {
-                            _showErr(positionSelect, message);
+                        const liveSelect = document.getElementById('assign_federation_position');
+                        if (data.errors?.federation_position && liveSelect) {
+                            _showErr(liveSelect, message);
                         } else {
                             alert(message);
                         }
                         return;
                     }
 
+                    const savedPosition = data.data?.federation_position || federationPosition;
+                    applyAssignedFederationPositionToTable(accountId, savedPosition);
                     closeAssignFederationPositionModal();
                     showAccountToast(data.message || 'Federation position updated successfully.', 'edit');
-                    window.setTimeout(() => window.location.reload(), 900);
                 })
                 .catch(() => {
-                    hideLoadingOverlay();
+                    setAssignFederationSaving(false);
                     alert('An unexpected error occurred. Please try again.');
                 });
         });
@@ -4427,6 +4985,7 @@ document.addEventListener('DOMContentLoaded', function () {
             const viewBtn = e.target.closest('.btn-view-account');
             const editBtn = e.target.closest('.btn-edit-account');
             const deleteBtn = e.target.closest('.btn-delete-account');
+            const resendBtn = e.target.closest('.btn-resend-setup-email');
             if (viewBtn) {
                 closeAllAccountActionMenus();
                 openViewWithData(viewBtn);
@@ -4434,6 +4993,10 @@ document.addEventListener('DOMContentLoaded', function () {
             if (editBtn) {
                 closeAllAccountActionMenus();
                 openEditWithData(editBtn);
+            }
+            if (resendBtn) {
+                closeAllAccountActionMenus();
+                resendAccountSetupEmail(resendBtn);
             }
             if (deleteBtn) {
                 closeAllAccountActionMenus();

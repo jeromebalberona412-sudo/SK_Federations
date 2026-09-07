@@ -1801,6 +1801,39 @@ body.sidebar-collapsed .accounts-page-footer {
     color: #0f172a;
 }
 
+.assign-confirm-input {
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    font-weight: 700;
+}
+
+#assign_federation_position.is-placeholder {
+    color: #94a3b8;
+}
+
+#assign_federation_position option[value=""] {
+    color: #94a3b8;
+    font-style: italic;
+}
+
+#assignFederationPositionSubmitBtn.is-disabled,
+#assignFederationPositionSubmitBtn:disabled {
+    background: #cbd5e1;
+    color: #f8fafc;
+    opacity: 0.42;
+    cursor: not-allowed;
+    box-shadow: none;
+    pointer-events: none;
+}
+
+#assignFederationPositionSubmitBtn.is-loading {
+    background: #16a34a;
+    color: #ffffff;
+    opacity: 1;
+    pointer-events: none;
+    cursor: wait;
+}
+
 .pagination-text strong {
     color: #1e293b;
 }
