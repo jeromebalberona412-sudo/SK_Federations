@@ -533,12 +533,40 @@
         reactionPeopleHideTimer = window.setTimeout(hideReactionPeople, 160);
     }
 
+    function renderTypingIndicatorHtml(meta) {
+        var who = meta && meta.name ? String(meta.name).trim() : '';
+        var label = who ? (who + ' is typing...') : 'Typing...';
+        return '<div class="comms-typing-row">' +
+            '<span class="visually-hidden">' + escapeHtml(label) + '</span>' +
+            '<div class="comms-typing-bubble" aria-hidden="true">' +
+            '<span class="comms-typing-dot"></span>' +
+            '<span class="comms-typing-dot"></span>' +
+            '<span class="comms-typing-dot"></span>' +
+            '</div>' +
+            '<span class="comms-typing-label" aria-hidden="true">' + escapeHtml(label) + '</span>' +
+            '</div>';
+    }
+
+    function paintTypingEl(el, visible, meta) {
+        if (!el) return;
+        if (!visible) {
+            el.hidden = true;
+            el.innerHTML = '';
+            el.textContent = '';
+            return;
+        }
+        el.innerHTML = renderTypingIndicatorHtml(meta || null);
+        el.hidden = false;
+    }
+
     window.Comms = {
         csrfToken: csrfToken,
         escapeHtml: escapeHtml,
         defaultAvatar: defaultAvatar,
         formatTime: formatTime,
         formatHeaderMsgCount: formatHeaderMsgCount,
+        renderTypingIndicatorHtml: renderTypingIndicatorHtml,
+        paintTypingEl: paintTypingEl,
         route: route,
         api: api,
         showToast: showToast,

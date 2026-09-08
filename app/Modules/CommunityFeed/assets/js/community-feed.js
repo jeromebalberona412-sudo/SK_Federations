@@ -797,7 +797,7 @@ function buildPost(p) {
     return '<div class="post-header">'
         + avatarImg(avatar, 'post-avatar', p.author_name)
         + '<div class="post-info">'
-        + '<h3 class="post-author">' + escapeHtml(truncateName(p.author_name || 'SK Federation')) + (p.barangay_name && !p.is_federation_wide ? ' <small style="font-weight:400;color:#888;">· ' + escapeHtml(p.barangay_name) + '</small>' : '') + '</h3>'
+        + '<h3 class="post-author">' + escapeHtml(truncateName(p.author_name || (p.is_federation_wide ? 'SK Federation' : ('SK Brgy. ' + (p.barangay_name || 'Barangay'))))) + '</h3>'
         + '<p class="post-meta"><span class="post-type ' + escapeHtml(p.type || 'update') + '">' + escapeHtml(p.type || 'update') + '</span><span class="post-time">' + escapeHtml(p.time || '') + '</span></p>'
         + '</div>' + optionsHtml + '</div>'
         + '<div class="post-content">'

@@ -82,6 +82,8 @@
                     <p class="comms-chat-modal-empty">Select a conversation</p>
                 </div>
 
+                <div class="comms-chat-modal-typing" id="commsChatModalTyping" hidden aria-live="polite"></div>
+
                 <form class="comms-chat-modal-composer" id="commsChatModalForm" autocomplete="off">
                     <input type="file" id="commsChatPhotoInput" class="visually-hidden" accept="image/jpeg,image/png,image/webp,image/gif" multiple aria-hidden="true" tabindex="-1">
                     <input type="file" id="commsChatFileInput" class="visually-hidden" accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" multiple aria-hidden="true" tabindex="-1">

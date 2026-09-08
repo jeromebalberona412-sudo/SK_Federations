@@ -49,8 +49,54 @@
             hidden
             data-current-user-id="{{ auth()->id() }}"
             data-portal-user-type="{{ config('communications.portal_user_type', 'sk_fed') }}"
+            data-current-user-name="{{ auth()->user()->name ?? '' }}"
             data-unread-count-url="{{ url('/api/communications/unread-count') }}"
         ></div>
+        <script>
+            window.CommsChat = window.CommsChat || {
+                routes: {
+                    conversations: @json(url('/api/communications/conversations')),
+                    storeConversation: @json(url('/api/communications/conversations')),
+                    messages: @json(url('/api/communications/conversations/__ID__/messages')),
+                    react: @json(url('/api/communications/messages/__ID__/reactions')),
+                    read: @json(url('/api/communications/conversations/__ID__/read')),
+                    showConversation: @json(url('/api/communications/conversations/__ID__')),
+                    searchUsers: @json(url('/api/communications/users/search')),
+                    unreadCount: @json(url('/api/communications/unread-count')),
+                    startCall: @json(url('/api/communications/conversations/__ID__/calls')),
+                    callStatus: @json(url('/api/communications/calls/__ID__/status')),
+                    calls: @json(url('/api/communications/calls')),
+                    presence: @json(url('/api/communications/presence'))
+                },
+                getActiveId: function () {
+                    return (window.__COMMS_HEADER_ACTIVE_ID__ != null) ? window.__COMMS_HEADER_ACTIVE_ID__ : null;
+                },
+                reloadActiveMessages: function () {},
+                reloadConversations: function () {
+                    if (typeof window.refreshMessagesPopover === 'function') {
+                        window.refreshMessagesPopover();
+                    }
+                },
+                onReactionChange: function () {},
+                appendMessage: function () {},
+                setTyping: function (visible, meta) {
+                    var el = document.getElementById('commsChatModalTyping');
+                    if (!el) return;
+                    if (window.Comms && typeof window.Comms.paintTypingEl === 'function') {
+                        window.Comms.paintTypingEl(el, !!visible, meta || null);
+                        return;
+                    }
+                    if (!visible) {
+                        el.hidden = true;
+                        el.textContent = '';
+                        return;
+                    }
+                    var who = meta && meta.name ? String(meta.name).trim() : '';
+                    el.textContent = who ? (who + ' is typing...') : 'Typing...';
+                    el.hidden = false;
+                }
+            };
+        </script>
     @endauth
 
     @if(!empty($turnoverModal['show']))

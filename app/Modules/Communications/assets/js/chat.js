@@ -1036,12 +1036,41 @@
         renderMessages(opts);
     }
 
+    function stopLocalTyping() {
+        if (!state.activeId || !window.CommsRealtime) return;
+        if (typeof window.CommsRealtime.stopTyping === 'function') {
+            window.CommsRealtime.stopTyping(state.activeId);
+        } else if (typeof window.CommsRealtime.broadcastTyping === 'function') {
+            window.CommsRealtime.broadcastTyping(state.activeId, { stop: true });
+        }
+    }
+
+    function notifyComposerTyping(rawValue) {
+        if (!state.activeId || !window.CommsRealtime || typeof window.CommsRealtime.broadcastTyping !== 'function') {
+            return;
+        }
+        var hasText = !!String(rawValue == null ? '' : rawValue).replace(/\s/g, '');
+        if (!hasText) {
+            stopLocalTyping();
+            return;
+        }
+        window.CommsRealtime.broadcastTyping(state.activeId);
+    }
+
     function openConversation(id, opts) {
         opts = opts || {};
+        if (state.activeId && Number(state.activeId) !== Number(id)) {
+            stopLocalTyping();
+        }
         state.activeId = Number(id);
+        window.__COMMS_PAGE_ACTIVE_ID__ = state.activeId;
         setThreadOpen(true);
         els.threadEmpty.hidden = true;
         els.threadActive.hidden = false;
+        if (els.typing) {
+            els.typing.hidden = true;
+            els.typing.textContent = '';
+        }
         renderConversations(els.convFilter ? els.convFilter.value : '');
 
         if (window.CommsRealtime && typeof window.CommsRealtime.subscribeConversation === 'function') {
@@ -1162,6 +1191,7 @@
         }
         if (state.sendInFlight && files.length) return;
 
+        stopLocalTyping();
         els.input.value = '';
         resizeComposer();
         clearPendingAttachment();
@@ -1209,8 +1239,8 @@
             if (els.attachBtn) els.attachBtn.disabled = true;
             setUploadProgress(20, false);
             var form = new FormData();
-            files.forEach(function (file) {
-                form.append('attachments[]', file, file.name);
+            files.forEach(function (file, i) {
+                form.append('attachments[' + i + ']', file, file.name);
             });
             jobs.push(Comms.api(Comms.route(routes.messages, state.activeId), {
                 method: 'POST',
@@ -1568,7 +1598,10 @@
         });
     }
 
-    els.input.addEventListener('input', resizeComposer);
+    els.input.addEventListener('input', function () {
+        resizeComposer();
+        notifyComposerTyping(els.input.value);
+    });
 
     els.input.addEventListener('keydown', function (e) {
         // Enter = new line only. Ctrl/Cmd+Enter sends.
@@ -1577,14 +1610,17 @@
             sendMessage(els.input.value);
             return;
         }
-        if (window.CommsRealtime && typeof window.CommsRealtime.broadcastTyping === 'function' && state.activeId) {
-            window.CommsRealtime.broadcastTyping(state.activeId);
-        }
     });
 
     els.backBtn.addEventListener('click', function () {
+        stopLocalTyping();
         setThreadOpen(false);
         state.activeId = null;
+        window.__COMMS_PAGE_ACTIVE_ID__ = null;
+        if (els.typing) {
+            els.typing.hidden = true;
+            els.typing.textContent = '';
+        }
         els.threadActive.hidden = true;
         els.threadEmpty.hidden = false;
         renderConversations(els.convFilter.value);
@@ -1639,9 +1675,23 @@
             saveMsgCache(state.activeId, state.messages, state.reactionEmojis);
             renderMessages({ preserveScroll: true });
         },
-        getActiveId: function () { return state.activeId; },
-        setTyping: function (visible) {
-            els.typing.hidden = !visible;
+        getActiveId: function () {
+            return state.activeId || window.__COMMS_HEADER_ACTIVE_ID__ || null;
+        },
+        setTyping: function (visible, meta) {
+            if (!els.typing) return;
+            if (window.Comms && typeof window.Comms.paintTypingEl === 'function') {
+                window.Comms.paintTypingEl(els.typing, !!visible, meta || null);
+                return;
+            }
+            if (!visible) {
+                els.typing.hidden = true;
+                els.typing.textContent = '';
+                return;
+            }
+            var who = meta && meta.name ? String(meta.name).trim() : '';
+            els.typing.textContent = who ? (who + ' is typing...') : 'Typing...';
+            els.typing.hidden = false;
         },
         updatePeerOnlineFromPresence: updatePeerOnlineFromPresence,
         refreshActivePeerProfile: refreshActivePeerProfile,

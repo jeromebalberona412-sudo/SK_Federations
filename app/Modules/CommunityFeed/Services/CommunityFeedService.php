@@ -226,7 +226,13 @@ class CommunityFeedService
                     'type_class' => in_array($type, ['event', 'announcement', 'activity', 'program', 'update'], true)
                         ? $type
                         : 'update',
-                    'author' => Str::limit($post->user?->name ?: ('SK Brgy. '.($post->barangay?->name ?? '')), 50, '...'),
+                    'author' => Str::limit(
+                        $post->is_federation_wide
+                            ? 'SK Federation'
+                            : ('SK Brgy. '.($post->barangay?->name ?? 'Barangay')),
+                        50,
+                        '...'
+                    ),
                     'posted_at' => $post->created_at?->diffForHumans() ?? '',
                     'title' => $post->title ?: 'Barangay Update',
                     'text' => $post->body,

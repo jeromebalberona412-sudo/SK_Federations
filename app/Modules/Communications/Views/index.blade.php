@@ -32,6 +32,7 @@
     id="commsApp"
     data-current-user-id="{{ $currentUserId }}"
     data-portal-user-type="{{ $portalUserType }}"
+    data-current-user-name="{{ auth()->user()->name ?? '' }}"
     data-initial-conversation="{{ $initialConversationId ?? '' }}"
     data-routes='@json($commsRoutes)'
 >
@@ -122,7 +123,7 @@
                 </header>
 
                 <div class="comms-messages" id="commsMessages" role="log"></div>
-                <div class="comms-typing" id="commsTyping" hidden>Typing...</div>
+                <div class="comms-typing" id="commsTyping" hidden aria-live="polite"></div>
 
                 <form class="comms-composer" id="commsComposer" autocomplete="off">
                     <div class="comms-composer-tools">
