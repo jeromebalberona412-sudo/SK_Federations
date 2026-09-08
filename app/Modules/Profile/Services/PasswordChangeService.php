@@ -132,23 +132,24 @@ class PasswordChangeService
 
         $pendingPassword = (string) $user->pending_password;
 
-        $user->forceFill([
+        $clearPayload = [
             'pending_password' => null,
             'password_change_token' => null,
             'password_change_token_expires_at' => null,
             'password_change_last_sent_at' => null,
             'remember_token' => null,
-        ])->save();
+        ];
+
+        // Use Eloquent save so pgsql boolean columns are cast via User::booted().
+        if (Schema::hasColumn('users', 'must_change_password')) {
+            $clearPayload['must_change_password'] = false;
+        }
+
+        $user->forceFill($clearPayload)->save();
 
         User::query()
             ->whereKey($user->id)
             ->update(['password' => $pendingPassword]);
-
-        if (Schema::hasColumn('users', 'must_change_password')) {
-            User::query()
-                ->whereKey($user->id)
-                ->update(['must_change_password' => false]);
-        }
 
         $this->markRecentlyConfirmed($user->id);
 

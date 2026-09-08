@@ -12,6 +12,10 @@ Route::get('/change-email/confirm/{id}/{token}', [ProfileController::class, 'con
     ->middleware('throttle:6,1')
     ->name('change-email.confirm');
 
+Route::get('/change-email/success', [ProfileController::class, 'showChangeEmailSuccess'])
+    ->middleware('throttle:12,1')
+    ->name('change-email.success');
+
 Route::get('/change-email/set-password/{id}/{token}', [ProfileController::class, 'showSetPasswordAfterEmailChange'])
     ->middleware('throttle:6,1')
     ->name('change-email.set-password');
@@ -23,5 +27,9 @@ Route::post('/change-email/set-password/{id}/{token}', [ProfileController::class
 Route::get('/change-password/confirm/{id}/{token}', [ProfileController::class, 'confirmChangePassword'])
     ->middleware('throttle:6,1')
     ->name('change-password.confirm');
+
+Route::get('/change-password/success', [ProfileController::class, 'showChangePasswordSuccess'])
+    ->middleware('throttle:12,1')
+    ->name('change-password.success');
 
 // Note: Module routes are loaded by their respective service providers.

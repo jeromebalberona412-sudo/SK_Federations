@@ -156,7 +156,7 @@ document.addEventListener('DOMContentLoaded', function () {
         }
         markConfirmedUI(message);
         setTimeout(function () {
-            window.location.replace(redirectUrl || '/login');
+            window.location.replace(redirectUrl || '/change-password/success');
         }, 800);
     }
 

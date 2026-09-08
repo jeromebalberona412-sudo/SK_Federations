@@ -1,0 +1,165 @@
+<?php
+
+use App\Modules\Accounts\Models\Barangay;
+use App\Modules\Accounts\Models\OfficialProfile;
+use App\Modules\Accounts\Models\OfficialTerm;
+use App\Modules\Accounts\Services\AccountService;
+use App\Modules\Shared\Models\User;
+use Illuminate\Support\Facades\DB;
+
+beforeEach(function () {
+    $this->withoutMiddleware([
+        \App\Modules\Authentication\Middleware\EnsureTrustedDevice::class,
+        \App\Modules\Authentication\Middleware\EnsureSingleSession::class,
+        \App\Http\Middleware\PreventBackHistory::class,
+    ]);
+});
+
+it('does not list soft-deleted officials in the accounts officials data endpoint', function () {
+    $tenantId = (int) DB::table('tenants')->where('code', config('sk_fed_auth.tenant_code'))->value('id');
+    expect($tenantId)->toBeGreaterThan(0);
+
+    $barangayId = (int) Barangay::query()->where('tenant_id', $tenantId)->value('id');
+    expect($barangayId)->toBeGreaterThan(0);
+
+    $admin = User::factory()->create([
+        'tenant_id' => $tenantId,
+        'role' => User::ROLE_SK_FED,
+        'email_verified_at' => now(),
+        'status' => User::STATUS_ACTIVE,
+    ]);
+
+    $activeOfficial = User::factory()->create([
+        'tenant_id' => $tenantId,
+        'barangay_id' => $barangayId,
+        'role' => User::ROLE_SK_OFFICIAL,
+        'email_verified_at' => now(),
+        'status' => User::STATUS_ACTIVE,
+        'email' => 'active.official.'.uniqid().'@example.com',
+    ]);
+
+    $activeProfile = OfficialProfile::query()->create([
+        'tenant_id' => $tenantId,
+        'user_id' => $activeOfficial->id,
+        'first_name' => 'ACTIVE',
+        'last_name' => 'OFFICIAL',
+        'position' => 'Secretary',
+        'municipality' => 'Santa Cruz',
+        'province' => 'Laguna',
+        'region' => 'IV-A CALABARZON',
+    ]);
+
+    OfficialTerm::query()->create([
+        'official_profile_id' => $activeProfile->id,
+        'term_start' => now()->subMonth()->toDateString(),
+        'term_end' => now()->addYears(2)->toDateString(),
+        'status' => OfficialTerm::STATUS_ACTIVE,
+    ]);
+
+    $deletedOfficial = User::factory()->create([
+        'tenant_id' => $tenantId,
+        'barangay_id' => $barangayId,
+        'role' => User::ROLE_SK_OFFICIAL,
+        'email_verified_at' => now(),
+        'status' => User::STATUS_ACTIVE,
+        'email' => 'deleted.official.'.uniqid().'@example.com',
+    ]);
+
+    $deletedProfile = OfficialProfile::query()->create([
+        'tenant_id' => $tenantId,
+        'user_id' => $deletedOfficial->id,
+        'first_name' => 'DELETED',
+        'last_name' => 'OFFICIAL',
+        'position' => 'Treasurer',
+        'municipality' => 'Santa Cruz',
+        'province' => 'Laguna',
+        'region' => 'IV-A CALABARZON',
+    ]);
+
+    OfficialTerm::query()->create([
+        'official_profile_id' => $deletedProfile->id,
+        'term_start' => now()->subMonth()->toDateString(),
+        'term_end' => now()->addYears(2)->toDateString(),
+        'status' => OfficialTerm::STATUS_ACTIVE,
+    ]);
+
+    app(AccountService::class)->deactivate($deletedOfficial, $admin);
+
+    expect($deletedOfficial->fresh())->toBeNull()
+        ->and(User::withTrashed()->find($deletedOfficial->id)?->trashed())->toBeTrue();
+
+    $response = $this->actingAs($admin)
+        ->getJson(route('accounts.officials.data'));
+
+    $response->assertOk()
+        ->assertJsonPath('success', true);
+
+    $ids = collect($response->json('data'))->pluck('id')->map(fn ($id) => (int) $id)->all();
+
+    expect($ids)->toContain($activeOfficial->id)
+        ->and($ids)->not->toContain($deletedOfficial->id);
+
+    $activeOfficial->forceDelete();
+    User::withTrashed()->whereKey($deletedOfficial->id)->forceDelete();
+    $admin->forceDelete();
+});
+
+it('moves a deleted official out of accounts data and into the deleted archive', function () {
+    $tenantId = (int) DB::table('tenants')->where('code', config('sk_fed_auth.tenant_code'))->value('id');
+    $barangayId = (int) Barangay::query()->where('tenant_id', $tenantId)->value('id');
+
+    $admin = User::factory()->create([
+        'tenant_id' => $tenantId,
+        'role' => User::ROLE_SK_FED,
+        'email_verified_at' => now(),
+        'status' => User::STATUS_ACTIVE,
+    ]);
+
+    $official = User::factory()->create([
+        'tenant_id' => $tenantId,
+        'barangay_id' => $barangayId,
+        'role' => User::ROLE_SK_OFFICIAL,
+        'email_verified_at' => now(),
+        'status' => User::STATUS_ACTIVE,
+        'email' => 'archive.move.'.uniqid().'@example.com',
+    ]);
+
+    $profile = OfficialProfile::query()->create([
+        'tenant_id' => $tenantId,
+        'user_id' => $official->id,
+        'first_name' => 'ARCHIVE',
+        'last_name' => 'MOVE',
+        'position' => 'Auditor',
+        'municipality' => 'Santa Cruz',
+        'province' => 'Laguna',
+        'region' => 'IV-A CALABARZON',
+    ]);
+
+    OfficialTerm::query()->create([
+        'official_profile_id' => $profile->id,
+        'term_start' => now()->subMonth()->toDateString(),
+        'term_end' => now()->addYears(2)->toDateString(),
+        'status' => OfficialTerm::STATUS_ACTIVE,
+    ]);
+
+    $this->actingAs($admin)
+        ->postJson(route('accounts.deactivate', $official))
+        ->assertOk()
+        ->assertJsonPath('success', true);
+
+    $accountsResponse = $this->actingAs($admin)
+        ->getJson(route('accounts.officials.data'));
+
+    $accountIds = collect($accountsResponse->json('data'))->pluck('id')->map(fn ($id) => (int) $id)->all();
+    expect($accountIds)->not->toContain($official->id);
+
+    $archiveResponse = $this->actingAs($admin)
+        ->getJson(route('archived.deleted-sk-officials.data'));
+
+    $archiveResponse->assertOk();
+    $archiveIds = collect($archiveResponse->json('data'))->pluck('id')->map(fn ($id) => (int) $id)->all();
+    expect($archiveIds)->toContain($official->id);
+
+    User::withTrashed()->whereKey($official->id)->forceDelete();
+    $admin->forceDelete();
+});

@@ -27,6 +27,7 @@ Route::middleware(['auth', 'session.timeout', 'verified', 'single.session', 'sk_
 
         Route::get('/accounts/federation', [AdminAccountController::class, 'indexFederation'])->name('accounts.federation.index');
         Route::get('/accounts/officials', [AdminAccountController::class, 'indexOfficials'])->name('accounts.officials.index');
+        Route::get('/accounts/officials/data', [AdminAccountController::class, 'officialsData'])->name('accounts.officials.data');
 
         Route::get('/accounts/create', [AdminAccountController::class, 'create'])->name('accounts.create');
         Route::post('/accounts', [AdminAccountController::class, 'store'])->name('accounts.store');
@@ -43,4 +44,10 @@ Route::middleware(['auth', 'session.timeout', 'verified', 'single.session', 'sk_
         Route::post('/accounts/{user}/deactivate', [AdminAccountController::class, 'deactivate'])->name('accounts.deactivate');
         Route::post('/accounts/{user}/reset-password', [AdminAccountController::class, 'resetPassword'])->name('accounts.reset-password');
         Route::post('/accounts/{officialProfile}/extend-term', [AdminAccountController::class, 'extendTerm'])->name('accounts.extend-term');
+
+        Route::get('/invalid-emails', [\App\Modules\Accounts\Controllers\InvalidEmailController::class, 'index'])->name('accounts.invalid-emails.index');
+        Route::post('/invalid-emails', [\App\Modules\Accounts\Controllers\InvalidEmailController::class, 'store'])->name('accounts.invalid-emails.store');
+        Route::post('/invalid-emails/{invalidEmail}/reset', [\App\Modules\Accounts\Controllers\InvalidEmailController::class, 'reset'])->name('accounts.invalid-emails.reset');
+        Route::post('/invalid-emails/{invalidEmail}/permanent-block', [\App\Modules\Accounts\Controllers\InvalidEmailController::class, 'permanentlyBlock'])->name('accounts.invalid-emails.block');
+        Route::delete('/invalid-emails/{invalidEmail}', [\App\Modules\Accounts\Controllers\InvalidEmailController::class, 'destroy'])->name('accounts.invalid-emails.destroy');
     });

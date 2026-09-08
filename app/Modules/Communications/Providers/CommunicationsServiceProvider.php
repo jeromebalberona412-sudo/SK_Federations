@@ -35,7 +35,7 @@ class CommunicationsServiceProvider extends ServiceProvider
                 try {
                     $service = app(ConversationService::class);
                     $count = $service->unreadTotalForUser($user);
-                    $headerConversations = $service->listForUser($user)->take(8)->values()->all();
+                    $headerConversations = $service->headerInboxForUser($user)->values()->all();
                 } catch (\Throwable) {
                     $count = 0;
                     $headerConversations = [];

@@ -6,6 +6,7 @@ use App\Modules\Accounts\Models\OfficialProfile;
 use App\Modules\Accounts\Models\OfficialTerm;
 use App\Modules\Accounts\Notifications\FederationPositionAssignedNotification;
 use App\Modules\Shared\Models\User;
+use App\Services\InvalidEmailService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
@@ -192,9 +193,28 @@ class FederationRosterService
                     return;
                 }
 
+                $email = strtolower(trim((string) $user->email));
+                $invalidEmails = app(InvalidEmailService::class);
+
+                if ($email !== '') {
+                    $check = $invalidEmails->checkBeforeSending($email);
+                    if (! $check['allowed']) {
+                        Log::warning('Skipped federation position assignment email for invalid address.', [
+                            'user_id' => $userId,
+                            'email' => $email,
+                            'reason' => $check['message'],
+                        ]);
+
+                        return;
+                    }
+                }
+
                 try {
                     $user->notify(new FederationPositionAssignedNotification($normalizedPosition, $portalUrl));
                 } catch (\Throwable $exception) {
+                    if ($email !== '') {
+                        $invalidEmails->recordFailureFromException($email, $exception);
+                    }
                     Log::warning('Failed to send federation position assignment email.', [
                         'user_id' => $userId,
                         'position' => $normalizedPosition,

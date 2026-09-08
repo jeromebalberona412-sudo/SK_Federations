@@ -107,7 +107,7 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     function statsCacheKey(range) {
-        return 'sk_fed_dashboard_stats_v3_' + (range.date_from || '') + '_' + (range.date_to || '');
+        return 'sk_fed_dashboard_stats_v5_' + (range.date_from || '') + '_' + (range.date_to || '');
     }
 
     function seedStatsCacheFromInitial() {
@@ -124,6 +124,8 @@ document.addEventListener('DOMContentLoaded', function () {
                 stats: feed.stats,
                 sex_distribution: feed.sex_distribution || null,
                 sex_distribution_officials: feed.sex_distribution_officials || null,
+                sex_distribution_federations: feed.sex_distribution_federations || null,
+                employment_status_distribution: feed.employment_status_distribution || null,
                 abyip_overview: feed.abyip_overview || null,
                 top_barangays: feed.top_barangays || [],
                 recent_activity: feed.recent_activity || [],
@@ -273,11 +275,8 @@ document.addEventListener('DOMContentLoaded', function () {
         if (payload.stats) {
             updateStats(payload.stats);
         }
-        if (typeof window.applyDashboardSexDistribution === 'function') {
-            window.applyDashboardSexDistribution(
-                payload.sex_distribution || null,
-                payload.sex_distribution_officials || null
-            );
+        if (typeof window.applyDashboardDemographics === 'function') {
+            window.applyDashboardDemographics(payload);
         }
         if (payload.abyip_overview) {
             applyAbyipOverview(payload.abyip_overview);

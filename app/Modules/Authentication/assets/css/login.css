@@ -10,6 +10,11 @@
     display: flex !important; justify-content: space-between !important;
     align-items: center !important; gap: 1rem; margin-top: 0.25rem;
 }
+
+input[type="email"],
+input[name="email"] {
+    text-transform: lowercase;
+}
 .form-check {
     display: flex !important; align-items: center !important;
     gap: 0.625rem !important; padding-left: 0 !important;

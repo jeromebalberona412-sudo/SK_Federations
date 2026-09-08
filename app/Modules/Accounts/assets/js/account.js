@@ -193,18 +193,12 @@ window.AccountsDeleteModal = (function () {
                     return;
                 }
 
-                bulkIds.forEach((id) => {
-                    const row = document.querySelector(`tr[data-account-id="${id}"]`);
-                    if (row) row.remove();
-                });
+                removeOfficialAccountRowsFromTable(bulkIds);
+                window.SkLocalCache?.clearByPrefix?.('sk_fed_deleted_sk_officials_v1_');
 
                 const root = document.getElementById('mainContent');
                 if (root?._x_dataStack?.[0]?.clearSelection) {
                     root._x_dataStack[0].clearSelection();
-                }
-
-                if (typeof window.refreshAccountsPagination === 'function') {
-                    window.refreshAccountsPagination();
                 }
 
                 closeModal();
@@ -233,18 +227,14 @@ window.AccountsDeleteModal = (function () {
                 return;
             }
 
-            const row = document.querySelector(`tr[data-account-id="${targetId}"]`);
-            if (row) row.remove();
+            removeOfficialAccountRowsFromTable(targetId);
+            window.SkLocalCache?.clearByPrefix?.('sk_fed_deleted_sk_officials_v1_');
 
             const root = document.getElementById('mainContent');
             const alpine = root?._x_dataStack?.[0];
             if (alpine && Array.isArray(alpine.selectedRows)) {
                 alpine.selectedRows = alpine.selectedRows.filter((id) => id !== targetId);
                 alpine.syncSelectAllState?.();
-            }
-
-            if (typeof window.refreshAccountsPagination === 'function') {
-                window.refreshAccountsPagination();
             }
 
             closeModal();
@@ -734,6 +724,8 @@ function prependOfficialAccountRow(account) {
     }
 
     tableBody.insertAdjacentHTML('afterbegin', buildOfficialAccountRowHtml(account));
+    clearOfficialsAccountsLocalCache();
+    initAlpineOnAccountsTableBody();
 
     if (typeof window.refreshAccountsPagination === 'function') {
         window.refreshAccountsPagination();
@@ -757,6 +749,7 @@ function replaceOfficialAccountRow(account) {
     }
 
     existing.outerHTML = buildOfficialAccountRowHtml(account);
+    clearOfficialsAccountsLocalCache();
 
     if (typeof window.refreshAccountsPagination === 'function') {
         window.refreshAccountsPagination();
@@ -764,9 +757,222 @@ function replaceOfficialAccountRow(account) {
 
     const root = document.getElementById('mainContent');
     root?._x_dataStack?.[0]?.syncSelectAllState?.();
+    initAlpineOnAccountsTableBody();
 
     return true;
 }
+
+const ACCOUNTS_OFFICIALS_CACHE_PREFIX = 'sk_fed_accounts_officials_v1';
+let officialsTableLoadInFlight = null;
+let officialsTableLoadGeneration = 0;
+
+function clearOfficialsAccountsLocalCache() {
+    window.SkLocalCache?.clearByPrefix?.(ACCOUNTS_OFFICIALS_CACHE_PREFIX);
+}
+
+function removeOfficialAccountsFromLocalCache(accountIds) {
+    const ids = (Array.isArray(accountIds) ? accountIds : [accountIds])
+        .map((id) => Number(id))
+        .filter((id) => Number.isFinite(id) && id > 0);
+
+    if (ids.length === 0) {
+        clearOfficialsAccountsLocalCache();
+        return;
+    }
+
+    const cached = window.SkLocalCache?.get?.(ACCOUNTS_OFFICIALS_CACHE_PREFIX);
+    const rows = cached?.payload?.data;
+    if (!Array.isArray(rows)) {
+        clearOfficialsAccountsLocalCache();
+        return;
+    }
+
+    const idSet = new Set(ids);
+    window.SkLocalCache?.set?.(ACCOUNTS_OFFICIALS_CACHE_PREFIX, {
+        ...cached.payload,
+        data: rows.filter((account) => !idSet.has(Number(account?.id))),
+    });
+}
+
+function removeOfficialAccountRowsFromTable(accountIds) {
+    const ids = (Array.isArray(accountIds) ? accountIds : [accountIds])
+        .map((id) => Number(id))
+        .filter((id) => Number.isFinite(id) && id > 0);
+
+    ids.forEach((id) => {
+        document.querySelector(`tr[data-account-id="${id}"]`)?.remove();
+    });
+
+    removeOfficialAccountsFromLocalCache(ids);
+    // Invalidate any in-flight list response so it cannot re-paint deleted rows.
+    officialsTableLoadGeneration += 1;
+    officialsTableLoadInFlight = null;
+
+    const remaining = document.querySelectorAll('#accountsTableBody tr[data-account-id]').length;
+    if (remaining === 0) {
+        renderOfficialsEmptyState();
+    }
+
+    if (typeof window.refreshAccountsPagination === 'function') {
+        window.refreshAccountsPagination();
+    }
+}
+
+function initAlpineOnAccountsTableBody() {
+    const tableBody = document.getElementById('accountsTableBody');
+    if (!tableBody || !window.Alpine || typeof window.Alpine.initTree !== 'function') {
+        return;
+    }
+    window.Alpine.initTree(tableBody);
+}
+
+function renderOfficialsLoadingState() {
+    const tableBody = document.getElementById('accountsTableBody');
+    if (!tableBody) return;
+    tableBody.innerHTML = `
+        <tr class="accounts-loading-row">
+            <td colspan="8">
+                <div class="accounts-table-loading" role="status" aria-live="polite" aria-label="Loading">
+                    <span class="accounts-loading-spinner" aria-hidden="true"></span>
+                </div>
+            </td>
+        </tr>
+    `;
+}
+
+function renderOfficialsErrorState(message) {
+    const tableBody = document.getElementById('accountsTableBody');
+    if (!tableBody) return;
+    tableBody.innerHTML = `
+        <tr class="accounts-empty-row">
+            <td colspan="8" class="text-center">${escapeHtml(message || 'Unable to load SK Officials accounts.')}</td>
+        </tr>
+    `;
+    if (typeof window.refreshAccountsPagination === 'function') {
+        window.refreshAccountsPagination();
+    }
+}
+
+function renderOfficialsEmptyState() {
+    const tableBody = document.getElementById('accountsTableBody');
+    if (!tableBody) return;
+    tableBody.innerHTML = `
+        <tr class="accounts-empty-row">
+            <td colspan="8" class="text-center">No accounts found.</td>
+        </tr>
+    `;
+}
+
+function paintOfficialsAccountsTable(accounts) {
+    const tableBody = document.getElementById('accountsTableBody');
+    if (!tableBody) return;
+
+    const rows = Array.isArray(accounts) ? accounts : [];
+    if (rows.length === 0) {
+        renderOfficialsEmptyState();
+    } else {
+        tableBody.innerHTML = rows.map((account) => buildOfficialAccountRowHtml(account)).join('');
+        initAlpineOnAccountsTableBody();
+    }
+
+    if (typeof window.refreshAccountsPagination === 'function') {
+        window.refreshAccountsPagination();
+    }
+
+    const root = document.getElementById('mainContent');
+    root?._x_dataStack?.[0]?.clearSelection?.();
+    root?._x_dataStack?.[0]?.syncSelectAllState?.();
+}
+
+async function loadOfficialsAccountsTable({ force = false } = {}) {
+    const main = document.getElementById('mainContent');
+    if (!main || main.dataset.accountType !== 'sk_officials') {
+        return;
+    }
+
+    const dataUrl = main.dataset.accountsDataUrl;
+    if (!dataUrl) {
+        return;
+    }
+
+    if (force) {
+        clearOfficialsAccountsLocalCache();
+        officialsTableLoadGeneration += 1;
+        officialsTableLoadInFlight = null;
+    }
+
+    if (officialsTableLoadInFlight && !force) {
+        return officialsTableLoadInFlight;
+    }
+
+    const loadGeneration = officialsTableLoadGeneration;
+    const cacheKey = ACCOUNTS_OFFICIALS_CACHE_PREFIX;
+    const cached = !force ? window.SkLocalCache?.get?.(cacheKey) : null;
+    const paint = (payload) => {
+        if (loadGeneration !== officialsTableLoadGeneration) {
+            return;
+        }
+        paintOfficialsAccountsTable(payload?.data || []);
+    };
+
+    if (cached?.payload) {
+        paint(cached.payload);
+        if (window.SkLocalCache?.isFresh?.(cached, 5 * 60 * 1000) && !force) {
+            officialsTableLoadInFlight = fetch(dataUrl, { headers: { Accept: 'application/json' } })
+                .then((response) => response.json().then((payload) => ({ ok: response.ok, payload })))
+                .then(({ ok, payload }) => {
+                    if (loadGeneration !== officialsTableLoadGeneration) {
+                        return;
+                    }
+                    if (!ok || !payload?.success) return;
+                    window.SkLocalCache?.set?.(cacheKey, payload);
+                    paint(payload);
+                })
+                .catch(() => {})
+                .finally(() => {
+                    if (loadGeneration === officialsTableLoadGeneration) {
+                        officialsTableLoadInFlight = null;
+                    }
+                });
+            return officialsTableLoadInFlight;
+        }
+    } else {
+        renderOfficialsLoadingState();
+    }
+
+    officialsTableLoadInFlight = (async () => {
+        try {
+            const response = await fetch(dataUrl, {
+                headers: { Accept: 'application/json' },
+            });
+            const payload = await response.json();
+            if (loadGeneration !== officialsTableLoadGeneration) {
+                return;
+            }
+            if (!response.ok || !payload?.success) {
+                throw new Error(payload?.message || 'Failed to load SK Officials accounts.');
+            }
+            window.SkLocalCache?.set?.(cacheKey, payload);
+            paint(payload);
+        } catch (error) {
+            if (loadGeneration !== officialsTableLoadGeneration) {
+                return;
+            }
+            if (!cached?.payload) {
+                renderOfficialsErrorState(error?.message || 'Unable to load SK Officials accounts.');
+            }
+        } finally {
+            if (loadGeneration === officialsTableLoadGeneration) {
+                officialsTableLoadInFlight = null;
+            }
+        }
+    })();
+
+    return officialsTableLoadInFlight;
+}
+
+window.loadOfficialsAccountsTable = loadOfficialsAccountsTable;
+window.clearOfficialsAccountsLocalCache = clearOfficialsAccountsLocalCache;
 
 function resendAccountSetupEmail(button) {
     const accountId = button?.dataset?.accountId;
@@ -4015,6 +4221,11 @@ document.addEventListener('DOMContentLoaded', function () {
         allAccounts = rows.map((el, i) => ({ element: el, index: i }));
         applyAccountsTableFilters();
     };
+
+    // SK Officials table: show loading animation, then fetch DB rows via AJAX.
+    if (typeof loadOfficialsAccountsTable === 'function') {
+        loadOfficialsAccountsTable();
+    }
 
     // ── Table sorting (Fullname only) ─────────────────────────
     const sortMenu = document.getElementById('accountsSortMenu');

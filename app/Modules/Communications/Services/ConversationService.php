@@ -169,6 +169,49 @@ class ConversationService
         return $items->sortByDesc(fn (array $item) => $item['updated_at'] ?? '')->values();
     }
 
+    /**
+     * Header Chats popover: existing conversations first, then all messageable SK Officials
+     * (even when no conversation exists yet).
+     *
+     * @return \Illuminate\Support\Collection<int, array<string, mixed>>
+     */
+    public function headerInboxForUser(Authenticatable $user): Collection
+    {
+        $conversations = $this->listForUser($user);
+        $seenPeerIds = [];
+
+        foreach ($conversations as $item) {
+            $peerId = (int) ($item['other_user']['id'] ?? 0);
+            if ($peerId > 0) {
+                $seenPeerIds[$peerId] = true;
+            }
+        }
+
+        $directory = $this->directory($user, 'officials');
+        $directoryUsers = collect($directory['users'] ?? []);
+
+        $pending = $directoryUsers
+            ->filter(function (array $peer) use ($seenPeerIds): bool {
+                $peerId = (int) ($peer['id'] ?? 0);
+
+                return $peerId > 0 && ! isset($seenPeerIds[$peerId]);
+            })
+            ->map(function (array $peer): array {
+                return [
+                    'id' => null,
+                    'conversation_type' => 'private',
+                    'other_user' => $peer,
+                    'last_message' => null,
+                    'unread_count' => 0,
+                    'updated_at' => null,
+                ];
+            })
+            ->sortBy(fn (array $item) => mb_strtolower((string) ($item['other_user']['name'] ?? '')))
+            ->values();
+
+        return $conversations->concat($pending)->values();
+    }
+
     public function showPayload(Conversation $conversation, Authenticatable $user): array
     {
         $userType = $this->types->portalType();
@@ -489,7 +532,7 @@ class ConversationService
 
         return [
             'id' => (int) $user->id,
-            'name' => (string) $user->name,
+            'name' => $this->displayNameForUser($user),
             'role' => (string) $user->role,
             'user_type' => $type,
             'user_type_label' => $this->types->label($type),
@@ -500,6 +543,29 @@ class ConversationService
             'barangay_name' => $user->barangay?->name,
             'position' => $position,
         ];
+    }
+
+    private function displayNameForUser(User $user): string
+    {
+        $profile = $user->officialProfile;
+        if ($profile !== null) {
+            $first = trim((string) ($profile->first_name ?? ''));
+            $middle = trim((string) ($profile->middle_name ?? ''));
+            $last = trim((string) ($profile->last_name ?? ''));
+            $suffix = trim((string) ($profile->suffix ?? ''));
+            if (in_array(mb_strtoupper($suffix, 'UTF-8'), ['', 'NONE'], true)) {
+                $suffix = '';
+            }
+
+            $parts = array_values(array_filter([$first, $middle, $last, $suffix], fn (string $part): bool => $part !== ''));
+            if ($parts !== []) {
+                return implode(' ', $parts);
+            }
+        }
+
+        $fallback = trim((string) ($user->name ?? ''));
+
+        return $fallback !== '' ? $fallback : 'User';
     }
 
     protected function findPrivateConversationId(int $aId, string $aType, int $bId, string $bType): ?int

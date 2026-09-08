@@ -20,7 +20,7 @@
 @endpush
 
 @section('content')
-    <div id="ceVerifySection">
+    <div id="ceVerifySection" class="ce-verify-shell">
         <div class="card-header">
             <h2 class="card-title">Verify Email Change</h2>
             <p class="card-subtitle">We sent a confirmation link to your new email address.</p>
@@ -40,17 +40,17 @@
             @endif
 
             <div class="ce-info-box">
-                A confirmation link has been sent to <strong id="cePendingEmail">{{ $user->pending_email }}</strong>. Your current email stays active until you verify the new one.
+                A confirmation link has been sent to <strong id="cePendingEmail">{{ $pendingEmail ?? $user->pending_email }}</strong>. Your current email stays active until you verify the new one.
             </div>
 
             <div class="ce-status-table">
                 <div class="ce-status-row">
                     <span class="ce-status-key">Current email</span>
-                    <span class="ce-status-val" id="ceCurrentEmailVal">{{ $user->email }}</span>
+                    <span class="ce-status-val" id="ceCurrentEmailVal">{{ $currentEmail ?? $user->email }}</span>
                 </div>
                 <div class="ce-status-row">
                     <span class="ce-status-key">Pending email</span>
-                    <span class="ce-status-val" id="cePendingEmailVal">{{ $user->pending_email }}</span>
+                    <span class="ce-status-val" id="cePendingEmailVal">{{ $pendingEmail ?? $user->pending_email }}</span>
                 </div>
                 <div class="ce-status-row">
                     <span class="ce-status-key">Status</span>
@@ -74,9 +74,11 @@
             </div>
 
             <div class="youth-register-section ce-back-section">
-                <p class="register-text">
-                    <a href="{{ route('profile') }}" class="register-link">← Back to Profile</a>
-                </p>
+                <form action="{{ route('change-email.cancel') }}" method="POST" id="ceBackToProfileForm" class="ce-back-form">
+                    @csrf
+                    <input type="hidden" name="redirect" value="profile">
+                    <button type="submit" class="back-link ce-back-btn">Back to Profile</button>
+                </form>
             </div>
         </div>
     </div>

@@ -27,6 +27,7 @@
      data-batch-role="{{ $batchRole }}"
      data-batch-template-type="{{ $batchTemplateType }}"
      @if($isOfficials)
+     data-accounts-data-url="{{ route('accounts.officials.data') }}"
      data-default-term-start="{{ $defaultTermStart ?? '' }}"
      data-default-term-end="{{ $defaultTermEnd ?? '' }}"
      @endif
@@ -142,77 +143,63 @@
                         </tr>
                     </thead>
                     <tbody id="accountsTableBody">
-                        @forelse($accounts as $account)
-                            @php
-                                $profile = $account->officialProfile;
-                                $term = $profile?->latestTerm;
-                                $firstName = $profile?->first_name ? mb_strtoupper($profile->first_name, 'UTF-8') : null;
-                                $lastName = $profile?->last_name ? mb_strtoupper($profile->last_name, 'UTF-8') : null;
-                                $middleName = trim((string) ($profile?->middle_name ?? ''));
-                                $middleInitial = $middleName !== '' ? mb_strtoupper(mb_substr($middleName, 0, 1, 'UTF-8'), 'UTF-8').'.' : null;
-                                $suffixDisplay = $profile?->suffix;
-                                if (in_array($suffixDisplay, ['NONE', 'None', null, ''], true)) {
-                                    $suffixDisplay = null;
-                                }
-                                $nameCore = collect([$lastName, $firstName])->filter()->implode(', ');
-                                $fullName = trim(collect([
-                                    $nameCore,
-                                    $middleInitial,
-                                    $suffixDisplay,
-                                ])->filter()->implode(' '));
-                                $displayName = $fullName !== '' ? $fullName : ($account->name ?? 'N/A');
-                                $sortName = strtolower(trim(collect([$lastName, $firstName, $middleInitial, $suffixDisplay])->filter()->implode(' ')));
-                                $federationPosition = $profile?->displayFederationPosition();
-                                $filterPosition = $isOfficials ? ($profile?->position ?? '') : ($profile?->federation_position ?? '');
-                                $searchBlob = strtolower(trim(collect([
-                                    $displayName,
-                                    $account->email,
-                                    $account->barangay?->name,
-                                    $profile?->position,
-                                    $federationPosition,
-                                ])->filter()->implode(' ')));
-                                $isIncomingTurnover = $account->isIncomingTurnoverOfficer();
-                            @endphp
-                            <tr data-account-id="{{ $account->id }}"
-                                data-barangay-id="{{ $account->barangay_id ?? '' }}"
-                                data-filter-position="{{ $filterPosition }}"
-                                data-search-text="{{ $searchBlob }}"
-                                data-sort-name="{{ $sortName }}"
-                                data-sort-email="{{ strtolower($account->email ?? '') }}"
-                                data-sort-barangay="{{ strtolower($account->barangay?->name ?? '') }}"
-                                data-sort-position="{{ strtolower($profile?->position ?? '') }}"
-                                data-sort-federation-position="{{ strtolower($federationPosition ?? '') }}"
-                                data-sort-term="{{ $term?->term_end?->format('Y-m-d') ?? '' }}"
-                                @if($isIncomingTurnover) data-incoming-turnover="1" @endif>
-                                @if($isOfficials)
-                                <td class="td-checkbox">
-                                    @if($isIncomingTurnover)
-                                        <span class="account-checkbox-placeholder" aria-hidden="true">—</span>
-                                    @else
-                                    <input type="checkbox" class="account-checkbox account-row-checkbox"
-                                           value="{{ $account->id }}"
-                                           @change="toggleRow({{ $account->id }}, $event.target.checked)"
-                                           :checked="selectedRows.includes({{ $account->id }})"
-                                           aria-label="Select {{ $displayName }}">
-                                    @endif
+                        @if($isOfficials)
+                            <tr class="accounts-loading-row">
+                                <td colspan="{{ $tableColspan }}">
+                                    <div class="accounts-table-loading" role="status" aria-live="polite" aria-label="Loading">
+                                        <span class="accounts-loading-spinner" aria-hidden="true"></span>
+                                    </div>
                                 </td>
-                                @endif
-                                <td class="td-name" title="{{ $displayName }}">
-                                    <span class="account-name-text">{{ $displayName }}</span>
-                                </td>
-                                <td class="td-email">{{ $account->email }}</td>
-                                <td class="td-barangay">{{ $account->barangay?->name ?? '—' }}</td>
-                                <td class="td-position">
-                                    @if($isOfficials)
-                                        {{ $profile?->position ?? '—' }}
-                                    @else
-                                        {{ $profile?->position ?? '—' }}
-                                    @endif
-                                </td>
-                                @if($isOfficials)
-                                    <td class="td-term">{{ $term?->term_start?->format('m/d/Y') ?? '—' }}</td>
-                                    <td class="td-term">{{ $term?->term_end?->format('m/d/Y') ?? '—' }}</td>
-                                @else
+                            </tr>
+                        @else
+                            @forelse($accounts as $account)
+                                @php
+                                    $profile = $account->officialProfile;
+                                    $term = $profile?->latestTerm;
+                                    $firstName = $profile?->first_name ? mb_strtoupper($profile->first_name, 'UTF-8') : null;
+                                    $lastName = $profile?->last_name ? mb_strtoupper($profile->last_name, 'UTF-8') : null;
+                                    $middleName = trim((string) ($profile?->middle_name ?? ''));
+                                    $middleNameDisplay = $middleName !== '' ? mb_strtoupper($middleName, 'UTF-8') : null;
+                                    $suffixDisplay = $profile?->suffix;
+                                    if (in_array($suffixDisplay, ['NONE', 'None', null, ''], true)) {
+                                        $suffixDisplay = null;
+                                    }
+                                    $nameCore = collect([$lastName, $firstName])->filter()->implode(', ');
+                                    $fullName = trim(collect([
+                                        $nameCore,
+                                        $middleNameDisplay,
+                                        $suffixDisplay,
+                                    ])->filter()->implode(' '));
+                                    $displayName = $fullName !== '' ? $fullName : ($account->name ?? 'N/A');
+                                    $sortName = strtolower(trim(collect([$lastName, $firstName, $middleNameDisplay, $suffixDisplay])->filter()->implode(' ')));
+                                    $federationPosition = $profile?->displayFederationPosition();
+                                    $filterPosition = $profile?->federation_position ?? '';
+                                    $searchBlob = strtolower(trim(collect([
+                                        $displayName,
+                                        $account->email,
+                                        $account->barangay?->name,
+                                        $profile?->position,
+                                        $federationPosition,
+                                    ])->filter()->implode(' ')));
+                                    $isIncomingTurnover = $account->isIncomingTurnoverOfficer();
+                                @endphp
+                                <tr data-account-id="{{ $account->id }}"
+                                    data-barangay-id="{{ $account->barangay_id ?? '' }}"
+                                    data-filter-position="{{ $filterPosition }}"
+                                    data-search-text="{{ $searchBlob }}"
+                                    data-sort-name="{{ $sortName }}"
+                                    data-sort-email="{{ strtolower($account->email ?? '') }}"
+                                    data-sort-barangay="{{ strtolower($account->barangay?->name ?? '') }}"
+                                    data-sort-position="{{ strtolower($profile?->position ?? '') }}"
+                                    data-sort-federation-position="{{ strtolower($federationPosition ?? '') }}"
+                                    data-sort-term="{{ $term?->term_end?->format('Y-m-d') ?? '' }}"
+                                    @if($isIncomingTurnover) data-incoming-turnover="1" @endif>
+                                    <td class="td-name" title="{{ $displayName }}">
+                                        <span class="account-name-text">{{ $displayName }}</span>
+                                    </td>
+                                    <td class="td-email">{{ $account->email }}</td>
+                                    <td class="td-barangay">{{ $account->barangay?->name ?? '—' }}</td>
+                                    <td class="td-position">{{ $profile?->position ?? '—' }}</td>
                                     <td class="td-federation-position">
                                         @if($federationPosition)
                                             {{ $federationPosition }}
@@ -220,26 +207,26 @@
                                             <span class="text-muted">Not assigned</span>
                                         @endif
                                     </td>
-                                @endif
-                                <td class="td-actions">
-                                    @include('accounts::account_actions_menu', [
-                                        'account' => $account,
-                                        'profile' => $profile,
-                                        'term' => $term,
-                                        'displayName' => $displayName,
-                                        'firstName' => $firstName,
-                                        'lastName' => $lastName,
-                                        'middleName' => $middleName,
-                                        'hideDelete' => ! $isOfficials,
-                                        'readOnlyActions' => $isIncomingTurnover,
-                                    ])
-                                </td>
-                            </tr>
-                        @empty
-                            <tr>
-                                <td colspan="{{ $tableColspan }}" class="text-center">No accounts found.</td>
-                            </tr>
-                        @endforelse
+                                    <td class="td-actions">
+                                        @include('accounts::account_actions_menu', [
+                                            'account' => $account,
+                                            'profile' => $profile,
+                                            'term' => $term,
+                                            'displayName' => $displayName,
+                                            'firstName' => $firstName,
+                                            'lastName' => $lastName,
+                                            'middleName' => $middleNameDisplay ?? '',
+                                            'hideDelete' => true,
+                                            'readOnlyActions' => $isIncomingTurnover,
+                                        ])
+                                    </td>
+                                </tr>
+                            @empty
+                                <tr>
+                                    <td colspan="{{ $tableColspan }}" class="text-center">No accounts found.</td>
+                                </tr>
+                            @endforelse
+                        @endif
                     </tbody>
                 </table>
             </div>

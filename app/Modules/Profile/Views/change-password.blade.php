@@ -23,8 +23,8 @@
     </div>
 
     @if ($errors->any())
-        <div class="alert alert-danger" role="alert">
-            @foreach ($errors->all() as $error)
+        <div class="alert alert-danger" id="cpFormAlert" role="alert">
+            @foreach (array_unique($errors->all()) as $error)
                 <div>{{ $error }}</div>
             @endforeach
         </div>
@@ -35,28 +35,25 @@
 
         <div class="form-group">
             <label for="cpEmail">
-                <svg class="label-icon" viewBox="0 0 20 20" fill="currentColor">
+                <svg class="label-icon" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
                     <path d="M2.003 5.884L10 9.882l7.997-3.998A2 2 0 0016 4H4a2 2 0 00-1.997 1.884z"/>
                     <path d="M18 8.118l-8 4-8-4V14a2 2 0 002 2h12a2 2 0 002-2V8.118z"/>
                 </svg>
                 Account Email
             </label>
-            <input type="email" id="cpEmail" name="email" class="form-control" placeholder="Enter your account email" autocomplete="email" maxlength="255" value="{{ old('email', $user->email ?? '') }}" required>
+            <input type="email" id="cpEmail" name="email" class="form-control @error('email') is-invalid @enderror" placeholder="Enter your account email" autocomplete="email" maxlength="255" value="{{ old('email', $user->email ?? '') }}" required>
             <div class="invalid-feedback d-block" id="cpEmailClientError" hidden></div>
-            @error('email')
-                <div class="invalid-feedback d-block">{{ $message }}</div>
-            @enderror
         </div>
 
         <div class="form-group">
             <label for="password">
-                <svg class="label-icon" viewBox="0 0 20 20" fill="currentColor">
+                <svg class="label-icon" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
                     <path fill-rule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clip-rule="evenodd"/>
                 </svg>
                 New Password
             </label>
             <div class="password-input-container">
-                <input type="password" id="password" name="password" class="form-control" placeholder="Enter new password" autocomplete="new-password" minlength="{{ $pwMin }}" maxlength="{{ $pwMax }}" required>
+                <input type="password" id="password" name="password" class="form-control @error('password') is-invalid @enderror" placeholder="Enter new password" autocomplete="new-password" minlength="{{ $pwMin }}" maxlength="{{ $pwMax }}" required>
                 <button type="button" class="pw-toggle-btn" data-target="password" aria-label="Show password" tabindex="-1">
                     <svg class="pw-eye pw-eye-show" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
@@ -76,20 +73,18 @@
                 <li id="rule-number">At least one number</li>
                 <li id="rule-special">At least one special character</li>
             </ul>
-            @error('password')
-                <div class="invalid-feedback d-block">{{ $message }}</div>
-            @enderror
+            <div class="invalid-feedback d-block" id="password-client-error" hidden></div>
         </div>
 
         <div class="form-group">
             <label for="password_confirmation">
-                <svg class="label-icon" viewBox="0 0 20 20" fill="currentColor">
+                <svg class="label-icon" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
                     <path fill-rule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clip-rule="evenodd"/>
                 </svg>
                 Confirm New Password
             </label>
             <div class="password-input-container">
-                <input type="password" id="password_confirmation" name="password_confirmation" class="form-control" placeholder="Re-enter new password" autocomplete="new-password" minlength="{{ $pwMin }}" maxlength="{{ $pwMax }}" required>
+                <input type="password" id="password_confirmation" name="password_confirmation" class="form-control @error('password_confirmation') is-invalid @enderror" placeholder="Re-enter new password" autocomplete="new-password" minlength="{{ $pwMin }}" maxlength="{{ $pwMax }}" required>
                 <button type="button" class="pw-toggle-btn" data-target="password_confirmation" aria-label="Show password" tabindex="-1">
                     <svg class="pw-eye pw-eye-show" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
@@ -103,9 +98,6 @@
                 </button>
             </div>
             <div class="invalid-feedback d-block" id="passwordConfirmClientError" hidden></div>
-            @error('password_confirmation')
-                <div class="invalid-feedback d-block">{{ $message }}</div>
-            @enderror
         </div>
 
         <button type="submit" class="login-btn btn btn-primary w-100" id="cpSubmitBtn">
@@ -114,6 +106,6 @@
     </form>
 
     <div class="form-footer">
-        <a href="{{ route('profile') }}" class="back-link">← Back to Profile</a>
+        <a href="{{ route('profile') }}" class="back-link">Back to Profile</a>
     </div>
 @endsection

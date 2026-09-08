@@ -125,6 +125,8 @@
         if (modalEl.parentElement !== document.body) {
             document.body.appendChild(modalEl);
         }
+        modalEl.hidden = false;
+        modalEl.removeAttribute('hidden');
         modalEl.classList.add('turnstile-modal-visible');
         document.body.style.overflow = 'hidden';
     }
@@ -135,6 +137,8 @@
             return;
         }
         modalEl.classList.remove('turnstile-modal-visible');
+        modalEl.hidden = true;
+        modalEl.setAttribute('hidden', '');
         document.body.style.overflow = '';
         clearError();
     }

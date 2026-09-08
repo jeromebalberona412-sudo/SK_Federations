@@ -799,13 +799,13 @@ class AccountService
 
     protected function buildFullName(array $data): string
     {
-        $middleInitial = $this->deriveMiddleInitial(
+        $middleName = $this->normalizePersonName(
             $this->normalizeMiddleName($data['middle_name'] ?? null)
         );
 
         return trim(implode(' ', array_filter([
             $data['first_name'] ?? null,
-            $middleInitial,
+            $middleName,
             $data['last_name'] ?? null,
             $data['suffix'] ?? null,
         ])));
@@ -845,19 +845,6 @@ class AccountService
         $middleName = trim($value);
 
         return $middleName === '' ? null : $middleName;
-    }
-
-    protected function deriveMiddleInitial(?string $middleName): ?string
-    {
-        if ($middleName === null) {
-            return null;
-        }
-
-        if (! preg_match('/[A-Za-z]/', $middleName, $matches)) {
-            return null;
-        }
-
-        return strtoupper($matches[0]).'.';
     }
 
     protected function deriveAge(?string $dateOfBirth): ?int

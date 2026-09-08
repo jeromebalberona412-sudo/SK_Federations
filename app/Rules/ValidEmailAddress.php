@@ -5,14 +5,18 @@ namespace App\Rules;
 use Closure;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Support\Facades\Validator;
+use Propaganistas\LaravelDisposableEmail\Facades\DisposableDomains;
+use Throwable;
 
 /**
- * RFC format + DNS domain checks via Laravel (egulias/email-validator).
- * No hardcoded domain whitelist — any resolvable mail domain may pass.
+ * RFC format + DNS domain checks via Laravel (egulias/email-validator),
+ * plus disposable/temporary domain blocking via propaganistas/laravel-disposable-email.
  *
  * KK Profiling practical limits (not RFC SMTP 254):
  * - Local-part (before @): min 6, max 30 (aligned with major providers such as Gmail)
  * - Complete email: max 64 (practical deliverability for PH mail systems)
+ *
+ * Separate from InvalidEmailService (bounce / delivery-failure cooldowns).
  */
 class ValidEmailAddress implements ValidationRule
 {
@@ -28,6 +32,8 @@ class ValidEmailAddress implements ValidationRule
 
     public const MSG_REQUIRED = 'Email is required.';
 
+    public const MSG_DISPOSABLE = 'Temporary or disposable email addresses are not allowed. Please use a valid permanent email address.';
+
     /** Minimum characters before @. */
     public const LOCAL_MIN_LENGTH = 6;
 
@@ -41,12 +47,26 @@ class ValidEmailAddress implements ValidationRule
     public const MAX_LENGTH = 64;
 
     /**
-     * @return list<string|ValidationRule>
+     * @return list<string|\Illuminate\Contracts\Validation\ValidationRule>
      */
     public static function profilingRules(): array
     {
         return [
             'required',
+            'string',
+            'bail',
+            'max:'.self::MAX_LENGTH,
+            new self,
+        ];
+    }
+
+    /**
+     * @return list<string|\Illuminate\Contracts\Validation\ValidationRule>
+     */
+    public static function optionalRules(): array
+    {
+        return [
+            'nullable',
             'string',
             'bail',
             'max:'.self::MAX_LENGTH,
@@ -62,6 +82,8 @@ class ValidEmailAddress implements ValidationRule
         return [
             'email.required' => self::MSG_REQUIRED,
             'email.max' => self::MSG_MAX,
+            'email.indisposable' => self::MSG_DISPOSABLE,
+            'new_email.indisposable' => self::MSG_DISPOSABLE,
         ];
     }
 
@@ -73,7 +95,7 @@ class ValidEmailAddress implements ValidationRule
             return;
         }
 
-        $email = trim($value);
+        $email = strtolower(trim($value));
         if ($email === '') {
             return;
         }
@@ -86,7 +108,7 @@ class ValidEmailAddress implements ValidationRule
         }
 
         $localPart = substr($email, 0, $atPos);
-        $domain = strtolower(substr($email, $atPos + 1));
+        $domain = substr($email, $atPos + 1);
         $localLen = strlen($localPart);
 
         if ($localLen < self::LOCAL_MIN_LENGTH) {
@@ -125,6 +147,26 @@ class ValidEmailAddress implements ValidationRule
 
         if ($dns->fails()) {
             $fail(self::MSG_DOMAIN);
+
+            return;
+        }
+
+        if ($this->isDisposableAddress($email)) {
+            $fail(self::MSG_DISPOSABLE);
+        }
+    }
+
+    private function isDisposableAddress(string $email): bool
+    {
+        try {
+            return ! DisposableDomains::isNotDisposable($email);
+        } catch (Throwable) {
+            $check = Validator::make(
+                ['email' => $email],
+                ['email' => ['indisposable']]
+            );
+
+            return $check->fails();
         }
     }
 }

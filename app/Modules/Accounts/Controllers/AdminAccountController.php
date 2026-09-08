@@ -6,22 +6,25 @@ use App\Modules\Accounts\Database\Seeders\BarangaySeeder;
 use App\Modules\Accounts\Models\Barangay;
 use App\Modules\Accounts\Models\OfficialProfile;
 use App\Modules\Accounts\Models\OfficialTerm;
-use App\Modules\Archive_Management\Services\ExpiredTermProcessorService;
 use App\Modules\Accounts\Requests\AssignFederationPositionRequest;
 use App\Modules\Accounts\Requests\BatchStoreAccountsRequest;
+use App\Modules\Accounts\Requests\BulkDeactivateAccountsRequest;
 use App\Modules\Accounts\Requests\ExtendTermRequest;
 use App\Modules\Accounts\Requests\StoreAccountRequest;
 use App\Modules\Accounts\Requests\UpdateAccountRequest;
-use App\Modules\Accounts\Requests\BulkDeactivateAccountsRequest;
 use App\Modules\Accounts\Services\AccountBatchTemplateService;
 use App\Modules\Accounts\Services\AccountService;
 use App\Modules\Accounts\Services\AccountSetupService;
+use App\Modules\Accounts\Services\BatchAccountImportService;
 use App\Modules\Accounts\Services\FederationRosterService;
 use App\Modules\Accounts\Support\SkOfficialTermDates;
+use App\Modules\Archive_Management\Services\ExpiredTermProcessorService;
 use App\Modules\Shared\Controllers\Controller;
-use App\Modules\Authentication\Services\BootstrapSkFedAdminService;
 use App\Modules\Shared\Models\Tenant;
 use App\Modules\Shared\Models\User;
+use App\Services\SkFedPageCache;
+use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Database\QueryException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -39,8 +42,7 @@ class AdminAccountController extends Controller
         private readonly ExpiredTermProcessorService $expiredTermProcessor,
         private readonly AccountBatchTemplateService $batchTemplateService,
         private readonly FederationRosterService $federationRosterService,
-    ) {
-    }
+    ) {}
 
     public function indexFederation(Request $request): View
     {
@@ -51,7 +53,7 @@ class AdminAccountController extends Controller
         $this->scheduleExpiredTermProcessing($tenantId, $request->user());
         $this->federationRosterService->syncFederationRosterAccess($tenantId);
 
-        $pageCache = app(\App\Services\SkFedPageCache::class);
+        $pageCache = app(SkFedPageCache::class);
         $payload = $pageCache->remember('accounts.federation', function () use ($tenantId) {
             $query = $this->federationRosterService->federationRosterQuery($tenantId);
 
@@ -87,40 +89,12 @@ class AdminAccountController extends Controller
         // Do not block page render on expired-term archival; run once per short window after response.
         $this->scheduleExpiredTermProcessing($tenantId, $request->user());
 
-        $pageCache = app(\App\Services\SkFedPageCache::class);
-        $payload = $pageCache->remember('accounts.officials', function () use ($tenantId) {
-            $today = now()->toDateString();
-
-            $query = User::query()
-                ->with(['barangay', 'officialProfile.latestTerm'])
-                ->where('tenant_id', $tenantId)
-                ->where('role', User::ROLE_SK_OFFICIAL)
-                ->whereHas('officialProfile.terms', function ($termQuery) use ($today) {
-                    $termQuery->where(function ($scope) use ($today) {
-                        $scope->where(function ($active) use ($today) {
-                            $active
-                                ->where('status', OfficialTerm::STATUS_ACTIVE)
-                                ->where('term_end', '>=', $today);
-                        })->orWhere(function ($upcoming) use ($today) {
-                            $upcoming
-                                ->where('status', OfficialTerm::STATUS_INACTIVE)
-                                ->where('term_start', '>=', $today);
-                        });
-                    });
-                })
-                ->orderByDesc('created_at');
-
-            return [
-                'accounts' => $query->get(),
-                'barangays' => Barangay::query()
-                    ->where('tenant_id', $tenantId)
-                    ->orderBy('name')
-                    ->get(),
-            ];
-        }, ['tenant' => $tenantId]);
-
-        $accounts = $payload['accounts'];
-        $barangays = $payload['barangays'];
+        // Keep the page shell fast on Hostinger — table rows load via AJAX (/accounts/officials/data).
+        $barangays = Barangay::query()
+            ->where('tenant_id', $tenantId)
+            ->orderBy('name')
+            ->get();
+        $accounts = collect();
 
         $accountType = 'sk_officials';
         $positionOptions = OfficialProfile::officialPositionOptions();
@@ -136,6 +110,30 @@ class AdminAccountController extends Controller
             'defaultTermStart',
             'defaultTermEnd'
         ));
+    }
+
+    public function officialsData(Request $request): JsonResponse
+    {
+        $this->authorize('viewAny', User::class);
+
+        $tenantId = $this->resolveTenantId($request->user());
+
+        $pageCache = app(SkFedPageCache::class);
+        $payload = $pageCache->remember('accounts.officials', function () use ($tenantId) {
+            $accounts = $this->queryOfficialAccounts($tenantId);
+
+            return [
+                'data' => $accounts
+                    ->map(fn (User $account): array => $this->formatAccountForTable($account))
+                    ->values()
+                    ->all(),
+            ];
+        }, ['tenant' => $tenantId]);
+
+        return response()->json([
+            'success' => true,
+            'data' => $payload['data'],
+        ]);
     }
 
     public function create(): View
@@ -185,7 +183,7 @@ class AdminAccountController extends Controller
             ], 422);
         }
 
-        $importService = new \App\Modules\Accounts\Services\BatchAccountImportService($tenantId);
+        $importService = new BatchAccountImportService($tenantId);
         $validationErrors = $importService->validateRows($validated['accounts'], $validated['role']);
 
         if ($validationErrors !== []) {
@@ -194,6 +192,7 @@ class AdminAccountController extends Controller
                 ->map(function (array $item): string {
                     $row = (int) ($item['row'] ?? 0);
                     $error = trim((string) ($item['error'] ?? 'Validation error.'));
+
                     return $row > 0 ? "Row {$row}: {$error}" : $error;
                 })
                 ->implode(' | ');
@@ -317,7 +316,7 @@ class AdminAccountController extends Controller
             $validatedData = $request->validated();
 
             if (($validatedData['role'] ?? '') === User::ROLE_SK_FED) {
-                throw \Illuminate\Validation\ValidationException::withMessages([
+                throw ValidationException::withMessages([
                     'role' => 'Federation roster members are added automatically when an SK Chairperson is created in SK Officials.',
                 ]);
             }
@@ -351,12 +350,12 @@ class AdminAccountController extends Controller
 
             return redirect()->route($redirectRoute)
                 ->with('status', $statusMessage);
-        } catch (\Illuminate\Validation\ValidationException $e) {
+        } catch (ValidationException $e) {
             Log::error('AdminAccountController@store: Validation failed.', [
                 'errors' => $e->errors(),
             ]);
             throw $e;
-        } catch (\Illuminate\Database\QueryException $e) {
+        } catch (QueryException $e) {
             Log::error('AdminAccountController@store: Database error creating account.', [
                 'message' => $e->getMessage(),
             ]);
@@ -536,7 +535,7 @@ class AdminAccountController extends Controller
 
     private function bumpAccountsCache(): void
     {
-        $pageCache = app(\App\Services\SkFedPageCache::class);
+        $pageCache = app(SkFedPageCache::class);
         $pageCache->bumpMany([
             'accounts.federation',
             'accounts.officials',
@@ -561,7 +560,7 @@ class AdminAccountController extends Controller
             $processed = app(ExpiredTermProcessorService::class)->processForTenant($tenantId, $actor);
 
             if ($processed > 0) {
-                app(\App\Services\SkFedPageCache::class)->bumpMany([
+                app(SkFedPageCache::class)->bumpMany([
                     'accounts.federation',
                     'accounts.officials',
                     'archive.deleted_sk_officials',
@@ -570,6 +569,36 @@ class AdminAccountController extends Controller
                 ]);
             }
         })->afterResponse();
+    }
+
+    /**
+     * @return Collection<int, User>
+     */
+    private function queryOfficialAccounts(int $tenantId)
+    {
+        $today = now()->toDateString();
+
+        // Soft-deleted accounts belong only in Deleted SK Officials archive — never here.
+        return User::query()
+            ->with(['barangay', 'officialProfile.latestTerm'])
+            ->where('tenant_id', $tenantId)
+            ->where('role', User::ROLE_SK_OFFICIAL)
+            ->whereNull('deleted_at')
+            ->whereHas('officialProfile.terms', function ($termQuery) use ($today) {
+                $termQuery->where(function ($scope) use ($today) {
+                    $scope->where(function ($active) use ($today) {
+                        $active
+                            ->where('status', OfficialTerm::STATUS_ACTIVE)
+                            ->where('term_end', '>=', $today);
+                    })->orWhere(function ($upcoming) use ($today) {
+                        $upcoming
+                            ->where('status', OfficialTerm::STATUS_INACTIVE)
+                            ->where('term_start', '>=', $today);
+                    });
+                });
+            })
+            ->orderByDesc('created_at')
+            ->get();
     }
 
     /**
@@ -582,17 +611,17 @@ class AdminAccountController extends Controller
         $firstName = $profile?->first_name ? mb_strtoupper($profile->first_name, 'UTF-8') : null;
         $lastName = $profile?->last_name ? mb_strtoupper($profile->last_name, 'UTF-8') : null;
         $middleName = trim((string) ($profile?->middle_name ?? ''));
-        $middleInitial = $middleName !== ''
-            ? mb_strtoupper(mb_substr($middleName, 0, 1, 'UTF-8'), 'UTF-8').'.'
+        $middleNameDisplay = $middleName !== ''
+            ? mb_strtoupper($middleName, 'UTF-8')
             : null;
         $suffixDisplay = $profile?->suffix;
         if (in_array($suffixDisplay, ['NONE', 'None', null, ''], true)) {
             $suffixDisplay = null;
         }
         $nameCore = collect([$lastName, $firstName])->filter()->implode(', ');
-        $fullName = trim(collect([$nameCore, $middleInitial, $suffixDisplay])->filter()->implode(' '));
+        $fullName = trim(collect([$nameCore, $middleNameDisplay, $suffixDisplay])->filter()->implode(' '));
         $displayName = $fullName !== '' ? $fullName : ($account->name ?? 'N/A');
-        $sortName = strtolower(trim(collect([$lastName, $firstName, $middleInitial, $suffixDisplay])->filter()->implode(' ')));
+        $sortName = strtolower(trim(collect([$lastName, $firstName, $middleNameDisplay, $suffixDisplay])->filter()->implode(' ')));
         $federationPosition = $profile?->displayFederationPosition();
         $filterPosition = $account->role === User::ROLE_SK_OFFICIAL
             ? ($profile?->position ?? '')

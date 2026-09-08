@@ -12,6 +12,7 @@ document.addEventListener('DOMContentLoaded', function () {
     const confirmError = document.getElementById('passwordConfirmClientError');
     const submitBtn = document.getElementById('cpSubmitBtn');
     const btnText = document.getElementById('cpBtnText');
+    const formAlert = document.getElementById('cpFormAlert');
 
     if (!form) {
         return;
@@ -22,6 +23,12 @@ document.addEventListener('DOMContentLoaded', function () {
     const accountEmail = emailInput
         ? (emailInput.defaultValue || emailInput.value || '').trim().toLowerCase()
         : '';
+
+    function clearServerAlert() {
+        if (formAlert) {
+            formAlert.remove();
+        }
+    }
 
     function showEmailError(message) {
         if (!emailInput || !emailError) return;
@@ -57,7 +64,10 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     if (emailInput) {
-        emailInput.addEventListener('input', clearEmailError);
+        emailInput.addEventListener('input', function () {
+            clearEmailError();
+            clearServerAlert();
+        });
     }
 
     function showSubmitLoading() {
@@ -160,11 +170,11 @@ document.addEventListener('DOMContentLoaded', function () {
             clientError.hidden = true;
         }
         if (passwordInput) passwordInput.classList.remove('is-invalid');
-        if (confirmInput) confirmInput.classList.remove('is-invalid');
     }
 
     if (passwordInput) {
         passwordInput.addEventListener('input', function () {
+            clearServerAlert();
             clearClientError();
             updatePasswordRules(this.value);
             updateConfirmPasswordMatch();
@@ -176,7 +186,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
     if (confirmInput) {
         confirmInput.addEventListener('input', function () {
-            clearClientError();
+            clearServerAlert();
             updateConfirmPasswordMatch();
         });
     }

@@ -12,7 +12,9 @@
     <div class="comms-msg-popover-header">
         <div class="comms-msg-popover-title">
             <span class="comms-msg-header-icon-btn comms-msg-header-icon-btn--title" aria-hidden="true">
-                <i class="fas fa-comments"></i>
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                </svg>
             </span>
             <h4>Chats</h4>
             <span
@@ -73,12 +75,14 @@
                 $name = $peer['name'] ?? 'User';
                 $avatar = $peer['profile_image_url'] ?? ('https://ui-avatars.com/api/?name='.urlencode((string) $name).'&background=213F99&color=fff');
                 $convId = (int) ($conversation['id'] ?? 0);
-                $searchBlob = mb_strtolower(trim($name.' '.$preview));
+                $peerUserId = (int) ($peer['id'] ?? 0);
+                $searchBlob = mb_strtolower(trim($name.' '.$preview.' '.($peer['barangay_name'] ?? '').' '.($peer['position'] ?? '')));
             @endphp
             <button
                 type="button"
                 class="comms-msg-item {{ $unread > 0 ? 'comms-msg-unread' : '' }}"
-                data-id="{{ $convId }}"
+                data-id="{{ $convId > 0 ? $convId : '' }}"
+                data-user-id="{{ $peerUserId > 0 ? $peerUserId : '' }}"
                 data-name="{{ e($name) }}"
                 data-avatar="{{ e((string) ($avatar ?? '')) }}"
                 data-unread="{{ $unread > 0 ? '1' : '0' }}"
@@ -105,8 +109,8 @@
     </div>
 
     <div class="comms-msg-empty" id="commsMsgEmpty" @if($hasMsgItems) style="display: none;" @endif>
-        <p>No messages yet</p>
-        <p class="comms-msg-empty-sub">Start a conversation from Messages.</p>
+        <p>No SK Officials found</p>
+        <p class="comms-msg-empty-sub">Accounts will appear here when available.</p>
     </div>
 
     <div class="comms-msg-popover-footer">

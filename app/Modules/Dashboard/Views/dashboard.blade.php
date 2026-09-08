@@ -260,25 +260,54 @@
             @include('dashboard::partials.dashboard-abyip-submissions')
         </div>
 
-        {{-- ── ROW 2: Sex Distribution + Federation Officers + Recent Audit Activity ── }}
-        <div class="dash-row dash-row--balanced">
-            <div class="content-card dash-col-4">
-                <div class="card-header dash-sex-chart-header">
-                    <h3><i class="fas fa-venus-mars" style="color:#213F99;margin-right:8px;"></i>Sex Distribution of SK Officials</h3>
-                    <div class="dash-sex-chart-filters">
-                        <select id="sexDistributionTypeFilter" class="kk-barangay-select" aria-label="Filter by group">
-                            <option value="all">All</option>
-                            <option value="officials" selected>SK Officials</option>
-                            <option value="kabataan">Kabataan</option>
-                        </select>
+        {{-- ── Sex Distribution + Employment Status (municipality-wide) ── --}}
+        <div class="dash-row dash-row--demographics">
+            <div class="content-card dash-col-6" id="kabataan-sex-section">
+                <div class="card-header dash-demo-chart-header">
+                    <div>
+                        <h3><i class="fas fa-venus-mars" style="color:#213F99;margin-right:8px;"></i>Sex Distribution</h3>
+                        <p class="dash-demo-chart-sub">Male vs Female — Kabataan, SK Officials &amp; SK Federations</p>
                     </div>
+                    <select id="sexDistributionRoleFilter" class="kk-barangay-select" aria-label="Filter by role">
+                        <option value="all" selected>All</option>
+                        <option value="kabataan">Kabataan</option>
+                        <option value="officials">SK Officials</option>
+                        <option value="federations">SK Federations</option>
+                    </select>
                 </div>
-                <div class="card-body chart-body dash-sex-chart-body">
-                    <canvas id="sexChart"></canvas>
+                <div class="card-body chart-body dash-demo-chart-body">
+                    <canvas id="kabataanSexChart" aria-label="Sex distribution chart"></canvas>
+                    <div class="dash-demo-legend" id="kabataanSexLegend"></div>
+                    <p class="dash-empty-note" id="kabataanSexEmpty" hidden>No sex data available.</p>
                 </div>
             </div>
 
-            <div class="content-card dash-col-4" id="federation-section">
+            <div class="content-card dash-col-6" id="employment-status-section">
+                <div class="card-header dash-demo-chart-header">
+                    <div>
+                        <h3><i class="fas fa-briefcase" style="color:#213F99;margin-right:8px;"></i>Employment Status Distribution</h3>
+                        <p class="dash-demo-chart-sub">Current employment profile of registered Kabataan</p>
+                    </div>
+                    <select id="employmentChartFilter" class="kk-barangay-select" aria-label="Filter employment status">
+                        <option value="all" selected>All Statuses</option>
+                        <option value="Employed">Employed</option>
+                        <option value="Unemployed">Unemployed</option>
+                        <option value="Self-Employed">Self-Employed</option>
+                        <option value="Currently looking for a Job">Currently looking for a Job</option>
+                        <option value="Not Interested Looking for a Job">Not Interested Looking for a Job</option>
+                    </select>
+                </div>
+                <div class="card-body chart-body dash-demo-chart-body">
+                    <canvas id="employmentStatusChart" aria-label="Employment status distribution chart"></canvas>
+                    <div class="dash-demo-legend" id="employmentStatusLegend"></div>
+                    <p class="dash-empty-note" id="employmentStatusEmpty" hidden>No employment data available.</p>
+                </div>
+            </div>
+        </div>
+
+        {{-- ── ROW 2: Federation Officers + Recent Audit Activity ── --}}
+        <div class="dash-row dash-row--balanced dash-row--fed-audit">
+            <div class="content-card dash-col-6" id="federation-section">
                 <div class="card-header">
                     <h3><i class="fas fa-sitemap" style="color:#213F99;margin-right:8px;"></i>Federation Officers</h3>
                 </div>
@@ -307,7 +336,7 @@
                 </div>
             </div>
 
-            <div class="dash-col-4 dash-audit-row dash-audit-row--compact">
+            <div class="dash-col-6 dash-audit-row dash-audit-row--compact">
                 @include('dashboard::partials.dashboard-audit-table')
             </div>
         </div>
@@ -350,6 +379,16 @@
 @endsection
 
 @push('scripts')
+@php
+    $employmentStatusDistributionData = $employmentStatusDistribution ?? [
+        'labels' => [],
+        'values' => [],
+        'total' => 0,
+    ];
+    $sexDistributionKabataanData = $sexDistribution ?? ['labels' => ['Male', 'Female'], 'values' => [0, 0]];
+    $sexDistributionOfficialsData = $sexDistributionOfficials ?? ['labels' => ['Male', 'Female'], 'values' => [0, 0]];
+    $sexDistributionFederationsData = $sexDistributionFederations ?? ['labels' => ['Male', 'Female'], 'values' => [0, 0]];
+@endphp
 <script>
     window.__KK_BARANGAYS__ = @json($kkBarangayOptions);
     window.__KK_PROFILING_DATA_URL__ = @json(route('dashboard.kk-profiling-data'));
@@ -372,8 +411,10 @@
             total_barangays_abyip_submitted: {{ (int) ($totalBarangaysAbyipSubmitted ?? 0) }},
             total_audit_logs: {{ (int) ($totalAuditLogs ?? 0) }},
         },
-        sex_distribution: @json($sexDistribution),
-        sex_distribution_officials: @json($sexDistributionOfficials),
+        sex_distribution: @json($sexDistributionKabataanData),
+        sex_distribution_officials: @json($sexDistributionOfficialsData),
+        sex_distribution_federations: @json($sexDistributionFederationsData),
+        employment_status_distribution: @json($employmentStatusDistributionData),
         abyip_overview: @json($abyipOverview),
         top_barangays: @json($topBarangays ?? []),
     };
@@ -382,95 +423,10 @@
 @vite([
     'app/Modules/Dashboard/assets/js/kkprofilingchart.js',
     'app/Modules/Dashboard/assets/js/dashboard-purok.js',
+    'app/Modules/Dashboard/assets/js/dashboard-demographics.js',
     'app/Modules/Dashboard/assets/js/dashboard-activity.js',
     'app/Modules/Dashboard/assets/js/dashboard-audit.js',
 ])
-<script>
-        const fedBlue = '#213F99', fedRed = '#d0242b';
-        @php
-            $sexDistributionOfficialsData = $sexDistributionOfficials ?? ['labels' => ['Male', 'Female'], 'values' => [0, 0]];
-            $sexDistributionKabataanData = $sexDistribution ?? ['labels' => ['Male', 'Female'], 'values' => [0, 0]];
-        @endphp
-        const sexDistributionOfficials = @json($sexDistributionOfficialsData);
-        const sexDistributionKabataan = @json($sexDistributionKabataanData);
-
-        function combineSexDistribution(first, second) {
-            const labels = ['Male', 'Female'];
-            const values = labels.map(function (label, index) {
-                return Number(first.values?.[index] || 0) + Number(second.values?.[index] || 0);
-            });
-            return { labels: labels, values: values };
-        }
-
-        const sexDistributionAll = combineSexDistribution(sexDistributionOfficials, sexDistributionKabataan);
-
-        function getSexDistributionByType(type) {
-            if (type === 'kabataan') {
-                return sexDistributionKabataan;
-            }
-            if (type === 'all') {
-                return sexDistributionAll;
-            }
-            return sexDistributionOfficials;
-        }
-
-        function updateSexChart() {
-            if (!sexChart) {
-                return;
-            }
-            const typeFilter = document.getElementById('sexDistributionTypeFilter')?.value || 'officials';
-            const source = getSexDistributionByType(typeFilter);
-            sexChart.data.labels = source.labels || ['Male', 'Female'];
-            sexChart.data.datasets[0].data = source.values || [0, 0];
-            sexChart.data.datasets[0].backgroundColor = sexChartColors;
-            sexChart.update('none');
-        }
-
-        window.applyDashboardSexDistribution = function (kabataan, officials) {
-            if (kabataan && Array.isArray(kabataan.values)) {
-                sexDistributionKabataan.labels = kabataan.labels || ['Male', 'Female'];
-                sexDistributionKabataan.values = kabataan.values;
-            }
-            if (officials && Array.isArray(officials.values)) {
-                sexDistributionOfficials.labels = officials.labels || ['Male', 'Female'];
-                sexDistributionOfficials.values = officials.values;
-            }
-            sexDistributionAll.labels = ['Male', 'Female'];
-            sexDistributionAll.values = combineSexDistribution(sexDistributionOfficials, sexDistributionKabataan).values;
-            updateSexChart();
-        };
-
-        let sexChart = null;
-        let sexChartLabels = sexDistributionOfficials.labels || ['Male', 'Female'];
-        let sexChartValues = sexDistributionOfficials.values || [0, 0];
-        const sexChartColors = [fedBlue, fedRed];
-
-        sexChart = new Chart(document.getElementById('sexChart'), {
-            type: 'pie',
-            data: {
-                labels: sexChartLabels,
-                datasets: [{
-                    data: sexChartValues,
-                    backgroundColor: sexChartColors,
-                    borderWidth: 2,
-                    borderColor: '#fff',
-                }],
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                animation: false,
-                plugins: {
-                    legend: {
-                        position: 'bottom',
-                        labels: { font: { family: 'Inter', size: 13 }, padding: 16 },
-                    },
-                },
-            },
-        });
-
-        document.getElementById('sexDistributionTypeFilter')?.addEventListener('change', updateSexChart);
-</script>
 <script>
         (() => {
             const heartbeatMs = {{ (int) config('sk_fed_auth.single_session.heartbeat_interval_seconds', 30) }} * 1000;

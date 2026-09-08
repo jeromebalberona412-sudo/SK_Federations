@@ -89,6 +89,7 @@ export default defineConfig({
                 'app/Modules/Dashboard/assets/js/dashboard.js',
                 'app/Modules/Dashboard/assets/css/statcard.css',
                 'app/Modules/Dashboard/assets/js/dashboard-activity.js',
+                'app/Modules/Dashboard/assets/js/dashboard-demographics.js',
                 'app/Modules/Dashboard/assets/js/dashboard-audit.js',
                 'app/Modules/Dashboard/assets/js/dashboard-purok.js',
                 'app/Modules/Dashboard/assets/js/kkprofilingchart.js',

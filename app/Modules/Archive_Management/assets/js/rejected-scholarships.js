@@ -202,7 +202,7 @@ function renderAdrscTable() {
     }
 
     tbody.innerHTML = page.map((r, idx) => {
-        const name = `${r.last_name || ''}, ${r.first_name || ''}${r.middle_name ? ' ' + r.middle_name.charAt(0) + '.' : ''}`;
+        const name = `${r.last_name || ''}, ${r.first_name || ''}${r.middle_name ? ' ' + r.middle_name : ''}`;
         return `
         <tr>
             <td>${start + idx + 1}</td>

@@ -18,10 +18,13 @@ class ConversationController extends Controller
 
     public function index(Request $request): JsonResponse
     {
-        $items = $this->conversations->listForUser(
-            Auth::user(),
-            $request->string('q')->toString() ?: null
-        );
+        $includeDirectory = $request->boolean('include_directory');
+        $items = $includeDirectory
+            ? $this->conversations->headerInboxForUser(Auth::user())
+            : $this->conversations->listForUser(
+                Auth::user(),
+                $request->string('q')->toString() ?: null
+            );
 
         return response()->json(['conversations' => $items]);
     }

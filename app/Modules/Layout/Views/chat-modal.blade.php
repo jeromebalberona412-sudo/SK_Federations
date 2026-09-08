@@ -32,7 +32,7 @@
             </div>
             <div class="comms-chat-fs-list" id="commsChatFsList" role="list"></div>
             <div class="comms-chat-fs-list-empty" id="commsChatFsListEmpty" hidden>
-                <p>No conversations yet</p>
+                <p>No people yet</p>
             </div>
         </aside>
 

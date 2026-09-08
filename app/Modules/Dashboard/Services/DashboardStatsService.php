@@ -26,6 +26,15 @@ class DashboardStatsService
         ['label' => 'Sergeant-at-Arms', 'keys' => ['Sergeant at Arms', 'Sergeant-at-Arms']],
     ];
 
+    /** @var list<string> */
+    private const EMPLOYMENT_STATUS_OPTIONS = [
+        'Employed',
+        'Unemployed',
+        'Self-Employed',
+        'Currently looking for a Job',
+        'Not Interested Looking for a Job',
+    ];
+
     public function __construct(
         private readonly ChairpersonFederationSyncService $chairpersonFederationSyncService,
         private readonly FederationRosterService $federationRosterService,
@@ -142,43 +151,64 @@ class DashboardStatsService
      */
     public function sexDistributionOfficials(?int $tenantId = null, ?string $dateFrom = null, ?string $dateTo = null): array
     {
-        if (! Schema::hasTable('users') || ! Schema::hasTable('official_profiles')) {
-            return ['labels' => ['Male', 'Female'], 'values' => [0, 0]];
+        return $this->sexDistributionFromOfficialUsers(
+            User::ROLE_SK_OFFICIAL,
+            $tenantId,
+            $dateFrom,
+            $dateTo,
+            requireActiveTerm: true
+        );
+    }
+
+    /**
+     * Sex distribution for SK Federation accounts (role sk_fed).
+     *
+     * @return array{labels: list<string>, values: list<int>}
+     */
+    public function sexDistributionFederations(?int $tenantId = null, ?string $dateFrom = null, ?string $dateTo = null): array
+    {
+        return $this->sexDistributionFromOfficialUsers(
+            User::ROLE_SK_FED,
+            $tenantId,
+            $dateFrom,
+            $dateTo,
+            requireActiveTerm: false
+        );
+    }
+
+    /**
+     * Municipality-wide Kabataan employment (work_status) distribution.
+     *
+     * @return array{labels: list<string>, values: list<int>, total: int}
+     */
+    public function employmentStatusDistribution(?int $tenantId = null, ?string $dateFrom = null, ?string $dateTo = null): array
+    {
+        $labels = self::EMPLOYMENT_STATUS_OPTIONS;
+        $counts = array_fill_keys($labels, 0);
+
+        if (! Schema::hasTable('kabataan_registrations')) {
+            return [
+                'labels' => $labels,
+                'values' => array_values($counts),
+                'total' => 0,
+            ];
         }
 
-        $query = User::query()
-            ->where('role', User::ROLE_SK_OFFICIAL)
-            ->whereNull('deleted_at')
-            ->whereHas('officialProfile')
-            ->whereHas('officialProfile.terms', function ($termQuery): void {
-                $termQuery
-                    ->where('status', OfficialTerm::STATUS_ACTIVE)
-                    ->whereDate('term_end', '>=', now()->startOfDay());
-            })
-            ->with('officialProfile:id,user_id,sex');
+        $query = $this->activeKabataanQuery($tenantId);
+        $this->applyKabataanDateRange($query, $dateFrom, $dateTo);
 
-        if ($tenantId !== null) {
-            $query->where('tenant_id', $tenantId);
-        }
-
-        $this->applyCreatedAtDateRange($query, $dateFrom, $dateTo);
-
-        $male = 0;
-        $female = 0;
-
-        foreach ($query->get() as $user) {
-            $sex = mb_strtolower(trim((string) ($user->officialProfile?->sex ?? '')));
-
-            if (str_contains($sex, 'female')) {
-                $female++;
-            } elseif (str_contains($sex, 'male')) {
-                $male++;
+        foreach ($query->get(['id', 'form_data']) as $record) {
+            $formData = is_array($record->form_data) ? $record->form_data : [];
+            $status = $this->normalizeEmploymentStatus($this->formValue($formData, 'work_status'));
+            if ($status !== null) {
+                $counts[$status]++;
             }
         }
 
         return [
-            'labels' => ['Male', 'Female'],
-            'values' => [$male, $female],
+            'labels' => $labels,
+            'values' => array_map(static fn (string $label): int => (int) $counts[$label], $labels),
+            'total' => (int) array_sum($counts),
         ];
     }
 
@@ -446,6 +476,59 @@ class DashboardStatsService
     }
 
     /**
+     * @return array{labels: list<string>, values: list<int>}
+     */
+    private function sexDistributionFromOfficialUsers(
+        string $role,
+        ?int $tenantId,
+        ?string $dateFrom,
+        ?string $dateTo,
+        bool $requireActiveTerm
+    ): array {
+        if (! Schema::hasTable('users') || ! Schema::hasTable('official_profiles')) {
+            return ['labels' => ['Male', 'Female'], 'values' => [0, 0]];
+        }
+
+        $query = User::query()
+            ->where('role', $role)
+            ->whereNull('deleted_at')
+            ->whereHas('officialProfile')
+            ->with('officialProfile:id,user_id,sex');
+
+        if ($requireActiveTerm) {
+            $query->whereHas('officialProfile.terms', function ($termQuery): void {
+                $termQuery
+                    ->where('status', OfficialTerm::STATUS_ACTIVE)
+                    ->whereDate('term_end', '>=', now()->startOfDay());
+            });
+        }
+
+        if ($tenantId !== null) {
+            $query->where('tenant_id', $tenantId);
+        }
+
+        $this->applyCreatedAtDateRange($query, $dateFrom, $dateTo);
+
+        $male = 0;
+        $female = 0;
+
+        foreach ($query->get() as $user) {
+            $sex = mb_strtolower(trim((string) ($user->officialProfile?->sex ?? '')));
+
+            if (str_contains($sex, 'female')) {
+                $female++;
+            } elseif (str_contains($sex, 'male')) {
+                $male++;
+            }
+        }
+
+        return [
+            'labels' => ['Male', 'Female'],
+            'values' => [$male, $female],
+        ];
+    }
+
+    /**
      * @param  array<string, mixed>  $formData
      */
     private function formValue(array $formData, string $key): string
@@ -461,13 +544,29 @@ class DashboardStatsService
         return $value !== '' ? $value : '—';
     }
 
+    private function normalizeEmploymentStatus(string $status): ?string
+    {
+        $status = trim($status);
+        if ($status === '' || $status === '—') {
+            return null;
+        }
+
+        foreach (self::EMPLOYMENT_STATUS_OPTIONS as $option) {
+            if (strcasecmp($status, $option) === 0) {
+                return $option;
+            }
+        }
+
+        return null;
+    }
+
     private function formatOfficialName(User $user): string
     {
         $profile = $user->officialProfile;
 
         if ($profile !== null) {
             $first = trim((string) $profile->first_name);
-            $middle = $profile->middle_name ? mb_substr(trim((string) $profile->middle_name), 0, 1).'.' : '';
+            $middle = trim((string) ($profile->middle_name ?? ''));
             $last = trim((string) $profile->last_name);
             $suffix = ($profile->suffix && $profile->suffix !== 'None') ? (string) $profile->suffix : '';
 

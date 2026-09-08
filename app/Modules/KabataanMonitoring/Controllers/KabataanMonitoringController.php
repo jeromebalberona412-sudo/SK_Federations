@@ -7,6 +7,7 @@ use App\Modules\KabataanMonitoring\Services\KkProfilingFederationUpdateService;
 use App\Modules\Profile\Models\Barangay;
 use App\Modules\Shared\Controllers\Controller;
 use App\Requests\UpdateKkProfilingRequest;
+use App\Rules\ValidEmailAddress;
 use App\Services\BarangayLogoUrlService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -178,7 +179,7 @@ class KabataanMonitoringController extends Controller
             'first_name' => ['required', 'string', 'max:100'],
             'middle_name' => ['nullable', 'string', 'max:100'],
             'suffix' => ['nullable', 'string', 'max:20'],
-            'email' => ['required', 'email', 'max:64'],
+            'email' => \App\Rules\ValidEmailAddress::profilingRules(),
             'contact_number' => ['required', 'string', 'max:15'],
             'age' => ['required', 'integer', 'min:15', 'max:30'],
             'birthday' => ['required', 'string', 'max:20'],

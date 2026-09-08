@@ -321,12 +321,14 @@ function renderMessagesPopoverList(conversations) {
     var empty = document.getElementById('commsMsgEmpty');
     if (!list || !empty) return;
 
-    var items = Array.isArray(conversations) ? conversations.slice(0, 8) : [];
+    var items = Array.isArray(conversations) ? conversations : [];
     window.__COMMS_HEADER_CONVERSATIONS__ = items;
     if (!items.length) {
         list.innerHTML = '';
         list.style.display = 'none';
         empty.style.display = 'flex';
+        var emptyTitle = empty.querySelector('p');
+        if (emptyTitle) emptyTitle.textContent = 'No SK Officials found';
         applyMessagesPopoverFilters();
         return;
     }
@@ -339,8 +341,17 @@ function renderMessagesPopoverList(conversations) {
         var preview = (c.last_message && c.last_message.body) || 'No messages yet';
         var unread = Number(c.unread_count || 0);
         var avatar = peer.profile_image_url || defaultCommsAvatar(name);
-        var searchBlob = String(name + ' ' + preview).toLowerCase();
-        return '<button type="button" class="comms-msg-item' + (unread > 0 ? ' comms-msg-unread' : '') + '" data-id="' + c.id + '" data-name="' + escapeCommsHtml(name) + '" data-avatar="' + escapeCommsHtml(avatar) + '" data-unread="' + (unread > 0 ? '1' : '0') + '" data-search="' + escapeCommsHtml(searchBlob) + '" role="menuitem">' +
+        var convId = Number(c.id || 0);
+        var userId = Number(peer.id || 0);
+        var searchBlob = String(name + ' ' + preview + ' ' + (peer.barangay_name || '') + ' ' + (peer.position || '')).toLowerCase();
+        return '<button type="button" class="comms-msg-item' + (unread > 0 ? ' comms-msg-unread' : '') + '"' +
+            ' data-id="' + (convId > 0 ? convId : '') + '"' +
+            ' data-user-id="' + (userId > 0 ? userId : '') + '"' +
+            ' data-name="' + escapeCommsHtml(name) + '"' +
+            ' data-avatar="' + escapeCommsHtml(avatar) + '"' +
+            ' data-unread="' + (unread > 0 ? '1' : '0') + '"' +
+            ' data-search="' + escapeCommsHtml(searchBlob) + '"' +
+            ' role="menuitem">' +
             '<img class="comms-msg-avatar" src="' + escapeCommsHtml(avatar) + '" alt="" onerror="this.onerror=null;this.src=\'' + escapeCommsHtml(defaultCommsAvatar(name)) + '\'">' +
             '<div class="comms-msg-content">' +
             '<div class="comms-msg-item-top">' +
@@ -384,7 +395,7 @@ function applyMessagesPopoverFilters() {
     if (empty) {
         if (!hasSourceItems) {
             empty.style.display = 'flex';
-            empty.querySelector('p') && (empty.querySelector('p').textContent = 'No messages yet');
+            empty.querySelector('p') && (empty.querySelector('p').textContent = 'No SK Officials found');
             list.style.display = 'none';
         } else if (visibleCount === 0) {
             empty.style.display = 'flex';
@@ -422,7 +433,7 @@ function wireMessagesPopoverControls() {
 
 function refreshMessagesPopover() {
     var csrf = document.querySelector('meta[name="csrf-token"]');
-    fetch('/api/communications/conversations', {
+    fetch('/api/communications/conversations?include_directory=1', {
         headers: {
             'Accept': 'application/json',
             'X-Requested-With': 'XMLHttpRequest',
@@ -438,6 +449,35 @@ function refreshMessagesPopover() {
         if (headerChatState.fullscreen || document.getElementById('commsChatFsSidebar')) {
             renderFullscreenChatList(conversations);
         }
+    }).catch(function () { /* ignore */ });
+}
+
+function startHeaderChatWithUser(userId, name, avatarUrl) {
+    var csrf = document.querySelector('meta[name="csrf-token"]');
+    var peerId = Number(userId || 0);
+    if (!peerId) return;
+
+    return fetch('/api/communications/conversations', {
+        method: 'POST',
+        headers: {
+            'Accept': 'application/json',
+            'Content-Type': 'application/json',
+            'X-Requested-With': 'XMLHttpRequest',
+            'X-CSRF-TOKEN': csrf ? csrf.getAttribute('content') : ''
+        },
+        credentials: 'same-origin',
+        body: JSON.stringify({ user_id: peerId })
+    }).then(function (r) {
+        return r.ok ? r.json() : null;
+    }).then(function (data) {
+        var conversation = data && data.conversation ? data.conversation : null;
+        if (!conversation || !conversation.id) return;
+        openHeaderChatModal(
+            conversation.id,
+            (conversation.other_user && conversation.other_user.name) || name || 'Chat',
+            (conversation.other_user && conversation.other_user.profile_image_url) || avatarUrl || ''
+        );
+        refreshMessagesPopover();
     }).catch(function () { /* ignore */ });
 }
 
@@ -638,9 +678,18 @@ function renderFullscreenChatList(conversations) {
         var preview = (c.last_message && c.last_message.body) || 'No messages yet';
         var unread = Number(c.unread_count || 0);
         var avatar = peer.profile_image_url || defaultCommsAvatar(name);
-        var searchBlob = String(name + ' ' + preview).toLowerCase();
-        var active = Number(c.id) === Number(headerChatState.conversationId) ? ' is-active' : '';
-        return '<button type="button" class="comms-chat-fs-item' + active + (unread > 0 ? ' is-unread' : '') + '" data-id="' + c.id + '" data-name="' + escapeCommsHtml(name) + '" data-avatar="' + escapeCommsHtml(avatar) + '" data-unread="' + (unread > 0 ? '1' : '0') + '" data-search="' + escapeCommsHtml(searchBlob) + '" role="listitem">' +
+        var convId = Number(c.id || 0);
+        var userId = Number(peer.id || 0);
+        var searchBlob = String(name + ' ' + preview + ' ' + (peer.barangay_name || '') + ' ' + (peer.position || '')).toLowerCase();
+        var active = convId > 0 && convId === Number(headerChatState.conversationId) ? ' is-active' : '';
+        return '<button type="button" class="comms-chat-fs-item' + active + (unread > 0 ? ' is-unread' : '') + '"' +
+            ' data-id="' + (convId > 0 ? convId : '') + '"' +
+            ' data-user-id="' + (userId > 0 ? userId : '') + '"' +
+            ' data-name="' + escapeCommsHtml(name) + '"' +
+            ' data-avatar="' + escapeCommsHtml(avatar) + '"' +
+            ' data-unread="' + (unread > 0 ? '1' : '0') + '"' +
+            ' data-search="' + escapeCommsHtml(searchBlob) + '"' +
+            ' role="listitem">' +
             '<img class="comms-chat-fs-item-avatar" src="' + escapeCommsHtml(avatar) + '" alt="" onerror="this.onerror=null;this.src=\'' + escapeCommsHtml(defaultCommsAvatar(name)) + '\'">' +
             '<div class="comms-chat-fs-item-main">' +
             '<span class="comms-chat-fs-item-name">' + escapeCommsHtml(name) + '</span>' +
@@ -828,11 +877,17 @@ function wireFullscreenChatControls() {
             var item = e.target.closest('.comms-chat-fs-item');
             if (!item) return;
             e.preventDefault();
-            openHeaderChatModal(
-                item.getAttribute('data-id'),
-                item.getAttribute('data-name') || 'Chat',
-                item.getAttribute('data-avatar') || ''
-            );
+            var convId = Number(item.getAttribute('data-id') || 0);
+            var userId = Number(item.getAttribute('data-user-id') || 0);
+            var name = item.getAttribute('data-name') || 'Chat';
+            var avatar = item.getAttribute('data-avatar') || '';
+            if (convId > 0) {
+                openHeaderChatModal(convId, name, avatar);
+                return;
+            }
+            if (userId > 0) {
+                startHeaderChatWithUser(userId, name, avatar);
+            }
         });
         list.dataset.fsWired = 'true';
     }
@@ -1878,11 +1933,17 @@ function wireHeaderChatModal() {
             if (!item) return;
             e.preventDefault();
             e.stopPropagation();
-            openHeaderChatModal(
-                item.getAttribute('data-id'),
-                item.getAttribute('data-name') || 'Chat',
-                item.getAttribute('data-avatar') || ''
-            );
+            var convId = Number(item.getAttribute('data-id') || 0);
+            var userId = Number(item.getAttribute('data-user-id') || 0);
+            var name = item.getAttribute('data-name') || 'Chat';
+            var avatar = item.getAttribute('data-avatar') || '';
+            if (convId > 0) {
+                openHeaderChatModal(convId, name, avatar);
+                return;
+            }
+            if (userId > 0) {
+                startHeaderChatWithUser(userId, name, avatar);
+            }
         });
         list.dataset.chatWired = 'true';
     }
@@ -1954,6 +2015,27 @@ document.addEventListener('click', function (e) {
 });
 
 document.addEventListener('DOMContentLoaded', function () {
+    document.querySelectorAll(
+        'input[type="email"], input[name="email"], input[name="new_email"], input[name="current_email"], input[name="pending_email"]'
+    ).forEach(function (input) {
+        var apply = function () {
+            var start = input.selectionStart;
+            var end = input.selectionEnd;
+            var lower = String(input.value || '').toLowerCase();
+            if (input.value !== lower) {
+                input.value = lower;
+                if (typeof start === 'number' && typeof end === 'number' && document.activeElement === input) {
+                    input.setSelectionRange(start, end);
+                }
+            }
+        };
+        input.addEventListener('input', apply);
+        input.addEventListener('blur', function () {
+            input.value = String(input.value || '').trim().toLowerCase();
+        });
+        apply();
+    });
+
     var notifPopover = document.getElementById('notifPopover');
     var notifList = document.getElementById('notifList');
     var markAllBtn = document.getElementById('notifMarkAllBtn');

@@ -112,4 +112,12 @@ document.addEventListener('DOMContentLoaded', function () {
             if (timerInterval) clearInterval(timerInterval);
         });
     }
+
+    const backForm = document.getElementById('ceBackToProfileForm');
+    if (backForm) {
+        backForm.addEventListener('submit', function () {
+            localStorage.removeItem(TIMER_START_KEY);
+            if (timerInterval) clearInterval(timerInterval);
+        });
+    }
 });

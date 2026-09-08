@@ -57,6 +57,8 @@ class DashboardController extends Controller
             'totalBarangaysAbyipSubmitted' => $abyipOverview['stats']['submitted'],
             'sexDistribution' => $this->dashboardStatsService->sexDistribution($tenantId, $dateFrom, $dateTo),
             'sexDistributionOfficials' => $this->dashboardStatsService->sexDistributionOfficials($tenantId, $dateFrom, $dateTo),
+            'sexDistributionFederations' => $this->dashboardStatsService->sexDistributionFederations($tenantId, $dateFrom, $dateTo),
+            'employmentStatusDistribution' => $this->dashboardStatsService->employmentStatusDistribution($tenantId, $dateFrom, $dateTo),
             'federationOfficers' => $this->dashboardStatsService->federationOfficers($tenantId),
             'topBarangays' => $this->dashboardStatsService->topBarangaysByYouth($tenantId, 5, $dateFrom, $dateTo),
             'barangays' => $barangays,
@@ -117,7 +119,7 @@ class DashboardController extends Controller
         $tenantId = $request->user()?->tenant_id;
         [$dateFrom, $dateTo] = $this->resolveFeedDates($request);
         $cacheKey = sprintf(
-            'skfed:dash:stats:v3:%s:%s:%s',
+            'skfed:dash:stats:v5:%s:%s:%s',
             $tenantId === null ? 'all' : (string) $tenantId,
             $dateFrom ?? 'none',
             $dateTo ?? 'none'
@@ -157,6 +159,8 @@ class DashboardController extends Controller
             ],
             'sex_distribution' => $this->dashboardStatsService->sexDistribution($tenantId, $dateFrom, $dateTo),
             'sex_distribution_officials' => $this->dashboardStatsService->sexDistributionOfficials($tenantId, $dateFrom, $dateTo),
+            'sex_distribution_federations' => $this->dashboardStatsService->sexDistributionFederations($tenantId, $dateFrom, $dateTo),
+            'employment_status_distribution' => $this->dashboardStatsService->employmentStatusDistribution($tenantId, $dateFrom, $dateTo),
             'abyip_overview' => $abyipOverview,
             'top_barangays' => $this->dashboardStatsService->topBarangaysByYouth($tenantId, 5, $dateFrom, $dateTo),
             'recent_activity' => $this->dashboardActivityService->recentActivity($tenantId, 12, $dateFrom, $dateTo),

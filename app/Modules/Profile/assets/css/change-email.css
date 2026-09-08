@@ -1,9 +1,20 @@
-/* SK Federations — Profile change email (verify extras, login look) */
+/* SK Federations — Profile change email */
 
-.ce-verify-card .card-header {
+.ce-email-input,
+input[type="email"],
+input[name="email"],
+input[name="new_email"],
+input[name="current_email"] {
+    text-transform: lowercase;
+}
+
+.ce-verify-card .card-header,
+.ce-success-card .card-header {
     text-align: center;
 }
 
+.ce-verify-shell,
+.ce-success-shell,
 .ce-verify-content {
     width: 100%;
     display: flex;
@@ -20,6 +31,7 @@
     font-size: 13px;
     color: var(--fed-gray-700, #334155);
     line-height: 1.55;
+    word-break: break-word;
 }
 
 .ce-info-box strong {
@@ -36,7 +48,7 @@
 
 .ce-status-row {
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     padding: 10px 14px;
     gap: 10px;
     border-bottom: 1px solid #f3f4f6;
@@ -64,7 +76,9 @@
     font-size: 13px;
     color: #111827;
     font-weight: 500;
-    word-break: break-all;
+    word-break: break-word;
+    overflow-wrap: anywhere;
+    min-width: 0;
 }
 
 .ce-badge-awaiting {
@@ -120,6 +134,8 @@
     font-family: inherit;
     cursor: pointer;
     transition: all 0.2s ease;
+    text-decoration: none;
+    box-sizing: border-box;
 }
 
 .ce-btn-resend {
@@ -158,6 +174,20 @@
     text-align: center;
 }
 
+.ce-back-form {
+    margin: 0;
+    display: flex;
+    justify-content: center;
+}
+
+.ce-back-btn {
+    border: 0;
+    background: transparent;
+    cursor: pointer;
+    padding: 0;
+    font: inherit;
+}
+
 .ce-change-card .ce-form-header,
 .ce-form-header {
     text-align: center;
@@ -181,25 +211,109 @@
     text-align: center;
 }
 
-.password-rules li.fail {
-    color: #dc2626;
+/* Success animation */
+.ce-success-shell {
+    align-items: center;
+    text-align: center;
+    gap: 1.25rem;
 }
 
-.password-rules li.fail::before {
-    content: '✕';
-    color: #dc2626;
-    font-weight: 700;
-}
-
-.password-rules li.ok,
-.password-rules li.valid {
+.ce-success-check {
     display: flex;
-    color: #22c55e;
+    justify-content: center;
+    margin-top: 0.25rem;
 }
 
-.password-rules li.ok::before,
-.password-rules li.valid::before {
-    content: '✓';
-    color: #22c55e;
-    font-weight: 700;
+.ce-success-check-circle {
+    width: 96px;
+    height: 96px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #22c55e, #16a34a);
+    display: grid;
+    place-items: center;
+    box-shadow: 0 12px 28px rgba(22, 163, 74, 0.28);
+    animation: ce-pop 0.45s cubic-bezier(0.2, 0.9, 0.3, 1.2) both;
+}
+
+.ce-success-checkmark {
+    width: 28px;
+    height: 52px;
+    border-right: 6px solid #fff;
+    border-bottom: 6px solid #fff;
+    transform: rotate(45deg);
+    margin-top: -8px;
+    animation: ce-draw 0.35s ease 0.2s both;
+}
+
+.ce-success-login-btn {
+    margin-top: 0.5rem;
+}
+
+.ce-success-card .card-subtitle {
+    max-width: 28rem;
+    margin-left: auto;
+    margin-right: auto;
+    line-height: 1.55;
+    word-break: break-word;
+}
+
+@keyframes ce-pop {
+    from { transform: scale(0.6); opacity: 0; }
+    to { transform: scale(1); opacity: 1; }
+}
+
+@keyframes ce-draw {
+    from { opacity: 0; transform: rotate(45deg) scale(0.7); }
+    to { opacity: 1; transform: rotate(45deg) scale(1); }
+}
+
+@media (max-width: 768px) {
+    .ce-status-row {
+        flex-direction: column;
+        gap: 4px;
+        padding: 12px 14px;
+    }
+
+    .ce-status-key {
+        min-width: 0;
+    }
+
+    .ce-btn-resend,
+    .ce-btn-cancel {
+        min-height: 44px;
+        padding: 12px 16px;
+    }
+
+    .ce-info-box {
+        font-size: 12.5px;
+        padding: 12px 14px;
+    }
+}
+
+@media (max-width: 480px) {
+    .ce-success-check-circle {
+        width: 84px;
+        height: 84px;
+    }
+
+    .ce-success-checkmark {
+        width: 22px;
+        height: 42px;
+        border-right-width: 5px;
+        border-bottom-width: 5px;
+    }
+
+    .ce-success-login-btn {
+        font-size: 13px;
+        padding: 12px 14px;
+        text-align: center;
+        line-height: 1.35;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .ce-success-check-circle,
+    .ce-success-checkmark {
+        animation: none;
+    }
 }

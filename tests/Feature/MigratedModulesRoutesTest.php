@@ -7,6 +7,7 @@ use function Pest\Laravel\get;
 it('registers accounts routes in sk federation', function () {
     expect(Route::has('accounts.federation.index'))->toBeTrue();
     expect(Route::has('accounts.officials.index'))->toBeTrue();
+    expect(Route::has('accounts.officials.data'))->toBeTrue();
     expect(Route::has('accounts.store'))->toBeTrue();
 });
 
@@ -54,6 +55,7 @@ it('registers archive management routes in sk federation', function () {
 
 it('redirects guests away from migrated module pages', function () {
     get('/accounts/federation')->assertRedirect('/login');
+    get('/accounts/officials/data')->assertRedirect('/login');
     get('/audit-logs')->assertRedirect('/login');
     get('/archived/deleted-sk-officials')->assertRedirect('/login');
     get('/api/dashboard/feed')->assertRedirect('/login');
