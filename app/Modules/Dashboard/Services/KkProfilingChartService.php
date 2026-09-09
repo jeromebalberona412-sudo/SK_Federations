@@ -363,13 +363,25 @@ class KkProfilingChartService
     {
         $counts = array_fill(0, 12, 0);
         $dateExpression = $this->dateExpression($category);
+        $driver = DB::connection()->getDriverName();
 
-        $rows = $this->baseQuery($tenantId, $barangayIds, $category)
-            ->whereRaw("{$dateExpression}::date BETWEEN ? AND ?", [$dateFrom->toDateString(), $dateTo->toDateString()])
-            ->whereRaw("EXTRACT(YEAR FROM {$dateExpression}) = ?", [$year])
-            ->selectRaw("EXTRACT(MONTH FROM {$dateExpression})::int AS bucket, COUNT(*) AS total")
-            ->groupBy('bucket')
-            ->get();
+        $query = $this->baseQuery($tenantId, $barangayIds, $category);
+
+        if ($driver === 'pgsql') {
+            $rows = $query
+                ->whereRaw("{$dateExpression}::date BETWEEN ? AND ?", [$dateFrom->toDateString(), $dateTo->toDateString()])
+                ->whereRaw("EXTRACT(YEAR FROM {$dateExpression}) = ?", [$year])
+                ->selectRaw("EXTRACT(MONTH FROM {$dateExpression})::int AS bucket, COUNT(*) AS total")
+                ->groupBy('bucket')
+                ->get();
+        } else {
+            $rows = $query
+                ->whereRaw("DATE({$dateExpression}) BETWEEN ? AND ?", [$dateFrom->toDateString(), $dateTo->toDateString()])
+                ->whereRaw("YEAR({$dateExpression}) = ?", [$year])
+                ->selectRaw("MONTH({$dateExpression}) AS bucket, COUNT(*) AS total")
+                ->groupBy('bucket')
+                ->get();
+        }
 
         foreach ($rows as $row) {
             $index = ((int) $row->bucket) - 1;
@@ -387,9 +399,17 @@ class KkProfilingChartService
     private function countWeekly(int $tenantId, array $barangayIds, string $start, string $end, string $category): int
     {
         $dateExpression = $this->dateExpression($category);
+        $driver = DB::connection()->getDriverName();
+        $query = $this->baseQuery($tenantId, $barangayIds, $category);
 
-        return (int) $this->baseQuery($tenantId, $barangayIds, $category)
-            ->whereRaw("{$dateExpression}::date BETWEEN ? AND ?", [$start, $end])
+        if ($driver === 'pgsql') {
+            return (int) $query
+                ->whereRaw("{$dateExpression}::date BETWEEN ? AND ?", [$start, $end])
+                ->count();
+        }
+
+        return (int) $query
+            ->whereRaw("DATE({$dateExpression}) BETWEEN ? AND ?", [$start, $end])
             ->count();
     }
 
@@ -403,6 +423,13 @@ class KkProfilingChartService
             ->where('tenant_id', $tenantId)
             ->whereIn('barangay_id', $barangayIds);
 
+        if (! Schema::hasColumn('kabataan_registrations', 'evaluation_status')) {
+            return match ($category) {
+                'rejected' => $query->where('status', 'rejected'),
+                default => $query,
+            };
+        }
+
         return match ($category) {
             'approved' => $query->whereIn('evaluation_status', ['active', 'Auto Approved']),
             'pending' => $query
@@ -415,10 +442,24 @@ class KkProfilingChartService
 
     private function dateExpression(string $category): string
     {
-        return match ($category) {
-            'pending' => 'COALESCE(submitted_at, created_at)',
-            default => 'COALESCE(reviewed_at, submitted_at, created_at)',
-        };
+        $hasSubmitted = Schema::hasColumn('kabataan_registrations', 'submitted_at');
+        $hasReviewed = Schema::hasColumn('kabataan_registrations', 'reviewed_at');
+
+        if ($category === 'pending') {
+            return $hasSubmitted ? 'COALESCE(submitted_at, created_at)' : 'created_at';
+        }
+
+        if ($hasReviewed && $hasSubmitted) {
+            return 'COALESCE(reviewed_at, submitted_at, created_at)';
+        }
+        if ($hasSubmitted) {
+            return 'COALESCE(submitted_at, created_at)';
+        }
+        if ($hasReviewed) {
+            return 'COALESCE(reviewed_at, created_at)';
+        }
+
+        return 'created_at';
     }
 
     /**

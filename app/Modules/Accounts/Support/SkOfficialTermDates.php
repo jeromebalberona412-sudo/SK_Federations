@@ -5,6 +5,7 @@ namespace App\Modules\Accounts\Support;
 use App\Modules\Accounts\Models\OfficialProfile;
 use Carbon\Carbon;
 use Carbon\CarbonInterface;
+use Illuminate\Support\Facades\Schema;
 
 final class SkOfficialTermDates
 {
@@ -65,27 +66,31 @@ final class SkOfficialTermDates
         $fallbackStart = self::defaultStart($asOf);
         $fallbackEnd = self::termEndForStart($fallbackStart)->toDateString();
 
-        if ($tenantId <= 0) {
-            return ['term_start' => $fallbackStart, 'term_end' => $fallbackEnd];
-        }
-
-        $profiles = OfficialProfile::query()
-            ->whereIn('federation_position', ['President', 'Vice President'])
-            ->whereHas('user', function ($query) use ($tenantId): void {
-                $query->where('tenant_id', $tenantId);
-            })
-            ->with('latestTerm')
-            ->get();
-
-        $president = $profiles->firstWhere('federation_position', 'President');
-        $vicePresident = $profiles->firstWhere('federation_position', 'Vice President');
-        $term = $president?->latestTerm ?? $vicePresident?->latestTerm;
-
-        if ($term === null || empty($term->term_start) || empty($term->term_end)) {
+        if ($tenantId <= 0
+            || ! Schema::hasTable('official_profiles')
+            || ! Schema::hasColumn('official_profiles', 'federation_position')
+            || ! Schema::hasTable('official_terms')
+        ) {
             return ['term_start' => $fallbackStart, 'term_end' => $fallbackEnd];
         }
 
         try {
+            $profiles = OfficialProfile::query()
+                ->whereIn('federation_position', ['President', 'Vice President'])
+                ->whereHas('user', function ($query) use ($tenantId): void {
+                    $query->where('tenant_id', $tenantId);
+                })
+                ->with('latestTerm')
+                ->get();
+
+            $president = $profiles->firstWhere('federation_position', 'President');
+            $vicePresident = $profiles->firstWhere('federation_position', 'Vice President');
+            $term = $president?->latestTerm ?? $vicePresident?->latestTerm;
+
+            if ($term === null || empty($term->term_start) || empty($term->term_end)) {
+                return ['term_start' => $fallbackStart, 'term_end' => $fallbackEnd];
+            }
+
             $start = Carbon::parse($term->term_start)->startOfDay()->toDateString();
             $end = Carbon::parse($term->term_end)->startOfDay()->toDateString();
         } catch (\Throwable) {
