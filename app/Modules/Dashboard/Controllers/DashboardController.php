@@ -26,16 +26,54 @@ class DashboardController extends Controller
     {
         $tenantId = $request->user()?->tenant_id;
         $barangays = $this->dashboardStatsService->getBarangays($tenantId);
-        $termDefaults = SkOfficialTermDates::leadershipDefaults((int) ($tenantId ?? 0));
-        $termStart = $termDefaults['term_start'];
-        $termEnd = $termDefaults['term_end'];
+
+        try {
+            $termDefaults = SkOfficialTermDates::leadershipDefaults((int) ($tenantId ?? 0));
+        } catch (\Throwable $e) {
+            report($e);
+            $termDefaults = [
+                'term_start' => SkOfficialTermDates::defaultStart(),
+                'term_end' => SkOfficialTermDates::defaultEnd(),
+            ];
+        }
+
+        $termStart = $termDefaults['term_start'] ?? SkOfficialTermDates::defaultStart();
+        $termEnd = $termDefaults['term_end'] ?? SkOfficialTermDates::defaultEnd();
         // Follow SK Federation President (then VP) term window.
         $dateFrom = $termStart;
         $dateTo = $termEnd;
-        $dashboardYear = (int) substr($dateFrom, 0, 4);
+        $dashboardYear = (int) substr((string) $dateFrom, 0, 4);
         $user = $request->user();
-        $statCards = $this->dashboardStatsService->dashboardStatCards($tenantId, $dateFrom, $dateTo);
-        $abyipOverview = $this->barangayMonitoringService->dashboardAbyipOverview(10, $dateFrom, $dateTo);
+
+        try {
+            $statCards = $this->dashboardStatsService->dashboardStatCards($tenantId, $dateFrom, $dateTo);
+        } catch (\Throwable $e) {
+            report($e);
+            $statCards = [
+                'total_kabataan_registered' => 0,
+                'total_sk_officials' => 0,
+                'total_sk_chairpersons' => 0,
+                'total_audit_logs' => 0,
+            ];
+        }
+
+        try {
+            $abyipOverview = $this->barangayMonitoringService->dashboardAbyipOverview(10, $dateFrom, $dateTo);
+        } catch (\Throwable $e) {
+            report($e);
+            $abyipOverview = [
+                'stats' => [
+                    'submitted' => 0,
+                    'pending' => 0,
+                    'approved' => 0,
+                    'rejected' => 0,
+                    'fiscal_year' => $dashboardYear,
+                    'fiscal_year_label' => 'CY '.$dashboardYear,
+                    'total_barangays' => 0,
+                ],
+                'recent' => [],
+            ];
+        }
 
         $kkInitialRequest = new Request([
             'barangay_id' => 'all',
@@ -51,27 +89,52 @@ class DashboardController extends Controller
             'date_to' => $dateTo,
         ]);
 
+        $kkProfilingInitial = null;
+        $purokChartInitial = null;
+        if ($user) {
+            try {
+                $kkProfilingInitial = $this->kkProfilingChartService->getChartData($user, $kkInitialRequest);
+            } catch (\Throwable $e) {
+                report($e);
+            }
+            try {
+                $purokChartInitial = $this->kkProfilingChartService->getPurokChartData($user, $purokInitialRequest);
+            } catch (\Throwable $e) {
+                report($e);
+            }
+        }
+
+        $safe = function (callable $callback, $fallback = null) {
+            try {
+                return $callback();
+            } catch (\Throwable $e) {
+                report($e);
+
+                return $fallback;
+            }
+        };
+
         return view('dashboard::dashboard', [
             'user' => $user,
-            'totalKabataanRegistered' => $statCards['total_kabataan_registered'],
-            'totalSkOfficials' => $statCards['total_sk_officials'],
-            'totalSkChairpersons' => $statCards['total_sk_chairpersons'],
-            'totalAuditLogs' => $statCards['total_audit_logs'],
-            'totalBarangaysAbyipSubmitted' => $abyipOverview['stats']['submitted'],
-            'sexDistribution' => $this->dashboardStatsService->sexDistribution($tenantId, $dateFrom, $dateTo),
-            'sexDistributionOfficials' => $this->dashboardStatsService->sexDistributionOfficials($tenantId, $dateFrom, $dateTo),
-            'sexDistributionFederations' => $this->dashboardStatsService->sexDistributionFederations($tenantId, $dateFrom, $dateTo),
-            'employmentStatusDistribution' => $this->dashboardStatsService->employmentStatusDistribution($tenantId, $dateFrom, $dateTo),
-            'federationOfficers' => $this->dashboardStatsService->federationOfficers($tenantId),
-            'topBarangays' => $this->dashboardStatsService->topBarangaysByYouth($tenantId, 5, $dateFrom, $dateTo),
+            'totalKabataanRegistered' => $statCards['total_kabataan_registered'] ?? 0,
+            'totalSkOfficials' => $statCards['total_sk_officials'] ?? 0,
+            'totalSkChairpersons' => $statCards['total_sk_chairpersons'] ?? 0,
+            'totalAuditLogs' => $statCards['total_audit_logs'] ?? 0,
+            'totalBarangaysAbyipSubmitted' => $abyipOverview['stats']['submitted'] ?? 0,
+            'sexDistribution' => $safe(fn () => $this->dashboardStatsService->sexDistribution($tenantId, $dateFrom, $dateTo), []),
+            'sexDistributionOfficials' => $safe(fn () => $this->dashboardStatsService->sexDistributionOfficials($tenantId, $dateFrom, $dateTo), []),
+            'sexDistributionFederations' => $safe(fn () => $this->dashboardStatsService->sexDistributionFederations($tenantId, $dateFrom, $dateTo), []),
+            'employmentStatusDistribution' => $safe(fn () => $this->dashboardStatsService->employmentStatusDistribution($tenantId, $dateFrom, $dateTo), []),
+            'federationOfficers' => $safe(fn () => $this->dashboardStatsService->federationOfficers($tenantId), collect()),
+            'topBarangays' => $safe(fn () => $this->dashboardStatsService->topBarangaysByYouth($tenantId, 5, $dateFrom, $dateTo), collect()),
             'barangays' => $barangays,
             'kkBarangayOptions' => $barangays
                 ->map(fn ($barangay) => ['id' => $barangay->id, 'name' => $barangay->name])
                 ->values()
                 ->all(),
-            'recentActivity' => $this->dashboardActivityService->recentActivity($tenantId, 12, $dateFrom, $dateTo),
-            'upcomingEvents' => $this->dashboardActivityService->upcomingCalendarNotes(6, $dateFrom, $dateTo),
-            'todayReminder' => $this->dashboardActivityService->todayCalendarNote(),
+            'recentActivity' => $safe(fn () => $this->dashboardActivityService->recentActivity($tenantId, 12, $dateFrom, $dateTo), []),
+            'upcomingEvents' => $safe(fn () => $this->dashboardActivityService->upcomingCalendarNotes(6, $dateFrom, $dateTo), []),
+            'todayReminder' => $safe(fn () => $this->dashboardActivityService->todayCalendarNote(), null),
             'todayLabel' => now()->timezone(config('app.timezone', 'Asia/Manila'))->format('F j, Y | l'),
             'dashboardYear' => $dashboardYear,
             'dateFrom' => $dateFrom,
@@ -79,12 +142,8 @@ class DashboardController extends Controller
             'termStart' => $termStart,
             'termEnd' => $termEnd,
             'abyipOverview' => $abyipOverview,
-            'kkProfilingInitial' => $user
-                ? $this->kkProfilingChartService->getChartData($user, $kkInitialRequest)
-                : null,
-            'purokChartInitial' => $user
-                ? $this->kkProfilingChartService->getPurokChartData($user, $purokInitialRequest)
-                : null,
+            'kkProfilingInitial' => $kkProfilingInitial,
+            'purokChartInitial' => $purokChartInitial,
         ]);
     }
 
