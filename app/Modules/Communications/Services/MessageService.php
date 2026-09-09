@@ -86,11 +86,12 @@ class MessageService
 
         $this->conversations->assertCanMessagePeer($conversation, $user);
 
+        $body = str_replace(["\r\n", "\r"], "\n", $body);
         $body = trim($body);
         $max = (int) config('communications.message_max_length', 1000);
 
         if (mb_strlen($body) > $max) {
-            abort(422, 'Message is too long.');
+            abort(422, 'Message cannot exceed 1000 characters.');
         }
 
         $attachmentsMeta = [];
@@ -222,13 +223,14 @@ class MessageService
         abort_if($message->deleted_for_all_at !== null, 422, 'Deleted messages cannot be edited.');
         abort_if($message->message_type !== 'text', 422, 'Only text messages can be edited.');
 
+        $body = str_replace(["\r\n", "\r"], "\n", $body);
         $body = trim($body);
         $max = (int) config('communications.message_max_length', 1000);
         if ($body === '') {
             abort(422, 'Message body is required.');
         }
         if (mb_strlen($body) > $max) {
-            abort(422, 'Message is too long.');
+            abort(422, 'Message cannot exceed 1000 characters.');
         }
 
         $message->body = $body;

@@ -13,7 +13,7 @@
 }
 
 .comms-app {
-    --comms-shell-h: calc(100dvh - var(--navbar-height, 64px) - 56px);
+    --comms-shell-h: calc(100dvh - var(--navbar-height, 64px));
     margin: -0.5rem;
     height: var(--comms-shell-h);
     min-height: var(--comms-shell-h);
@@ -23,6 +23,55 @@
     width: calc(100% + 1rem);
     max-width: none;
     min-width: 0;
+}
+
+body.comms-messages-layout {
+    overflow: hidden;
+}
+
+body.comms-messages-layout .main-content {
+    height: calc(100dvh - var(--navbar-height, 64px));
+    max-height: calc(100dvh - var(--navbar-height, 64px));
+    min-height: 0;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    padding: 12px 14px 16px;
+    box-sizing: border-box;
+}
+
+body.comms-messages-layout .comms-app {
+    --comms-shell-h: 100%;
+    margin: 0;
+    width: 100%;
+    max-width: 100%;
+    height: auto;
+    min-height: 0;
+    max-height: 100%;
+    overflow: hidden;
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+}
+
+body.comms-messages-layout .comms-secure-banner {
+    flex: 0 0 auto;
+    margin: 0 0 0.5rem;
+}
+
+body.comms-messages-layout .comms-shell {
+    flex: 1 1 auto;
+    min-height: 0;
+    max-height: none;
+    height: auto;
+    width: 100%;
+}
+
+body.comms-messages-layout .comms-composer {
+    flex-shrink: 0;
+    position: relative;
+    z-index: 2;
+    background: #fff;
 }
 
 .main-content:has(> .comms-app) {
@@ -352,6 +401,45 @@
     flex-direction: column;
     min-height: 0;
     height: 100%;
+    overflow: hidden;
+}
+
+.comms-messages-wrap {
+    position: relative;
+    flex: 1 1 auto;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.comms-scroll-bottom {
+    position: absolute;
+    right: 14px;
+    bottom: 14px;
+    z-index: 6;
+    width: 40px;
+    height: 40px;
+    border: 0;
+    border-radius: 999px;
+    background: #fff;
+    color: var(--comms-accent);
+    box-shadow: 0 4px 16px rgba(11, 92, 171, 0.22);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+}
+
+.comms-scroll-bottom[hidden] {
+    display: none !important;
+}
+
+.comms-scroll-bottom:hover,
+.comms-scroll-bottom:focus-visible {
+    background: var(--comms-accent-soft);
+    outline: 2px solid rgba(11, 92, 171, 0.28);
+    outline-offset: 1px;
 }
 
 .comms-thread-header {
@@ -495,6 +583,37 @@
     display: none;
 }
 
+.comms-date-sep {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    width: 100%;
+    max-width: 100%;
+    margin: 0.6rem 0 0.75rem;
+    padding: 0 0.85rem;
+    box-sizing: border-box;
+    flex: 0 0 auto;
+    pointer-events: none;
+    position: relative;
+    z-index: 1;
+}
+
+.comms-date-sep-text {
+    display: inline-block;
+    text-align: center;
+    font-size: 0.74rem;
+    font-weight: 700;
+    line-height: 1.35;
+    color: #5b6b7c;
+    background: rgba(255, 255, 255, 0.92);
+    border: 1px solid var(--comms-border);
+    border-radius: 999px;
+    padding: 0.3rem 0.75rem;
+    max-width: min(100%, 420px);
+    overflow-wrap: anywhere;
+    word-break: break-word;
+}
+
 .comms-messages {
     flex: 1 1 auto;
     min-height: 0;
@@ -508,6 +627,18 @@
     background: linear-gradient(180deg, #f7fafc 0%, #eef4fa 100%);
     -webkit-overflow-scrolling: touch;
     overscroll-behavior: contain;
+}
+
+/* Keep short threads pinned near the composer (avoids large empty gap / “putol” look). */
+.comms-messages::before {
+    content: '';
+    flex: 1 1 auto;
+    min-height: 0;
+    pointer-events: none;
+}
+
+.comms-messages-wrap > .comms-messages {
+    width: 100%;
 }
 
 .comms-bubble {
@@ -573,18 +704,20 @@
 .comms-bubble-row {
     display: flex;
     align-items: center;
-    gap: 4px;
+    gap: 6px;
     width: fit-content;
     max-width: 100%;
     min-width: 0;
-    /* DOM: tools (⋮ → react) then bubble.
-       Mine: [⋮][react][bubble] — react closest to bubble (Messenger).
-       Theirs: row-reverse → [bubble][react][⋮]. */
+    /* DOM: bubble then tools. Mine flips so tools sit inward (match Officials). */
     flex-direction: row;
 }
 
-.comms-bubble-wrap.is-theirs .comms-bubble-row {
+.comms-bubble-wrap.is-mine .comms-bubble-row {
     flex-direction: row-reverse;
+}
+
+.comms-bubble-wrap.is-theirs .comms-bubble-row {
+    flex-direction: row;
 }
 
 .comms-bubble-wrap .comms-bubble {
@@ -599,18 +732,19 @@
     display: inline-flex;
     align-items: center;
     flex-direction: row;
-    gap: 2px;
+    gap: 4px;
     flex: 0 0 auto;
-    min-width: 62px;
+    min-width: 0;
     width: auto;
-    justify-content: flex-end;
+    justify-content: center;
 }
 
-/* In row beside bubble — keep button hittable; always slightly visible */
-.comms-react-btn {
+/* In row beside bubble — keep button hittable */
+.comms-react-btn,
+.comms-msg-more {
     flex: 0 0 auto;
-    width: 30px;
-    height: 30px;
+    width: 28px;
+    height: 28px;
     border-radius: 999px;
     border: 0;
     background: #fff;
@@ -620,12 +754,16 @@
     justify-content: center;
     cursor: pointer;
     padding: 0;
-    opacity: 0.55;
+    opacity: 1;
     visibility: visible;
     pointer-events: auto;
     transition: opacity 0.12s ease, background-color 0.12s ease, color 0.12s ease, transform 0.12s ease;
     box-shadow: 0 2px 10px rgba(15, 23, 42, 0.14);
     z-index: 3;
+}
+
+.comms-react-btn {
+    opacity: 0.55;
 }
 
 .comms-bubble-wrap:hover .comms-react-btn,
@@ -699,9 +837,10 @@
     position: absolute;
     bottom: 0;
     display: inline-flex;
-    flex-wrap: nowrap;
+    flex-wrap: wrap;
+    gap: 4px;
     z-index: 5;
-    max-width: min(100%, 220px);
+    max-width: min(100%, 260px);
     pointer-events: auto;
     overflow: visible;
 }
@@ -873,6 +1012,8 @@ button.comms-reaction-summary {
     background: #fff;
     flex-shrink: 0;
     min-width: 0;
+    width: 100%;
+    box-sizing: border-box;
 }
 
 .comms-composer .visually-hidden {
@@ -890,8 +1031,8 @@ button.comms-reaction-summary {
 .comms-composer-tools {
     flex: 0 0 auto;
     display: flex;
-    align-items: center;
-    padding-bottom: 2px;
+    align-items: flex-end;
+    padding-bottom: 0;
 }
 
 .comms-attach-menu-wrap {
@@ -901,6 +1042,7 @@ button.comms-reaction-summary {
 .comms-attach-btn {
     width: 40px;
     height: 40px;
+    min-width: 40px;
     border-radius: 999px;
     border: 1px solid var(--comms-border);
     background: #fff;
@@ -909,6 +1051,7 @@ button.comms-reaction-summary {
     align-items: center;
     justify-content: center;
     cursor: pointer;
+    flex-shrink: 0;
 }
 
 .comms-attach-btn span {
@@ -961,6 +1104,9 @@ button.comms-reaction-summary {
     font-weight: 600;
     text-align: left;
     cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
 }
 
 .comms-attach-menu-btn:hover,
@@ -984,6 +1130,8 @@ button.comms-reaction-summary {
     border-radius: 12px;
     background: #f8fafc;
     padding: 0.45rem 2rem 0.45rem 0.55rem;
+    max-height: 200px;
+    overflow-y: auto;
 }
 
 .comms-attach-preview[hidden] {
@@ -991,26 +1139,46 @@ button.comms-reaction-summary {
 }
 
 .comms-attach-preview-inner {
-    display: grid;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
     gap: 0.45rem;
     min-width: 0;
-    max-height: 170px;
-    overflow-y: auto;
 }
 
 .comms-attach-preview-item {
     display: flex;
     align-items: center;
     gap: 0.55rem;
+    width: 100%;
     min-width: 0;
+    padding: 0.35rem 0.45rem;
+    border-radius: 8px;
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    box-sizing: border-box;
+}
+
+.comms-attach-preview-item.is-row {
+    max-width: none;
+}
+
+.comms-attach-preview-zoom {
+    border: 0;
+    background: transparent;
+    padding: 0;
+    cursor: zoom-in;
+    flex: 0 0 auto;
+    line-height: 0;
 }
 
 .comms-attach-preview-inner img {
-    width: 56px;
-    height: 56px;
+    width: 40px;
+    height: 40px;
     object-fit: cover;
     border-radius: 8px;
     flex-shrink: 0;
+    display: block;
 }
 
 .comms-attach-preview-name,
@@ -1020,6 +1188,26 @@ button.comms-reaction-summary {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+    min-width: 0;
+    flex: 1 1 auto;
+}
+
+.comms-attach-item-remove {
+    border: 0;
+    background: transparent;
+    color: #94a3b8;
+    font-size: 1.15rem;
+    line-height: 1;
+    cursor: pointer;
+    padding: 2px 4px;
+    flex: 0 0 auto;
+    border-radius: 999px;
+}
+
+.comms-attach-item-remove:hover,
+.comms-attach-item-remove:focus-visible {
+    color: var(--comms-danger);
+    outline: none;
 }
 
 .comms-attach-clear {
@@ -1039,7 +1227,7 @@ button.comms-reaction-summary {
 
 .comms-attach-clear:hover,
 .comms-attach-clear:focus-visible {
-    color: #b42318;
+    color: var(--comms-danger);
     outline: none;
 }
 
@@ -1062,23 +1250,45 @@ button.comms-reaction-summary {
     width: 100%;
     min-width: 0;
     resize: none;
-    overflow-y: auto;
-    border: 1px solid var(--comms-border);
-    border-radius: 12px;
-    padding: 0.7rem 0.9rem;
-    min-height: 44px;
-    max-height: 180px;
+    overflow-x: hidden;
+    overflow-y: hidden;
+    border: 0;
+    border-radius: 22px;
+    padding: 0.65rem 1rem;
+    min-height: calc(1.4em + 1.3rem);
+    max-height: calc(1.4em * 5 + 1.3rem);
+    height: calc(1.4em + 1.3rem);
     font: inherit;
-    line-height: 1.35;
-    background: #fff;
-    field-sizing: content;
+    font-size: 0.95rem;
+    line-height: 1.4;
+    background: #f0f2f5;
+    field-sizing: fixed;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    box-sizing: border-box;
+}
+
+.comms-composer textarea.is-line-limit {
+    border: 1px solid #f5c2c7;
+    background: #fff5f5;
 }
 
 .comms-composer textarea:focus {
     outline: 2px solid rgba(11, 92, 171, 0.28);
     outline-offset: 1px;
-    border-color: var(--comms-accent);
     background: #fff;
+}
+
+.comms-composer textarea.is-line-limit:focus {
+    outline-color: rgba(180, 35, 24, 0.35);
+    background: #fff5f5;
+}
+
+.comms-composer-end {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: flex-end;
+    padding-bottom: 0;
 }
 
 .comms-bubble.has-attachment {
@@ -1086,6 +1296,32 @@ button.comms-reaction-summary {
     flex-direction: column;
     gap: 0.4rem;
     padding: 0.5rem 0.6rem;
+}
+
+.comms-bubble.has-attachment-only {
+    background: transparent !important;
+    box-shadow: none !important;
+    border: 0 !important;
+    padding-left: 0;
+    padding-right: 0;
+    color: inherit;
+}
+
+.comms-bubble-cluster {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 4px;
+    min-width: 0;
+    max-width: 100%;
+}
+
+.comms-bubble-wrap.is-mine .comms-bubble-cluster {
+    align-items: flex-end;
+}
+
+.comms-bubble-wrap.is-theirs .comms-bubble-cluster {
+    align-items: flex-start;
 }
 
 button.comms-bubble-image,
@@ -1098,8 +1334,14 @@ button.comms-bubble-image,
     cursor: pointer;
     border: 0;
     padding: 0;
-    background: transparent;
+    background: transparent !important;
     text-align: left;
+    box-shadow: none;
+}
+
+.comms-bubble.has-attachment-only .comms-bubble-image,
+.comms-bubble--mine.has-attachment-only .comms-bubble-image {
+    background: transparent !important;
 }
 
 .comms-bubble-image img {
@@ -1107,11 +1349,11 @@ button.comms-bubble-image,
     width: 100%;
     max-height: 220px;
     object-fit: cover;
-    transition: opacity 0.15s ease;
+    background: transparent;
 }
 
 .comms-bubble-image:hover img {
-    opacity: 0.88;
+    opacity: 0.92;
 }
 
 /* Fullscreen image lightbox */
@@ -1167,33 +1409,46 @@ button.comms-bubble-image,
     display: flex;
     align-items: center;
     gap: 0.55rem;
-    margin-bottom: 0.15rem;
-    padding: 0;
-    border-radius: 0;
-    background: transparent;
-    color: inherit;
+    margin-bottom: 0.25rem;
+    padding: 0.7rem 0.8rem;
+    border-radius: 12px;
+    background: #ffffff;
+    border: 1px solid #d1d5db;
+    color: #111827;
     text-decoration: none;
-    max-width: min(300px, 72vw);
+    max-width: min(280px, 72vw);
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
 }
 
-.comms-bubble--mine .comms-bubble-file {
-    background: transparent;
-    color: inherit;
+.comms-bubble-file.is-pdf,
+.comms-bubble-file.is-word {
+    background: #ffffff;
+    color: #111827;
+}
+
+.comms-bubble--mine .comms-bubble-file,
+.comms-bubble--theirs .comms-bubble-file,
+.comms-bubble.has-attachment-only .comms-bubble-file {
+    background: #ffffff !important;
+    border: 1px solid #d1d5db !important;
+    color: #111827 !important;
 }
 
 .comms-bubble-file:hover,
 .comms-bubble-file:focus-visible {
-    text-decoration: underline;
-    outline: none;
+    outline: 2px solid rgba(11, 92, 171, 0.28);
+    outline-offset: 1px;
+    text-decoration: none;
 }
 
 .comms-bubble-file-ext {
     flex: 0 0 auto;
+    width: 40px;
     min-width: 40px;
     height: 40px;
     border-radius: 8px;
-    background: #0b5cab;
-    color: #fff;
+    background: #eef2ff;
+    color: #4338ca;
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -1201,44 +1456,58 @@ button.comms-bubble-image,
     font-weight: 700;
 }
 
-.comms-bubble-file.is-pdf {
-    background: rgba(180, 35, 24, 0.08);
-}
-
-.comms-bubble-file.is-word {
-    background: rgba(11, 92, 171, 0.1);
+.comms-bubble-file-ext svg {
+    display: block;
+    width: 18px;
+    height: 18px;
 }
 
 .comms-bubble-file.is-pdf .comms-bubble-file-ext {
-    background: #b42318;
+    background: #fef2f2;
+    color: #b91c1c;
 }
 
 .comms-bubble-file.is-word .comms-bubble-file-ext {
-    background: #0b5cab;
-}
-
-.comms-bubble-file.is-pdf .comms-bubble-file-name {
-    color: #b42318;
-}
-
-.comms-bubble-file.is-word .comms-bubble-file-name {
+    background: #eff6ff;
     color: #0b5cab;
 }
 
-.comms-bubble--mine .comms-bubble-file.is-pdf {
-    background: rgba(254, 202, 202, 0.2);
+.comms-bubble-file.is-excel .comms-bubble-file-ext {
+    background: #ecfdf5;
+    color: #15803d;
 }
 
-.comms-bubble--mine .comms-bubble-file.is-word {
-    background: rgba(191, 219, 254, 0.22);
+.comms-bubble-file.is-excel {
+    border-color: #bbf7d0;
 }
 
-.comms-bubble--mine .comms-bubble-file.is-pdf .comms-bubble-file-name {
-    color: #fecaca;
+.comms-bubble--mine .comms-bubble-file.is-excel .comms-bubble-file-ext,
+.comms-bubble--theirs .comms-bubble-file.is-excel .comms-bubble-file-ext {
+    background: #ecfdf5;
+    color: #15803d;
 }
 
-.comms-bubble--mine .comms-bubble-file.is-word .comms-bubble-file-name {
-    color: #dbeafe;
+.comms-bubble-file-meta {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.1rem;
+}
+
+.comms-bubble-file-name {
+    font-size: 0.85rem;
+    font-weight: 650;
+    color: #111827;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.comms-bubble-file-size {
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: #4b5563;
+    opacity: 1;
 }
 
 .comms-bubble-wrap.is-call {
@@ -1370,60 +1639,91 @@ button.comms-bubble-image,
     font-weight: 500;
 }
 
+.comms-edit-panel {
+    width: min(100%, 420px);
+    display: flex;
+    flex-direction: column;
+    gap: 0.55rem;
+    padding: 0.7rem 0.75rem;
+    border: 1px solid #cbd5e1;
+    border-radius: 12px;
+    background: #fff !important;
+    box-shadow: 0 4px 16px rgba(15, 23, 42, 0.1);
+    color: #0f172a;
+}
+
 .comms-edit-input {
     width: 100%;
-    min-height: 0;
-    max-height: 96px;
+    max-width: 100%;
+    min-width: 0;
+    min-height: 72px;
+    max-height: 160px;
     height: auto;
-    border: 1px solid rgba(255, 255, 255, 0.35);
+    border: 1px solid #94a3b8;
     border-radius: 8px;
-    padding: 0.4rem 0.5rem;
+    padding: 0.55rem 0.65rem;
     font: inherit;
     line-height: 1.35;
     resize: none;
+    overflow-x: hidden;
     overflow-y: auto;
     box-sizing: border-box;
-    field-sizing: content;
+    background: #ffffff !important;
+    color: #0f172a !important;
+    caret-color: #0f172a;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    field-sizing: fixed;
 }
 
-.comms-bubble--theirs .comms-edit-input {
-    border-color: var(--comms-border);
+.comms-edit-input:focus {
+    outline: 2px solid rgba(11, 92, 171, 0.28);
+    outline-offset: 1px;
+    border-color: #0b5cab;
 }
 
 .comms-edit-actions {
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    gap: 0.5rem;
-    margin-top: 0.4rem;
+    justify-content: flex-end;
+    gap: 0.45rem;
+    margin-top: 0;
 }
 
 .comms-edit-save,
 .comms-edit-cancel {
     border: 0;
-    border-radius: 6px;
-    padding: 0.28rem 0.65rem;
-    font-size: 0.75rem;
-    font-weight: 600;
+    border-radius: 8px;
+    padding: 0.4rem 0.85rem;
+    font-size: 0.8rem;
+    font-weight: 650;
     cursor: pointer;
 }
 
 .comms-edit-cancel {
-    background: transparent;
-    color: inherit;
-    opacity: 0.85;
-    margin-right: auto;
+    background: #e2e8f0;
+    color: #334155;
+    opacity: 1;
+    margin-right: 0;
+}
+
+.comms-edit-cancel:hover,
+.comms-edit-cancel:focus-visible {
+    background: #cbd5e1;
+    outline: none;
 }
 
 .comms-edit-save {
-    background: #fff;
-    color: var(--comms-accent);
-    margin-left: auto;
-}
-
-.comms-bubble--theirs .comms-edit-save {
     background: var(--comms-accent);
     color: #fff;
+    margin-left: 0;
+}
+
+.comms-edit-save:hover,
+.comms-edit-save:focus-visible {
+    filter: brightness(0.95);
+    outline: none;
 }
 
 .comms-bubble-file-meta {
@@ -1491,22 +1791,29 @@ button.comms-bubble-image,
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    gap: 0.35rem;
-    height: 44px;
-    min-width: 44px;
-    padding: 0 1rem;
+    width: 40px;
+    height: 40px;
+    min-width: 40px;
+    padding: 0;
     background: var(--comms-accent);
     color: #fff;
-    border-color: var(--comms-accent);
+    border: 0;
+    border-radius: 999px;
     font-weight: 600;
-    border-radius: 12px;
     white-space: nowrap;
+    cursor: pointer;
 }
 
-.comms-send-btn:hover {
+.comms-send-btn[hidden] {
+    display: none !important;
+}
+
+.comms-send-btn:hover,
+.comms-send-btn:focus-visible {
     background: #094a8a;
-    border-color: #094a8a;
+    border: 0;
     color: #fff;
+    outline: none;
 }
 
 .comms-send-btn:disabled {
@@ -1515,6 +1822,10 @@ button.comms-bubble-image,
 }
 
 .comms-send-btn-icon {
+    display: block;
+}
+
+.comms-send-btn-label {
     display: none;
 }
 
@@ -1891,7 +2202,7 @@ button.comms-bubble-image,
     overflow: visible;
 }
 
-.comms-thread-active > .comms-messages {
+.comms-thread-active > .comms-messages-wrap {
     position: relative;
     z-index: 1;
 }
@@ -2129,6 +2440,17 @@ button.comms-bubble-image,
         border-right: 0;
     }
 
+    body.comms-messages-layout .comms-shell {
+        min-height: 0;
+        height: auto;
+        flex: 1 1 auto;
+        max-height: none;
+    }
+
+    body.comms-messages-layout .comms-app {
+        --comms-shell-h: 100%;
+    }
+
     .comms-app.is-thread-open .comms-sidebar {
         display: none;
     }
@@ -2173,8 +2495,20 @@ button.comms-bubble-image,
         overflow: hidden;
     }
 
+    body.comms-messages-layout .main-content {
+        padding: 0;
+        height: calc(100dvh - var(--navbar-height, 64px));
+        max-height: calc(100dvh - var(--navbar-height, 64px));
+    }
+
     .comms-app {
         --comms-shell-h: calc(100dvh - var(--navbar-height, 64px));
+        margin: 0;
+        width: 100%;
+    }
+
+    body.comms-messages-layout .comms-app {
+        --comms-shell-h: 100%;
         margin: 0;
         width: 100%;
     }
@@ -2182,8 +2516,14 @@ button.comms-bubble-image,
     .comms-shell {
         border-radius: 0;
         border: 0;
-        min-height: var(--comms-shell-h);
-        height: var(--comms-shell-h);
+        min-height: 0;
+        height: auto;
+    }
+
+    body.comms-messages-layout .comms-shell {
+        min-height: 0;
+        height: auto;
+        flex: 1 1 auto;
     }
 
     .comms-sidebar-header {
@@ -2207,12 +2547,28 @@ button.comms-bubble-image,
         gap: 0.5rem;
         padding: 0.7rem 0.75rem;
         padding-bottom: calc(0.7rem + env(safe-area-inset-bottom, 0px));
+        flex-wrap: nowrap;
+    }
+
+    .comms-attach-btn,
+    .comms-send-btn {
+        width: 40px;
+        min-width: 40px;
+        height: 40px;
+    }
+
+    .comms-bubble-file {
+        max-width: min(260px, calc(100vw - 5.5rem));
+    }
+
+    .comms-bubble-file-name {
+        max-width: min(160px, 46vw);
     }
 
     .comms-send-btn {
-        width: 42px;
-        min-width: 42px;
-        height: 42px;
+        width: 40px;
+        min-width: 40px;
+        height: 40px;
         padding: 0;
         border-radius: 50%;
     }

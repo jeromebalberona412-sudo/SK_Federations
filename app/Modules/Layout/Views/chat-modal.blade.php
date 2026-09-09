@@ -62,16 +62,6 @@
                         <button type="button" class="comms-chat-modal-action-btn" id="commsChatModalVideoBtn" title="Video call" aria-label="Start video call">
                             <i class="fas fa-video" aria-hidden="true"></i>
                         </button>
-                        <button
-                            type="button"
-                            class="comms-chat-modal-action-btn"
-                            id="commsChatModalOpenFull"
-                            data-no-loading
-                            title="Toggle fullscreen"
-                            aria-label="Toggle fullscreen messages"
-                        >
-                            <i class="fas fa-expand" aria-hidden="true"></i>
-                        </button>
                         <button type="button" class="comms-chat-modal-action-btn comms-chat-modal-close-btn" data-comms-chat-close aria-label="Close chat">
                             <i class="fas fa-times" aria-hidden="true"></i>
                         </button>
@@ -111,7 +101,6 @@
                             class="comms-chat-modal-input"
                             rows="1"
                             placeholder="Type a message…"
-                            maxlength="1000"
                         ></textarea>
                     </div>
                     <button type="submit" class="comms-chat-modal-send" id="commsChatModalSend" aria-label="Send message">

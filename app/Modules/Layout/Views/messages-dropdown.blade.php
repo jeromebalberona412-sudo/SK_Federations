@@ -24,25 +24,15 @@
             >{{ $unreadMsgLabel }}</span>
         </div>
         <div class="comms-msg-header-actions">
-            <button
-                type="button"
-                class="comms-msg-header-icon-btn"
-                id="commsMsgOpenFull"
-                data-no-loading
-                title="Open fullscreen Messages"
-                aria-label="Open fullscreen Messages"
-            >
-                <i class="fas fa-expand" aria-hidden="true"></i>
-            </button>
             <a
                 href="{{ $messagesIndexUrl }}"
-                class="comms-msg-header-icon-btn"
+                class="comms-msg-header-icon-btn comms-msg-see-all-link"
                 id="commsMsgNewLink"
                 data-no-loading
-                title="New message"
-                aria-label="Compose new message"
+                title="Open Messages"
+                aria-label="Open Messages page"
             >
-                <i class="fas fa-edit" aria-hidden="true"></i>
+                <i class="fas fa-external-link-alt" aria-hidden="true"></i>
             </a>
         </div>
     </div>
@@ -114,7 +104,7 @@
     </div>
 
     <div class="comms-msg-popover-footer">
-        <a href="{{ $messagesIndexUrl }}" class="comms-msg-see-all-btn" data-no-loading>
+        <a href="{{ $messagesIndexUrl }}" class="comms-msg-see-all-btn comms-msg-see-all-link" data-no-loading>
             See All in Messages
         </a>
     </div>

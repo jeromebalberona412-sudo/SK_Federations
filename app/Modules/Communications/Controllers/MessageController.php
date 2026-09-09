@@ -37,14 +37,35 @@ class MessageController extends Controller
         $max = (int) config('communications.message_max_length', 1000);
         $hasFiles = $request->hasFile('attachments');
 
-        $validated = $request->validate([
-            'body' => [$hasFiles ? 'nullable' : 'required', 'string', 'max:'.$max],
+        // Normalize line endings before length checks so \r\n counts as one character.
+        $body = str_replace(["\r\n", "\r"], "\n", (string) $request->input('body', ''));
+        $request->merge(['body' => $body]);
+
+        $request->validate([
+            // Use present (not required) so spaces/newlines are allowed in body text.
+            // Max length is enforced after normalize (below), not via Laravel max.
+            'body' => [$hasFiles ? 'nullable' : 'present', 'string'],
             'attachments' => ['nullable', 'array'],
             'attachments.*' => ['file'],
         ]);
 
-        $body = (string) ($validated['body'] ?? '');
-        $files = $hasFiles ? (array) $request->file('attachments', []) : [];
+        $files = $hasFiles ? array_values(array_filter((array) $request->file('attachments', []))) : [];
+
+        if ($files === [] && trim($body) === '') {
+            return response()->json(['message' => 'Message body is required.'], 422);
+        }
+
+        if (mb_strlen($body) > $max) {
+            return response()->json([
+                'message' => 'Message cannot exceed 1000 characters.',
+            ], 422);
+        }
+
+        $lineCount = $body === '' ? 0 : count(preg_split("/\r\n|\n|\r/", $body) ?: []);
+        $maxLines = (int) config('communications.message_max_lines', 500);
+        if ($lineCount > $maxLines) {
+            return response()->json(['message' => 'Message cannot exceed '.$maxLines.' lines.'], 422);
+        }
 
         $message = $files !== []
             ? $this->messages->sendWithAttachments($conversation, Auth::user(), $body, $files)
@@ -79,11 +100,25 @@ class MessageController extends Controller
         Gate::authorize('send', $conversation);
 
         $max = (int) config('communications.message_max_length', 1000);
-        $validated = $request->validate([
-            'body' => ['required', 'string', 'max:'.$max],
-        ]);
+        $body = str_replace(["\r\n", "\r"], "\n", (string) $request->input('body', ''));
 
-        $updated = $this->messages->edit($message, Auth::user(), $validated['body']);
+        if (trim($body) === '') {
+            return response()->json(['message' => 'Message body is required.'], 422);
+        }
+
+        if (mb_strlen($body) > $max) {
+            return response()->json([
+                'message' => 'Message cannot exceed 1000 characters.',
+            ], 422);
+        }
+
+        $lineCount = count(preg_split("/\r\n|\n|\r/", $body) ?: []);
+        $maxLines = (int) config('communications.message_max_lines', 500);
+        if ($lineCount > $maxLines) {
+            return response()->json(['message' => 'Message cannot exceed '.$maxLines.' lines.'], 422);
+        }
+
+        $updated = $this->messages->edit($message, Auth::user(), $body);
 
         return response()->json([
             'message' => $this->messages->serialize($updated, Auth::user()),

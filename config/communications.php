@@ -9,6 +9,8 @@ return [
 
     'message_max_length' => 1000,
 
+    'message_max_lines' => 500,
+
     'messages_per_page' => 40,
 
     'search_limit' => 20,
@@ -23,12 +25,19 @@ return [
         'max_file_count' => (int) env('COMMUNICATIONS_MAX_FILE_COUNT', 10),
         'allow_svg' => (bool) env('COMMUNICATIONS_ALLOW_SVG', false),
         'image_extensions' => ['jpg', 'jpeg', 'png', 'webp', 'gif'],
-        'file_extensions' => ['pdf', 'doc', 'docx'],
+        'file_extensions' => ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'txt', 'csv'],
         'image_mimes' => ['image/jpeg', 'image/png', 'image/webp', 'image/gif'],
         'file_mimes' => [
             'application/pdf',
             'application/msword',
             'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            'application/vnd.ms-excel',
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'application/vnd.ms-powerpoint',
+            'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+            'text/plain',
+            'text/csv',
+            'application/csv',
         ],
     ],
 

@@ -13,10 +13,12 @@
     var state = {
         currentUserId: Number(root.dataset.currentUserId || 0),
         portalUserType: root.dataset.portalUserType || '',
+        messageMaxLength: Math.max(1, Number(root.dataset.messageMaxLength || 1000) || 1000),
         conversations: [],
         activeId: null,
         activeConversation: null,
         messages: [],
+        messagesHasMore: true,
         sendInFlight: false,
         searchTimer: null,
         filterTimer: null,
@@ -31,6 +33,8 @@
         reactSeq: {},
         pendingAttachments: [],
         pendingPreviewUrls: [],
+        pendingAttachment: null,
+        pendingPreviewUrl: null,
         editingId: null,
         msgChangeSkipToast: {},
         maxTotalBytes: 25 * 1024 * 1024,
@@ -75,7 +79,8 @@
         pickPhotosBtn: document.getElementById('commsPickPhotosBtn'),
         pickFilesBtn: document.getElementById('commsPickFilesBtn'),
         uploadProgress: document.getElementById('commsUploadProgress'),
-        uploadProgressBar: document.getElementById('commsUploadProgressBar')
+        uploadProgressBar: document.getElementById('commsUploadProgressBar'),
+        scrollBottom: document.getElementById('commsScrollBottom')
     };
 
     function setThreadOpen(open) {
@@ -157,7 +162,6 @@
             '<div class="' + callBubbleClass(m.body) + '" role="status">' +
             callPhoneIcon +
             '<span class="comms-call-text">' + Comms.escapeHtml(m.body) + '</span>' +
-            '<span class="comms-bubble-time">' + Comms.escapeHtml(Comms.formatTime(m.created_at)) + '</span>' +
             '</div>' +
             renderMessageActions(m, false) +
             '</div></div>';
@@ -169,28 +173,17 @@
             : [];
         if (!items.length) return '';
 
-        var total = 0;
-        var anyMine = false;
-        items.forEach(function (r) {
-            total += Number(r.count || 0);
-            if (r.mine) anyMine = true;
-        });
-
-        // Messenger-style: stacked emojis in one pill + single total when 2+.
         return '<div class="comms-reaction-chips" role="group" aria-label="Reactions">' +
-            '<button type="button" class="comms-reaction-summary' + (anyMine ? ' is-mine' : '') + '"' +
-            ' data-react-people="' + Number(messageId || 0) + '"' +
-            ' aria-haspopup="true" aria-label="See who reacted">' +
-            '<span class="comms-reaction-stack">' +
             items.map(function (r) {
-                return '<span class="comms-reaction-stack-btn' + (r.mine ? ' is-mine' : '') + '"' +
-                    ' data-react-people-emoji="' + Comms.escapeHtml(r.emoji) + '">' +
-                    Comms.escapeHtml(r.emoji) +
-                    '</span>';
+                return '<button type="button" class="comms-reaction-summary' + (r.mine ? ' is-mine' : '') + '"' +
+                    ' data-react-people="' + Number(messageId || 0) + '"' +
+                    ' data-react-people-emoji="' + Comms.escapeHtml(r.emoji) + '"' +
+                    ' aria-haspopup="dialog" aria-label="' + Comms.escapeHtml(r.emoji) + ' ' + Number(r.count || 0) + ' reactions">' +
+                    '<span class="comms-reaction-stack-btn" aria-hidden="true">' + Comms.escapeHtml(r.emoji) + '</span>' +
+                    '<span class="comms-reaction-count" aria-hidden="true">' + Number(r.count || 0) + '</span>' +
+                    '</button>';
             }).join('') +
-            '</span>' +
-            (total > 1 ? '<span class="comms-reaction-count" aria-hidden="true">' + total + '</span>' : '') +
-            '</button></div>';
+            '</div>';
     }
 
     // Reaction picker is a fixed-position singleton on <body> to escape overflow:hidden clip contexts.
@@ -261,8 +254,12 @@
         var n = Number(bytes || 0);
         if (!n) return '';
         if (n < 1024) return n + ' B';
-        if (n < 1024 * 1024) return (n / 1024).toFixed(1) + ' KB';
-        return (n / (1024 * 1024)).toFixed(1) + ' MB';
+        if (n < 1024 * 1024) return (n / 1024).toFixed(2) + ' KB';
+        return (n / (1024 * 1024)).toFixed(2) + ' MB';
+    }
+
+    function fileDocIconSvg() {
+        return '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>';
     }
 
     function fileExtLabel(name) {
@@ -278,7 +275,57 @@
         if (ext === 'DOC' || ext === 'DOCX' || mime.indexOf('msword') !== -1 || mime.indexOf('wordprocessingml') !== -1) {
             return ' is-word';
         }
+        if (ext === 'XLS' || ext === 'XLSX' || mime.indexOf('spreadsheetml') !== -1 || mime.indexOf('ms-excel') !== -1) {
+            return ' is-excel';
+        }
         return '';
+    }
+
+    function formatFullDateTime(iso) {
+        if (!iso) return '';
+        var d = new Date(iso);
+        if (Number.isNaN(d.getTime())) return '';
+        return d.toLocaleString([], {
+            month: 'long',
+            day: 'numeric',
+            year: 'numeric',
+            hour: 'numeric',
+            minute: '2-digit'
+        });
+    }
+
+    function formatDaySeparator(iso) {
+        if (!iso) return '';
+        var d = new Date(iso);
+        if (Number.isNaN(d.getTime())) return '';
+        var now = new Date();
+        var time = d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+        var yesterday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
+        if (d.toDateString() === now.toDateString()) return time;
+        if (d.toDateString() === yesterday.toDateString()) return 'Yesterday ' + time;
+        var weekAgo = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 6);
+        if (d >= weekAgo) {
+            return d.toLocaleDateString([], { weekday: 'short' }) + ' ' + time;
+        }
+        return d.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' }) + ', ' + time;
+    }
+
+    function shouldInsertDateSeparator(prevIso, currIso) {
+        if (!currIso) return false;
+        if (!prevIso) return true;
+        var prev = new Date(prevIso);
+        var curr = new Date(currIso);
+        if (Number.isNaN(prev.getTime()) || Number.isNaN(curr.getTime())) return true;
+        if (prev.toDateString() !== curr.toDateString()) return true;
+        return Math.abs(curr.getTime() - prev.getTime()) >= 45 * 60 * 1000;
+    }
+
+    function renderDateSeparator(iso) {
+        var label = formatDaySeparator(iso);
+        if (!label) return '';
+        return '<div class="comms-date-sep" role="separator">' +
+            '<span class="comms-date-sep-text">' + Comms.escapeHtml(label) + '</span>' +
+            '</div>';
     }
 
     function renderAttachments(attachments) {
@@ -287,23 +334,27 @@
         return items.map(function (att) {
             if (att.file_type === 'image' || att.storage_provider === 'cloudinary') {
                 var src = att.url || att.download_url;
-                return '<button type="button" class="comms-bubble-image" data-lightbox-src="' + Comms.escapeHtml(src) + '">' +
+                return '<button type="button" class="comms-bubble-image" data-comms-lightbox-src="' + Comms.escapeHtml(src) + '" aria-label="View image">' +
                     '<img src="' + Comms.escapeHtml(src) + '" alt="' + Comms.escapeHtml(att.file_name || 'Image') + '" loading="lazy">' +
                     '</button>';
             }
-            var ext = fileExtLabel(att.file_name);
-            var kindClass = fileKindClass(att);
-            var name = Comms.escapeHtml(att.file_name || 'Document');
-            var size = Comms.escapeHtml(formatBytes(att.file_size));
-            var dl = Comms.escapeHtml(att.download_url || '');
-            var downloadName = Comms.escapeHtml(att.file_name || 'document');
-
-            return '<a class="comms-bubble-file' + kindClass + '" href="' + dl + '" download="' + downloadName + '">' +
-                '<span class="comms-bubble-file-ext">' + Comms.escapeHtml(ext) + '</span>' +
+            var kind = fileKindClass(att);
+            var href = att.download_url || '';
+            var name = att.file_name || 'Document';
+            var sizeLabel = formatBytes(att.file_size);
+            var metaHtml = '<span class="comms-bubble-file-ext" aria-hidden="true">' + fileDocIconSvg() + '</span>' +
                 '<span class="comms-bubble-file-meta">' +
-                '<span class="comms-bubble-file-name">' + name + '</span>' +
-                (size ? '<span class="comms-bubble-file-size">' + size + '</span>' : '') +
-                '</span></a>';
+                '<span class="comms-bubble-file-name">' + Comms.escapeHtml(name) + '</span>' +
+                (sizeLabel ? '<span class="comms-bubble-file-size">' + Comms.escapeHtml(sizeLabel) + '</span>' : '') +
+                '</span>';
+            if (kind.indexOf('is-pdf') !== -1 && href) {
+                return '<a class="comms-bubble-file' + kind + '" href="' + Comms.escapeHtml(href) + '" data-comms-doc-preview="' + Comms.escapeHtml(href) + '" data-comms-doc-title="' + Comms.escapeHtml(name) + '" title="' + Comms.escapeHtml(name) + '">' +
+                    metaHtml +
+                    '</a>';
+            }
+            return '<a class="comms-bubble-file' + kind + '" href="' + Comms.escapeHtml(href) + '" target="_blank" rel="noopener noreferrer" title="' + Comms.escapeHtml(name) + '">' +
+                metaHtml +
+                '</a>';
         }).join('');
     }
 
@@ -313,11 +364,14 @@
         });
         state.pendingAttachments = [];
         state.pendingPreviewUrls = [];
+        state.pendingAttachment = null;
+        state.pendingPreviewUrl = null;
         if (els.photoInput) els.photoInput.value = '';
         if (els.fileInput) els.fileInput.value = '';
         if (els.attachPreview) els.attachPreview.hidden = true;
         if (els.attachPreviewInner) els.attachPreviewInner.innerHTML = '';
         setUploadProgress(0, true);
+        syncComposerEndControls();
     }
 
     function setUploadProgress(percent, hidden) {
@@ -335,7 +389,96 @@
         return String((file && file.type) || '').indexOf('image/') === 0;
     }
 
-    function renderAttachmentPreview() {
+    function syncComposerEndControls() {
+        if (!els.sendBtn) return;
+        var hasText = !!String(els.input && els.input.value || '').length;
+        var hasFiles = (state.pendingAttachments || []).length > 0;
+        var canSend = hasText || hasFiles;
+        els.sendBtn.hidden = false;
+        els.sendBtn.disabled = !!state.sendInFlight || !canSend;
+        els.sendBtn.classList.toggle('is-ready', canSend);
+        els.sendBtn.title = 'Send';
+    }
+
+    function messageMaxLines() {
+        var fromDom = Number(els.input && els.input.getAttribute('data-max-lines'));
+        return Math.max(1, Number.isFinite(fromDom) && fromDom > 0 ? fromDom : 500);
+    }
+
+    function countMessageLines(raw) {
+        var body = normalizeMessageBody(raw);
+        if (body === '') return 0;
+        return body.split('\n').length;
+    }
+
+    function clampMessageToMaxLines(text) {
+        var max = messageMaxLines();
+        var lines = normalizeMessageBody(text).split('\n');
+        if (lines.length <= max) return lines.join('\n');
+        return lines.slice(0, max).join('\n');
+    }
+
+    function normalizeMessageBody(raw) {
+        if (Comms.normalizeMessageBody) {
+            return Comms.normalizeMessageBody(raw);
+        }
+        return String(raw == null ? '' : raw).replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+    }
+
+    function messageCharCount(raw) {
+        var body = normalizeMessageBody(raw);
+        if (Comms.measureMessageLength) {
+            return Comms.measureMessageLength(body);
+        }
+        return body.length;
+    }
+
+    function validateMessageBody(raw, opts) {
+        opts = opts || {};
+        var body = normalizeMessageBody(raw);
+        var allowEmpty = !!opts.allowEmpty;
+        if (!allowEmpty && body.trim() === '') {
+            Comms.showToast('Message cannot be empty.', 'error');
+            return null;
+        }
+        if (countMessageLines(body) > messageMaxLines()) {
+            Comms.showToast('Message cannot exceed ' + messageMaxLines() + ' lines.', 'error');
+            return null;
+        }
+        var count = messageCharCount(body);
+        if (count > state.messageMaxLength) {
+            Comms.showToast('Message cannot exceed 1000 characters.', 'error');
+            return null;
+        }
+        return body;
+    }
+
+    function clampMessageToMaxChars(text) {
+        var next = normalizeMessageBody(text);
+        if (next.length <= state.messageMaxLength) return next;
+        return next.slice(0, state.messageMaxLength);
+    }
+
+    function toastMessageCharLimit() {
+        Comms.showToast('Message cannot exceed 1000 characters.', 'error');
+    }
+
+    function removePendingAttachmentAt(index) {
+        var i = Number(index);
+        if (!Number.isFinite(i) || i < 0 || i >= (state.pendingAttachments || []).length) return;
+        var url = state.pendingPreviewUrls[i];
+        if (url) {
+            try { URL.revokeObjectURL(url); } catch (e) {}
+        }
+        state.pendingAttachments.splice(i, 1);
+        state.pendingPreviewUrls.splice(i, 1);
+        state.pendingAttachment = state.pendingAttachments[0] || null;
+        state.pendingPreviewUrl = state.pendingPreviewUrls[0] || null;
+        renderAttachPreview();
+        syncComposerEndControls();
+    }
+
+    function renderAttachPreview() {
         if (!els.attachPreview || !els.attachPreviewInner) return;
         var files = state.pendingAttachments || [];
         if (!files.length) {
@@ -344,52 +487,127 @@
             return;
         }
         els.attachPreview.hidden = false;
-
-        els.attachPreviewInner.innerHTML = files.map(function (file, idx) {
-            var isImg = isImageFile(file);
-            var preview = '';
-            if (isImg && state.pendingPreviewUrls[idx]) {
-                preview = '<img src="' + state.pendingPreviewUrls[idx] + '" alt="Image preview">';
-            } else {
-                preview = '<span class="comms-attach-preview-file"><strong>' + Comms.escapeHtml(fileExtLabel(file.name)) + '</strong></span>';
+        els.attachPreviewInner.innerHTML = files.map(function (f, i) {
+            var name = Comms.escapeHtml(f.name || (isImageFile(f) ? 'Image' : 'File'));
+            var removeBtn = '<button type="button" class="comms-attach-item-remove" data-attach-remove="' + i + '" title="Remove" aria-label="Remove ' + name + '">&times;</button>';
+            if (isImageFile(f) && state.pendingPreviewUrls[i]) {
+                var src = state.pendingPreviewUrls[i];
+                return '<div class="comms-attach-preview-item is-image is-row">' +
+                    '<button type="button" class="comms-attach-preview-zoom" data-comms-lightbox-src="' + Comms.escapeHtml(src) + '" aria-label="View image">' +
+                    '<img src="' + Comms.escapeHtml(src) + '" alt="' + name + '"></button>' +
+                    '<span class="comms-attach-preview-name" title="' + name + '">' + name + '</span>' +
+                    removeBtn +
+                    '</div>';
             }
-            return '<div class="comms-attach-preview-item">' +
-                preview +
-                '<span class="comms-attach-preview-name">' + Comms.escapeHtml(file.name) + '</span>' +
+            return '<div class="comms-attach-preview-item comms-attach-preview-file is-row">' +
+                '<strong>' + Comms.escapeHtml(fileExtLabel(f.name)) + '</strong>' +
+                '<span class="comms-attach-preview-name" title="' + name + '">' + name + '</span>' +
+                removeBtn +
                 '</div>';
         }).join('');
+        if (els.attachPreview.dataset.attachWired !== 'true') {
+            els.attachPreview.addEventListener('click', function (e) {
+                var removeBtn = e.target.closest('[data-attach-remove]');
+                if (removeBtn && els.attachPreview.contains(removeBtn)) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    removePendingAttachmentAt(removeBtn.getAttribute('data-attach-remove'));
+                    return;
+                }
+                var thumb = e.target.closest('[data-comms-lightbox-src]');
+                if (!thumb || !els.attachPreview.contains(thumb)) return;
+                e.preventDefault();
+                e.stopPropagation();
+                var images = Array.prototype.slice.call(els.attachPreview.querySelectorAll('[data-comms-lightbox-src]')).map(function (node) {
+                    return node.getAttribute('data-comms-lightbox-src') || '';
+                }).filter(Boolean);
+                var start = thumb.getAttribute('data-comms-lightbox-src') || '';
+                if (start && Comms.openImageLightbox) {
+                    Comms.openImageLightbox(start, images, {
+                        onRemoveAt: function (idx, src) {
+                            var pendingIdx = (state.pendingPreviewUrls || []).indexOf(src);
+                            if (pendingIdx >= 0) removePendingAttachmentAt(pendingIdx);
+                        }
+                    });
+                }
+            });
+            els.attachPreview.dataset.attachWired = 'true';
+        }
     }
 
-    function pushFiles(files, expectedKind) {
-        var incoming = Array.isArray(files) ? files : Array.from(files || []);
-        if (!incoming.length) return;
+    function pushPendingFiles(files, kind) {
+        var maxImg = state.maxImageCount || 100;
+        var maxFile = state.maxFileCount || 10;
+        var maxBytes = state.maxTotalBytes || (25 * 1024 * 1024);
+        var list = Array.prototype.slice.call(files || []);
+        if (!list.length) return;
 
-        var current = state.pendingAttachments.slice();
-        var combined = current.concat(incoming);
-        var imageCount = combined.filter(isImageFile).length;
-        var fileCount = combined.length - imageCount;
-        var totalBytes = combined.reduce(function (sum, f) { return sum + Number(f.size || 0); }, 0);
-
-        if (expectedKind === 'image' && imageCount > state.maxImageCount) {
-            Comms.showToast('Maximum 100 images per upload.', 'error');
-            return;
-        }
-        if (expectedKind === 'file' && fileCount > state.maxFileCount) {
-            Comms.showToast('Maximum 10 files per upload.', 'error');
-            return;
-        }
-        if (totalBytes > state.maxTotalBytes) {
-            Comms.showToast('Total upload size must not exceed 25 MB.', 'error');
-            return;
-        }
-
-        state.pendingAttachments = combined;
-        state.pendingPreviewUrls = state.pendingAttachments.map(function (file, idx) {
-            var existing = state.pendingPreviewUrls[idx];
-            if (existing) return existing;
-            return isImageFile(file) ? URL.createObjectURL(file) : '';
+        var selectBytes = 0;
+        var selectImg = 0;
+        var selectFile = 0;
+        list.forEach(function (f) {
+            selectBytes += f.size || 0;
+            if (isImageFile(f)) selectImg++;
+            else selectFile++;
         });
-        renderAttachmentPreview();
+
+        var pendingBytes = 0;
+        var imgCount = 0;
+        var fileCount = 0;
+        (state.pendingAttachments || []).forEach(function (f) {
+            pendingBytes += f.size || 0;
+            if (isImageFile(f)) imgCount++;
+            else fileCount++;
+        });
+
+        if (selectBytes > maxBytes || (pendingBytes + selectBytes) > maxBytes) {
+            Comms.showToast('Maximum 25 MB only. Selection was not added.', 'error');
+            return;
+        }
+        if (kind === 'image' && (imgCount + selectImg) > maxImg) {
+            Comms.showToast('Max ' + maxImg + ' images (still within 25 MB). Selection was not added.', 'error');
+            return;
+        }
+        if (kind !== 'image' && (fileCount + selectFile) > maxFile) {
+            Comms.showToast('Max ' + maxFile + ' files. Selection was not added.', 'error');
+            return;
+        }
+
+        list.forEach(function (f) {
+            state.pendingAttachments.push(f);
+            state.pendingPreviewUrls.push(isImageFile(f) ? URL.createObjectURL(f) : null);
+        });
+        state.pendingAttachment = state.pendingAttachments[0] || null;
+        state.pendingPreviewUrl = state.pendingPreviewUrls[0] || null;
+        renderAttachPreview();
+        syncComposerEndControls();
+    }
+
+    function setPendingAttachment(file) {
+        if (!file) return;
+        pushPendingFiles([file], isImageFile(file) ? 'image' : 'file');
+    }
+
+    function syncScrollBottomBtn() {
+        if (!els.scrollBottom || !els.messages) return;
+        var el = els.messages;
+        var distance = el.scrollHeight - el.scrollTop - el.clientHeight;
+        els.scrollBottom.hidden = distance < 80;
+    }
+
+    function jumpToLatestMessages() {
+        if (!els.messages) return;
+        var pin = function () {
+            els.messages.scrollTop = els.messages.scrollHeight;
+            syncScrollBottomBtn();
+        };
+        pin();
+        window.requestAnimationFrame(function () {
+            pin();
+            window.requestAnimationFrame(pin);
+        });
+        window.setTimeout(pin, 50);
+        window.setTimeout(pin, 200);
     }
 
     var msgMoreIcon = '<svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true"><circle cx="12" cy="5" r="1.85"/><circle cx="12" cy="12" r="1.85"/><circle cx="12" cy="19" r="1.85"/></svg>';
@@ -438,16 +656,8 @@
     function saveEditedMessage(messageId) {
         var input = els.messages.querySelector('[data-edit-input="' + messageId + '"]');
         if (!input || !routes.updateMessage) return;
-        var raw = String(input.value || '');
-        var body = raw.trim();
-        if (!body) {
-            Comms.showToast('Message cannot be empty or only spaces.', 'error');
-            return;
-        }
-        if (raw.length > 1000 || body.length > 1000) {
-            Comms.showToast('Message must be 1000 characters or less.', 'error');
-            return;
-        }
+        var body = validateMessageBody(input.value, { el: input });
+        if (body == null) return;
         state.msgChangeSkipToast[String(messageId)] = true;
         Comms.api(Comms.route(routes.updateMessage, messageId), {
             method: 'PATCH',
@@ -455,8 +665,10 @@
             dedupe: false
         }).then(function (data) {
             state.editingId = null;
-            replaceMessage(data.message);
-            Comms.showToast('Message edited.', 'success');
+            if (data && data.message) {
+                replaceMessage(data.message);
+            }
+            Comms.showToast('Message saved.', 'success');
             window.setTimeout(function () { delete state.msgChangeSkipToast[String(messageId)]; }, 800);
         }).catch(function (err) {
             delete state.msgChangeSkipToast[String(messageId)];
@@ -514,58 +726,126 @@
         } else if (els.messages && opts.stickBottom !== false && !opts.preserveScroll) {
             stickBottom = els.messages.scrollTop + els.messages.clientHeight >= els.messages.scrollHeight - 48;
         }
-        els.messages.innerHTML = state.messages.map(function (m) {
+        if (!els.messages) return;
+
+        var items = state.messages || [];
+        var parts = [];
+        var prevCreatedAt = null;
+        var latestIndex = items.length - 1;
+
+        items.forEach(function (m, index) {
+            var insertedSep = false;
+            if (shouldInsertDateSeparator(prevCreatedAt, m.created_at)) {
+                parts.push(renderDateSeparator(m.created_at));
+                insertedSep = true;
+            }
+            if (index === latestIndex && !insertedSep) {
+                parts.push(renderDateSeparator(m.created_at || prevCreatedAt));
+            }
+
+            var titleAttr = ' title="' + Comms.escapeHtml(formatFullDateTime(m.created_at)) + '"';
+
             if (m.message_type === 'call' || m.message_type === 'system') {
-                return renderCallBubble(m);
+                parts.push(renderCallBubble(m));
+                prevCreatedAt = m.created_at;
+                return;
             }
             if (m.deleted_for_all || m.message_type === 'deleted') {
-                return '<div class="comms-bubble-wrap ' + (m.mine ? 'is-mine' : 'is-theirs') + '" data-id="' + m.id + '">' +
+                parts.push('<div class="comms-bubble-wrap ' + (m.mine ? 'is-mine' : 'is-theirs') + '" data-id="' + m.id + '"' + titleAttr + '>' +
                     '<div class="comms-bubble-row">' +
                     '<div class="comms-bubble comms-bubble--deleted">' +
                     '<div class="comms-bubble-text">This message was deleted</div>' +
-                    '<span class="comms-bubble-time">' + Comms.escapeHtml(Comms.formatTime(m.created_at)) + '</span>' +
                     '</div>' +
-                    renderMessageActions(m, true) +
-                    '</div></div>';
+                    '<div class="comms-bubble-tools">' + renderMessageActions(m, true) + '</div>' +
+                    '</div></div>');
+                prevCreatedAt = m.created_at;
+                return;
             }
+
             var mine = !!m.mine;
             var pickerOpen = Number(state.openReactionPickerId) === Number(m.id);
             var editing = Number(state.editingId) === Number(m.id);
+            var hasAttachments = (m.message_type === 'image' || m.message_type === 'file') ||
+                (Array.isArray(m.attachments) && m.attachments.length > 0);
+            var hasTextBody = !!String(m.body || '').trim() || editing;
+            var attachmentOnly = hasAttachments && !hasTextBody;
+            var splitAttachText = hasAttachments && hasTextBody && !editing;
+            var showMsgActions = !editing;
+            var showReact = !editing;
+            var sideCls = mine ? 'comms-bubble--mine' : 'comms-bubble--theirs';
+            var bubbleExtra = (hasAttachments ? ' has-attachment' : '') +
+                (attachmentOnly ? ' has-attachment-only' : '');
+            var attachHtml = renderAttachments(m.attachments);
             var bodyHtml = '';
-            if (editing) {
-                bodyHtml = '<textarea class="comms-edit-input" data-edit-input="' + m.id + '" maxlength="1000" rows="2">' + Comms.escapeHtml(m.body || '') + '</textarea>' +
-                    '<div class="comms-edit-actions">' +
-                    '<button type="button" class="comms-edit-cancel" data-edit-cancel="' + m.id + '">Cancel</button>' +
-                    '<button type="button" class="comms-edit-save" data-edit-save="' + m.id + '">Save</button>' +
-                    '</div>';
-            } else if (m.body) {
+            if (m.body && !editing) {
                 bodyHtml = '<div class="comms-bubble-text">' + Comms.escapeHtml(m.body) +
                     (m.edited ? ' <span class="comms-edited">edited</span>' : '') +
                     '</div>';
             }
-            return '<div class="comms-bubble-wrap ' + (mine ? 'is-mine' : 'is-theirs') + (pickerOpen ? ' is-picker-open' : '') + '" data-id="' + m.id + '">' +
+
+            var bubbleContent;
+            if (editing) {
+                bubbleContent =
+                    '<div class="comms-edit-panel" role="group" aria-label="Edit message">' +
+                    '<label class="visually-hidden" for="commsEditInput' + m.id + '">Edit message</label>' +
+                    '<textarea id="commsEditInput' + m.id + '" class="comms-edit-input" data-edit-input="' + m.id + '" rows="3" data-max-lines="500">' +
+                    Comms.escapeHtml(m.body || '') +
+                    '</textarea>' +
+                    '<div class="comms-edit-actions">' +
+                    '<button type="button" class="comms-edit-cancel" data-edit-cancel="' + m.id + '">Cancel</button>' +
+                    '<button type="button" class="comms-edit-save" data-edit-save="' + m.id + '">Save</button>' +
+                    '</div></div>';
+            } else if (splitAttachText) {
+                bubbleContent =
+                    '<div class="comms-bubble-cluster">' +
+                    '<div class="comms-bubble ' + sideCls + ' has-attachment has-attachment-only">' + attachHtml + '</div>' +
+                    '<div class="comms-bubble ' + sideCls + '">' + bodyHtml + '</div></div>';
+            } else {
+                bubbleContent =
+                    '<div class="comms-bubble ' + sideCls + bubbleExtra + '">' +
+                    attachHtml +
+                    bodyHtml +
+                    '</div>';
+            }
+
+            parts.push('<div class="comms-bubble-wrap ' + (mine ? 'is-mine' : 'is-theirs') + (pickerOpen ? ' is-picker-open' : '') + '" data-id="' + m.id + '"' + titleAttr + '>' +
                 '<div class="comms-bubble-row">' +
-                '<div class="comms-bubble-tools" aria-hidden="false">' +
-                renderMessageActions(m, false) +
-                '<button type="button" class="comms-react-btn" data-react-toggle="' + m.id + '" aria-label="Add reaction" title="React" aria-expanded="' + (pickerOpen ? 'true' : 'false') + '">' + reactBtnIcon + '</button>' +
-                '</div>' +
-                '<div class="comms-bubble ' + (mine ? 'comms-bubble--mine' : 'comms-bubble--theirs') + (m.message_type === 'image' || m.message_type === 'file' ? ' has-attachment' : '') + '">' +
-                renderAttachments(m.attachments) +
-                bodyHtml +
-                '<span class="comms-bubble-time">' + Comms.escapeHtml(Comms.formatTime(m.created_at)) + '</span>' +
+                bubbleContent +
+                '<div class="comms-bubble-tools">' +
+                (showMsgActions ? renderMessageActions(m, false) : '') +
+                (showReact ? '<button type="button" class="comms-react-btn" data-react-toggle="' + m.id + '" aria-label="Add reaction" title="React" aria-expanded="' + (pickerOpen ? 'true' : 'false') + '">' + reactBtnIcon + '</button>' : '') +
                 '</div>' +
                 '</div>' +
-                renderReactionPicker(m.id) +
+                (showReact ? renderReactionPicker(m.id) : '') +
                 renderReactionChips(m.reactions, m.id) +
-                '</div>';
-        }).join('');
-        if (!els.messages) return;
+                '</div>');
+            prevCreatedAt = m.created_at;
+        });
+
+        els.messages.innerHTML = parts.join('');
         if (opts.preserveScroll) {
             els.messages.scrollTop = prevScroll;
         } else if (stickBottom || opts.stickBottom === true) {
             els.messages.scrollTop = els.messages.scrollHeight;
         } else {
             els.messages.scrollTop = prevScroll;
+        }
+        if (opts.restoreScrollHeight != null && Number.isFinite(opts.restoreScrollHeight)) {
+            els.messages.scrollTop = els.messages.scrollHeight - opts.restoreScrollHeight;
+        }
+        syncScrollBottomBtn();
+        if (window.Comms && typeof window.Comms.wireChatImageLightbox === 'function' && !els.messages.dataset.lightboxWired) {
+            window.Comms.wireChatImageLightbox(els.messages);
+            els.messages.dataset.lightboxWired = 'true';
+        }
+        if (window.Comms && typeof window.Comms.wireDocumentPreview === 'function' && !els.messages.dataset.docPreviewWired) {
+            window.Comms.wireDocumentPreview(els.messages);
+        }
+        if (state.editingId && Comms.resizeGrowTextarea) {
+            var editEl = els.messages.querySelector('[data-edit-input="' + state.editingId + '"]');
+            if (editEl) {
+                Comms.resizeGrowTextarea(editEl, 6, 2);
+            }
         }
     }
 
@@ -1002,10 +1282,19 @@
     function loadConversations() {
         return Comms.api(routes.conversations).then(function (data) {
             state.conversations = data.conversations || [];
-            renderConversations(els.convFilter.value);
+            if (Comms.writeInboxCache) Comms.writeInboxCache(state.conversations);
+            renderConversations(els.convFilter ? els.convFilter.value : '');
         }).catch(function (err) {
             Comms.showToast(err.message || 'Failed to load conversations.', 'error');
         });
+    }
+
+    function hydrateFromCache() {
+        var inbox = Comms.readInboxCache ? Comms.readInboxCache() : null;
+        if (Array.isArray(inbox) && inbox.length) {
+            state.conversations = inbox;
+            renderConversations(els.convFilter ? els.convFilter.value : '');
+        }
     }
 
     function saveMsgCache(id, messages, emojis) {
@@ -1033,7 +1322,51 @@
         if (Array.isArray(emojis) && emojis.length) {
             state.reactionEmojis = emojis;
         }
+        if (opts && opts.hasMore != null) {
+            state.messagesHasMore = !!opts.hasMore;
+        }
         renderMessages(opts);
+    }
+
+    function loadOlderMessages() {
+        if (state.loadingOlder || !state.activeId || !state.messagesHasMore) return Promise.resolve();
+        if (!state.messages.length || !els.messages) return Promise.resolve();
+        var oldest = state.messages[0];
+        var beforeId = oldest && oldest.id;
+        if (!beforeId || String(beforeId).indexOf('local-') === 0) return Promise.resolve();
+
+        state.loadingOlder = true;
+        var cid = state.activeId;
+        var prevHeight = els.messages.scrollHeight;
+        var url = Comms.route(routes.messages, cid) + '?before_id=' + encodeURIComponent(beforeId);
+
+        return Comms.api(url, { dedupe: true }).then(function (data) {
+            if (Number(state.activeId) !== Number(cid)) return;
+            var older = data.messages || [];
+            var perPage = 40;
+            if (!older.length) {
+                state.messagesHasMore = false;
+                return;
+            }
+            if (older.length < perPage) {
+                state.messagesHasMore = false;
+            }
+            var existingIds = {};
+            state.messages.forEach(function (m) { existingIds[String(m.id)] = true; });
+            var prepend = older.filter(function (m) { return !existingIds[String(m.id)]; });
+            if (!prepend.length) {
+                state.messagesHasMore = false;
+                return;
+            }
+            state.messages = prepend.concat(state.messages);
+            if (Array.isArray(data.reaction_emojis) && data.reaction_emojis.length) {
+                state.reactionEmojis = data.reaction_emojis;
+            }
+            saveMsgCache(cid, state.messages, state.reactionEmojis);
+            renderMessages({ restoreScrollHeight: prevHeight });
+        }).catch(function () { /* ignore */ }).finally(function () {
+            state.loadingOlder = false;
+        });
     }
 
     function stopLocalTyping() {
@@ -1064,6 +1397,8 @@
         }
         state.activeId = Number(id);
         window.__COMMS_PAGE_ACTIVE_ID__ = state.activeId;
+        state.messagesHasMore = true;
+        state.loadingOlder = false;
         setThreadOpen(true);
         els.threadEmpty.hidden = true;
         els.threadActive.hidden = false;
@@ -1127,7 +1462,8 @@
 
             // Only re-render if conversation is still active
             if (Number(state.activeId) === Number(id)) {
-                applyMessages(freshMessages, freshEmojis, { stickBottom: !cached });
+                state.messagesHasMore = freshMessages.length >= 40;
+                applyMessages(freshMessages, freshEmojis, { stickBottom: !cached, hasMore: state.messagesHasMore });
             }
 
             saveMsgCache(id, freshMessages, freshEmojis);
@@ -1166,28 +1502,32 @@
 
     function resizeComposer() {
         if (!els.input) return;
-        els.input.style.height = 'auto';
-        var next = Math.min(Math.max(els.input.scrollHeight, 44), 180);
-        els.input.style.height = next + 'px';
-        if (els.messages) {
-            els.messages.scrollTop = els.messages.scrollHeight;
+        if (Comms.resizeGrowTextarea) {
+            Comms.resizeGrowTextarea(els.input, 5, 1);
+        } else {
+            els.input.style.height = 'auto';
+            var next = Math.min(Math.max(els.input.scrollHeight, 72), 180);
+            els.input.style.height = next + 'px';
         }
     }
 
     function sendMessage(body) {
         if (!state.activeId) return;
-        var raw = String(body || '');
-        var text = raw.trim();
         var files = (state.pendingAttachments || []).slice();
-        if (!text && !files.length) {
-            if (raw.length > 0) {
+        var text = normalizeMessageBody(body);
+        text = clampMessageToMaxLines(text);
+        if (text.trim() === '' && !files.length) {
+            if (String(body || '').length > 0) {
                 Comms.showToast('Message cannot be only spaces.', 'error');
             }
             return;
         }
-        if (text && (raw.length > 1000 || text.length > 1000)) {
-            Comms.showToast('Message must be 1000 characters or less.', 'error');
-            return;
+        if (text.trim() !== '') {
+            var validated = validateMessageBody(text);
+            if (validated == null) return;
+            text = validated;
+        } else {
+            text = '';
         }
         if (state.sendInFlight && files.length) return;
 
@@ -1195,6 +1535,7 @@
         els.input.value = '';
         resizeComposer();
         clearPendingAttachment();
+        syncComposerEndControls();
 
         var tempId = 'local-' + Date.now();
         if (text) {
@@ -1261,6 +1602,7 @@
             if (els.sendBtn) els.sendBtn.disabled = false;
             if (els.attachBtn) els.attachBtn.disabled = false;
             window.setTimeout(function () { setUploadProgress(0, true); }, 400);
+            syncComposerEndControls();
             els.input.focus();
         });
     }
@@ -1332,10 +1674,13 @@
                 var pid = Number(peopleBtn.getAttribute('data-react-people'));
                 var pmsg = state.messages.find(function (m) { return Number(m.id) === pid; });
                 var emojiEl = e.target.closest('[data-react-people-emoji]');
-                if (Comms.toggleReactionPeople) {
+                var filterEmoji = emojiEl ? (emojiEl.getAttribute('data-react-people-emoji') || '') : '';
+                if (Comms.openReactionModal) {
+                    Comms.openReactionModal(pmsg ? pmsg.reactions : [], filterEmoji);
+                } else if (Comms.toggleReactionPeople) {
                     Comms.toggleReactionPeople(peopleBtn, pmsg ? pmsg.reactions : [], {
                         pinned: true,
-                        emoji: emojiEl ? (emojiEl.getAttribute('data-react-people-emoji') || '') : ''
+                        emoji: filterEmoji
                     });
                 }
                 return;
@@ -1369,7 +1714,60 @@
                 state.editingId = Number(editBtn.getAttribute('data-msg-edit'));
                 renderMessages({ preserveScroll: true });
                 var editor = els.messages.querySelector('[data-edit-input="' + state.editingId + '"]');
-                if (editor) editor.focus();
+                if (editor && !editor.dataset.limitWired) {
+                    editor.removeAttribute('maxlength');
+                    editor.addEventListener('keydown', function (ev) {
+                        var current = normalizeMessageBody(editor.value || '');
+                        if (ev.key === 'Enter' && !(ev.ctrlKey || ev.metaKey)) {
+                            if (messageCharCount(current + '\n') > state.messageMaxLength) {
+                                ev.preventDefault();
+                                toastMessageCharLimit();
+                            }
+                            return;
+                        }
+                        if (ev.key.length === 1 && !ev.ctrlKey && !ev.metaKey && !ev.altKey) {
+                            if (messageCharCount(current + ev.key) > state.messageMaxLength) {
+                                ev.preventDefault();
+                                toastMessageCharLimit();
+                            }
+                        }
+                    });
+                    editor.addEventListener('paste', function (ev) {
+                        var paste = (ev.clipboardData || window.clipboardData);
+                        if (!paste) return;
+                        var incoming = paste.getData('text');
+                        if (incoming == null) return;
+                        ev.preventDefault();
+                        var start = editor.selectionStart || 0;
+                        var end = editor.selectionEnd || 0;
+                        var value = editor.value || '';
+                        var raw = value.slice(0, start) + incoming + value.slice(end);
+                        var next = clampMessageToMaxChars(raw);
+                        editor.value = next;
+                        if (next !== normalizeMessageBody(raw)) toastMessageCharLimit();
+                        if (Comms.resizeGrowTextarea) {
+                            Comms.resizeGrowTextarea(editor, 6, 2);
+                        }
+                    });
+                    editor.addEventListener('input', function () {
+                        var next = clampMessageToMaxChars(editor.value || '');
+                        if (next !== normalizeMessageBody(editor.value || '')) {
+                            editor.value = next;
+                            toastMessageCharLimit();
+                        }
+                        if (countMessageLines(editor.value) > messageMaxLines()) {
+                            editor.value = clampMessageToMaxLines(editor.value);
+                            Comms.showToast('Message cannot exceed ' + messageMaxLines() + ' lines.', 'error');
+                        }
+                        if (Comms.resizeGrowTextarea) {
+                            Comms.resizeGrowTextarea(editor, 6, 2);
+                        }
+                    });
+                    editor.dataset.limitWired = '1';
+                }
+                if (editor) {
+                    editor.focus();
+                }
                 return;
             }
             var saveBtn = e.target.closest('[data-edit-save]');
@@ -1457,41 +1855,22 @@
         els.messages.addEventListener('scroll', function () {
             if (state.openReactionPickerId) { hideGlobalPicker(); }
             closeMessageMenus();
+            syncScrollBottomBtn();
+            if (els.messages.scrollTop <= 48) {
+                loadOlderMessages();
+            }
         }, { passive: true });
+    }
+    if (els.scrollBottom) {
+        els.scrollBottom.addEventListener('click', function (e) {
+            e.preventDefault();
+            jumpToLatestMessages();
+        });
     }
     window.addEventListener('resize', function () {
         if (state.openReactionPickerId) { hideGlobalPicker(); }
+        syncScrollBottomBtn();
     }, { passive: true });
-
-    // Image lightbox
-    function openLightbox(src) {
-        var existing = document.querySelector('.comms-lightbox');
-        if (existing) existing.remove();
-        var overlay = document.createElement('div');
-        overlay.className = 'comms-lightbox';
-        overlay.innerHTML = '<button type="button" class="comms-lightbox-close" aria-label="Close">&times;</button>' +
-            '<img src="' + Comms.escapeHtml(src) + '" alt="Image preview">';
-        document.body.appendChild(overlay);
-        overlay.addEventListener('click', function (e) {
-            if (e.target === overlay || e.target.classList.contains('comms-lightbox-close')) {
-                overlay.remove();
-            }
-        });
-        document.addEventListener('keydown', function handler(e) {
-            if (e.key === 'Escape') { overlay.remove(); document.removeEventListener('keydown', handler); }
-        });
-    }
-
-    if (els.messages) {
-        els.messages.addEventListener('click', function (e) {
-            var imgBtn = e.target.closest('[data-lightbox-src]');
-            if (imgBtn) {
-                e.preventDefault();
-                e.stopPropagation();
-                openLightbox(imgBtn.getAttribute('data-lightbox-src'));
-            }
-        });
-    }
 
     if (els.directoryList) {
         els.directoryList.addEventListener('click', function (e) {
@@ -1584,11 +1963,11 @@
             });
         }
         els.photoInput.addEventListener('change', function () {
-            pushFiles(els.photoInput.files, 'image');
+            pushPendingFiles(els.photoInput.files, 'image');
             els.photoInput.value = '';
         });
         els.fileInput.addEventListener('change', function () {
-            pushFiles(els.fileInput.files, 'file');
+            pushPendingFiles(els.fileInput.files, 'file');
             els.fileInput.value = '';
         });
     }
@@ -1599,7 +1978,39 @@
     }
 
     els.input.addEventListener('input', function () {
+        var next = clampMessageToMaxChars(els.input.value || '');
+        if (next !== normalizeMessageBody(els.input.value || '')) {
+            els.input.value = next;
+            toastMessageCharLimit();
+        }
+        if (countMessageLines(els.input.value) > messageMaxLines()) {
+            els.input.value = clampMessageToMaxLines(els.input.value);
+            Comms.showToast('Message cannot exceed ' + messageMaxLines() + ' lines.', 'error');
+        }
+        els.input.classList.toggle('is-line-limit', countMessageLines(els.input.value) >= messageMaxLines());
         resizeComposer();
+        syncComposerEndControls();
+        notifyComposerTyping(els.input.value);
+    });
+
+    els.input.addEventListener('paste', function (e) {
+        var paste = (e.clipboardData || window.clipboardData);
+        if (!paste) return;
+        var incoming = paste.getData('text');
+        if (incoming == null) return;
+        e.preventDefault();
+        var start = els.input.selectionStart || 0;
+        var end = els.input.selectionEnd || 0;
+        var value = els.input.value || '';
+        var raw = value.slice(0, start) + incoming + value.slice(end);
+        var next = clampMessageToMaxChars(clampMessageToMaxLines(raw));
+        els.input.value = next;
+        if (next !== normalizeMessageBody(raw)) {
+            toastMessageCharLimit();
+        }
+        els.input.classList.toggle('is-line-limit', countMessageLines(els.input.value) >= messageMaxLines());
+        resizeComposer();
+        syncComposerEndControls();
         notifyComposerTyping(els.input.value);
     });
 
@@ -1609,6 +2020,20 @@
             e.preventDefault();
             sendMessage(els.input.value);
             return;
+        }
+        var current = normalizeMessageBody(els.input.value || '');
+        if (e.key === 'Enter' && !(e.ctrlKey || e.metaKey)) {
+            if (messageCharCount(current + '\n') > state.messageMaxLength) {
+                e.preventDefault();
+                toastMessageCharLimit();
+            }
+            return;
+        }
+        if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
+            if (messageCharCount(current + e.key) > state.messageMaxLength) {
+                e.preventDefault();
+                toastMessageCharLimit();
+            }
         }
     });
 
@@ -1703,7 +2128,10 @@
     if (els.attachPreview) els.attachPreview.hidden = true;
 
     startPeerProfileRealtime();
+    syncComposerEndControls();
+    resizeComposer();
 
+    hydrateFromCache();
     loadConversations().then(function () {
         var initial = root.dataset.initialConversation;
         if (initial) openConversation(initial);

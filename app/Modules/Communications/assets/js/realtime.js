@@ -272,7 +272,23 @@ import { createClient } from '@supabase/supabase-js';
                     && row.sender_type === root.dataset.portalUserType;
                 if (window.CommsChat) {
                     var isAttachment = row.message_type === 'image' || row.message_type === 'file';
-                    if (isAttachment && typeof window.CommsChat.reloadActiveMessages === 'function') {
+                    var payloadAttachments = Array.isArray(row.attachments) ? row.attachments : null;
+                    if (isAttachment && payloadAttachments && payloadAttachments.length
+                        && typeof window.CommsChat.appendMessage === 'function') {
+                        window.CommsChat.appendMessage({
+                            id: row.id,
+                            conversation_id: row.conversation_id,
+                            sender_id: row.sender_id,
+                            sender_type: row.sender_type,
+                            body: row.body,
+                            message_type: row.message_type,
+                            mine: !!mine,
+                            created_at: row.created_at,
+                            reactions: [],
+                            attachments: payloadAttachments
+                        });
+                        window.CommsChat.reloadConversations();
+                    } else if (isAttachment && typeof window.CommsChat.reloadActiveMessages === 'function') {
                         window.CommsChat.reloadActiveMessages();
                     } else {
                         window.CommsChat.appendMessage({
