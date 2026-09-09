@@ -482,6 +482,7 @@ function startHeaderChatWithUser(userId, name, avatarUrl) {
 }
 
 window.refreshMessagesPopover = refreshMessagesPopover;
+window.syncFederationsMessagesPageHeaderBtn = syncFederationsMessagesPageHeaderBtn;
 
 function isFederationsMessagesPage() {
     return !!document.body.classList.contains('comms-messages-layout')
@@ -497,7 +498,35 @@ function storeFederationsMessagesReturnUrl() {
     } catch (e) { /* ignore */ }
 }
 
+function captureFederationsActiveChatForMinimize() {
+    var meta = null;
+    if (window.CommsChat && typeof window.CommsChat.getActiveConversationMeta === 'function') {
+        meta = window.CommsChat.getActiveConversationMeta();
+    }
+    if (!meta || !meta.id) {
+        var id = Number(window.__COMMS_PAGE_ACTIVE_ID__ || 0);
+        if (!id) return;
+        var nameEl = document.getElementById('commsPeerName');
+        var avatarEl = document.getElementById('commsPeerAvatar');
+        meta = {
+            id: id,
+            name: nameEl ? String(nameEl.textContent || '').trim() : 'Chat',
+            avatar: avatarEl ? (avatarEl.getAttribute('src') || '') : ''
+        };
+    }
+    if (!meta || !meta.id) return;
+    try {
+        sessionStorage.setItem('comms_pending_header_chat', JSON.stringify({
+            id: Number(meta.id),
+            name: meta.name || 'Chat',
+            avatar: meta.avatar || ''
+        }));
+    } catch (e) { /* ignore */ }
+}
+
 function leaveFederationsMessagesPage() {
+    // Minimize open See All conversation into the floating header chat modal.
+    captureFederationsActiveChatForMinimize();
     var url = '/dashboard';
     try {
         var stored = sessionStorage.getItem('comms_messages_return_url');
@@ -509,14 +538,39 @@ function leaveFederationsMessagesPage() {
     window.location.assign(url);
 }
 
+function openPendingFederationsHeaderChat() {
+    if (isFederationsMessagesPage()) return;
+    var raw = null;
+    try {
+        raw = sessionStorage.getItem('comms_pending_header_chat');
+        sessionStorage.removeItem('comms_pending_header_chat');
+    } catch (e) {
+        return;
+    }
+    if (!raw) return;
+    var pending = null;
+    try {
+        pending = JSON.parse(raw);
+    } catch (e) {
+        return;
+    }
+    if (!pending || !pending.id) return;
+    window.setTimeout(function () {
+        openHeaderChatModal(pending.id, pending.name || 'Chat', pending.avatar || '');
+    }, 80);
+}
+
 function syncFederationsMessagesPageHeaderBtn() {
     var btn = document.getElementById('commsMsgBtn');
     if (!btn || !isFederationsMessagesPage()) return;
     btn.classList.add('is-active');
     btn.setAttribute('aria-pressed', 'true');
     btn.setAttribute('aria-expanded', 'false');
-    btn.title = 'Leave Messages';
-    btn.setAttribute('aria-label', 'Leave Messages');
+    var hasActive = !!(window.__COMMS_PAGE_ACTIVE_ID__
+        || (window.CommsChat && window.CommsChat.getActiveId && window.CommsChat.getActiveId()));
+    var label = hasActive ? 'Minimize to chat' : 'Leave Messages';
+    btn.title = label;
+    btn.setAttribute('aria-label', label);
 }
 
 function wireFederationsSeeAllMessagesLinks() {
@@ -2360,6 +2414,9 @@ document.addEventListener('DOMContentLoaded', function () {
     wireHeaderChatModal();
     syncFederationsMessagesPageHeaderBtn();
     wireFederationsSeeAllMessagesLinks();
+    openPendingFederationsHeaderChat();
+    // Peer header may paint after chat.js boots — refresh minimize label once ready.
+    window.setTimeout(syncFederationsMessagesPageHeaderBtn, 400);
 
     if (notifPopover) {
         notifPopover.addEventListener('click', function (e) {

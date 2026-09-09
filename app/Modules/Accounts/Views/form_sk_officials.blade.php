@@ -173,13 +173,13 @@
                             <div class="form-group-light">
                                 <label class="form-label-light required">Term Start Date (MM/DD/YYYY)</label>
                                 <input type="date" name="term_start" id="official_term_start" class="form-input-light" required>
-                                <p class="form-hint-light">Defaults to the current SK Federation President/VP term start.</p>
+                                <p class="form-hint-light">Earliest start is 01/01/2023. Defaults to the current SK Federation President/VP term start.</p>
                                 <span class="form-error-light"></span>
                             </div>
                             <div class="form-group-light">
                                 <label class="form-label-light required">Term End Date (MM/DD/YYYY)</label>
                                 <input type="date" name="term_end" id="official_term_end" class="form-input-light" required>
-                                <p class="form-hint-light">Defaults to the current SK Federation President/VP term end.</p>
+                                <p class="form-hint-light">Must be 3 to 5 years after term start. Defaults to the current President/VP term end when aligned.</p>
                                 <span class="form-error-light"></span>
                             </div>
                         </div>
@@ -350,13 +350,13 @@
                         <div class="form-group-light">
                             <label for="edit_sk_officials_term_start" class="form-label-light required">Term Start Date (MM/DD/YYYY)</label>
                             <input type="text" id="edit_sk_officials_term_start" name="term_start" class="form-input-light" placeholder="MM/DD/YYYY" inputmode="numeric" autocomplete="off" required>
-                            <p class="form-hint-light">You may advance a little into the future (up to 30 days).</p>
+                            <p class="form-hint-light" id="edit_sk_officials_term_start_hint">Earliest start is 01/01/2023. You may advance a little into the future (up to 30 days).</p>
                             <span class="form-error-light"></span>
                         </div>
                         <div class="form-group-light">
                             <label for="edit_sk_officials_term_end" class="form-label-light required">Term End Date (MM/DD/YYYY)</label>
                             <input type="text" id="edit_sk_officials_term_end" name="term_end" class="form-input-light" placeholder="MM/DD/YYYY" inputmode="numeric" autocomplete="off" required>
-                            <p class="form-hint-light">Must be exactly 5 years after the term start date.</p>
+                            <p class="form-hint-light" id="edit_sk_officials_term_end_hint">Must be 3 to 5 years after the term start date. Saving the President’s dates also updates all SK Officials.</p>
                             <span class="form-error-light"></span>
                         </div>
                     </div>

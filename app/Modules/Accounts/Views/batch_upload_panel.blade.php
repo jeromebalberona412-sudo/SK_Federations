@@ -65,9 +65,9 @@
                 Birthdate must be for ages <strong>18–24</strong> only.
                 Use <strong>MM/DD/YYYY</strong> for Birthdate and Term dates.
                 @if ($isOfficialsTemplate)
-                    For SK Officials, Term Start may be today or advanced up to 30 days, and Term End must be exactly 5 years after Term Start.
+                    For SK Officials, Term Start may be from 01/01/2023 (or advanced up to 30 days), and Term End must be 3 to 5 years after Term Start. Empty term dates default to the current President/VP term.
                 @else
-                    For SK Federation, Term End must be exactly 5 years after Term Start.
+                    For SK Federation, Term End must be 3 to 5 years after Term Start.
                 @endif
             </p>
         </div>

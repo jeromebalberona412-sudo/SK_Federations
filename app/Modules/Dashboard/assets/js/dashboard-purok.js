@@ -5,6 +5,7 @@
     let purokFetchTimer = null;
     let purokAbortController = null;
     let purokRequestSeq = 0;
+    let purokLastPayload = null;
     const barColors = [
         'rgba(59,130,246,.85)',
         'rgba(34,197,94,.85)',
@@ -62,6 +63,79 @@
         });
     }
 
+    function isNarrowViewport() {
+        return window.matchMedia('(max-width: 768px)').matches;
+    }
+
+    function sizePurokChartWrap(labels) {
+        const wrap = document.getElementById('purokChartWrap');
+        const canvas = document.getElementById('purokDistributionChart');
+        if (!wrap || !canvas) {
+            return;
+        }
+
+        const count = Math.max(1, (labels || []).length);
+        const col = isNarrowViewport() ? 64 : 52;
+        const minWidth = Math.max(wrap.clientWidth || 320, count * col);
+        wrap.style.height = isNarrowViewport() ? '320px' : '300px';
+        wrap.style.minHeight = wrap.style.height;
+        if (minWidth > (wrap.clientWidth || 0) + 8) {
+            wrap.classList.add('is-scroll-x');
+            canvas.style.minWidth = minWidth + 'px';
+        } else {
+            wrap.classList.remove('is-scroll-x');
+            canvas.style.minWidth = '';
+        }
+        canvas.style.width = '100%';
+    }
+
+    function buildPurokChartOptions() {
+        return {
+            indexAxis: 'x',
+            responsive: true,
+            maintainAspectRatio: false,
+            animation: false,
+            layout: {
+                padding: { top: 8, right: 8, bottom: 4, left: 4 },
+            },
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    callbacks: {
+                        title: function (items) {
+                            const item = items && items[0];
+                            return item ? String(item.label || '') : '';
+                        },
+                        label: function (context) {
+                            return ' ' + context.parsed.y + ' youth';
+                        },
+                    },
+                },
+            },
+            scales: {
+                x: {
+                    grid: { display: false },
+                    ticks: {
+                        autoSkip: false,
+                        font: { size: isNarrowViewport() ? 9 : 10 },
+                        color: '#334155',
+                        maxRotation: 60,
+                        minRotation: isNarrowViewport() ? 45 : 30,
+                    },
+                },
+                y: {
+                    beginAtZero: true,
+                    ticks: {
+                        precision: 0,
+                        font: { size: 10 },
+                        color: '#64748b',
+                    },
+                    grid: { color: 'rgba(148,163,184,.25)' },
+                },
+            },
+        };
+    }
+
     function renderPurokChart(data) {
         const canvas = document.getElementById('purokDistributionChart');
         if (!canvas || typeof window.Chart === 'undefined') {
@@ -74,10 +148,13 @@
             return barColors[index % barColors.length];
         });
 
+        sizePurokChartWrap(labels);
+
         if (purokChart) {
             purokChart.data.labels = labels;
             purokChart.data.datasets[0].data = counts;
             purokChart.data.datasets[0].backgroundColor = colors;
+            purokChart.options = buildPurokChartOptions();
             purokChart.update('none');
             return;
         }
@@ -90,45 +167,18 @@
                     label: 'Kabataan',
                     data: counts,
                     backgroundColor: colors,
-                    borderRadius: 8,
+                    borderRadius: 6,
                     borderSkipped: false,
+                    maxBarThickness: 36,
                 }],
             },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                animation: false,
-                plugins: {
-                    legend: { display: false },
-                    tooltip: {
-                        callbacks: {
-                            label: function (context) {
-                                return ' ' + context.parsed.y + ' youth';
-                            },
-                        },
-                    },
-                },
-                scales: {
-                    x: {
-                        grid: { display: false },
-                        ticks: {
-                            font: { size: 9 },
-                            maxRotation: 45,
-                            minRotation: 0,
-                        },
-                    },
-                    y: {
-                        beginAtZero: true,
-                        ticks: { precision: 0 },
-                        grid: { color: 'rgba(148,163,184,.25)' },
-                    },
-                },
-            },
+            options: buildPurokChartOptions(),
         });
     }
 
     function applyPurokPayload(payload, hasBarangay) {
         const data = payload?.data || payload || { labels: [], counts: [], zones: [] };
+        purokLastPayload = data;
         if (hasBarangay) {
             fillZoneOptions(data.zones || [], getPurokFilters().purok);
         }
@@ -154,7 +204,7 @@
         }
 
         const params = new URLSearchParams(getPurokFilters());
-        const cacheKey = 'sk_fed_purok_chart_v2_' + params.toString();
+        const cacheKey = 'sk_fed_purok_chart_v4_' + params.toString();
         const cached = window.SkLocalCache?.get(cacheKey);
 
         if (cached?.payload) {
@@ -196,6 +246,13 @@
         purokFetchTimer = window.setTimeout(refreshPurokChart, 40);
     }
 
+    function onViewportChange() {
+        if (!purokLastPayload) {
+            return;
+        }
+        renderPurokChart(purokLastPayload);
+    }
+
     function boot() {
         if (!document.getElementById('purokDistributionChart')) {
             return;
@@ -210,13 +267,20 @@
         });
         document.getElementById('purokZoneFilter')?.addEventListener('change', scheduleRefresh);
 
+        let resizeTimer = null;
+        window.addEventListener('resize', function () {
+            window.clearTimeout(resizeTimer);
+            resizeTimer = window.setTimeout(onViewportChange, 120);
+        });
+
         const initial = window.__PUROK_CHART_INITIAL__;
         if (initial) {
             const params = new URLSearchParams(getPurokFilters());
-            const cacheKey = 'sk_fed_purok_chart_v2_' + params.toString();
+            const cacheKey = 'sk_fed_purok_chart_v4_' + params.toString();
             if (!window.SkLocalCache?.get(cacheKey)?.payload) {
                 window.SkLocalCache?.set(cacheKey, { data: initial });
             }
+            purokLastPayload = initial;
             renderPurokChart(initial);
         } else {
             refreshPurokChart();

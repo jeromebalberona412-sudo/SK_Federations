@@ -12,10 +12,10 @@
             <div class="dash-page-filters">
                 @php
                     $dashYear = (int) ($dashboardYear ?? now()->year);
-                    $dashDateFrom = $dateFrom ?? sprintf('%04d-01-01', $dashYear);
-                    $dashDateTo = $dateTo ?? now()->toDateString();
-                    $dashTermStart = $dashDateFrom;
-                    $dashTermEnd = $dashDateTo;
+                    $dashTermStart = $termStart ?? ($dateFrom ?? sprintf('%04d-01-01', $dashYear));
+                    $dashTermEnd = $termEnd ?? ($dateTo ?? now()->toDateString());
+                    $dashDateFrom = $dateFrom ?? $dashTermStart;
+                    $dashDateTo = $dateTo ?? $dashTermEnd;
                 @endphp
                 <div class="dash-header-tools" id="dashHeaderTools">
                     <a href="{{ route('calendar') }}" class="dash-today-card" aria-label="Open calendar — Today's date">
@@ -30,6 +30,8 @@
                         id="dashDateRangeFilter"
                         data-default-from="{{ $dashTermStart }}"
                         data-default-to="{{ $dashTermEnd }}"
+                        data-term-start="{{ $dashTermStart }}"
+                        data-term-end="{{ $dashTermEnd }}"
                         data-term-year="{{ $dashYear }}"
                     >
                         <div class="dash-date-range-fields">
@@ -40,9 +42,10 @@
                                     id="dashDateFrom"
                                     class="dash-date-input"
                                     value="{{ $dashDateFrom }}"
-                                    max="{{ $dashDateTo }}"
+                                    min="{{ $dashTermStart }}"
+                                    max="{{ $dashTermEnd }}"
                                     aria-label="Filter from date"
-                                    title="From"
+                                    title="From (term start)"
                                 >
                             </label>
                             <span class="dash-date-range-sep" aria-hidden="true">–</span>
@@ -53,17 +56,18 @@
                                     id="dashDateTo"
                                     class="dash-date-input"
                                     value="{{ $dashDateTo }}"
-                                    min="{{ $dashDateFrom }}"
+                                    min="{{ $dashTermStart }}"
+                                    max="{{ $dashTermEnd }}"
                                     aria-label="Filter to date"
-                                    title="To"
+                                    title="To (term end)"
                                 >
                             </label>
                             <button
                                 type="button"
                                 class="dash-date-reset-btn"
                                 id="dashDateResetBtn"
-                                title="Reset to SK Officials term start and term end"
-                                aria-label="Reset date filter to SK Officials term dates"
+                                title="Reset to President term start and term end"
+                                aria-label="Reset date filter to President term start and term end"
                             >
                                 <i class="fas fa-undo" aria-hidden="true"></i>
                             </button>
@@ -147,8 +151,8 @@
                         </select>
                     </div>
                 </div>
-                <div class="card-body">
-                    <div class="kk-chart-canvas-wrap">
+                <div class="card-body dash-purok-card-body">
+                    <div class="kk-chart-canvas-wrap kk-chart-canvas-wrap--purok" id="purokChartWrap">
                         <canvas id="purokDistributionChart"></canvas>
                     </div>
                 </div>

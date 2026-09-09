@@ -74,7 +74,7 @@ class KkProfilingChartService
         [$dateFrom, $dateTo] = $this->resolveDateRange($request);
 
         $cacheKey = sprintf(
-            'skfed:dash:purok-chart:%d:%s:%s:%s:%s',
+            'skfed:dash:purok-chart:v2:%d:%s:%s:%s:%s',
             $tenantId,
             $barangayIdInput === '' ? 'all' : $barangayIdInput,
             $purokFilter === '' ? 'all' : $purokFilter,
@@ -150,13 +150,32 @@ class KkProfilingChartService
         $records = $query->get(['id', 'barangay_id', 'form_data']);
 
         if ($barangayId === null) {
-            $countsByBarangay = array_fill_keys($catalogNames, 0);
+            // Show every barangay in the tenant (including zero-count) so mobile/desktop charts stay complete.
+            $countsByBarangay = [];
+            foreach ($barangays as $barangay) {
+                $name = trim((string) $barangay->name);
+                if ($name === '') {
+                    continue;
+                }
+                $countsByBarangay[$name] = 0;
+            }
+            if ($countsByBarangay === []) {
+                $countsByBarangay = array_fill_keys($catalogNames, 0);
+            }
+
             $nameById = $barangays->pluck('name', 'id');
 
             foreach ($records as $record) {
                 $name = $nameById[$record->barangay_id] ?? null;
-                if ($name === null || ! array_key_exists($name, $countsByBarangay)) {
+                if ($name === null) {
                     continue;
+                }
+                $name = trim((string) $name);
+                if ($name === '') {
+                    continue;
+                }
+                if (! array_key_exists($name, $countsByBarangay)) {
+                    $countsByBarangay[$name] = 0;
                 }
                 $countsByBarangay[$name]++;
             }

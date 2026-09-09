@@ -4092,6 +4092,45 @@ body.sidebar-collapsed .main-content { margin-left: var(--sidebar-collapsed); }
     justify-content: center;
 }
 
+/* Kabataan per Purok/Sitio — keep every barangay/purok label visible */
+#purok-distribution-section .kk-chart-header-actions {
+    flex-wrap: wrap;
+    max-width: 100%;
+}
+
+#purok-distribution-section .kk-barangay-select {
+    min-width: min(100%, 160px);
+    max-width: 100%;
+    flex: 1 1 160px;
+}
+
+.dash-purok-card-body {
+    min-width: 0;
+    overflow: visible;
+}
+
+.kk-chart-canvas-wrap--purok {
+    width: 100%;
+    min-height: 280px;
+    height: 280px;
+    align-items: stretch;
+    justify-content: stretch;
+    overflow: hidden;
+}
+
+.kk-chart-canvas-wrap--purok.is-scroll-x {
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-x: contain;
+}
+
+.kk-chart-canvas-wrap--purok canvas {
+    width: 100% !important;
+    height: 100% !important;
+    max-width: none;
+}
+
 .kk-chart-filter-row {
     display: flex;
     flex-wrap: wrap;
@@ -5416,6 +5455,31 @@ button.activity-item--clickable:active {
 
     .kk-barangay-select {
         flex: 1 1 140px;
+        max-width: none;
+        min-width: 0;
+    }
+
+    #purok-distribution-section .kk-chart-section-header {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 10px;
+    }
+
+    #purok-distribution-section .kk-chart-header-actions {
+        width: 100%;
+        margin-left: 0;
+    }
+
+    #purok-distribution-section .kk-barangay-select {
+        flex: 1 1 100%;
+        width: 100%;
+        max-width: 100%;
+        min-height: 40px;
+        font-size: 13px;
+    }
+
+    .kk-chart-canvas-wrap--purok {
+        min-height: 300px;
     }
 
     .qa-item {
@@ -5892,6 +5956,14 @@ button.activity-item--clickable:active {
     .dash-row--top-split,
     .dash-row--kk-abyip {
         grid-template-columns: 1fr;
+    }
+
+    #purok-distribution-section {
+        overflow: visible;
+    }
+
+    .kk-chart-canvas-wrap--purok {
+        min-height: 320px;
     }
 
     .dash-abyip-summary {

@@ -10,7 +10,12 @@ final class SkOfficialTermDates
 {
     public const FIRST_START = '2023-01-01';
 
+    /** Default / maximum term length in years. */
     public const TERM_YEARS = 5;
+
+    public const MIN_TERM_YEARS = 3;
+
+    public const MAX_TERM_YEARS = 5;
 
     public const START_ADVANCE_DAYS = 30;
 
@@ -26,7 +31,17 @@ final class SkOfficialTermDates
 
     public static function termEndForStart(CarbonInterface|string $start): Carbon
     {
-        return Carbon::parse($start)->startOfDay()->addYears(self::TERM_YEARS);
+        return Carbon::parse($start)->startOfDay()->addYears(self::MAX_TERM_YEARS);
+    }
+
+    public static function minTermEndForStart(CarbonInterface|string $start): Carbon
+    {
+        return Carbon::parse($start)->startOfDay()->addYears(self::MIN_TERM_YEARS);
+    }
+
+    public static function maxTermEndForStart(CarbonInterface|string $start): Carbon
+    {
+        return self::termEndForStart($start);
     }
 
     public static function maxStart(?CarbonInterface $asOf = null): string
@@ -95,7 +110,7 @@ final class SkOfficialTermDates
 
     public static function endRuleMessage(): string
     {
-        return 'Term end date must be exactly '.self::TERM_YEARS.' years after the term start date, or match the current federation leadership term.';
+        return 'Term end date must be between '.self::MIN_TERM_YEARS.' and '.self::MAX_TERM_YEARS.' years after the term start date, or match the current federation leadership term.';
     }
 
     /**
@@ -136,14 +151,20 @@ final class SkOfficialTermDates
             return [];
         }
 
-        $requiredEnd = self::termEndForStart($startDate)->toDateString();
         $leadershipEnd = is_string($leadership['term_end'] ?? null) ? $leadership['term_end'] : null;
         $matchesLeadership = $leadershipStart !== null
             && $leadershipEnd !== null
             && $startDate === $leadershipStart
             && $endDate === $leadershipEnd;
 
-        if ($endDate !== $requiredEnd && ! $matchesLeadership) {
+        if ($matchesLeadership) {
+            return [];
+        }
+
+        $minEnd = self::minTermEndForStart($startDate)->toDateString();
+        $maxEnd = self::maxTermEndForStart($startDate)->toDateString();
+
+        if ($endDate < $minEnd || $endDate > $maxEnd) {
             return ['term_end' => self::endRuleMessage()];
         }
 

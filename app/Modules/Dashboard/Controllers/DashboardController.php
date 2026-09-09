@@ -27,8 +27,11 @@ class DashboardController extends Controller
         $tenantId = $request->user()?->tenant_id;
         $barangays = $this->dashboardStatsService->getBarangays($tenantId);
         $termDefaults = SkOfficialTermDates::leadershipDefaults((int) ($tenantId ?? 0));
-        $dateFrom = $termDefaults['term_start'];
-        $dateTo = $termDefaults['term_end'];
+        $termStart = $termDefaults['term_start'];
+        $termEnd = $termDefaults['term_end'];
+        // Follow SK Federation President (then VP) term window.
+        $dateFrom = $termStart;
+        $dateTo = $termEnd;
         $dashboardYear = (int) substr($dateFrom, 0, 4);
         $user = $request->user();
         $statCards = $this->dashboardStatsService->dashboardStatCards($tenantId, $dateFrom, $dateTo);
@@ -73,6 +76,8 @@ class DashboardController extends Controller
             'dashboardYear' => $dashboardYear,
             'dateFrom' => $dateFrom,
             'dateTo' => $dateTo,
+            'termStart' => $termStart,
+            'termEnd' => $termEnd,
             'abyipOverview' => $abyipOverview,
             'kkProfilingInitial' => $user
                 ? $this->kkProfilingChartService->getChartData($user, $kkInitialRequest)
@@ -177,23 +182,30 @@ class DashboardController extends Controller
     {
         $dateFrom = trim((string) $request->input('date_from', ''));
         $dateTo = trim((string) $request->input('date_to', ''));
+        $tenantId = (int) ($request->user()?->tenant_id ?? 0);
+        $defaults = $tenantId > 0 ? SkOfficialTermDates::leadershipDefaults($tenantId) : null;
+        $termStart = $defaults['term_start'] ?? null;
+        $termEnd = $defaults['term_end'] ?? null;
 
-        if ($dateFrom === '' || $dateTo === '') {
-            $tenantId = (int) ($request->user()?->tenant_id ?? 0);
-            $defaults = SkOfficialTermDates::leadershipDefaults($tenantId);
-            if ($dateFrom === '') {
-                $dateFrom = $defaults['term_start'];
-            }
-            if ($dateTo === '') {
-                $dateTo = $defaults['term_end'];
-            }
+        if ($dateFrom === '') {
+            $dateFrom = $termStart;
+        }
+        if ($dateTo === '') {
+            $dateTo = $termEnd;
         }
 
-        if ($dateFrom !== null && $dateTo !== null && $dateFrom > $dateTo) {
+        if ($termStart && $dateFrom !== '' && $dateFrom < $termStart) {
+            $dateFrom = $termStart;
+        }
+        if ($termEnd && $dateTo !== '' && $dateTo > $termEnd) {
+            $dateTo = $termEnd;
+        }
+
+        if ($dateFrom !== null && $dateTo !== null && $dateFrom !== '' && $dateTo !== '' && $dateFrom > $dateTo) {
             return [$dateTo, $dateFrom];
         }
 
-        return [$dateFrom, $dateTo];
+        return [$dateFrom ?: null, $dateTo ?: null];
     }
 
     public function kkProfilingData(Request $request): JsonResponse

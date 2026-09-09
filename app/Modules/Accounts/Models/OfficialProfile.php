@@ -126,7 +126,8 @@ class OfficialProfile extends Model
 
     public function latestTerm(): HasOne
     {
-        return $this->hasOne(OfficialTerm::class)->latestOfMany('term_end');
+        // Newest term row wins. Ordering by term_end hid edits that shortened the end date.
+        return $this->hasOne(OfficialTerm::class)->latestOfMany('id');
     }
 
     public function displayFederationPosition(): ?string

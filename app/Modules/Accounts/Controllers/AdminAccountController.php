@@ -413,14 +413,21 @@ class AdminAccountController extends Controller
         if ($request->expectsJson()) {
             $account->loadMissing(['barangay', 'officialProfile.latestTerm', 'officialProfile.terms']);
 
-            return response()->json([
+            $payload = [
                 'success' => true,
                 'message' => $message,
                 'email_changed' => $result['email_changed'],
                 'setup_email_sent' => $result['setup_email_sent'],
                 'needs_setup' => app(AccountSetupService::class)->needsAccountSetup($account),
                 'data' => $this->formatAccountForTable($account),
-            ]);
+                'official_terms_synced' => (int) ($result['official_terms_synced'] ?? 0),
+            ];
+
+            if (! empty($result['leadership_terms']['term_start']) && ! empty($result['leadership_terms']['term_end'])) {
+                $payload['leadership_terms'] = $result['leadership_terms'];
+            }
+
+            return response()->json($payload);
         }
 
         return back()->with('status', $message);
@@ -475,16 +482,54 @@ class AdminAccountController extends Controller
             $request->user()
         );
 
+        $officialTermsSynced = 0;
+        $leadershipTerms = null;
+        $account->loadMissing('officialProfile.latestTerm');
+        $federationPosition = trim((string) ($account->officialProfile?->federation_position ?? ''));
+        if (strcasecmp($federationPosition, 'President') === 0) {
+            $presidentTerm = $account->officialProfile?->latestTerm;
+            if ($presidentTerm?->term_start && $presidentTerm?->term_end) {
+                $termStart = $presidentTerm->term_start->toDateString();
+                $termEnd = $presidentTerm->term_end->toDateString();
+                $leadershipTerms = [
+                    'term_start' => $termStart,
+                    'term_end' => $termEnd,
+                ];
+                $officialTermsSynced = $this->accountService->syncSkOfficialTermsFromLeadership(
+                    (int) $request->user()->tenant_id,
+                    $termStart,
+                    $termEnd,
+                    (int) $account->id,
+                );
+            }
+        }
+
         $this->bumpAccountsCache();
 
-        return response()->json([
+        $message = 'Federation position updated successfully.';
+        if ($officialTermsSynced > 0) {
+            $message = 'Federation position updated. President term dates applied to '
+                .$officialTermsSynced
+                .' SK Official'
+                .($officialTermsSynced === 1 ? '' : 's')
+                .'.';
+        }
+
+        $payload = [
             'success' => true,
-            'message' => 'Federation position updated successfully.',
+            'message' => $message,
+            'official_terms_synced' => $officialTermsSynced,
             'data' => [
                 'id' => $account->id,
                 'federation_position' => $account->officialProfile?->federation_position,
             ],
-        ]);
+        ];
+
+        if ($leadershipTerms !== null) {
+            $payload['leadership_terms'] = $leadershipTerms;
+        }
+
+        return response()->json($payload);
     }
 
     public function deactivate(Request $request, User $user): RedirectResponse|JsonResponse

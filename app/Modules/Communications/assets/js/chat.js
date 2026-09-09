@@ -1407,6 +1407,15 @@
             els.typing.textContent = '';
         }
         renderConversations(els.convFilter ? els.convFilter.value : '');
+        if (typeof window.syncFederationsMessagesPageHeaderBtn === 'function') {
+            window.syncFederationsMessagesPageHeaderBtn();
+        } else {
+            var msgBtn = document.getElementById('commsMsgBtn');
+            if (msgBtn && document.body.classList.contains('comms-messages-layout')) {
+                msgBtn.title = 'Minimize to chat';
+                msgBtn.setAttribute('aria-label', 'Minimize to chat');
+            }
+        }
 
         if (window.CommsRealtime && typeof window.CommsRealtime.subscribeConversation === 'function') {
             window.CommsRealtime.subscribeConversation(state.activeId);
@@ -2102,6 +2111,19 @@
         },
         getActiveId: function () {
             return state.activeId || window.__COMMS_HEADER_ACTIVE_ID__ || null;
+        },
+        getActiveConversationMeta: function () {
+            if (!state.activeId) return null;
+            var peer = state.activeConversation && state.activeConversation.other_user
+                ? state.activeConversation.other_user
+                : null;
+            var nameEl = document.getElementById('commsPeerName');
+            var avatarEl = document.getElementById('commsPeerAvatar');
+            return {
+                id: Number(state.activeId),
+                name: (peer && peer.name) || (nameEl ? String(nameEl.textContent || '').trim() : '') || 'Chat',
+                avatar: (peer && peer.profile_image_url) || (avatarEl ? avatarEl.getAttribute('src') : '') || ''
+            };
         },
         setTyping: function (visible, meta) {
             if (!els.typing) return;

@@ -412,31 +412,34 @@ class AccountService
                 $profile->update($profileUpdate);
             }
 
-            $latestTerm = $profile->terms()->latest('term_end')->first();
+            $latestTerm = $profile->terms()->latest('id')->first();
             $hasNewTermRange = ! $latestTerm
                 || $latestTerm->term_start->toDateString() !== $normalizedData['term_start']
                 || $latestTerm->term_end->toDateString() !== $normalizedData['term_end'];
 
             if ($hasNewTermRange) {
-                if ($normalizedData['term_status'] === OfficialTerm::STATUS_ACTIVE) {
-                    $activeTerms = $profile->terms()
-                        ->where('status', OfficialTerm::STATUS_ACTIVE)
-                        ->get();
-
-                    foreach ($activeTerms as $activeTerm) {
-                        $this->termRecordsArchiveService->archiveCompletedTerm($activeTerm, $admin);
+                if ($latestTerm) {
+                    // Edit Account should update the current term in place so the table
+                    // reflects the new dates immediately (no stale "latest by term_end" row).
+                    if ($normalizedData['term_status'] === OfficialTerm::STATUS_ACTIVE) {
+                        $profile->terms()
+                            ->where('id', '!=', $latestTerm->id)
+                            ->where('status', OfficialTerm::STATUS_ACTIVE)
+                            ->update(['status' => OfficialTerm::STATUS_INACTIVE]);
                     }
 
-                    $profile->terms()
-                        ->where('status', OfficialTerm::STATUS_ACTIVE)
-                        ->update(['status' => OfficialTerm::STATUS_INACTIVE]);
+                    $latestTerm->forceFill([
+                        'term_start' => $normalizedData['term_start'],
+                        'term_end' => $normalizedData['term_end'],
+                        'status' => $normalizedData['term_status'],
+                    ])->save();
+                } else {
+                    $this->createTermRecord($profile, [
+                        'term_start' => $normalizedData['term_start'],
+                        'term_end' => $normalizedData['term_end'],
+                        'status' => $normalizedData['term_status'],
+                    ]);
                 }
-
-                $this->createTermRecord($profile, [
-                    'term_start' => $normalizedData['term_start'],
-                    'term_end' => $normalizedData['term_end'],
-                    'status' => $normalizedData['term_status'],
-                ]);
             } elseif ($latestTerm->status !== $normalizedData['term_status']) {
                 if ($normalizedData['term_status'] === OfficialTerm::STATUS_ACTIVE) {
                     $activeTerms = $profile->terms()
@@ -484,6 +487,28 @@ class AccountService
             return $updated;
         });
 
+        $officialTermsSynced = 0;
+        $leadershipTerms = null;
+        $presidentPosition = trim((string) ($fresh->officialProfile?->federation_position ?? ''));
+        if (strcasecmp($presidentPosition, 'President') === 0) {
+            $fresh->loadMissing('officialProfile.latestTerm');
+            $presidentTerm = $fresh->officialProfile?->latestTerm;
+            if ($presidentTerm?->term_start && $presidentTerm?->term_end) {
+                $termStart = $presidentTerm->term_start->toDateString();
+                $termEnd = $presidentTerm->term_end->toDateString();
+                $leadershipTerms = [
+                    'term_start' => $termStart,
+                    'term_end' => $termEnd,
+                ];
+                $officialTermsSynced = $this->syncSkOfficialTermsFromLeadership(
+                    (int) $admin->tenant_id,
+                    $termStart,
+                    $termEnd,
+                    (int) $fresh->id,
+                );
+            }
+        }
+
         $setupEmailSent = false;
         $setupEmailError = null;
 
@@ -518,6 +543,8 @@ class AccountService
             'email_changed' => $emailChanged,
             'setup_email_sent' => $setupEmailSent,
             'setup_email_error' => $setupEmailError,
+            'official_terms_synced' => $officialTermsSynced,
+            'leadership_terms' => $leadershipTerms,
         ];
     }
 
@@ -624,6 +651,66 @@ class AccountService
             'term_end' => $data['term_end'],
             'status' => $data['status'],
         ]);
+    }
+
+    /**
+     * Apply SK Fed President term dates to every other SK Official in the tenant.
+     */
+    public function syncSkOfficialTermsFromLeadership(
+        int $tenantId,
+        string $termStart,
+        string $termEnd,
+        ?int $exceptUserId = null,
+    ): int {
+        if ($tenantId <= 0 || $termStart === '' || $termEnd === '') {
+            return 0;
+        }
+
+        $synced = 0;
+
+        User::query()
+            ->where('tenant_id', $tenantId)
+            ->where('role', User::ROLE_SK_OFFICIAL)
+            ->whereNull('deleted_at')
+            ->when($exceptUserId, fn ($query) => $query->where('id', '!=', $exceptUserId))
+            ->with(['officialProfile.latestTerm'])
+            ->orderBy('id')
+            ->each(function (User $official) use ($termStart, $termEnd, &$synced): void {
+                $profile = $official->officialProfile;
+                if (! $profile) {
+                    return;
+                }
+
+                if (strcasecmp(trim((string) ($profile->federation_position ?? '')), 'President') === 0) {
+                    return;
+                }
+
+                $latestTerm = $profile->latestTerm;
+                if ($latestTerm) {
+                    $currentStart = optional($latestTerm->term_start)->toDateString();
+                    $currentEnd = optional($latestTerm->term_end)->toDateString();
+                    if ($currentStart === $termStart && $currentEnd === $termEnd) {
+                        return;
+                    }
+
+                    $latestTerm->forceFill([
+                        'term_start' => $termStart,
+                        'term_end' => $termEnd,
+                    ])->save();
+                    $synced++;
+
+                    return;
+                }
+
+                $this->createTermRecord($profile, [
+                    'term_start' => $termStart,
+                    'term_end' => $termEnd,
+                    'status' => OfficialTerm::STATUS_ACTIVE,
+                ]);
+                $synced++;
+            });
+
+        return $synced;
     }
 
     public function assignBarangay(User $user, int $barangayId): void

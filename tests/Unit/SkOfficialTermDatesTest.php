@@ -13,6 +13,7 @@ it('defaults term start to today and end to today plus five years', function () 
     expect(SkOfficialTermDates::currentStart())->toBe('2026-08-31')
         ->and(SkOfficialTermDates::defaultEnd())->toBe('2031-08-31')
         ->and(SkOfficialTermDates::termEndForStart('2026-08-31')->toDateString())->toBe('2031-08-31')
+        ->and(SkOfficialTermDates::minTermEndForStart('2026-08-31')->toDateString())->toBe('2029-08-31')
         ->and(SkOfficialTermDates::maxStart())->toBe('2026-09-30');
 });
 
@@ -24,13 +25,19 @@ it('allows term start up to thirty days in the future', function () {
         ->toHaveKey('term_start');
 });
 
-it('requires term end to be exactly five years after term start', function () {
+it('allows term end between three and five years after term start', function () {
     Carbon::setTestNow(Carbon::parse('2026-08-31'));
 
-    expect(SkOfficialTermDates::errorsFor('2026-08-31', '2030-08-31'))
+    expect(SkOfficialTermDates::errorsFor('2026-08-31', '2028-08-31'))
         ->toHaveKey('term_end')
+        ->and(SkOfficialTermDates::errorsFor('2026-08-31', '2029-08-31'))
+        ->toBe([])
+        ->and(SkOfficialTermDates::errorsFor('2026-08-31', '2030-08-31'))
+        ->toBe([])
         ->and(SkOfficialTermDates::errorsFor('2026-08-31', '2031-08-31'))
-        ->toBe([]);
+        ->toBe([])
+        ->and(SkOfficialTermDates::errorsFor('2026-08-31', '2032-08-31'))
+        ->toHaveKey('term_end');
 });
 
 it('rejects term starts before the earliest allowed date', function () {

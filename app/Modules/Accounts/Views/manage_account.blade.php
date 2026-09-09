@@ -144,12 +144,8 @@
                     </thead>
                     <tbody id="accountsTableBody">
                         @if($isOfficials)
-                            <tr class="accounts-loading-row">
-                                <td colspan="{{ $tableColspan }}">
-                                    <div class="accounts-table-loading" role="status" aria-live="polite" aria-label="Loading">
-                                        <span class="accounts-loading-spinner" aria-hidden="true"></span>
-                                    </div>
-                                </td>
+                            <tr class="accounts-empty-row">
+                                <td colspan="{{ $tableColspan }}" class="text-center">No accounts found.</td>
                             </tr>
                         @else
                             @forelse($accounts as $account)

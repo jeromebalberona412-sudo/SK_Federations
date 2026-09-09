@@ -829,15 +829,10 @@ function initAlpineOnAccountsTableBody() {
 function renderOfficialsLoadingState() {
     const tableBody = document.getElementById('accountsTableBody');
     if (!tableBody) return;
-    tableBody.innerHTML = `
-        <tr class="accounts-loading-row">
-            <td colspan="8">
-                <div class="accounts-table-loading" role="status" aria-live="polite" aria-label="Loading">
-                    <span class="accounts-loading-spinner" aria-hidden="true"></span>
-                </div>
-            </td>
-        </tr>
-    `;
+    // Keep current rows (or empty) while fetching — no spinner animation.
+    if (!tableBody.querySelector('tr[data-account-id]') && !tableBody.querySelector('.accounts-empty-row')) {
+        renderOfficialsEmptyState();
+    }
 }
 
 function renderOfficialsErrorState(message) {
@@ -1039,10 +1034,12 @@ function resendAccountSetupEmail(button) {
 // ── Inline validation helpers (light-theme forms) ─────────────
 const ACCOUNT_TERM_YEARS = 5;
 const SK_OFFICIAL_TERM_YEARS = 5;
+const SK_OFFICIAL_TERM_MIN_YEARS = 3;
+const SK_OFFICIAL_TERM_MAX_YEARS = 5;
 const SK_OFFICIAL_TERM_START_ADVANCE_DAYS = 30;
 const SK_OFFICIAL_FIRST_TERM_START = '2023-01-01';
 const SK_OFFICIAL_TERM_START_MESSAGE = `Term start date must be on or after ${SK_OFFICIAL_FIRST_TERM_START} and at most ${SK_OFFICIAL_TERM_START_ADVANCE_DAYS} days in the future.`;
-const SK_OFFICIAL_TERM_END_MESSAGE = `Term end date must be exactly ${SK_OFFICIAL_TERM_YEARS} years after term start.`;
+const SK_OFFICIAL_TERM_END_MESSAGE = `Term end date must be between ${SK_OFFICIAL_TERM_MIN_YEARS} and ${SK_OFFICIAL_TERM_MAX_YEARS} years after term start.`;
 const SK_OFFICIAL_NAME_MIN = 2;
 const SK_OFFICIAL_NAME_MAX = 150;
 const SK_OFFICIAL_NAME_SOFT_MAX = 50;
@@ -1158,6 +1155,19 @@ function federationDefaultTermEnd() {
     return /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : '';
 }
 
+function syncLeadershipTermDefaults(terms) {
+    const el = document.getElementById('mainContent');
+    if (!el || !terms) {
+        return;
+    }
+    if (typeof terms.term_start === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(terms.term_start)) {
+        el.dataset.defaultTermStart = terms.term_start;
+    }
+    if (typeof terms.term_end === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(terms.term_end)) {
+        el.dataset.defaultTermEnd = terms.term_end;
+    }
+}
+
 function currentDefaultTermStart() {
     return federationDefaultTermStart() || formatLocalDate(new Date());
 }
@@ -1168,7 +1178,15 @@ function currentDefaultTermEnd(startDateStr) {
     if (fedStart && fedEnd && startDateStr === fedStart) {
         return fedEnd;
     }
-    return addYearsToDateString(startDateStr, ACCOUNT_TERM_YEARS);
+    return addYearsToDateString(startDateStr, SK_OFFICIAL_TERM_MAX_YEARS);
+}
+
+function skOfficialMinTermEndForStart(startDateStr) {
+    return addYearsToDateString(startDateStr, SK_OFFICIAL_TERM_MIN_YEARS);
+}
+
+function skOfficialMaxTermEndForStart(startDateStr) {
+    return addYearsToDateString(startDateStr, SK_OFFICIAL_TERM_MAX_YEARS);
 }
 
 function skOfficialTermEndForStart(startDateStr) {
@@ -2253,8 +2271,9 @@ function validateTermRange(form) {
         return false;
     }
     if (start && end) {
-        const requiredEnd = currentDefaultTermEnd(start);
-        if (end !== requiredEnd && !matchesLeadership) {
+        const minEnd = skOfficialMinTermEndForStart(start);
+        const maxEnd = skOfficialMaxTermEndForStart(start);
+        if (!matchesLeadership && (end < minEnd || end > maxEnd)) {
             _showErr(endInput, SK_OFFICIAL_TERM_END_MESSAGE);
             return false;
         }
@@ -2406,13 +2425,24 @@ function applyTermDateConstraints(form) {
             startInput.value = syncedStart;
         }
 
-        const exactEnd = currentDefaultTermEnd(syncedStart);
-        if (exactEnd) {
-            endInput.min = exactEnd;
-            endInput.max = exactEnd;
-            endInput.value = isEditOfficialsTextDates
-                ? formatDateForTextInput(exactEnd)
-                : exactEnd;
+        const minEnd = skOfficialMinTermEndForStart(syncedStart);
+        const maxEnd = skOfficialMaxTermEndForStart(syncedStart);
+        const preferredEnd = currentDefaultTermEnd(syncedStart);
+        if (minEnd && maxEnd) {
+            endInput.min = minEnd;
+            endInput.max = maxEnd;
+
+            const currentEnd = normalizeDateInputValue(endInput.value);
+            const endOutOfRange = !currentEnd || currentEnd < minEnd || currentEnd > maxEnd;
+            // Create form: keep defaulting to preferred end. Edit: only fix when empty/out of range.
+            if (!isEditOfficialsTextDates || endOutOfRange) {
+                const nextEnd = preferredEnd && preferredEnd >= minEnd && preferredEnd <= maxEnd
+                    ? preferredEnd
+                    : maxEnd;
+                endInput.value = isEditOfficialsTextDates
+                    ? formatDateForTextInput(nextEnd)
+                    : nextEnd;
+            }
             if (isEditOfficialsTextDates && startInput.value && normalizeDateInputValue(startInput.value)) {
                 startInput.value = formatDateForTextInput(normalizeDateInputValue(startInput.value));
             }
@@ -3529,11 +3559,12 @@ function validateBatchAccountRow(row, rowNumber, role, seenEmails, seenFingerpri
     }
 
     if (data.term_start && data.term_end) {
-        const requiredEnd = currentDefaultTermEnd(data.term_start);
+        const minEnd = skOfficialMinTermEndForStart(data.term_start);
+        const maxEnd = skOfficialMaxTermEndForStart(data.term_start);
         const fedStart = federationDefaultTermStart();
         const fedEnd = federationDefaultTermEnd();
         const matchesLeadership = fedStart && fedEnd && data.term_start === fedStart && data.term_end === fedEnd;
-        if (data.term_end !== requiredEnd && !matchesLeadership) {
+        if (!matchesLeadership && (data.term_end < minEnd || data.term_end > maxEnd)) {
             errors.push({
                 row: rowNumber,
                 field: 'term_end',
@@ -4222,7 +4253,7 @@ document.addEventListener('DOMContentLoaded', function () {
         applyAccountsTableFilters();
     };
 
-    // SK Officials table: show loading animation, then fetch DB rows via AJAX.
+    // SK Officials table: fetch DB rows via AJAX (no loading spinner).
     if (typeof loadOfficialsAccountsTable === 'function') {
         loadOfficialsAccountsTable();
     }
@@ -4691,17 +4722,23 @@ document.addEventListener('DOMContentLoaded', function () {
                     setCreateAccountButtonLoading(submitBtn, false);
                     if (submitBtn) delete submitBtn.dataset.updating;
                     cleanupAccountUiState();
+                    if (data.leadership_terms) {
+                        syncLeadershipTermDefaults(data.leadership_terms);
+                    }
                     const toastType = data.email_changed && !data.setup_email_sent ? 'error' : 'edit';
-                    showAccountToast(
-                        data.message
-                            || (data.email_changed
-                                ? (data.setup_email_sent
-                                    ? 'Email updated successfully. A new account setup email has been sent to the new email address.'
-                                    : 'Member email was updated, but the account setup email could not be sent. Please try Resend Account Setup Email.')
-                                : 'Account updated successfully!'),
-                        toastType
-                    );
-                    if (data.data && !replaceOfficialAccountRow(data.data)) {
+                    let successMessage = data.message
+                        || (data.email_changed
+                            ? (data.setup_email_sent
+                                ? 'Email updated successfully. A new account setup email has been sent to the new email address.'
+                                : 'Member email was updated, but the account setup email could not be sent. Please try Resend Account Setup Email.')
+                            : 'Account updated successfully!');
+                    if (!data.email_changed && Number(data.official_terms_synced || 0) > 0) {
+                        successMessage = `Account updated successfully. Term dates applied to ${data.official_terms_synced} SK Official${Number(data.official_terms_synced) === 1 ? '' : 's'}.`;
+                    }
+                    showAccountToast(successMessage, toastType);
+                    if (Number(data.official_terms_synced || 0) > 0 && typeof loadOfficialsAccountsTable === 'function') {
+                        loadOfficialsAccountsTable({ force: true });
+                    } else if (data.data && !replaceOfficialAccountRow(data.data)) {
                         window.setTimeout(() => window.location.reload(), 500);
                     }
                 })
@@ -5112,6 +5149,9 @@ document.addEventListener('DOMContentLoaded', function () {
 
                     const savedPosition = data.data?.federation_position || federationPosition;
                     applyAssignedFederationPositionToTable(accountId, savedPosition);
+                    if (data.leadership_terms) {
+                        syncLeadershipTermDefaults(data.leadership_terms);
+                    }
                     closeAssignFederationPositionModal();
                     showAccountToast(data.message || 'Federation position updated successfully.', 'edit');
                 })
