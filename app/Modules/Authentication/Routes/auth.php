@@ -1,5 +1,6 @@
 <?php
 
+use App\Modules\Accounts\Support\PortalAppUrl;
 use App\Modules\Authentication\Controllers\AuthController;
 use App\Modules\Profile\Controllers\ProfileController;
 use Illuminate\Support\Facades\Route;
@@ -70,15 +71,17 @@ Route::middleware('guest')->group(function () {
 
 // Officials set-account links must open on SK Officials. Redirect old/wrong Federations URLs.
 Route::get('/activate-account/{token}', function (string $token) {
-    $officialsBase = rtrim(trim((string) config('services.sk_officials_app_url')), '/');
-    $federationBase = rtrim(trim((string) config('app.url')), '/');
-
-    if ($officialsBase === '' || strcasecmp($officialsBase, $federationBase) === 0) {
-        abort(404, 'SK Officials activation URL is not configured. Set SK_OFFICIALS_APP_URL in the Federations .env.');
+    try {
+        $officialsBase = PortalAppUrl::officialsOrFail();
+    } catch (InvalidArgumentException $exception) {
+        abort(404, $exception->getMessage());
     }
 
     $query = request()->getQueryString();
-    $target = "{$officialsBase}/activate-account/{$token}".($query ? "?{$query}" : '');
+    $target = PortalAppUrl::join($officialsBase, 'activate-account/'.$token);
+    if ($query) {
+        $target .= (str_contains($target, '?') ? '&' : '?').$query;
+    }
 
     return redirect()->away($target);
 })->name('sk_officials.activate.redirect');

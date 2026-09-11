@@ -83,9 +83,13 @@ return [
     |--------------------------------------------------------------------------
     | Portal URLs for account invitation emails (password setup links)
     |--------------------------------------------------------------------------
+    |
+    | Always include the scheme (https://). A bare hostname becomes a relative
+    | path in email links and 404s as /your-host.example/activate-account/...
+    |
+    | SK Officials accounts → SK_OFFICIALS_APP_URL (required, must differ from Federation)
+    | SK Federation accounts → SK_FED_APP_URL (defaults to APP_URL)
     */
-    // Officials activation links must point at the SK Officials app, not Federations.
-    // Leave unset only in local misconfig — AccountService will block invites until set.
     'sk_officials_app_url' => env('SK_OFFICIALS_APP_URL'),
     'sk_fed_app_url' => env('SK_FED_APP_URL', env('APP_URL')),
     'kabataan_app_url' => env('KABATAAN_APP_URL', 'http://localhost:8002'),

@@ -2,9 +2,11 @@
 
 namespace App\Modules\Accounts\Notifications;
 
+use App\Modules\Accounts\Support\PortalAppUrl;
 use Illuminate\Bus\Queueable;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
+use InvalidArgumentException;
 
 class AccountResetPasswordNotification extends Notification
 {
@@ -27,10 +29,18 @@ class AccountResetPasswordNotification extends Notification
 
     public function toMail(object $notifiable): MailMessage
     {
-        $baseUrl = rtrim($this->baseUrl, '/');
-        $email = urlencode((string) $notifiable->getEmailForPasswordReset());
-        $path = $this->isAccountActivation ? 'activate-account' : 'reset-password';
-        $actionUrl = "{$baseUrl}/{$path}/{$this->token}?email={$email}";
+        $email = (string) $notifiable->getEmailForPasswordReset();
+        $path = $this->isAccountActivation
+            ? 'activate-account/'.$this->token
+            : 'reset-password/'.$this->token;
+
+        try {
+            $actionUrl = PortalAppUrl::join($this->baseUrl, $path, ['email' => $email]);
+        } catch (InvalidArgumentException $exception) {
+            report($exception);
+            throw $exception;
+        }
+
         $name = trim((string) ($notifiable->name ?? '')) !== ''
             ? trim((string) $notifiable->name)
             : $this->audienceLabel;

@@ -3,6 +3,7 @@
 namespace App\Modules\Accounts\Services;
 
 use App\Modules\Accounts\Notifications\AccountResetPasswordNotification;
+use App\Modules\Accounts\Support\PortalAppUrl;
 use App\Modules\Shared\Models\User;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -160,29 +161,18 @@ class AccountSetupService
     {
         $role = $role ?? $user->role;
 
-        if ($role === User::ROLE_SK_OFFICIAL) {
-            $baseUrl = rtrim(trim((string) config('services.sk_officials_app_url')), '/');
-            $federationUrl = rtrim(trim((string) config('app.url')), '/');
-
-            if ($baseUrl === '' || strcasecmp($baseUrl, $federationUrl) === 0) {
-                throw ValidationException::withMessages([
-                    'email' => 'Password setup email could not be sent because the portal URL is not configured. Set SK_OFFICIALS_APP_URL (and SK_FED_APP_URL if needed) in .env, then run php artisan config:clear.',
-                ]);
+        try {
+            if ($role === User::ROLE_SK_OFFICIAL) {
+                return ['SK Official', PortalAppUrl::officialsOrFail()];
             }
 
-            return ['SK Official', $baseUrl];
-        }
-
-        if ($role === User::ROLE_SK_FED) {
-            $baseUrl = rtrim(trim((string) (config('services.sk_fed_app_url') ?: config('app.url'))), '/');
-
-            if ($baseUrl === '') {
-                throw ValidationException::withMessages([
-                    'email' => 'Password setup email could not be sent because the portal URL is not configured. Set SK_FED_APP_URL in .env, then run php artisan config:clear.',
-                ]);
+            if ($role === User::ROLE_SK_FED) {
+                return ['SK Federation', PortalAppUrl::federationOrFail()];
             }
-
-            return ['SK Federation', $baseUrl];
+        } catch (\InvalidArgumentException $exception) {
+            throw ValidationException::withMessages([
+                'email' => 'Password setup email could not be sent because the portal URL is not configured. '.$exception->getMessage(),
+            ]);
         }
 
         throw ValidationException::withMessages([
