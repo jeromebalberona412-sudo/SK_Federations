@@ -5,6 +5,7 @@ namespace App\Modules\Accounts\Providers;
 use App\Modules\Accounts\Controllers\AdminAccountController;
 use App\Modules\Accounts\Services\AccountService;
 use App\Modules\Accounts\Services\AccountSetupService;
+use Illuminate\Foundation\Support\Providers\RouteServiceProvider;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
 
@@ -14,6 +15,15 @@ class AccountsServiceProvider extends ServiceProvider
     {
         $this->app->singleton(AccountService::class);
         $this->app->singleton(AccountSetupService::class);
+
+        // Runs immediately after the compiled route cache is required — not before it.
+        // A normal $this->app->booted() callback is too early: RouteServiceProvider queues
+        // the cache require in another booted callback, and nested booted() runs immediately
+        // while the app is already booting (wiping / deleting a valid cache).
+        RouteServiceProvider::loadCachedRoutesUsing(function (): void {
+            require $this->app->getCachedRoutesPath();
+            $this->ensureOfficialsDataRoute();
+        });
     }
 
     public function boot(): void
@@ -24,38 +34,51 @@ class AccountsServiceProvider extends ServiceProvider
             __DIR__.'/../assets' => public_path('modules/accounts'),
         ], 'accounts-assets');
 
-        // Register after route cache is applied. Routes added in boot() are wiped when
-        // bootstrap/cache/routes-v7.php loads in the later "booted" phase.
-        $this->app->booted(function (): void {
-            $this->registerAccountsRoutes();
-        });
+        // When routes are not cached, bootstrap/app.php `then:` loads accounts.php.
+        // Keep a boot-time fallback only if that registration was skipped.
+        if (! $this->app->routesAreCached()) {
+            $this->app->booted(function (): void {
+                if (! Route::has('accounts.officials.index')) {
+                    $this->loadAccountsRouteFile();
+                }
+
+                $this->ensureOfficialsDataRoute();
+            });
+        }
     }
 
-    private function registerAccountsRoutes(): void
+    private function loadAccountsRouteFile(): void
     {
-        if (! Route::has('accounts.officials.index')) {
-            $routesFile = is_file(__DIR__.'/../routes/accounts.php')
-                ? __DIR__.'/../routes/accounts.php'
-                : __DIR__.'/../Routes/accounts.php';
+        $routesFile = is_file(__DIR__.'/../routes/accounts.php')
+            ? __DIR__.'/../routes/accounts.php'
+            : __DIR__.'/../Routes/accounts.php';
 
-            if (is_file($routesFile)) {
-                Route::middleware('web')->group($routesFile);
-            }
+        if (is_file($routesFile)) {
+            Route::middleware('web')->group($routesFile);
+        }
+    }
+
+    private function ensureOfficialsDataRoute(): void
+    {
+        if (Route::has('accounts.officials.data')) {
+            return;
         }
 
-        // Stale Hostinger route cache may include officials.index but omit officials.data.
-        if (! Route::has('accounts.officials.data')) {
-            Route::middleware([
-                'web',
-                'auth',
-                'session.timeout',
-                'verified',
-                'single.session',
-                'sk_fed.access',
-                'trusted.device',
-                'prevent.back',
-            ])->get('/accounts/officials/data', [AdminAccountController::class, 'officialsData'])
-                ->name('accounts.officials.data');
+        // Drop stale compiled cache that predates this endpoint so the next request rebuilds cleanly.
+        if ($this->app->routesAreCached()) {
+            @unlink($this->app->getCachedRoutesPath());
         }
+
+        Route::middleware([
+            'web',
+            'auth',
+            'session.timeout',
+            'verified',
+            'single.session',
+            'sk_fed.access',
+            'trusted.device',
+            'prevent.back',
+        ])->get('/accounts/officials/data', [AdminAccountController::class, 'officialsData'])
+            ->name('accounts.officials.data');
     }
 }
