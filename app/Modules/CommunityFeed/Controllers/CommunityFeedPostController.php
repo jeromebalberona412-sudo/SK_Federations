@@ -4,7 +4,6 @@ namespace App\Modules\CommunityFeed\Controllers;
 
 use App\Modules\Accounts\Models\OfficialProfile;
 use App\Modules\Archive_Management\Services\FederationPostArchiveService;
-use App\Modules\CommunityFeed\Jobs\NotifyFederationCommunityFeedPostJob;
 use App\Modules\CommunityFeed\Services\CloudinaryService;
 use App\Modules\CommunityFeed\Services\CommunityFeedPostBodyValidator;
 use App\Modules\CommunityFeed\Services\FederationCommunityFeedBroadcastService;

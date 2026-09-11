@@ -5,6 +5,7 @@ namespace App\Modules\Authentication\Notifications;
 use Illuminate\Bus\Queueable;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
+use Illuminate\Support\Facades\Log;
 
 class NewLocationLoginNotification extends Notification
 {
@@ -26,7 +27,7 @@ class NewLocationLoginNotification extends Notification
 
     public function toMail(object $notifiable): MailMessage
     {
-        \Illuminate\Support\Facades\Log::info('Building new location login email', [
+        Log::info('Building new location login email', [
             'user_id' => method_exists($notifiable, 'getKey') ? $notifiable->getKey() : null,
             'email' => $notifiable->email ?? 'unknown',
             'ip' => $this->ipAddress,
