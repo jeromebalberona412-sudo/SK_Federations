@@ -24,16 +24,26 @@ class AccountsServiceProvider extends ServiceProvider
             __DIR__.'/../assets' => public_path('modules/accounts'),
         ], 'accounts-assets');
 
-        $routesFile = is_file(__DIR__.'/../routes/accounts.php')
-            ? __DIR__.'/../routes/accounts.php'
-            : __DIR__.'/../Routes/accounts.php';
+        // Register after route cache is applied. Routes added in boot() are wiped when
+        // bootstrap/cache/routes-v7.php loads in the later "booted" phase.
+        $this->app->booted(function (): void {
+            $this->registerAccountsRoutes();
+        });
+    }
 
-        if (is_file($routesFile)) {
-            Route::middleware('web')->group($routesFile);
+    private function registerAccountsRoutes(): void
+    {
+        if (! Route::has('accounts.officials.index')) {
+            $routesFile = is_file(__DIR__.'/../routes/accounts.php')
+                ? __DIR__.'/../routes/accounts.php'
+                : __DIR__.'/../Routes/accounts.php';
+
+            if (is_file($routesFile)) {
+                Route::middleware('web')->group($routesFile);
+            }
         }
 
-        // Hostinger / partial deploys: older routes files may omit the AJAX endpoint
-        // while the manage-account view already references accounts.officials.data.
+        // Stale Hostinger route cache may include officials.index but omit officials.data.
         if (! Route::has('accounts.officials.data')) {
             Route::middleware([
                 'web',
