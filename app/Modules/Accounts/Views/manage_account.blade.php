@@ -27,7 +27,7 @@
      data-batch-role="{{ $batchRole }}"
      data-batch-template-type="{{ $batchTemplateType }}"
      @if($isOfficials)
-     data-accounts-data-url="{{ route('accounts.officials.data') }}"
+     data-accounts-data-url="{{ $accountsDataUrl ?? url('/accounts/officials/data') }}"
      data-default-term-start="{{ $defaultTermStart ?? '' }}"
      data-default-term-end="{{ $defaultTermEnd ?? '' }}"
      data-president-term-locked="{{ !empty($termLockedToPresident) ? '1' : '0' }}"

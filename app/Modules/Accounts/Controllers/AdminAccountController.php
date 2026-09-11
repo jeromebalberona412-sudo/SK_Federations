@@ -30,6 +30,7 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
@@ -103,6 +104,9 @@ class AdminAccountController extends Controller
         $leadershipTermDefaults = $presidentTerms ?? SkOfficialTermDates::leadershipDefaults($tenantId);
         $defaultTermStart = $leadershipTermDefaults['term_start'];
         $defaultTermEnd = $leadershipTermDefaults['term_end'];
+        $accountsDataUrl = Route::has('accounts.officials.data')
+            ? route('accounts.officials.data')
+            : url('/accounts/officials/data');
 
         return view('accounts::manage_account', compact(
             'accounts',
@@ -111,7 +115,8 @@ class AdminAccountController extends Controller
             'positionOptions',
             'defaultTermStart',
             'defaultTermEnd',
-            'termLockedToPresident'
+            'termLockedToPresident',
+            'accountsDataUrl'
         ));
     }
 
