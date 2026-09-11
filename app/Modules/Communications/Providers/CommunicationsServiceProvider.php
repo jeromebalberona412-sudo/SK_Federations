@@ -22,8 +22,13 @@ class CommunicationsServiceProvider extends ServiceProvider
     {
         $this->loadViewsFrom(__DIR__.'/../Views', 'communications');
 
-        Route::middleware('web')
-            ->group(__DIR__.'/../Routes/communications.php');
+        $routesFile = is_file(__DIR__.'/../routes/communications.php')
+            ? __DIR__.'/../routes/communications.php'
+            : __DIR__.'/../Routes/communications.php';
+
+        if (is_file($routesFile)) {
+            Route::middleware('web')->group($routesFile);
+        }
 
         Gate::policy(Conversation::class, ConversationPolicy::class);
 

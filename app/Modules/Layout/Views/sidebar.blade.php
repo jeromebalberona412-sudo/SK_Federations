@@ -81,21 +81,31 @@
         </button>
 
         <div id="archiveManagementSubmenu" class="sidebar-submenu {{ $archiveManagementOpen ? 'is-open' : '' }}">
+            @if (\Illuminate\Support\Facades\Route::has('archived.deleted-sk-officials'))
             <a href="{{ route('archived.deleted-sk-officials') }}" class="menu-item submenu-item submenu-item--plain {{ request()->routeIs('archived.deleted-sk-officials') ? 'active' : '' }}" data-no-loading>
                 <span>Deleted SK Officials</span>
             </a>
+            @endif
+            @if (\Illuminate\Support\Facades\Route::has('archived.deleted-posts'))
             <a href="{{ route('archived.deleted-posts') }}" class="menu-item submenu-item submenu-item--plain {{ request()->routeIs('archived.deleted-posts*') ? 'active' : '' }}" data-no-loading>
                 <span>Deleted Posts</span>
             </a>
+            @endif
+            @if (\Illuminate\Support\Facades\Route::has('deleted-calendar-notes'))
             <a href="{{ route('deleted-calendar-notes') }}" class="menu-item submenu-item submenu-item--plain {{ request()->routeIs('deleted-calendar-notes*') ? 'active' : '' }}" data-no-loading>
                 <span>Deleted Calendar Notes</span>
             </a>
+            @endif
+            @if (\Illuminate\Support\Facades\Route::has('archived.sk-officials-records'))
             <a href="{{ route('archived.sk-officials-records') }}" class="menu-item submenu-item submenu-item--plain {{ request()->routeIs('archived.sk-officials-records') ? 'active' : '' }}" data-no-loading>
                 <span>SK Officials Records</span>
             </a>
+            @endif
+            @if (\Illuminate\Support\Facades\Route::has('archived.sk-federation-records'))
             <a href="{{ route('archived.sk-federation-records') }}" class="menu-item submenu-item submenu-item--plain {{ request()->routeIs('archived.sk-federation-records') ? 'active' : '' }}" data-no-loading>
                 <span>SK Federation Records</span>
             </a>
+            @endif
         </div>
 
         <div class="menu-divider"></div>
