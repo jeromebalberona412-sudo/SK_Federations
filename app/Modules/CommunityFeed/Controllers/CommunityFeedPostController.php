@@ -1459,15 +1459,16 @@ class CommunityFeedPostController extends Controller
 
     private function dispatchFederationPostNotifications(int $postId, int $authorUserId, bool $sendEmail): void
     {
-        dispatch(function () use ($postId, $authorUserId): void {
+        dispatch(function () use ($postId, $authorUserId, $sendEmail): void {
             $post = Announcement::query()->find($postId);
             if ($post === null) {
                 return;
             }
 
+            $broadcast = app(FederationCommunityFeedBroadcastService::class);
+
             try {
-                app(FederationCommunityFeedBroadcastService::class)
-                    ->broadcastInApp($post, $authorUserId);
+                $broadcast->broadcastInApp($post, $authorUserId);
             } catch (Throwable $exception) {
                 Log::error('[CommunityFeed] In-app broadcast failed.', [
                     'community_feed_id' => $postId,
@@ -1475,11 +1476,21 @@ class CommunityFeedPostController extends Controller
                 ]);
                 report($exception);
             }
-        })->afterResponse();
 
-        if ($sendEmail) {
-            NotifyFederationCommunityFeedPostJob::dispatch($postId, true, false);
-        }
+            if (! $sendEmail) {
+                return;
+            }
+
+            try {
+                $broadcast->broadcastEmail($post);
+            } catch (Throwable $exception) {
+                Log::error('[CommunityFeed] Email broadcast failed.', [
+                    'community_feed_id' => $postId,
+                    'error' => $exception->getMessage(),
+                ]);
+                report($exception);
+            }
+        })->afterResponse();
     }
 
     private function normalizeEmptyLinkUrl(Request $request): void

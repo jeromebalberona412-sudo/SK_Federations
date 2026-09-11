@@ -3,11 +3,10 @@
 namespace App\Modules\Authentication\Notifications;
 
 use Illuminate\Bus\Queueable;
-use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
 
-class NewLocationLoginNotification extends Notification implements ShouldQueue
+class NewLocationLoginNotification extends Notification
 {
     use Queueable;
 
