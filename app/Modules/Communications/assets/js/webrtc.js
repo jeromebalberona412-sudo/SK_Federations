@@ -269,6 +269,11 @@
                     title: 'Call cancelled',
                     reason: role === 'caller' ? 'You cancelled the call.' : 'The caller cancelled the call.'
                 };
+            case 'offline':
+                return {
+                    title: 'Call ended',
+                    reason: 'The person you are calling is offline.'
+                };
             default:
                 return {
                     title: 'Call ended',
@@ -466,8 +471,9 @@
                 },
                 video: videoEnabled ? {
                     facingMode: 'user',
-                    width: { ideal: 1280 },
-                    height: { ideal: 720 }
+                    width: { ideal: 640, max: 1280 },
+                    height: { ideal: 480, max: 720 },
+                    aspectRatio: { ideal: 1.333 }
                 } : false
             });
         } catch (err) {
@@ -747,6 +753,16 @@
 
     function beginCallCountdown(conversationId, callType, conversation) {
         if (startingCall || pendingStart || currentCall) return;
+
+        var peer = (conversation && conversation.other_user) || {};
+        var peerStatus = String(peer.online_status || '').toLowerCase();
+        if (peerStatus && peerStatus !== 'online') {
+            toast((peer.name || 'This contact') + ' is offline. Call ended.', 'error');
+            showCallEnded('offline', peer.name || 'Contact', null);
+            setCallStatus('Offline — call ended');
+            return;
+        }
+
         try {
             assertMediaReady();
         } catch (err) {
@@ -767,7 +783,7 @@
             conversation: conversation
         };
 
-        var peer = (conversation && conversation.other_user) || { name: 'Contact' };
+        peer = peer.name ? peer : { name: 'Contact' };
         showInCall({ peer: peer }, 'Starting in 5...');
         if (els.muteBtn) els.muteBtn.hidden = true;
         if (els.cameraBtn) els.cameraBtn.hidden = true;

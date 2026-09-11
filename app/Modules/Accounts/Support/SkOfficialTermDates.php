@@ -56,6 +56,57 @@ final class SkOfficialTermDates
     }
 
     /**
+     * President term dates only (null when no SK Federation President is set).
+     *
+     * @return array{term_start: string, term_end: string}|null
+     */
+    public static function presidentTermDates(int $tenantId): ?array
+    {
+        if ($tenantId <= 0
+            || ! Schema::hasTable('official_profiles')
+            || ! Schema::hasColumn('official_profiles', 'federation_position')
+            || ! Schema::hasTable('official_terms')
+        ) {
+            return null;
+        }
+
+        try {
+            $president = OfficialProfile::query()
+                ->where('federation_position', 'President')
+                ->whereHas('user', function ($query) use ($tenantId): void {
+                    $query->where('tenant_id', $tenantId)->whereNull('deleted_at');
+                })
+                ->with('latestTerm')
+                ->first();
+
+            $term = $president?->latestTerm;
+            if ($term === null || empty($term->term_start) || empty($term->term_end)) {
+                return null;
+            }
+
+            $start = Carbon::parse($term->term_start)->startOfDay()->toDateString();
+            $end = Carbon::parse($term->term_end)->startOfDay()->toDateString();
+        } catch (\Throwable) {
+            return null;
+        }
+
+        if ($start < self::FIRST_START) {
+            $start = self::FIRST_START;
+        }
+
+        if ($end <= $start) {
+            $end = self::termEndForStart($start)->toDateString();
+        }
+
+        return ['term_start' => $start, 'term_end' => $end];
+    }
+
+    public static function hasPresident(int $tenantId): bool
+    {
+        return self::presidentTermDates($tenantId) !== null;
+    }
+
+    /**
      * Use President (then Vice President) official_terms so Manage Accounts
      * defaults match the current SK Federation leadership term window.
      *
@@ -66,6 +117,11 @@ final class SkOfficialTermDates
         $fallbackStart = self::defaultStart($asOf);
         $fallbackEnd = self::termEndForStart($fallbackStart)->toDateString();
 
+        $presidentTerms = self::presidentTermDates($tenantId);
+        if ($presidentTerms !== null) {
+            return $presidentTerms;
+        }
+
         if ($tenantId <= 0
             || ! Schema::hasTable('official_profiles')
             || ! Schema::hasColumn('official_profiles', 'federation_position')
@@ -75,17 +131,15 @@ final class SkOfficialTermDates
         }
 
         try {
-            $profiles = OfficialProfile::query()
-                ->whereIn('federation_position', ['President', 'Vice President'])
+            $vicePresident = OfficialProfile::query()
+                ->where('federation_position', 'Vice President')
                 ->whereHas('user', function ($query) use ($tenantId): void {
-                    $query->where('tenant_id', $tenantId);
+                    $query->where('tenant_id', $tenantId)->whereNull('deleted_at');
                 })
                 ->with('latestTerm')
-                ->get();
+                ->first();
 
-            $president = $profiles->firstWhere('federation_position', 'President');
-            $vicePresident = $profiles->firstWhere('federation_position', 'Vice President');
-            $term = $president?->latestTerm ?? $vicePresident?->latestTerm;
+            $term = $vicePresident?->latestTerm;
 
             if ($term === null || empty($term->term_start) || empty($term->term_end)) {
                 return ['term_start' => $fallbackStart, 'term_end' => $fallbackEnd];

@@ -8,6 +8,7 @@ use App\Modules\Authentication\Notifications\SkFedResetPasswordNotification;
 use Database\Factories\UserFactory;
 use Illuminate\Auth\Notifications\VerifyEmail;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasOne;
@@ -23,7 +24,7 @@ use Illuminate\Support\Facades\URL;
 
 class User extends Authenticatable implements MustVerifyEmail
 {
-    /** @use HasFactory<\Database\Factories\UserFactory> */
+    /** @use HasFactory<UserFactory> */
     use HasFactory, Notifiable, SoftDeletes;
 
     public const ROLE_ADMIN = 'admin';
@@ -158,8 +159,8 @@ class User extends Authenticatable implements MustVerifyEmail
     }
 
     /**
-     * @param  \Illuminate\Database\Eloquent\Builder<static>  $query
-     * @return \Illuminate\Database\Eloquent\Builder<static>
+     * @param  Builder<static>  $query
+     * @return Builder<static>
      */
     public function scopeHasFederationAccess($query)
     {
@@ -220,11 +221,21 @@ class User extends Authenticatable implements MustVerifyEmail
 
     public function isIncomingTurnoverOfficer(): bool
     {
-        if (in_array($this->turnover_status, ['awaiting_setup', 'pending_confirmation'], true)) {
-            return true;
+        try {
+            if ($this->hasTableColumn('turnover_status')
+                && in_array((string) $this->turnover_status, ['awaiting_setup', 'pending_confirmation'], true)) {
+                return true;
+            }
+
+            if ($this->hasTableColumn('account_status')
+                && in_array((string) $this->account_status, ['turnover_pending', 'turnover_waiting'], true)) {
+                return true;
+            }
+        } catch (\Throwable) {
+            return false;
         }
 
-        return in_array($this->account_status, ['turnover_pending', 'turnover_waiting'], true);
+        return false;
     }
 
     public function canLoginToPortal(): bool
@@ -233,7 +244,7 @@ class User extends Authenticatable implements MustVerifyEmail
             return false;
         }
 
-        if ($this->turnover_status === 'archived') {
+        if ($this->hasTableColumn('turnover_status') && $this->turnover_status === 'archived') {
             return false;
         }
 

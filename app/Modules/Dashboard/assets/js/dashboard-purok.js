@@ -7,7 +7,6 @@
     let purokRequestSeq = 0;
     let purokLastPayload = null;
 
-    // Same palette as SK Officials dashboard Kabataan bar chart.
     const BAR_COLORS = [
         'rgba(59,130,246,.85)',
         'rgba(34,197,94,.85)',
@@ -26,13 +25,15 @@
         'rgba(6,182,212,.85)',
         'rgba(234,179,8,.85)',
     ];
+    const ALL_BARANGAYS_BAR_COLOR = '#F06565';
 
-    function colorsForCount(count) {
-        const colors = [];
-        for (let i = 0; i < count; i += 1) {
-            colors.push(BAR_COLORS[i % BAR_COLORS.length]);
+    function colorsForLabels(labels, allBarangays) {
+        if (allBarangays) {
+            return labels.map(function () { return ALL_BARANGAYS_BAR_COLOR; });
         }
-        return colors;
+        return labels.map(function (_, index) {
+            return BAR_COLORS[index % BAR_COLORS.length];
+        });
     }
 
     function getDashboardDateRange() {
@@ -73,10 +74,37 @@
         return window.matchMedia('(max-width: 768px)').matches;
     }
 
-    function wrapAxisLabel(label, maxChars) {
+    function wrapAxisLabel(label, maxChars, fullName) {
         const text = String(label || '').trim();
         if (!text) {
             return '';
+        }
+
+        if (fullName) {
+            // Keep the full barangay name; wrap long names onto up to 2 lines.
+            const limit = Math.max(12, maxChars || 14);
+            if (text.length <= limit) {
+                return text;
+            }
+            const words = text.split(/\s+/);
+            if (words.length === 1) {
+                return text;
+            }
+            const lines = [];
+            let current = '';
+            words.forEach(function (word) {
+                const next = current ? (current + ' ' + word) : word;
+                if (next.length <= limit || current === '') {
+                    current = next;
+                    return;
+                }
+                lines.push(current);
+                current = word;
+            });
+            if (current) {
+                lines.push(current);
+            }
+            return lines.slice(0, 2);
         }
 
         const limit = Math.max(8, maxChars || 11);
@@ -86,11 +114,7 @@
 
         const words = text.split(/\s+/);
         if (words.length === 1) {
-            const chunks = [];
-            for (let i = 0; i < text.length; i += limit) {
-                chunks.push(text.slice(i, i + limit));
-            }
-            return chunks.slice(0, 2);
+            return text.slice(0, limit - 1) + '…';
         }
 
         const lines = [];
@@ -104,7 +128,7 @@
             if (current) {
                 lines.push(current);
             }
-            current = word.length > limit ? word.slice(0, limit) : word;
+            current = word.length > limit ? word.slice(0, limit - 1) + '…' : word;
         });
         if (current) {
             lines.push(current);
@@ -131,33 +155,66 @@
         });
     }
 
+    function setPurokEmptyState(show) {
+        const wrap = document.getElementById('purokChartWrap');
+        const canvas = document.getElementById('purokDistributionChart');
+        if (!wrap) {
+            return;
+        }
+
+        let empty = document.getElementById('purokChartEmpty');
+        if (!empty) {
+            empty = document.createElement('p');
+            empty.id = 'purokChartEmpty';
+            empty.className = 'dash-empty-note purok-chart-empty';
+            empty.textContent = 'No youth population data for this filter.';
+            wrap.appendChild(empty);
+        }
+
+        empty.hidden = !show;
+        if (canvas) {
+            canvas.hidden = !!show;
+        }
+        wrap.classList.toggle('is-empty', !!show);
+    }
+
     function sizePurokChartWrap(labels) {
         const wrap = document.getElementById('purokChartWrap');
+        const inner = document.getElementById('purokChartScrollInner');
         const canvas = document.getElementById('purokDistributionChart');
         if (!wrap || !canvas) {
             return;
         }
 
-        const count = Math.max(1, (labels || []).length);
+        const labelList = labels || [];
+        const count = Math.max(1, labelList.length);
         const narrow = isNarrowViewport();
         const allBarangays = isAllBarangaysMode();
-        // Give All Barangays more room so each name stays readable.
-        const col = allBarangays
-            ? (narrow ? 92 : 84)
-            : (narrow ? 76 : 68);
-        const minWidth = Math.max(wrap.clientWidth || 320, count * col);
-        wrap.style.height = narrow ? '300px' : '280px';
+        const hostWidth = wrap.clientWidth || 320;
+
+        // Extra height so angled full names don't look cramped when scrolling.
+        wrap.style.height = allBarangays
+            ? (narrow ? '340px' : '320px')
+            : (narrow ? '300px' : '280px');
         wrap.style.minHeight = wrap.style.height;
 
-        if (minWidth > (wrap.clientWidth || 0) + 8) {
-            wrap.classList.add('is-scroll-x');
-            canvas.style.minWidth = minWidth + 'px';
-        } else {
-            wrap.classList.remove('is-scroll-x');
-            canvas.style.minWidth = '';
+        // Even column width keeps scroll looking clean (not stretched/blurry).
+        const col = allBarangays
+            ? (narrow ? 88 : 92)
+            : (narrow ? 72 : 64);
+        const contentWidth = Math.max(hostWidth, count * col);
+        const needsScroll = contentWidth > hostWidth + 8;
+
+        if (inner) {
+            inner.style.width = needsScroll ? contentWidth + 'px' : '100%';
+            inner.style.minWidth = needsScroll ? contentWidth + 'px' : '';
+            inner.style.height = '100%';
         }
+
+        canvas.style.minWidth = '';
         canvas.style.width = '100%';
         canvas.style.height = '100%';
+        wrap.classList.toggle('is-scroll-x', needsScroll);
     }
 
     function buildPurokChartOptions(labelCount) {
@@ -165,7 +222,9 @@
         const count = Math.max(1, labelCount || 0);
         const allBarangays = isAllBarangaysMode();
         const dense = count > 10;
-        const labelChars = allBarangays ? (narrow ? 9 : 11) : (narrow ? 10 : 12);
+        const labelChars = allBarangays
+            ? (narrow ? 13 : 15)
+            : (narrow ? 10 : 12);
 
         return {
             responsive: true,
@@ -173,7 +232,12 @@
             animation: false,
             devicePixelRatio: Math.max(window.devicePixelRatio || 1, 2),
             layout: {
-                padding: { top: 16, right: 8, bottom: 4, left: 4 },
+                padding: {
+                    top: 18,
+                    right: 12,
+                    bottom: allBarangays ? 10 : 6,
+                    left: 6,
+                },
             },
             plugins: {
                 legend: { display: false },
@@ -193,76 +257,55 @@
                 x: {
                     offset: true,
                     grid: { display: false },
+                    border: { display: false },
                     ticks: {
                         autoSkip: false,
                         font: {
-                            size: allBarangays ? (narrow ? 8 : 9) : (narrow ? 10 : 11),
+                            size: allBarangays ? 10 : (narrow ? 10 : 11),
                             weight: '600',
+                            family: 'Inter, system-ui, sans-serif',
                         },
-                        color: '#4b5563',
-                        maxRotation: dense || allBarangays ? 35 : 25,
-                        minRotation: dense || allBarangays ? 25 : 0,
-                        padding: allBarangays ? 4 : 6,
+                        color: '#475569',
+                        maxRotation: allBarangays || dense ? 38 : 20,
+                        minRotation: allBarangays || dense ? 32 : 0,
+                        padding: 8,
                         callback: function (value) {
                             const label = this.getLabelForValue
                                 ? this.getLabelForValue(value)
                                 : String(this.chart?.data?.labels?.[value] ?? value);
-                            return wrapAxisLabel(label, labelChars);
+                            return wrapAxisLabel(label, labelChars, allBarangays);
                         },
                     },
                 },
                 y: {
                     beginAtZero: true,
-                    grace: '8%',
+                    grace: '10%',
+                    border: { display: false },
                     ticks: {
                         stepSize: 1,
                         precision: 0,
                         font: {
-                            size: allBarangays ? 9 : 11,
+                            size: 11,
                             weight: '500',
+                            family: 'Inter, system-ui, sans-serif',
                         },
-                        color: '#6b7280',
+                        color: '#64748b',
+                        padding: 8,
                     },
-                    grid: { color: 'rgba(0,0,0,.05)' },
+                    grid: {
+                        color: 'rgba(148, 163, 184, 0.28)',
+                        drawBorder: false,
+                    },
                 },
             },
             datasets: {
                 bar: {
-                    categoryPercentage: count > 18 ? 0.7 : 0.65,
-                    barPercentage: 0.82,
+                    categoryPercentage: 0.68,
+                    barPercentage: 0.78,
                 },
             },
         };
     }
-
-    const purokBarValuePlugin = {
-        id: 'purokBarValues',
-        afterDatasetsDraw: function (chart) {
-            const ctx = chart.ctx;
-            const dataset = chart.data.datasets[0];
-            if (!dataset) {
-                return;
-            }
-            const allBarangays = isAllBarangaysMode();
-            const meta = chart.getDatasetMeta(0);
-            ctx.save();
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'bottom';
-            ctx.fillStyle = '#111827';
-            ctx.font = allBarangays
-                ? '600 9px Inter, system-ui, sans-serif'
-                : '700 11px Inter, system-ui, sans-serif';
-            meta.data.forEach(function (bar, index) {
-                const value = Number(dataset.data[index] || 0);
-                if (!bar || !Number.isFinite(value) || value <= 0) {
-                    return;
-                }
-                const { x, y } = bar.getProps(['x', 'y'], true);
-                ctx.fillText(String(value), x, Math.max(12, y - 3));
-            });
-            ctx.restore();
-        },
-    };
 
     function renderPurokChart(data) {
         const canvas = document.getElementById('purokDistributionChart');
@@ -272,8 +315,19 @@
 
         const labels = data.labels || [];
         const counts = data.counts || [];
-        const colors = colorsForCount(labels.length);
+        const allBarangays = isAllBarangaysMode();
+        const isEmpty = labels.length === 0;
 
+        setPurokEmptyState(isEmpty);
+        if (isEmpty) {
+            if (purokChart) {
+                purokChart.destroy();
+                purokChart = null;
+            }
+            return;
+        }
+
+        const colors = colorsForLabels(labels, allBarangays);
         sizePurokChartWrap(labels);
         const options = buildPurokChartOptions(labels.length);
 
@@ -284,19 +338,30 @@
 
         purokChart = new window.Chart(canvas, {
             type: 'bar',
-            plugins: [purokBarValuePlugin],
             data: {
                 labels: labels,
                 datasets: [{
                     label: 'Kabataan',
                     data: counts,
                     backgroundColor: colors,
-                    borderRadius: 8,
+                    borderRadius: {
+                        topLeft: 6,
+                        topRight: 6,
+                        bottomLeft: 0,
+                        bottomRight: 0,
+                    },
                     borderSkipped: false,
-                    maxBarThickness: 44,
+                    maxBarThickness: allBarangays ? 34 : 42,
                 }],
             },
             options: options,
+        });
+
+        // Ensure sharp paint after scroll-width sizing.
+        requestAnimationFrame(function () {
+            if (purokChart && typeof purokChart.resize === 'function') {
+                purokChart.resize();
+            }
         });
     }
 
@@ -309,13 +374,7 @@
         renderPurokChart(data);
     }
 
-    async function refreshPurokChart() {
-        const endpoint = window.__PUROK_DATA_URL__;
-        if (!endpoint) {
-            return;
-        }
-
-        const requestSeq = ++purokRequestSeq;
+    function syncPurokZoneVisibility() {
         const barangayFilter = document.getElementById('purokBarangayFilter');
         const zoneSelect = document.getElementById('purokZoneFilter');
         const hasBarangay = Boolean(barangayFilter && barangayFilter.value !== 'all');
@@ -326,35 +385,77 @@
                 zoneSelect.value = 'all';
             }
         }
+        return hasBarangay;
+    }
+
+    function seedPurokCacheFromInitial() {
+        const initial = window.__PUROK_CHART_INITIAL__;
+        if (!initial || !window.SkLocalCache) {
+            return null;
+        }
 
         const params = new URLSearchParams(getPurokFilters());
-        const cacheKey = 'sk_fed_purok_chart_v7_' + params.toString();
-        const cached = window.SkLocalCache?.get(cacheKey);
-
-        if (cached?.payload) {
-            applyPurokPayload(cached.payload, hasBarangay);
+        const cacheKey = 'sk_fed_purok_chart_v10_' + params.toString();
+        const wrapped = initial.data ? initial : { data: initial };
+        if (!window.SkLocalCache.get(cacheKey)?.payload) {
+            window.SkLocalCache.set(cacheKey, wrapped);
         }
+        return wrapped;
+    }
+
+    async function refreshPurokChart() {
+        const endpoint = window.__PUROK_DATA_URL__;
+        if (!endpoint) {
+            return;
+        }
+
+        const requestSeq = ++purokRequestSeq;
+        const hasBarangay = syncPurokZoneVisibility();
+        const params = new URLSearchParams(getPurokFilters());
+        const cacheKey = 'sk_fed_purok_chart_v10_' + params.toString();
+        const cached = window.SkLocalCache?.get(cacheKey);
 
         if (purokAbortController) {
             purokAbortController.abort();
         }
         purokAbortController = typeof AbortController !== 'undefined' ? new AbortController() : null;
 
-        try {
+        const fetchFresh = async function () {
             const response = await fetch(endpoint + '?' + params.toString(), {
                 headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
                 credentials: 'same-origin',
                 signal: purokAbortController?.signal,
             });
             if (!response.ok || requestSeq !== purokRequestSeq) {
-                return;
+                return null;
             }
             const payload = await response.json();
             if (requestSeq !== purokRequestSeq) {
-                return;
+                return null;
             }
             window.SkLocalCache?.set(cacheKey, payload);
-            applyPurokPayload(payload, hasBarangay);
+            return payload;
+        };
+
+        // Instant paint from cache, then revalidate in background.
+        if (cached?.payload) {
+            applyPurokPayload(cached.payload, hasBarangay);
+            fetchFresh()
+                .then(function (payload) {
+                    if (!payload || requestSeq !== purokRequestSeq) {
+                        return;
+                    }
+                    applyPurokPayload(payload, hasBarangay);
+                })
+                .catch(function () {});
+            return;
+        }
+
+        try {
+            const payload = await fetchFresh();
+            if (payload) {
+                applyPurokPayload(payload, hasBarangay);
+            }
         } catch (error) {
             if (error && error.name === 'AbortError') {
                 return;
@@ -372,6 +473,17 @@
             return;
         }
         renderPurokChart(purokLastPayload);
+    }
+
+    function scheduleBackgroundRevalidate() {
+        const run = function () {
+            refreshPurokChart();
+        };
+        if (typeof window.requestIdleCallback === 'function') {
+            window.requestIdleCallback(run, { timeout: 1800 });
+            return;
+        }
+        window.setTimeout(run, 500);
     }
 
     function boot() {
@@ -402,18 +514,14 @@
             sidebarObserver.observe(document.body, { attributes: true, attributeFilter: ['class'] });
         }
 
-        const initial = window.__PUROK_CHART_INITIAL__;
+        const initial = seedPurokCacheFromInitial() || window.__PUROK_CHART_INITIAL__;
         if (initial) {
-            const params = new URLSearchParams(getPurokFilters());
-            const cacheKey = 'sk_fed_purok_chart_v7_' + params.toString();
-            if (!window.SkLocalCache?.get(cacheKey)?.payload) {
-                window.SkLocalCache?.set(cacheKey, { data: initial });
-            }
-            purokLastPayload = initial;
-            renderPurokChart(initial);
-        } else {
-            refreshPurokChart();
+            applyPurokPayload(initial, syncPurokZoneVisibility());
+            scheduleBackgroundRevalidate();
+            return;
         }
+
+        refreshPurokChart();
     }
 
     window.refreshPurokDistributionChart = refreshPurokChart;

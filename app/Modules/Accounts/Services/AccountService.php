@@ -5,6 +5,7 @@ namespace App\Modules\Accounts\Services;
 use App\Modules\Accounts\Models\Barangay;
 use App\Modules\Accounts\Models\OfficialProfile;
 use App\Modules\Accounts\Models\OfficialTerm;
+use App\Modules\Accounts\Support\SkOfficialTermDates;
 use App\Modules\Archive_Management\Services\TermRecordsArchiveService;
 use App\Modules\AuditLog\Contracts\AuditLogInterface;
 use App\Modules\Authentication\Services\BootstrapSkFedAdminService;
@@ -13,7 +14,6 @@ use Carbon\Carbon;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
@@ -122,50 +122,37 @@ class AccountService
             }
         }
 
-        $emailsSent = 0;
+        $emailsQueued = 0;
         $emailFailed = [];
+        $pendingEmailJobs = [];
 
         foreach ($pendingEmails as $pending) {
             /** @var User $user */
-            $user = $pending['user']->fresh() ?? $pending['user'];
-            $expectedEmail = strtolower(trim((string) ($pending['email'] ?? $user->email)));
-            $currentEmail = strtolower(trim((string) $user->email));
-
-            // Admin may have edited the email before batch invites finished — never
-            // send a set-up/activation email to a different address than create time.
-            if ($currentEmail === '' || $currentEmail !== $expectedEmail) {
-                Log::info('Skipped batch password setup email because account email changed after create.', [
-                    'user_id' => $user->id,
-                    'operation' => 'batch_setup_email_skipped',
-                ]);
-
-                continue;
-            }
-
-            try {
-                $this->accountSetupService->sendSetupEmail($user, $pending['role'], resetMailTransport: false);
-                $emailsSent++;
-            } catch (\Throwable $exception) {
-                report($exception);
-
-                $emailFailed[] = [
-                    'row' => $pending['row'],
-                    'email' => $user->email,
-                    'message' => 'Account created but password setup email could not be sent.',
-                ];
-            }
+            $user = $pending['user'];
+            $pendingEmailJobs[] = [
+                'user_id' => (int) $user->id,
+                'role' => $pending['role'],
+                'email' => strtolower(trim((string) ($pending['email'] ?? $user->email))),
+                'row' => $pending['row'],
+            ];
+            $emailsQueued++;
         }
 
-        if (method_exists(\Illuminate\Support\Facades\Mail::class, 'purgeSymfonyTransport')) {
-            \Illuminate\Support\Facades\Mail::purgeSymfonyTransport();
+        if ($pendingEmailJobs !== []) {
+            $this->accountSetupService->queueBatchSetupEmailsAfterResponse($pendingEmailJobs);
         }
 
         return [
             'created' => $created,
             'failed' => $failed,
             'validation_errors' => $validationErrors,
-            'emails_sent' => $emailsSent,
+            'emails_sent' => 0,
+            'emails_queued' => $emailsQueued,
             'email_failed' => $emailFailed,
+            'created_user_ids' => array_values(array_map(
+                static fn (array $pending): int => (int) $pending['user']->id,
+                $pendingEmails
+            )),
         ];
     }
 
@@ -230,6 +217,11 @@ class AccountService
         if (($normalizedData['role'] ?? '') === User::ROLE_SK_OFFICIAL) {
             $barangayId = (int) $normalizedData['barangay_id'];
             $position = (string) $normalizedData['position'];
+            $presidentTerms = SkOfficialTermDates::presidentTermDates((int) $admin->tenant_id);
+            if ($presidentTerms !== null) {
+                $normalizedData['term_start'] = $presidentTerms['term_start'];
+                $normalizedData['term_end'] = $presidentTerms['term_end'];
+            }
 
             $this->skOfficialRosterLimitsService->assertRosterLimits(
                 (int) $admin->tenant_id,
@@ -350,6 +342,17 @@ class AccountService
         $previousEmail = strtolower(trim((string) $account->email));
         $newEmail = strtolower(trim((string) $normalizedData['email']));
         $emailChanged = $previousEmail !== $newEmail;
+
+        $account->loadMissing('officialProfile');
+        $isPresident = $account->role === User::ROLE_SK_OFFICIAL
+            && strcasecmp(trim((string) ($account->officialProfile?->federation_position ?? '')), 'President') === 0;
+        if ($account->role === User::ROLE_SK_OFFICIAL && ! $isPresident) {
+            $presidentTerms = SkOfficialTermDates::presidentTermDates((int) $admin->tenant_id);
+            if ($presidentTerms !== null) {
+                $normalizedData['term_start'] = $presidentTerms['term_start'];
+                $normalizedData['term_end'] = $presidentTerms['term_end'];
+            }
+        }
 
         $fresh = DB::transaction(function () use ($account, $normalizedData, $admin, $previousEmail, $newEmail, $emailChanged) {
             if ($account->role === User::ROLE_SK_OFFICIAL) {

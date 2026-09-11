@@ -1,13 +1,13 @@
 <?php
 
 use App\Modules\CommunityFeed\Jobs\NotifyFederationCommunityFeedPostJob;
-use Tests\TestCase;
-
-uses(TestCase::class);
 use App\Modules\CommunityFeed\Notifications\FederationCommunityFeedPostPublishedNotification;
 use App\Modules\CommunityFeed\Services\FederationCommunityFeedBroadcastService;
 use App\Modules\Shared\Models\Announcement;
 use Illuminate\Support\Facades\Queue;
+use Tests\TestCase;
+
+uses(TestCase::class);
 
 test('federation community feed notification uses federation subject', function () {
     $post = new Announcement([
@@ -35,7 +35,7 @@ test('notify federation community feed post job is queueable', function () {
     NotifyFederationCommunityFeedPostJob::dispatch(42, true);
 
     Queue::assertPushed(NotifyFederationCommunityFeedPostJob::class, function (NotifyFederationCommunityFeedPostJob $job) {
-        return $job->postId === 42 && $job->sendEmail === true;
+        return $job->postId === 42 && $job->sendEmail === true && $job->sendInApp === true;
     });
 });
 
@@ -56,11 +56,23 @@ test('announcement notify targets default by visibility', function () {
         'notify_targets' => ['officials', 'kabataan'],
     ]);
 
-    expect($public->notifyTargets())->toBe(['public', 'officials', 'kabataan'])
+    expect($public->notifyTargets())->toBe(['public', 'federation', 'officials', 'kabataan'])
         ->and($federation->notifyTargets())->toBe(['federation', 'officials', 'kabataan'])
         ->and($custom->shouldNotifyOfficials())->toBeTrue()
         ->and($custom->shouldNotifyKabataan())->toBeTrue()
         ->and($custom->shouldNotifyFederationPortal())->toBeFalse();
+});
+
+test('public notify target expands to all audiences', function () {
+    $publicOnly = new Announcement([
+        'visibility' => 'public',
+        'notify_targets' => ['public'],
+    ]);
+
+    expect(Announcement::expandNotifyTargets(['public']))->toBe(['public', 'federation', 'officials', 'kabataan'])
+        ->and($publicOnly->shouldNotifyOfficials())->toBeTrue()
+        ->and($publicOnly->shouldNotifyKabataan())->toBeTrue()
+        ->and($publicOnly->shouldNotifyFederationPortal())->toBeTrue();
 });
 
 test('broadcast service class exposes in-app and email methods', function () {

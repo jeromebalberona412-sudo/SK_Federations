@@ -30,6 +30,7 @@
      data-accounts-data-url="{{ route('accounts.officials.data') }}"
      data-default-term-start="{{ $defaultTermStart ?? '' }}"
      data-default-term-end="{{ $defaultTermEnd ?? '' }}"
+     data-president-term-locked="{{ !empty($termLockedToPresident) ? '1' : '0' }}"
      @endif
      @unless($isOfficials)
      data-taken-federation-positions="{{ json_encode(array_values($takenFederationPositions ?? [])) }}"

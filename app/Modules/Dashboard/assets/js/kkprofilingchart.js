@@ -7,6 +7,7 @@ let kkProfilingMonthWired = false;
 let kkProfilingFetchTimer = null;
 let kkProfilingAbortController = null;
 let kkProfilingRequestSeq = 0;
+let kkProfilingBooted = false;
 
 function getSelectedBarangayName(barangayId) {
     if (barangayId === 'all') {
@@ -95,19 +96,24 @@ function getDashboardDateRange() {
 
 window.getDashboardDateRange = getDashboardDateRange;
 
+let dashboardDateRefreshTimer = null;
+
 function refreshDashboardDateFilteredViews() {
-    const range = getDashboardDateRange();
-    if (range.valid === false) {
-        return;
-    }
-    if (typeof window.refreshDashboardStats === 'function') {
-        window.refreshDashboardStats(true);
-    }
-    refreshKkProfilingChart();
-    if (typeof window.refreshPurokDistributionChart === 'function') {
-        window.refreshPurokDistributionChart();
-    }
-    document.dispatchEvent(new CustomEvent('dashboard:date-range-changed'));
+    window.clearTimeout(dashboardDateRefreshTimer);
+    dashboardDateRefreshTimer = window.setTimeout(function () {
+        const range = getDashboardDateRange();
+        if (range.valid === false) {
+            return;
+        }
+        if (typeof window.refreshDashboardStats === 'function') {
+            window.refreshDashboardStats(true);
+        }
+        refreshKkProfilingChart();
+        if (typeof window.refreshPurokDistributionChart === 'function') {
+            window.refreshPurokDistributionChart();
+        }
+        document.dispatchEvent(new CustomEvent('dashboard:date-range-changed'));
+    }, 180);
 }
 
 function setDashboardRangeMode(mode) {
@@ -190,7 +196,7 @@ function seedKkProfilingCacheFromInitial() {
         return;
     }
     const params = new URLSearchParams(getKkProfilingFilters());
-    const cacheKey = 'sk_fed_kk_chart_v2_' + params.toString();
+    const cacheKey = 'sk_fed_kk_chart_v3_' + params.toString();
     if (!window.SkLocalCache.get(cacheKey)?.payload) {
         window.SkLocalCache.set(cacheKey, initial);
     }
@@ -204,7 +210,7 @@ async function fetchKkProfilingData() {
 
     const requestSeq = ++kkProfilingRequestSeq;
     const params = new URLSearchParams(getKkProfilingFilters());
-    const cacheKey = 'sk_fed_kk_chart_v2_' + params.toString();
+    const cacheKey = 'sk_fed_kk_chart_v3_' + params.toString();
     const cached = window.SkLocalCache?.get(cacheKey);
     const cachedPayload = cached?.payload || null;
 
@@ -257,14 +263,29 @@ async function fetchKkProfilingData() {
     }
 }
 
+function formatKkChartDate(iso) {
+    if (!isValidIsoDate(iso)) {
+        return '';
+    }
+
+    const year = Number(iso.slice(0, 4));
+    const month = Number(iso.slice(5, 7));
+    const day = Number(iso.slice(8, 10));
+    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const monthLabel = monthNames[month - 1] || '';
+
+    return `${monthLabel} ${day}, ${year}`.trim();
+}
+
 function updateKkProfilingSubtitle(data) {
     const subtitle = document.getElementById('kkProfilingChartSubtitle');
     if (!subtitle || !data) {
         return;
     }
 
-    const rangeLabel = [data.date_from, data.date_to].filter(Boolean).join(' to ');
-    const rangeSuffix = rangeLabel ? ` (${rangeLabel})` : '';
+    const fromLabel = formatKkChartDate(data.date_from);
+    const toLabel = formatKkChartDate(data.date_to);
+    const rangeSuffix = fromLabel && toLabel ? ` (${fromLabel} – ${toLabel})` : '';
 
     if (data.period === 'weekly') {
         const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
@@ -273,7 +294,32 @@ function updateKkProfilingSubtitle(data) {
         return;
     }
 
-    subtitle.textContent = `Monthly submissions for ${data.year}${rangeSuffix} — approved, pending, and rejected`;
+    subtitle.textContent = `Monthly submissions${rangeSuffix} — approved, pending, and rejected`;
+}
+
+function syncKkProfilingChartAppearance(labelCount) {
+    if (!kkProfilingMonthlyChart) {
+        return;
+    }
+
+    const denseLabels = labelCount > 12;
+    const veryDenseLabels = labelCount > 24;
+    const xTicks = kkProfilingMonthlyChart.options.scales.x.ticks;
+    xTicks.font = { size: veryDenseLabels ? 9 : 11 };
+    xTicks.maxRotation = denseLabels ? 45 : 0;
+    xTicks.minRotation = denseLabels ? 30 : 0;
+    xTicks.autoSkip = true;
+    xTicks.autoSkipPadding = denseLabels ? 8 : 4;
+    xTicks.maxTicksLimit = veryDenseLabels ? 10 : (denseLabels ? 12 : 16);
+
+    kkProfilingMonthlyChart.data.datasets.forEach((dataset) => {
+        dataset.pointRadius = veryDenseLabels ? 2 : 4;
+    });
+
+    const wrap = document.querySelector('#kk-profiling-section .kk-chart-canvas-wrap');
+    if (wrap) {
+        wrap.classList.toggle('is-weekly', kkProfilingCurrentData?.period === 'weekly');
+    }
 }
 
 function applyKkProfilingChartData(data, barangayName) {
@@ -295,6 +341,7 @@ function applyKkProfilingChartData(data, barangayName) {
     kkProfilingMonthlyChart.data.datasets[0].data = kkProfilingCurrentData.monthlyApproved;
     kkProfilingMonthlyChart.data.datasets[1].data = kkProfilingCurrentData.monthlyRejected;
     kkProfilingMonthlyChart.data.datasets[2].data = kkProfilingCurrentData.monthlyPending;
+    syncKkProfilingChartAppearance(kkProfilingCurrentData.labels.length);
     kkProfilingMonthlyChart.update('none');
     updateKkProfilingSubtitle(data);
 }
@@ -391,6 +438,9 @@ function initKkProfilingMonthlyChart() {
                         color: '#6b7280',
                         maxRotation: 45,
                         minRotation: 0,
+                        autoSkip: true,
+                        autoSkipPadding: 4,
+                        maxTicksLimit: 16,
                     },
                 },
                 y: {
@@ -404,7 +454,11 @@ function initKkProfilingMonthlyChart() {
 
     const monthFilter = document.getElementById('kkProfilingMonthFilter');
     if (monthFilter) {
-        monthFilter.value = String(new Date().getMonth() + 1);
+        const range = getDashboardDateRange();
+        const dateTo = range.date_to || getTodayIsoDate();
+        monthFilter.value = isValidIsoDate(dateTo)
+            ? String(Number(dateTo.slice(5, 7)))
+            : String(new Date().getMonth() + 1);
     }
 
     wireKkProfilingBarangayFilter();
@@ -413,6 +467,7 @@ function initKkProfilingMonthlyChart() {
     wireKkProfilingDatasetFilters();
     toggleKkProfilingMonthFilter();
     wireDashboardDateRangeFilter();
+    wireKkProfilingExport();
 
     if (initial) {
         kkProfilingCurrentData = {
@@ -424,6 +479,7 @@ function initKkProfilingMonthlyChart() {
             monthlyRejected: rejected,
             monthlyPending: pending,
         };
+        syncKkProfilingChartAppearance(labels.length);
         updateKkProfilingSubtitle(initial);
     } else {
         refreshKkProfilingChart();
@@ -445,10 +501,9 @@ function wireDashboardDateRangeFilter() {
         refreshDashboardDateFilteredViews();
     };
 
+    // change only — avoids double refresh with input while typing/picking dates
     fromInput.addEventListener('change', onChange);
     toInput.addEventListener('change', onChange);
-    fromInput.addEventListener('input', onChange);
-    toInput.addEventListener('input', onChange);
     resetBtn?.addEventListener('click', function () {
         resetDashboardDateRange();
     });
@@ -613,12 +668,20 @@ window.exportKkProfilingChart = function exportKkProfilingChart() {
     URL.revokeObjectURL(url);
 };
 
-function tryBootKkProfilingChart() {
-    if (!document.getElementById('kkProfilingMonthlyChart') || typeof window.Chart === 'undefined') {
+function tryBootKkProfilingChart(attempt = 0) {
+    if (kkProfilingBooted) {
         return;
     }
 
-    initKkProfilingMonthlyChart();
+    if (document.getElementById('kkProfilingMonthlyChart') && typeof window.Chart !== 'undefined') {
+        kkProfilingBooted = true;
+        initKkProfilingMonthlyChart();
+        return;
+    }
+
+    if (attempt < 20) {
+        window.setTimeout(() => tryBootKkProfilingChart(attempt + 1), 50);
+    }
 }
 
 if (document.readyState === 'loading') {

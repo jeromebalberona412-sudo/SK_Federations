@@ -298,13 +298,13 @@
 
 .deleted-calendar-notes-page .table-card {
     border-radius: 16px;
-    overflow: hidden;
+    overflow: visible;
     background: #ffffff;
 }
 
 .deleted-calendar-notes-page .table-wrapper {
     overflow-x: auto !important;
-    overflow-y: hidden !important;
+    overflow-y: visible !important;
     -webkit-overflow-scrolling: touch;
     max-width: 100%;
     border-radius: 16px;
@@ -383,9 +383,9 @@
 }
 
 .deleted-calendar-notes-page .dcn-table .col-actions {
-    width: 72px;
-    min-width: 72px;
-    max-width: 72px;
+    width: 96px;
+    min-width: 96px;
+    max-width: 120px;
     white-space: nowrap;
 }
 

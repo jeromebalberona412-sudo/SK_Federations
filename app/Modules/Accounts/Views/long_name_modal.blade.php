@@ -22,20 +22,21 @@
 
             <div class="accounts-long-name-confirm-box">
                 <label class="accounts-long-name-confirm-label" for="accountsLongNameConfirmInput">
-                    Type <span class="accounts-long-name-keyword">yes</span> to continue
+                    Type <span class="accounts-long-name-keyword">YES</span> to continue
                 </label>
                 <input
                     type="text"
                     id="accountsLongNameConfirmInput"
                     class="accounts-long-name-confirm-input"
                     autocomplete="off"
-                    autocapitalize="none"
+                    autocapitalize="characters"
                     spellcheck="false"
-                    placeholder="yes"
-                    maxlength="8"
+                    placeholder="YES"
+                    maxlength="3"
+                    style="text-transform: uppercase;"
                 >
                 <p class="accounts-long-name-confirm-hint" id="accountsLongNameConfirmHint" hidden>
-                    Please type <strong>yes</strong> exactly to continue.
+                    Please type <strong>YES</strong> (3 letters only) to continue.
                 </p>
             </div>
         </div>

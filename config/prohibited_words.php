@@ -107,6 +107,25 @@ $extra = [
     't*nga',
     'k*pal',
     'p*kyu',
+
+    // Common insults / threats requested for all portals
+    '8080',
+    'bobo',
+    'puta',
+    'pota',
+    'putangina',
+    'mamataya ka na',
+    'mamatay ka na',
+    'mamatay ka',
+    'mamatay kana',
+    'pakyu',
+    'pak yiu',
+    'gago ka',
+    'tangina',
+    'ulol',
+    'tarantado',
+    'walanghiya',
+    'punyeta',
 ];
 
 $merged = [];

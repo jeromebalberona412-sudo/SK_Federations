@@ -45,25 +45,37 @@
         return out;
     }
 
+    function normalizeAlnum(text) {
+        let out = String(text || '').toLowerCase();
+        out = out.replace(/[^\p{L}\p{N}]+/gu, '');
+        out = out.replace(/(.)\1+/gu, '$1');
+        return out;
+    }
+
     function normalizedWords() {
         const seen = new Map();
         const out = [];
         wordList().forEach((word) => {
-            const n = normalize(word);
+            const letterNorm = normalize(word);
+            const alnumNorm = normalizeAlnum(word);
+            const useAlnum = !letterNorm || letterNorm.length < 3;
+            const n = useAlnum ? alnumNorm : letterNorm;
             if (!n || n.length < 3) return;
             const label = String(word).trim().toLowerCase();
-            if (seen.has(n)) {
-                const index = seen.get(n);
+            const key = (useAlnum ? 'a:' : 'l:') + n;
+            if (seen.has(key)) {
+                const index = seen.get(key);
                 const existing = out[index].label;
                 if (existing.includes(' ') && !label.includes(' ')) {
                     out[index].label = label;
                 }
                 return;
             }
-            seen.set(n, out.length);
+            seen.set(key, out.length);
             out.push({
                 normalized: n,
                 label,
+                alnum: useAlnum,
             });
         });
         return out;
@@ -71,9 +83,13 @@
 
     function matches(text) {
         const haystack = normalize(text);
-        if (!haystack) return [];
+        const haystackAlnum = normalizeAlnum(text);
+        if (!haystack && !haystackAlnum) return [];
 
-        const hits = normalizedWords().filter((entry) => haystack.includes(entry.normalized));
+        const hits = normalizedWords().filter((entry) => {
+            const needle = entry && entry.alnum ? haystackAlnum : haystack;
+            return needle && needle.includes(entry.normalized);
+        });
         if (!hits.length) return [];
 
         hits.sort((a, b) => b.normalized.length - a.normalized.length);
@@ -103,6 +119,7 @@
     window.ProhibitedWords = {
         MESSAGE,
         normalize,
+        normalizeAlnum,
         contains,
         matches,
         messageFor,

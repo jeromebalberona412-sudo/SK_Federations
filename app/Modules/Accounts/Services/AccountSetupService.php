@@ -291,6 +291,58 @@ class AccountSetupService
         });
     }
 
+    /**
+     * After the HTTP response, send batch password-setup emails to every created account.
+     *
+     * @param  list<array{user_id: int, role: ?string, email: string, row?: int}>  $jobs
+     */
+    public function queueBatchSetupEmailsAfterResponse(array $jobs): void
+    {
+        if ($jobs === []) {
+            return;
+        }
+
+        // Fail fast if mail target cannot be resolved for the batch role.
+        $sample = $jobs[0];
+        $probe = User::query()->find((int) ($sample['user_id'] ?? 0));
+        if ($probe) {
+            $this->resolveSetupTarget($probe, $sample['role'] ?? $probe->role);
+        }
+
+        app()->terminating(function () use ($jobs): void {
+            set_time_limit(0);
+            $service = app(self::class);
+
+            foreach ($jobs as $job) {
+                $userId = (int) ($job['user_id'] ?? 0);
+                $role = $job['role'] ?? null;
+                $emailAtCreate = strtolower(trim((string) ($job['email'] ?? '')));
+
+                if ($userId <= 0 || $emailAtCreate === '') {
+                    continue;
+                }
+
+                try {
+                    $service->deliverQueuedSetupEmail($userId, is_string($role) ? $role : null, $emailAtCreate);
+                } catch (\Throwable $exception) {
+                    report($exception);
+                    Log::error('Account setup email sending failed', [
+                        'operation' => 'batch_queued_setup_email',
+                        'user_id' => $userId,
+                        'role' => $role,
+                        'row' => $job['row'] ?? null,
+                        'exception' => $exception::class,
+                        'message' => $exception->getMessage(),
+                    ]);
+                }
+            }
+
+            if (method_exists(Mail::class, 'purgeSymfonyTransport')) {
+                Mail::purgeSymfonyTransport();
+            }
+        });
+    }
+
     public function deliverQueuedSetupEmail(int $userId, ?string $role, string $emailAtCreate): void
     {
         $user = User::query()->find($userId);

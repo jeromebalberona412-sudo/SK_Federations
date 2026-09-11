@@ -5,7 +5,6 @@ namespace App\Modules\Accounts\Controllers;
 use App\Modules\Accounts\Database\Seeders\BarangaySeeder;
 use App\Modules\Accounts\Models\Barangay;
 use App\Modules\Accounts\Models\OfficialProfile;
-use App\Modules\Accounts\Models\OfficialTerm;
 use App\Modules\Accounts\Requests\AssignFederationPositionRequest;
 use App\Modules\Accounts\Requests\BatchStoreAccountsRequest;
 use App\Modules\Accounts\Requests\BulkDeactivateAccountsRequest;
@@ -34,6 +33,7 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
+use Throwable;
 
 class AdminAccountController extends Controller
 {
@@ -98,7 +98,9 @@ class AdminAccountController extends Controller
 
         $accountType = 'sk_officials';
         $positionOptions = OfficialProfile::officialPositionOptions();
-        $leadershipTermDefaults = SkOfficialTermDates::leadershipDefaults($tenantId);
+        $presidentTerms = SkOfficialTermDates::presidentTermDates($tenantId);
+        $termLockedToPresident = $presidentTerms !== null;
+        $leadershipTermDefaults = $presidentTerms ?? SkOfficialTermDates::leadershipDefaults($tenantId);
         $defaultTermStart = $leadershipTermDefaults['term_start'];
         $defaultTermEnd = $leadershipTermDefaults['term_end'];
 
@@ -108,7 +110,8 @@ class AdminAccountController extends Controller
             'barangays',
             'positionOptions',
             'defaultTermStart',
-            'defaultTermEnd'
+            'defaultTermEnd',
+            'termLockedToPresident'
         ));
     }
 
@@ -118,22 +121,32 @@ class AdminAccountController extends Controller
 
         $tenantId = $this->resolveTenantId($request->user());
 
-        $pageCache = app(SkFedPageCache::class);
-        $payload = $pageCache->remember('accounts.officials', function () use ($tenantId) {
+        try {
             $accounts = $this->queryOfficialAccounts($tenantId);
+            $data = [];
 
-            return [
-                'data' => $accounts
-                    ->map(fn (User $account): array => $this->formatAccountForTable($account))
-                    ->values()
-                    ->all(),
-            ];
-        }, ['tenant' => $tenantId]);
+            foreach ($accounts as $account) {
+                try {
+                    $data[] = $this->formatAccountForTable($account);
+                } catch (Throwable $e) {
+                    report($e);
+                    $data[] = $this->fallbackAccountRow($account);
+                }
+            }
 
-        return response()->json([
-            'success' => true,
-            'data' => $payload['data'],
-        ]);
+            return response()->json([
+                'success' => true,
+                'data' => $data,
+            ])->header('Cache-Control', 'private, no-store');
+        } catch (Throwable $e) {
+            report($e);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Unable to load SK Officials accounts. Please refresh and try again.',
+                'data' => [],
+            ], 500)->header('Cache-Control', 'private, no-store');
+        }
     }
 
     public function create(): View
@@ -218,6 +231,7 @@ class AdminAccountController extends Controller
         $failedCount = count($result['failed']);
         $emailFailedCount = count($result['email_failed'] ?? []);
         $emailsSent = (int) ($result['emails_sent'] ?? 0);
+        $emailsQueued = (int) ($result['emails_queued'] ?? 0);
         $total = $created + $failedCount;
         $validationErrors = array_merge(
             $result['validation_errors'] ?? [],
@@ -243,20 +257,36 @@ class AdminAccountController extends Controller
 
         if ($emailFailedCount > 0) {
             $message .= " {$emailsSent} password setup email(s) sent. {$emailFailedCount} email(s) could not be sent.";
+        } elseif ($emailsQueued > 0) {
+            $message .= " Password setup emails are being sent to {$emailsQueued} account".($emailsQueued === 1 ? '' : 's').'.';
         } else {
             $message .= ' Password setup emails were sent.';
         }
 
         $this->bumpAccountsCache();
 
+        $createdAccounts = [];
+        $createdUserIds = array_values(array_filter(array_map('intval', $result['created_user_ids'] ?? [])));
+        if ($createdUserIds !== []) {
+            $createdAccounts = User::query()
+                ->with(['officialProfile.latestTerm', 'barangay'])
+                ->whereIn('id', $createdUserIds)
+                ->get()
+                ->map(fn (User $account): array => $this->formatAccountForTable($account))
+                ->values()
+                ->all();
+        }
+
         return response()->json([
             'success' => true,
             'message' => $message,
             'created' => $created,
             'emails_sent' => $emailsSent,
+            'emails_queued' => $emailsQueued,
             'failed' => $result['failed'],
             'email_failed' => $result['email_failed'] ?? [],
             'validation_errors' => $validationErrors,
+            'accounts' => $createdAccounts,
         ]);
     }
 
@@ -455,7 +485,7 @@ class AdminAccountController extends Controller
                 'message' => $message,
                 'errors' => $exception->errors(),
             ], 422);
-        } catch (\Throwable $exception) {
+        } catch (Throwable $exception) {
             report($exception);
             Log::error('Account setup email sending failed', [
                 'operation' => 'resend_setup_email_controller',
@@ -617,32 +647,27 @@ class AdminAccountController extends Controller
     }
 
     /**
+     * Live SK Officials users for Manage SK Officials Account.
+     * Soft-deleted accounts stay in the Deleted SK Officials archive.
+     *
      * @return Collection<int, User>
      */
     private function queryOfficialAccounts(int $tenantId)
     {
-        $today = now()->toDateString();
-
-        // Soft-deleted accounts belong only in Deleted SK Officials archive — never here.
         return User::query()
             ->with(['barangay', 'officialProfile.latestTerm'])
-            ->where('tenant_id', $tenantId)
-            ->where('role', User::ROLE_SK_OFFICIAL)
-            ->whereNull('deleted_at')
-            ->whereHas('officialProfile.terms', function ($termQuery) use ($today) {
-                $termQuery->where(function ($scope) use ($today) {
-                    $scope->where(function ($active) use ($today) {
-                        $active
-                            ->where('status', OfficialTerm::STATUS_ACTIVE)
-                            ->where('term_end', '>=', $today);
-                    })->orWhere(function ($upcoming) use ($today) {
-                        $upcoming
-                            ->where('status', OfficialTerm::STATUS_INACTIVE)
-                            ->where('term_start', '>=', $today);
-                    });
-                });
+            ->where(function ($roleQuery): void {
+                $roleQuery->where('role', User::ROLE_SK_OFFICIAL)
+                    ->orWhereRaw('LOWER(TRIM(role)) = ?', ['sk_official']);
             })
-            ->orderByDesc('created_at')
+            ->where(function ($tenantQuery) use ($tenantId): void {
+                $tenantQuery->where('tenant_id', $tenantId);
+                if ($tenantId > 0) {
+                    $tenantQuery->orWhereNull('tenant_id');
+                }
+            })
+            ->whereNull('deleted_at')
+            ->orderByDesc('id')
             ->get();
     }
 
@@ -679,13 +704,35 @@ class AdminAccountController extends Controller
             $federationPosition,
         ])->filter()->implode(' ')));
 
+        $verifiedAt = $account->email_verified_at;
+        $emailVerifiedDisplay = null;
+        if ($verifiedAt instanceof \DateTimeInterface) {
+            $emailVerifiedDisplay = $verifiedAt->format('m/d/Y h:i A');
+        } elseif (is_string($verifiedAt) && $verifiedAt !== '') {
+            $emailVerifiedDisplay = $verifiedAt;
+        }
+
+        $needsSetup = false;
+        try {
+            $needsSetup = app(AccountSetupService::class)->needsAccountSetup($account);
+        } catch (Throwable $e) {
+            report($e);
+        }
+
+        $isIncoming = false;
+        try {
+            $isIncoming = $account->isIncomingTurnoverOfficer();
+        } catch (Throwable $e) {
+            report($e);
+        }
+
         return [
             'id' => $account->id,
             'role' => $account->role,
             'email' => $account->email,
             'status' => $account->status,
-            'email_verified_at' => $account->email_verified_at?->format('m/d/Y h:i A'),
-            'needs_setup' => app(AccountSetupService::class)->needsAccountSetup($account),
+            'email_verified_at' => $emailVerifiedDisplay,
+            'needs_setup' => $needsSetup,
             'display_name' => $displayName,
             'sort_name' => $sortName,
             'search_text' => $searchBlob,
@@ -711,7 +758,50 @@ class AdminAccountController extends Controller
             'term_end' => $term?->term_end?->toDateString() ?? '',
             'term_start_display' => $term?->term_start?->format('m/d/Y') ?? '—',
             'term_end_display' => $term?->term_end?->format('m/d/Y') ?? '—',
-            'is_incoming_turnover' => $account->isIncomingTurnoverOfficer(),
+            'is_incoming_turnover' => $isIncoming,
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function fallbackAccountRow(User $account): array
+    {
+        $displayName = trim((string) ($account->name ?: $account->email ?: 'N/A'));
+
+        return [
+            'id' => $account->id,
+            'role' => $account->role,
+            'email' => $account->email,
+            'status' => $account->status,
+            'email_verified_at' => null,
+            'needs_setup' => false,
+            'display_name' => $displayName !== '' ? $displayName : 'N/A',
+            'sort_name' => strtolower($displayName),
+            'search_text' => strtolower(trim($displayName.' '.($account->email ?? ''))),
+            'first_name' => '',
+            'last_name' => '',
+            'middle_name' => '',
+            'suffix' => '',
+            'sex' => '',
+            'date_of_birth' => '',
+            'age' => null,
+            'contact_number' => '',
+            'position' => '',
+            'federation_position' => '',
+            'federation_position_label' => null,
+            'filter_position' => '',
+            'barangay_id' => $account->barangay_id,
+            'barangay_name' => $account->barangay?->name ?? '',
+            'municipality' => '',
+            'province' => '',
+            'region' => '',
+            'term_status' => 'ACTIVE',
+            'term_start' => '',
+            'term_end' => '',
+            'term_start_display' => '—',
+            'term_end_display' => '—',
+            'is_incoming_turnover' => false,
         ];
     }
 

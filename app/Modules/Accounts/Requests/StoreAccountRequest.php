@@ -85,6 +85,18 @@ class StoreAccountRequest extends FormRequest
         if (! $this->filled('status')) {
             $this->merge(['status' => User::STATUS_ACTIVE]);
         }
+
+        // When a Federation President exists, all new SK Officials use that term window.
+        if ($this->input('role') === User::ROLE_SK_OFFICIAL) {
+            $tenantId = (int) ($this->user()?->tenant_id ?? 0);
+            $presidentTerms = $tenantId > 0 ? SkOfficialTermDates::presidentTermDates($tenantId) : null;
+            if ($presidentTerms !== null) {
+                $this->merge([
+                    'term_start' => $presidentTerms['term_start'],
+                    'term_end' => $presidentTerms['term_end'],
+                ]);
+            }
+        }
     }
 
     public function rules(): array

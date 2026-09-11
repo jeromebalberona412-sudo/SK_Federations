@@ -29,14 +29,38 @@ class FederationCommunityFeedBroadcastService
     public function broadcastInApp(Announcement $post, int $authorUserId): void
     {
         if ($post->shouldNotifyKabataan()) {
-            $this->notifyKabataanInApp($post);
+            try {
+                $this->notifyKabataanInApp($post);
+            } catch (Throwable $exception) {
+                Log::error('[FederationCommunityFeedBroadcast] Kabataan in-app failed.', [
+                    'community_feed_id' => $post->id,
+                    'error' => $exception->getMessage(),
+                ]);
+                report($exception);
+            }
         }
         if ($post->shouldNotifyOfficials()) {
-            $this->notifyOfficialsInApp($post);
-            $this->bumpOfficialsCommunityFeedCache();
+            try {
+                $this->notifyOfficialsInApp($post);
+                $this->bumpOfficialsCommunityFeedCache();
+            } catch (Throwable $exception) {
+                Log::error('[FederationCommunityFeedBroadcast] Officials in-app failed.', [
+                    'community_feed_id' => $post->id,
+                    'error' => $exception->getMessage(),
+                ]);
+                report($exception);
+            }
         }
         if ($post->shouldNotifyFederationPortal()) {
-            $this->notifyFederationPortalUsersInApp($post, $authorUserId);
+            try {
+                $this->notifyFederationPortalUsersInApp($post, $authorUserId);
+            } catch (Throwable $exception) {
+                Log::error('[FederationCommunityFeedBroadcast] Federation portal in-app failed.', [
+                    'community_feed_id' => $post->id,
+                    'error' => $exception->getMessage(),
+                ]);
+                report($exception);
+            }
         }
     }
 
@@ -92,11 +116,19 @@ class FederationCommunityFeedBroadcastService
     private function notifyKabataanInApp(Announcement $post): void
     {
         if (! Schema::hasTable('kabataan_notifications')) {
+            Log::warning('[FederationCommunityFeedBroadcast] kabataan_notifications table missing; skipping Kabataan bells.', [
+                'community_feed_id' => $post->id,
+            ]);
+
             return;
         }
 
         $userIds = $this->eligibleKabataanUserIds();
         if ($userIds === []) {
+            Log::info('[FederationCommunityFeedBroadcast] No eligible Kabataan users for in-app notify.', [
+                'community_feed_id' => $post->id,
+            ]);
+
             return;
         }
 
@@ -119,19 +151,33 @@ class FederationCommunityFeedBroadcastService
                 'title' => 'New SK Federation Community Feed post',
                 'body' => $body,
                 'action_url' => $actionUrl,
+                'read_at' => null,
                 'created_at' => $now,
                 'updated_at' => $now,
             ];
         }
 
-        foreach (array_chunk($rows, 200) as $chunk) {
-            DB::table('kabataan_notifications')->insert($chunk);
+        try {
+            foreach (array_chunk($rows, 200) as $chunk) {
+                DB::table('kabataan_notifications')->insert($chunk);
+            }
+        } catch (Throwable $exception) {
+            Log::error('[FederationCommunityFeedBroadcast] Kabataan in-app insert failed.', [
+                'community_feed_id' => $post->id,
+                'recipients' => count($rows),
+                'error' => $exception->getMessage(),
+            ]);
+            report($exception);
         }
     }
 
     private function notifyOfficialsInApp(Announcement $post): void
     {
         if (! Schema::hasTable('sk_officials_notifications')) {
+            Log::warning('[FederationCommunityFeedBroadcast] sk_officials_notifications table missing; skipping Officials bells.', [
+                'community_feed_id' => $post->id,
+            ]);
+
             return;
         }
 
@@ -168,8 +214,17 @@ class FederationCommunityFeedBroadcastService
             ];
         }
 
-        foreach (array_chunk($rows, 200) as $chunk) {
-            DB::table('sk_officials_notifications')->insert($chunk);
+        try {
+            foreach (array_chunk($rows, 200) as $chunk) {
+                DB::table('sk_officials_notifications')->insert($chunk);
+            }
+        } catch (Throwable $exception) {
+            Log::error('[FederationCommunityFeedBroadcast] SK Officials in-app insert failed.', [
+                'community_feed_id' => $post->id,
+                'recipients' => count($rows),
+                'error' => $exception->getMessage(),
+            ]);
+            report($exception);
         }
     }
 
@@ -318,14 +373,15 @@ class FederationCommunityFeedBroadcastService
         if (Schema::hasColumn('kabataan_registrations', 'evaluation_status')) {
             $query->where(function (Builder $evaluationQuery) {
                 $evaluationQuery->whereNull('evaluation_status')
-                    ->orWhereIn('evaluation_status', ['active', 'Auto Approved']);
+                    ->orWhereIn('evaluation_status', ['active', 'Auto Approved', 'ID Verified']);
             });
         }
 
         $query->whereHas('user', function (Builder $userQuery) {
-            $userQuery
-                ->where('status', User::STATUS_ACTIVE)
-                ->whereNull('deleted_at');
+            $userQuery->where('status', User::STATUS_ACTIVE);
+            if (Schema::hasColumn('users', 'deleted_at')) {
+                $userQuery->whereNull('deleted_at');
+            }
         });
 
         return $query;

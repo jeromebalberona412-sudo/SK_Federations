@@ -762,7 +762,7 @@ function replaceOfficialAccountRow(account) {
     return true;
 }
 
-const ACCOUNTS_OFFICIALS_CACHE_PREFIX = 'sk_fed_accounts_officials_v1';
+const ACCOUNTS_OFFICIALS_CACHE_PREFIX = 'sk_fed_accounts_officials_v2';
 let officialsTableLoadInFlight = null;
 let officialsTableLoadGeneration = 0;
 
@@ -910,10 +910,17 @@ async function loadOfficialsAccountsTable({ force = false } = {}) {
         paintOfficialsAccountsTable(payload?.data || []);
     };
 
-    if (cached?.payload) {
+    const cachedRows = Array.isArray(cached?.payload?.data) ? cached.payload.data : [];
+    const cacheUsable = cachedRows.length > 0;
+
+    if (cacheUsable) {
         paint(cached.payload);
-        if (window.SkLocalCache?.isFresh?.(cached, 5 * 60 * 1000) && !force) {
-            officialsTableLoadInFlight = fetch(dataUrl, { headers: { Accept: 'application/json' } })
+        if (window.SkLocalCache?.isFresh?.(cached, 30 * 1000) && !force) {
+            officialsTableLoadInFlight = fetch(dataUrl, {
+                headers: { Accept: 'application/json' },
+                credentials: 'same-origin',
+                cache: 'no-store',
+            })
                 .then((response) => response.json().then((payload) => ({ ok: response.ok, payload })))
                 .then(({ ok, payload }) => {
                     if (loadGeneration !== officialsTableLoadGeneration) {
@@ -939,6 +946,8 @@ async function loadOfficialsAccountsTable({ force = false } = {}) {
         try {
             const response = await fetch(dataUrl, {
                 headers: { Accept: 'application/json' },
+                credentials: 'same-origin',
+                cache: 'no-store',
             });
             const payload = await response.json();
             if (loadGeneration !== officialsTableLoadGeneration) {
@@ -1155,6 +1164,13 @@ function federationDefaultTermEnd() {
     return /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : '';
 }
 
+function isPresidentTermLocked() {
+    const el = document.getElementById('mainContent');
+    return el?.dataset?.presidentTermLocked === '1'
+        && Boolean(federationDefaultTermStart())
+        && Boolean(federationDefaultTermEnd());
+}
+
 function syncLeadershipTermDefaults(terms) {
     const el = document.getElementById('mainContent');
     if (!el || !terms) {
@@ -1165,6 +1181,60 @@ function syncLeadershipTermDefaults(terms) {
     }
     if (typeof terms.term_end === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(terms.term_end)) {
         el.dataset.defaultTermEnd = terms.term_end;
+    }
+    // After a President term save, lock other officials to those dates.
+    if (el.dataset.defaultTermStart && el.dataset.defaultTermEnd) {
+        el.dataset.presidentTermLocked = '1';
+    }
+}
+
+function applyOfficialTermLock(form, options = {}) {
+    if (!form || !isSkOfficialsForm(form)) {
+        return;
+    }
+
+    const startInput = form.querySelector('[name="term_start"]');
+    const endInput = form.querySelector('[name="term_end"]');
+    if (!startInput || !endInput) {
+        return;
+    }
+
+    const editingPresident = options.isPresident === true;
+    const locked = isPresidentTermLocked() && !editingPresident;
+    const startIso = federationDefaultTermStart() || currentDefaultTermStart();
+    const endIso = federationDefaultTermEnd() || currentDefaultTermEnd(startIso);
+    const isText = startInput.type === 'text' || form.id === 'editSkOfficialsForm';
+
+    if (locked) {
+        startInput.value = isText ? formatDateForTextInput(startIso) : startIso;
+        endInput.value = isText ? formatDateForTextInput(endIso) : endIso;
+        startInput.readOnly = true;
+        endInput.readOnly = true;
+        startInput.classList.add('is-term-locked');
+        endInput.classList.add('is-term-locked');
+    } else {
+        startInput.readOnly = false;
+        endInput.readOnly = false;
+        startInput.classList.remove('is-term-locked');
+        endInput.classList.remove('is-term-locked');
+    }
+
+    const startHint = form.querySelector('#official_term_start_hint, #edit_sk_officials_term_start_hint');
+    const endHint = form.querySelector('#official_term_end_hint, #edit_sk_officials_term_end_hint');
+    if (locked) {
+        if (startHint) {
+            startHint.textContent = 'Locked to the current SK Federation President term start.';
+        }
+        if (endHint) {
+            endHint.textContent = 'Locked to the current SK Federation President term end.';
+        }
+    } else if (editingPresident) {
+        if (startHint) {
+            startHint.textContent = 'You are editing the SK Federation President. Saving these dates updates all SK Officials.';
+        }
+        if (endHint) {
+            endHint.textContent = 'Must be 3 to 5 years after the term start date. Saving updates all SK Officials.';
+        }
     }
 }
 
@@ -1278,8 +1348,15 @@ function resetLongNameConfirmInput() {
 function syncLongNameConfirmFromTypedYes() {
     const input = document.getElementById('accountsLongNameConfirmInput');
     const hint = document.getElementById('accountsLongNameConfirmHint');
-    const typed = (input?.value || '').trim().toLowerCase();
-    const ok = typed === 'yes';
+    if (input) {
+        // 3 letters max, auto uppercase (YES)
+        const lettersOnly = String(input.value || '').replace(/[^a-zA-Z]/g, '').slice(0, 3).toUpperCase();
+        if (input.value !== lettersOnly) {
+            input.value = lettersOnly;
+        }
+    }
+    const typed = (input?.value || '').trim().toUpperCase();
+    const ok = typed === 'YES';
     if (hint) {
         hint.hidden = typed === '' || ok;
     }
@@ -1356,12 +1433,22 @@ function cancelLongNameModal() {
 function wireLongNameModal() {
     if (longNameWired) return;
     longNameWired = true;
-    document.getElementById('accountsLongNameConfirmInput')?.addEventListener('input', () => {
+    const confirmInput = document.getElementById('accountsLongNameConfirmInput');
+    confirmInput?.addEventListener('input', () => {
         if (syncLongNameConfirmFromTypedYes()) {
             confirmLongNameModal();
         }
     });
-    document.getElementById('accountsLongNameConfirmInput')?.addEventListener('keydown', (event) => {
+    confirmInput?.addEventListener('beforeinput', (event) => {
+        if (event.inputType?.startsWith('delete') || event.inputType === 'historyUndo' || event.inputType === 'historyRedo') {
+            return;
+        }
+        const data = event.data ?? '';
+        if (data !== '' && !/^[a-zA-Z]+$/.test(data)) {
+            event.preventDefault();
+        }
+    });
+    confirmInput?.addEventListener('keydown', (event) => {
         if (event.key === 'Enter') {
             event.preventDefault();
             confirmLongNameModal();
@@ -2028,6 +2115,11 @@ function wireSkOfficialsManualValidation(form) {
                 return;
             }
 
+            // Re-require YES every time the field crosses back above 50 characters.
+            if (next.length <= SK_OFFICIAL_NAME_SOFT_MAX) {
+                longNameAllowedByField[name] = false;
+            }
+
             if (!longNameAllowedByField[name] && next.length > SK_OFFICIAL_NAME_SOFT_MAX) {
                 el.value = next.slice(0, SK_OFFICIAL_NAME_SOFT_MAX);
                 openLongNameModal(el, next, caret);
@@ -2101,7 +2193,9 @@ function wireSkOfficialsManualValidation(form) {
 
     form.querySelectorAll('select[required]').forEach((select) => {
         if (select.name === 'suffix') return;
+        lockRequiredSelectPlaceholder(select);
         select.addEventListener('change', () => {
+            lockRequiredSelectPlaceholder(select);
             if (!select.value || select.selectedIndex <= 0) {
                 _showErr(select, 'Please select an option');
             } else {
@@ -2135,6 +2229,47 @@ function isContactField(input) {
 
 function isTermField(input) {
     return input.name === 'term_start' || input.name === 'term_end';
+}
+
+/**
+ * Keep "Select Sex / Position / Barangay" as instruction-only.
+ * Once a real value is chosen, the empty placeholder cannot be selected again.
+ */
+function lockRequiredSelectPlaceholder(select) {
+    if (!select || select.tagName !== 'SELECT') {
+        return;
+    }
+
+    const emptyOption = Array.from(select.options).find((option) => option.value === '');
+    if (!emptyOption) {
+        select.classList.toggle('is-placeholder', !select.value);
+        return;
+    }
+
+    emptyOption.disabled = true;
+    emptyOption.hidden = Boolean(select.value);
+
+    if (select.value) {
+        // Ensure a non-empty option stays selected (never the instruction).
+        if (select.selectedOptions[0]?.value === '') {
+            const firstReal = Array.from(select.options).find((option) => option.value !== '');
+            if (firstReal) {
+                select.value = firstReal.value;
+            }
+        }
+    }
+
+    select.classList.toggle('is-placeholder', !select.value);
+}
+
+function syncFormRequiredSelectPlaceholders(form) {
+    if (!form) {
+        return;
+    }
+    form.querySelectorAll('select[required]').forEach((select) => {
+        if (select.name === 'suffix') return;
+        lockRequiredSelectPlaceholder(select);
+    });
 }
 
 function _validateNameField(input, options = {}) {
@@ -2466,6 +2601,9 @@ function applyTermDateConstraints(form) {
         startInput.value = currentDefaultTermStart();
     }
     syncEndConstraints();
+    applyOfficialTermLock(form, {
+        isPresident: form.dataset.editingPresident === '1',
+    });
 }
 
 function initCreateAccountFormDefaults(form) {
@@ -2490,6 +2628,7 @@ function initCreateAccountFormDefaults(form) {
     }
 
     applyTermDateConstraints(form);
+    syncFormRequiredSelectPlaceholders(form);
 }
 
 function wireCreateAccountForm(form) {
@@ -2564,12 +2703,14 @@ window.openAddSkOfficialsModal = function () {
     switchAddOfficialTab('manual');
     const form = document.getElementById('addSkOfficialsForm');
     if (form) {
+        form.dataset.editingPresident = '0';
         form.querySelectorAll('.is-invalid,.is-valid').forEach(el => el.classList.remove('is-invalid', 'is-valid'));
         form.querySelectorAll('.validation-error').forEach(el => el.remove());
         form.querySelectorAll('.form-error-light').forEach(el => { el.textContent = ''; });
     }
     toggleModal('addSkOfficialsModal', true);
     initCreateAccountFormDefaults(form);
+    applyOfficialTermLock(form, { isPresident: false });
     resetLongNameGate(form);
 };
 
@@ -3078,13 +3219,13 @@ function normalizeBatchPosition(value, role) {
 
 function normalizeBatchSuffix(rawSuffix) {
     if (rawSuffix === null || rawSuffix === undefined || String(rawSuffix).trim() === '') {
-        return { suffix_input: '', suffix: null };
+        return { suffix_input: 'None', suffix: 'NONE' };
     }
 
     const suffixInput = String(rawSuffix).trim();
     const lower = suffixInput.toLowerCase();
     if (['none', 'n/a', 'na', '-'].includes(lower)) {
-        return { suffix_input: suffixInput, suffix: null };
+        return { suffix_input: 'None', suffix: 'NONE' };
     }
 
     const base = lower.replace(/\.$/, '');
@@ -3257,12 +3398,8 @@ function normalizeBatchAccountRow(row, role) {
     });
 
     const suffixResult = normalizeBatchSuffix(row.suffix ?? row.suffix_input ?? normalized.suffix ?? '');
-    normalized.suffix_input = suffixResult.suffix_input;
-    if (suffixResult.suffix) {
-        normalized.suffix = suffixResult.suffix.toUpperCase();
-    } else {
-        delete normalized.suffix;
-    }
+    normalized.suffix_input = suffixResult.suffix_input || 'None';
+    normalized.suffix = suffixResult.suffix || 'NONE';
 
     if (normalized.email) {
         normalized.email = String(normalized.email).trim().toLowerCase();
@@ -3357,7 +3494,11 @@ function validateBatchFieldLengths(row, rowNumber, role, errors) {
     pushBatchLengthError(errors, rowNumber, 'last_name', 'Last name', row.last_name, { min: SK_OFFICIAL_NAME_MIN, max: nameMax });
 
     if (isOfficial) {
-        pushBatchLengthError(errors, rowNumber, 'suffix', 'Suffix', rawSuffix, { min: 1, max: SK_OFFICIAL_SUFFIX_OTHER_MAX });
+        const suffixText = String(rawSuffix).trim();
+        const isNoneSuffix = suffixText === '' || ['none', 'n/a', 'na', '-'].includes(suffixText.toLowerCase());
+        if (!isNoneSuffix) {
+            pushBatchLengthError(errors, rowNumber, 'suffix', 'Suffix', rawSuffix, { min: 1, max: SK_OFFICIAL_SUFFIX_OTHER_MAX });
+        }
     } else {
         pushBatchLengthError(errors, rowNumber, 'suffix', 'Suffix', rawSuffix, { max: SK_OFFICIAL_SUFFIX_OTHER_MAX, optional: true });
     }
@@ -3413,17 +3554,13 @@ function validateBatchAccountRow(row, rowNumber, role, seenEmails, seenFingerpri
         }
     });
 
-    if (isOfficial && String(rawSuffix).trim() === '') {
-        errors.push({ row: rowNumber, field: 'suffix', error: 'Suffix is required.' });
-    }
-
-    if (isOfficial && String(rawSuffix).trim() !== '') {
-        const suffixNorm = normalizeBatchSuffix(rawSuffix);
-        const suffixLower = String(rawSuffix).trim().toLowerCase();
+    // Empty suffix is auto-filled as None — only validate custom values.
+    const effectiveSuffix = String(data.suffix_input ?? data.suffix ?? rawSuffix ?? '').trim();
+    if (isOfficial && effectiveSuffix !== '' && !['none', 'n/a', 'na', '-', 'NONE'].includes(effectiveSuffix.toLowerCase())) {
+        const suffixNorm = normalizeBatchSuffix(effectiveSuffix);
         if (
             suffixNorm.suffix === null
-            && !['none', 'n/a', 'na', '-'].includes(suffixLower)
-            && String(rawSuffix).trim().length > SK_OFFICIAL_SUFFIX_OTHER_MAX
+            && effectiveSuffix.length > SK_OFFICIAL_SUFFIX_OTHER_MAX
         ) {
             errors.push({ row: rowNumber, field: 'suffix', error: `Suffix must not exceed ${SK_OFFICIAL_SUFFIX_OTHER_MAX} characters.` });
         }
@@ -3549,7 +3686,9 @@ function validateBatchAccountRow(row, rowNumber, role, seenEmails, seenFingerpri
     if (data.term_start) {
         const termStartMin = SK_OFFICIAL_FIRST_TERM_START;
         const termStartMax = maxTermStartDate();
-        if (data.term_start < termStartMin || data.term_start > termStartMax) {
+        const fedStart = federationDefaultTermStart();
+        const matchesLeadershipStart = Boolean(fedStart && data.term_start === fedStart);
+        if (!matchesLeadershipStart && (data.term_start < termStartMin || data.term_start > termStartMax)) {
             errors.push({
                 row: rowNumber,
                 field: 'term_start',
@@ -3692,7 +3831,65 @@ function initBatchUploadPanel(prefix, role) {
         const width = state.parsedHeaders.length;
         return Array.from({ length: width }, (_, index) => {
             const fieldKey = resolveBatchFieldKey(state.parsedHeaders[index] || '');
-            return normalizeBatchCellValue(fieldKey, row[index]);
+            const current = row[index];
+            if (fieldKey && BATCH_DATE_FIELD_KEYS.has(fieldKey)) {
+                const iso = parseBatchUsDateString(current);
+                if (iso) {
+                    return iso;
+                }
+                const trimmed = String(current ?? '').trim();
+                // Keep incomplete typed dates so preview editing is not wiped mid-input.
+                if (trimmed !== '' && /^[\d/.\-]+$/.test(trimmed)) {
+                    return trimmed;
+                }
+                return '';
+            }
+            return normalizeBatchCellValue(fieldKey, current);
+        });
+    }
+
+    function applyLockedLeadershipTermsToParsedRows() {
+        if (role !== 'sk_official' || !isPresidentTermLocked()) {
+            return;
+        }
+
+        const startIso = federationDefaultTermStart();
+        const endIso = federationDefaultTermEnd();
+        if (!startIso || !endIso) {
+            return;
+        }
+
+        const startCol = state.parsedHeaders.findIndex((header) => resolveBatchFieldKey(header) === 'term_start');
+        const endCol = state.parsedHeaders.findIndex((header) => resolveBatchFieldKey(header) === 'term_end');
+
+        state.parsedRows = state.parsedRows.map((row) => {
+            const next = ensureParsedRowWidth(row);
+            if (startCol >= 0) next[startCol] = startIso;
+            if (endCol >= 0) next[endCol] = endIso;
+            return next;
+        });
+    }
+
+    function fillEmptyLeadershipTermsOnParsedRows() {
+        if (role !== 'sk_official') {
+            return;
+        }
+
+        const startIso = federationDefaultTermStart() || currentDefaultTermStart();
+        const endIso = federationDefaultTermEnd() || currentDefaultTermEnd(startIso);
+        const startCol = state.parsedHeaders.findIndex((header) => resolveBatchFieldKey(header) === 'term_start');
+        const endCol = state.parsedHeaders.findIndex((header) => resolveBatchFieldKey(header) === 'term_end');
+
+        state.parsedRows = state.parsedRows.map((row) => {
+            const next = ensureParsedRowWidth(row);
+            if (startCol >= 0 && !parseBatchUsDateString(next[startCol])) {
+                next[startCol] = startIso;
+            }
+            if (endCol >= 0 && !parseBatchUsDateString(next[endCol])) {
+                const rowStart = parseBatchUsDateString(next[startCol]) || startIso;
+                next[endCol] = (rowStart === startIso) ? endIso : currentDefaultTermEnd(rowStart);
+            }
+            return next;
         });
     }
 
@@ -3700,7 +3897,28 @@ function initBatchUploadPanel(prefix, role) {
         state.mappedAccounts = state.parsedRows.map((row) => mapRowToAccount(state.parsedHeaders, row));
     }
 
+    function fillEmptySuffixOnParsedRows() {
+        const suffixCol = state.parsedHeaders.findIndex((header) => resolveBatchFieldKey(header) === 'suffix');
+        if (suffixCol < 0) {
+            return;
+        }
+
+        state.parsedRows = state.parsedRows.map((row) => {
+            const next = ensureParsedRowWidth(row);
+            if (String(next[suffixCol] ?? '').trim() === '') {
+                next[suffixCol] = 'None';
+            }
+            return next;
+        });
+    }
+
     function revalidateBatchState() {
+        fillEmptySuffixOnParsedRows();
+        if (isPresidentTermLocked()) {
+            applyLockedLeadershipTermsToParsedRows();
+        } else {
+            fillEmptyLeadershipTermsOnParsedRows();
+        }
         state.parsedRows.forEach((_, rowIndex) => syncBatchAgeFromBirthdate(rowIndex));
         syncMappedAccountsFromParsedRows();
         const missingHeaders = getMissingBatchHeaders(state.parsedHeaders);
@@ -3718,6 +3936,9 @@ function initBatchUploadPanel(prefix, role) {
         } else {
             renderBatchErrorReport([]);
             state.validationErrors = [];
+            if (isPresidentTermLocked()) {
+                previewMessage += ' Term dates are locked to the SK Federation President.';
+            }
         }
 
         renderBatchEditablePreview(state.parsedHeaders, state.parsedRows, previewMessage, {
@@ -3753,7 +3974,31 @@ function initBatchUploadPanel(prefix, role) {
 
         state.parsedRows[rowIndex] = ensureParsedRowWidth(state.parsedRows[rowIndex]);
         const fieldKey = resolveBatchFieldKey(state.parsedHeaders[colIndex] || '');
-        state.parsedRows[rowIndex][colIndex] = normalizeBatchCellValue(fieldKey, value);
+
+        if (role === 'sk_official' && isPresidentTermLocked() && (fieldKey === 'term_start' || fieldKey === 'term_end')) {
+            applyLockedLeadershipTermsToParsedRows();
+            window.clearTimeout(state.editDebounceTimer);
+            state.editDebounceTimer = window.setTimeout(() => {
+                revalidateBatchState();
+            }, 250);
+            return;
+        }
+
+        if (fieldKey && BATCH_DATE_FIELD_KEYS.has(fieldKey)) {
+            const trimmed = String(value ?? '').trim();
+            const iso = parseBatchUsDateString(trimmed);
+            if (iso) {
+                state.parsedRows[rowIndex][colIndex] = iso;
+            } else if (trimmed === '') {
+                state.parsedRows[rowIndex][colIndex] = '';
+            } else {
+                // Keep partial MM/DD/YYYY typing so preview edits are not wiped mid-input.
+                state.parsedRows[rowIndex][colIndex] = trimmed;
+            }
+        } else {
+            state.parsedRows[rowIndex][colIndex] = normalizeBatchCellValue(fieldKey, value);
+        }
+
         if (fieldKey === 'date_of_birth') {
             syncBatchAgeFromBirthdate(rowIndex);
         }
@@ -3859,23 +4104,27 @@ function initBatchUploadPanel(prefix, role) {
             const cells = headers.map((header, colIndex) => {
                 const fieldKey = resolveBatchFieldKey(header);
                 const rawValue = row[colIndex] ?? '';
-                const isoDate = fieldKey && BATCH_DATE_FIELD_KEYS.has(fieldKey)
-                    ? parseBatchUsDateString(rawValue)
-                    : '';
+                const isDateField = fieldKey && BATCH_DATE_FIELD_KEYS.has(fieldKey);
+                const isoDate = isDateField ? parseBatchUsDateString(rawValue) : '';
                 const displayValue = isoDate
                     ? formatIsoDateToUs(isoDate)
                     : String(rawValue ?? '').trim();
                 const invalidClass = invalidFields.has(fieldKey) ? ' batch-cell-input-invalid' : '';
-                const placeholder = fieldKey && BATCH_DATE_FIELD_KEYS.has(fieldKey) ? 'MM/DD/YYYY' : '';
+                const placeholder = isDateField ? 'MM/DD/YYYY' : '';
                 const colClass = batchPreviewColumnClass(fieldKey);
                 const inputSize = fieldKey === 'email' ? Math.max(28, displayValue.length + 2) : Math.max(12, Math.min(displayValue.length + 2, 24));
                 const isAgeField = fieldKey === 'age';
-                const readOnlyAttr = isAgeField ? ' readonly tabindex="-1"' : '';
-                const titleAttr = isAgeField
-                    ? 'Age is auto-calculated from Birthdate'
-                    : escapeHtml(displayValue);
+                const isLockedTerm = role === 'sk_official'
+                    && isPresidentTermLocked()
+                    && (fieldKey === 'term_start' || fieldKey === 'term_end');
+                const readOnlyAttr = (isAgeField || isLockedTerm) ? ' readonly tabindex="-1"' : '';
+                const titleAttr = isLockedTerm
+                    ? 'Locked to SK Federation President term'
+                    : (isAgeField
+                        ? 'Age is auto-calculated from Birthdate'
+                        : escapeHtml(displayValue));
 
-                return '<td class="' + colClass + '"><input type="text" class="batch-cell-input' + invalidClass + '" data-row-index="' + rowIndex + '" data-col-index="' + colIndex + '" data-field-key="' + escapeHtml(fieldKey || '') + '" value="' + escapeHtml(displayValue) + '" placeholder="' + escapeHtml(placeholder) + '" size="' + inputSize + '" title="' + titleAttr + '" aria-label="' + escapeHtml(header) + ' row ' + rowNumber + '"' + readOnlyAttr + '></td>';
+                return '<td class="' + colClass + '"><input type="text" class="batch-cell-input' + invalidClass + (isLockedTerm ? ' is-term-locked' : '') + '" data-row-index="' + rowIndex + '" data-col-index="' + colIndex + '" data-field-key="' + escapeHtml(fieldKey || '') + '" value="' + escapeHtml(displayValue) + '" placeholder="' + escapeHtml(placeholder) + '" size="' + inputSize + '" title="' + titleAttr + '" aria-label="' + escapeHtml(header) + ' row ' + rowNumber + '"' + readOnlyAttr + '></td>';
             }).join('');
 
             const statusText = rowErrors.length > 0
@@ -4035,7 +4284,7 @@ function initBatchUploadPanel(prefix, role) {
                 return;
             }
 
-            showLoadingOverlay('Uploading accounts', 'Please wait while we import your file...');
+            showLoadingOverlay('Uploading accounts', 'Creating accounts now — emails will send right after...');
             els.confirmBtn.disabled = true;
 
             try {
@@ -4082,7 +4331,15 @@ function initBatchUploadPanel(prefix, role) {
                 }
                 const toastType = Array.isArray(data.failed) && data.failed.length > 0 ? 'edit' : 'success';
                 showAccountToast(data.message || 'Accounts created successfully.', toastType);
-                window.setTimeout(() => window.location.reload(), 900);
+                const createdAccounts = Array.isArray(data.accounts) ? data.accounts : [];
+                createdAccounts.forEach((account) => {
+                    prependOfficialAccountRow(account);
+                });
+                if (typeof loadOfficialsAccountsTable === 'function') {
+                    loadOfficialsAccountsTable({ force: true });
+                } else if (createdAccounts.length === 0) {
+                    window.setTimeout(() => window.location.reload(), 900);
+                }
             } catch (error) {
                 hideLoadingOverlay();
                 els.confirmBtn.disabled = false;
@@ -4534,10 +4791,14 @@ document.addEventListener('DOMContentLoaded', function () {
                     if (createBtn) delete createBtn.dataset.creating;
                     cleanupAccountUiState();
                     showAccountToast(data.message || 'SK Officials account created. Password setup email sent.', 'success');
-                    if (data.data && !prependOfficialAccountRow(data.data)) {
-                        window.setTimeout(() => window.location.reload(), 900);
-                    } else if (officialsForm) {
+                    if (data.data) {
+                        prependOfficialAccountRow(data.data);
+                    }
+                    if (officialsForm) {
                         officialsForm.reset();
+                    }
+                    if (typeof loadOfficialsAccountsTable === 'function') {
+                        loadOfficialsAccountsTable({ force: true });
                     }
                 })
                 .catch((err) => {
@@ -4816,7 +5077,13 @@ document.addEventListener('DOMContentLoaded', function () {
             statusField.value = data.status || data[_camel('status')] || statusField.value || 'ACTIVE';
         }
         // Do not re-clamp DOB to 18–24 on edit — existing officials may be older.
+        const federationPosition = String(data[_camel('federation_position')] ?? data.federation_position ?? '').trim();
+        form.dataset.editingPresident = federationPosition.toLowerCase() === 'president' ? '1' : '0';
         applyTermDateConstraints(form);
+        applyOfficialTermLock(form, {
+            isPresident: form.dataset.editingPresident === '1',
+        });
+        syncFormRequiredSelectPlaceholders(form);
         clearAllErrors(form);
     }
 

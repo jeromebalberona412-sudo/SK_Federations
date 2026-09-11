@@ -213,5 +213,31 @@ document.addEventListener('DOMContentLoaded', function () {
 
     document.addEventListener('dashboard:date-range-changed', fetchLogs);
 
-    fetchLogs();
+    // Defer until near viewport so charts paint first.
+    function scheduleInitialFetch() {
+        const run = function () {
+            fetchLogs();
+        };
+
+        if (typeof IntersectionObserver !== 'undefined') {
+            const observer = new IntersectionObserver(function (entries) {
+                if (!entries.some(function (entry) { return entry.isIntersecting; })) {
+                    return;
+                }
+                observer.disconnect();
+                run();
+            }, { rootMargin: '160px 0px' });
+            observer.observe(shell);
+            return;
+        }
+
+        if (typeof window.requestIdleCallback === 'function') {
+            window.requestIdleCallback(run, { timeout: 2200 });
+            return;
+        }
+
+        window.setTimeout(run, 700);
+    }
+
+    scheduleInitialFetch();
 });

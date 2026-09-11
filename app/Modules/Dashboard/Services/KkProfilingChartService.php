@@ -4,10 +4,10 @@ namespace App\Modules\Dashboard\Services;
 
 use App\Models\KabataanRegistration;
 use App\Modules\Accounts\Models\Barangay;
-use App\Modules\BarangayMonitoring\Services\BarangayMonitoringService;
 use App\Modules\Shared\Models\User;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -29,11 +29,10 @@ class KkProfilingChartService
         $barangayId = (string) $request->input('barangay_id', 'all');
         $period = $request->input('period', 'monthly') === 'weekly' ? 'weekly' : 'monthly';
         [$dateFrom, $dateTo] = $this->resolveDateRange($request);
-        $year = (int) $dateFrom->year;
-        $month = max(1, min(12, (int) $request->input('month', $dateFrom->month)));
+        $month = max(1, min(12, (int) $request->input('month', $dateTo->month)));
 
         $cacheKey = sprintf(
-            'skfed:dash:kk-chart:%d:%s:%s:%s:%s:%d',
+            'skfed:dash:kk-chart:v5:%d:%s:%s:%s:%s:%d',
             $tenantId,
             $barangayId === '' ? 'all' : $barangayId,
             $period,
@@ -42,13 +41,13 @@ class KkProfilingChartService
             $month
         );
 
-        return Cache::remember($cacheKey, self::CACHE_TTL_SECONDS, function () use ($tenantId, $barangayId, $period, $year, $month, $dateFrom, $dateTo): array {
+        return Cache::remember($cacheKey, self::CACHE_TTL_SECONDS, function () use ($tenantId, $barangayId, $period, $month, $dateFrom, $dateTo): array {
             $barangayIds = Barangay::query()
                 ->where('tenant_id', $tenantId)
                 ->pluck('id');
 
             if ($barangayId !== 'all' && $barangayId !== '' && $barangayId !== null) {
-                $barangayIds = $barangayIds->filter(fn (int $id) => $id === (int) $barangayId)->values();
+                $barangayIds = $barangayIds->filter(fn ($id) => (int) $id === (int) $barangayId)->values();
             }
 
             if ($barangayIds->isEmpty()) {
@@ -56,10 +55,12 @@ class KkProfilingChartService
             }
 
             if ($period === 'weekly') {
-                return $this->weeklyPayload($tenantId, $barangayIds->all(), $year, $month, $dateFrom, $dateTo);
+                $weekMonth = $this->resolveWeekMonth($dateFrom, $dateTo, $month);
+
+                return $this->weeklyPayload($tenantId, $barangayIds->all(), $weekMonth, $dateFrom, $dateTo);
             }
 
-            return $this->monthlyPayload($tenantId, $barangayIds->all(), $year, $dateFrom, $dateTo);
+            return $this->monthlyPayload($tenantId, $barangayIds->all(), $dateFrom, $dateTo);
         });
     }
 
@@ -74,7 +75,7 @@ class KkProfilingChartService
         [$dateFrom, $dateTo] = $this->resolveDateRange($request);
 
         $cacheKey = sprintf(
-            'skfed:dash:purok-chart:v2:%d:%s:%s:%s:%s',
+            'skfed:dash:purok-chart:v4:%d:%s:%s:%s:%s',
             $tenantId,
             $barangayIdInput === '' ? 'all' : $barangayIdInput,
             $purokFilter === '' ? 'all' : $purokFilter,
@@ -92,22 +93,10 @@ class KkProfilingChartService
      */
     private function buildPurokChartData(User $user, Request $request): array
     {
-        $catalogNames = array_values(app(BarangayMonitoringService::class)->slugToNameMap());
-        $empty = [
-            'labels' => $catalogNames,
-            'counts' => array_fill(0, count($catalogNames), 0),
-            'zones' => [],
-        ];
-
         $tenantId = (int) $user->tenant_id;
         $barangayIdInput = $request->input('barangay_id', 'all');
         $purokFilter = trim((string) $request->input('purok', 'all'));
         [$dateFrom, $dateTo] = $this->resolveDateRange($request);
-
-        $barangays = Barangay::query()
-            ->where('tenant_id', $tenantId)
-            ->orderBy('name')
-            ->get(['id', 'name']);
 
         $barangayId = ($barangayIdInput !== 'all' && $barangayIdInput !== '' && $barangayIdInput !== null)
             ? (int) $barangayIdInput
@@ -116,7 +105,11 @@ class KkProfilingChartService
         $zones = $barangayId ? $this->zonesForBarangay($barangayId) : [];
 
         if (! Schema::hasTable('kabataan_registrations')) {
-            return $barangayId ? ['labels' => $zones, 'counts' => array_fill(0, count($zones), 0), 'zones' => $zones] : $empty;
+            if ($barangayId) {
+                return ['labels' => $zones, 'counts' => array_fill(0, count($zones), 0), 'zones' => $zones];
+            }
+
+            return $this->buildAllBarangaysByBarangayPayload($tenantId, collect());
         }
 
         $query = KabataanRegistration::query()
@@ -150,41 +143,8 @@ class KkProfilingChartService
         $records = $query->get(['id', 'barangay_id', 'form_data']);
 
         if ($barangayId === null) {
-            // Show every barangay in the tenant (including zero-count) so mobile/desktop charts stay complete.
-            $countsByBarangay = [];
-            foreach ($barangays as $barangay) {
-                $name = trim((string) $barangay->name);
-                if ($name === '') {
-                    continue;
-                }
-                $countsByBarangay[$name] = 0;
-            }
-            if ($countsByBarangay === []) {
-                $countsByBarangay = array_fill_keys($catalogNames, 0);
-            }
-
-            $nameById = $barangays->pluck('name', 'id');
-
-            foreach ($records as $record) {
-                $name = $nameById[$record->barangay_id] ?? null;
-                if ($name === null) {
-                    continue;
-                }
-                $name = trim((string) $name);
-                if ($name === '') {
-                    continue;
-                }
-                if (! array_key_exists($name, $countsByBarangay)) {
-                    $countsByBarangay[$name] = 0;
-                }
-                $countsByBarangay[$name]++;
-            }
-
-            return [
-                'labels' => array_keys($countsByBarangay),
-                'counts' => array_values($countsByBarangay),
-                'zones' => [],
-            ];
+            // All Barangays: one bar per barangay name (not sitio/purok).
+            return $this->buildAllBarangaysByBarangayPayload($tenantId, $records);
         }
 
         $counts = [];
@@ -212,6 +172,60 @@ class KkProfilingChartService
             'labels' => array_keys($counts),
             'counts' => array_values($counts),
             'zones' => $zones,
+        ];
+    }
+
+    /**
+     * All Barangays view: youth counts labeled by barangay name.
+     *
+     * @param  Collection<int, KabataanRegistration>|\Illuminate\Database\Eloquent\Collection<int, KabataanRegistration>  $records
+     * @return array{labels: list<string>, counts: list<int>, zones: list<string>}
+     */
+    private function buildAllBarangaysByBarangayPayload(int $tenantId, $records): array
+    {
+        $barangays = Barangay::query()
+            ->where('tenant_id', $tenantId)
+            ->orderBy('name')
+            ->get(['id', 'name']);
+
+        $countsByBarangay = [];
+        foreach ($barangays as $barangay) {
+            $name = trim((string) $barangay->name);
+            if ($name === '') {
+                continue;
+            }
+            $countsByBarangay[$name] = 0;
+        }
+
+        if ($countsByBarangay === []) {
+            return [
+                'labels' => [],
+                'counts' => [],
+                'zones' => [],
+            ];
+        }
+
+        $nameById = $barangays->pluck('name', 'id');
+
+        foreach ($records as $record) {
+            $rawName = $nameById[$record->barangay_id] ?? null;
+            if ($rawName === null) {
+                continue;
+            }
+            $name = trim((string) $rawName);
+            if ($name === '') {
+                continue;
+            }
+            if (! array_key_exists($name, $countsByBarangay)) {
+                $countsByBarangay[$name] = 0;
+            }
+            $countsByBarangay[$name]++;
+        }
+
+        return [
+            'labels' => array_keys($countsByBarangay),
+            'counts' => array_values($countsByBarangay),
+            'zones' => [],
         ];
     }
 
@@ -255,19 +269,19 @@ class KkProfilingChartService
      * @param  list<int>  $barangayIds
      * @return array<string, mixed>
      */
-    private function monthlyPayload(int $tenantId, array $barangayIds, int $year, Carbon $dateFrom, Carbon $dateTo): array
+    private function monthlyPayload(int $tenantId, array $barangayIds, Carbon $dateFrom, Carbon $dateTo): array
     {
-        $labels = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        $buckets = $this->monthBuckets($dateFrom, $dateTo);
 
         return [
             'period' => 'monthly',
-            'year' => $year,
+            'year' => (int) $dateTo->year,
             'date_from' => $dateFrom->toDateString(),
             'date_to' => $dateTo->toDateString(),
-            'labels' => $labels,
-            'approved' => $this->countMonthly($tenantId, $barangayIds, $year, 'approved', $dateFrom, $dateTo),
-            'pending' => $this->countMonthly($tenantId, $barangayIds, $year, 'pending', $dateFrom, $dateTo),
-            'rejected' => $this->countMonthly($tenantId, $barangayIds, $year, 'rejected', $dateFrom, $dateTo),
+            'labels' => array_column($buckets, 'label'),
+            'approved' => $this->countByMonthBuckets($tenantId, $barangayIds, 'approved', $dateFrom, $dateTo, $buckets),
+            'pending' => $this->countByMonthBuckets($tenantId, $barangayIds, 'pending', $dateFrom, $dateTo, $buckets),
+            'rejected' => $this->countByMonthBuckets($tenantId, $barangayIds, 'rejected', $dateFrom, $dateTo, $buckets),
         ];
     }
 
@@ -275,8 +289,10 @@ class KkProfilingChartService
      * @param  list<int>  $barangayIds
      * @return array<string, mixed>
      */
-    private function weeklyPayload(int $tenantId, array $barangayIds, int $year, int $month, Carbon $dateFrom, Carbon $dateTo): array
+    private function weeklyPayload(int $tenantId, array $barangayIds, Carbon $monthStart, Carbon $dateFrom, Carbon $dateTo): array
     {
+        $year = (int) $monthStart->year;
+        $month = (int) $monthStart->month;
         $weeks = $this->buildWeeksForMonth($year, $month);
         $labels = array_column($weeks, 'label');
         $approved = [];
@@ -293,6 +309,7 @@ class KkProfilingChartService
                 $approved[] = 0;
                 $pending[] = 0;
                 $rejected[] = 0;
+
                 continue;
             }
 
@@ -356,37 +373,73 @@ class KkProfilingChartService
     }
 
     /**
-     * @param  list<int>  $barangayIds
-     * @return list<int>
+     * Prefer the selected calendar month nearest to the end of the dashboard range.
      */
-    private function countMonthly(int $tenantId, array $barangayIds, int $year, string $category, Carbon $dateFrom, Carbon $dateTo): array
+    private function resolveWeekMonth(Carbon $dateFrom, Carbon $dateTo, int $month): Carbon
     {
-        $counts = array_fill(0, 12, 0);
-        $dateExpression = $this->dateExpression($category);
-        $driver = DB::connection()->getDriverName();
+        $month = max(1, min(12, $month));
+        $candidate = Carbon::create($dateTo->year, $month, 1)->startOfMonth();
 
-        $query = $this->baseQuery($tenantId, $barangayIds, $category);
-
-        if ($driver === 'pgsql') {
-            $rows = $query
-                ->whereRaw("{$dateExpression}::date BETWEEN ? AND ?", [$dateFrom->toDateString(), $dateTo->toDateString()])
-                ->whereRaw("EXTRACT(YEAR FROM {$dateExpression}) = ?", [$year])
-                ->selectRaw("EXTRACT(MONTH FROM {$dateExpression})::int AS bucket, COUNT(*) AS total")
-                ->groupBy('bucket')
-                ->get();
-        } else {
-            $rows = $query
-                ->whereRaw("DATE({$dateExpression}) BETWEEN ? AND ?", [$dateFrom->toDateString(), $dateTo->toDateString()])
-                ->whereRaw("YEAR({$dateExpression}) = ?", [$year])
-                ->selectRaw("MONTH({$dateExpression}) AS bucket, COUNT(*) AS total")
-                ->groupBy('bucket')
-                ->get();
+        while ($candidate->gt($dateTo) && $candidate->year > $dateFrom->year) {
+            $candidate->subYear();
         }
 
+        if ($candidate->copy()->endOfMonth()->lt($dateFrom)) {
+            return $dateFrom->copy()->startOfMonth();
+        }
+
+        return $candidate;
+    }
+
+    /**
+     * @return list<array{key: string, label: string}>
+     */
+    private function monthBuckets(Carbon $dateFrom, Carbon $dateTo): array
+    {
+        $cursor = $dateFrom->copy()->startOfMonth();
+        $lastMonth = $dateTo->copy()->startOfMonth();
+        $sameYear = $dateFrom->year === $dateTo->year;
+        $buckets = [];
+
+        while ($cursor->lte($lastMonth)) {
+            $buckets[] = [
+                'key' => $cursor->format('Y-m'),
+                'label' => $sameYear ? $cursor->format('M') : $cursor->format('M Y'),
+            ];
+            $cursor->addMonth();
+        }
+
+        return $buckets;
+    }
+
+    /**
+     * @param  list<int>  $barangayIds
+     * @param  list<array{key: string, label: string}>  $buckets
+     * @return list<int>
+     */
+    private function countByMonthBuckets(int $tenantId, array $barangayIds, string $category, Carbon $dateFrom, Carbon $dateTo, array $buckets): array
+    {
+        $counts = array_fill(0, count($buckets), 0);
+        $indexByKey = [];
+        foreach ($buckets as $index => $bucket) {
+            $indexByKey[$bucket['key']] = $index;
+        }
+
+        $dateExpression = $this->dateExpression($category);
+        $dateCast = $this->sqlDateCast($dateExpression);
+        $yearMonth = $this->sqlYearMonth($dateExpression);
+        $query = $this->baseQuery($tenantId, $barangayIds, $category);
+
+        $rows = $query
+            ->whereRaw("{$dateCast} BETWEEN ? AND ?", [$dateFrom->toDateString(), $dateTo->toDateString()])
+            ->selectRaw("{$yearMonth} AS bucket, COUNT(*) AS total")
+            ->groupByRaw($yearMonth)
+            ->get();
+
         foreach ($rows as $row) {
-            $index = ((int) $row->bucket) - 1;
-            if ($index >= 0 && $index < 12) {
-                $counts[$index] = (int) $row->total;
+            $key = (string) $row->bucket;
+            if (array_key_exists($key, $indexByKey)) {
+                $counts[$indexByKey[$key]] = (int) $row->total;
             }
         }
 
@@ -399,18 +452,30 @@ class KkProfilingChartService
     private function countWeekly(int $tenantId, array $barangayIds, string $start, string $end, string $category): int
     {
         $dateExpression = $this->dateExpression($category);
-        $driver = DB::connection()->getDriverName();
+        $dateCast = $this->sqlDateCast($dateExpression);
         $query = $this->baseQuery($tenantId, $barangayIds, $category);
 
-        if ($driver === 'pgsql') {
-            return (int) $query
-                ->whereRaw("{$dateExpression}::date BETWEEN ? AND ?", [$start, $end])
-                ->count();
-        }
-
         return (int) $query
-            ->whereRaw("DATE({$dateExpression}) BETWEEN ? AND ?", [$start, $end])
+            ->whereRaw("{$dateCast} BETWEEN ? AND ?", [$start, $end])
             ->count();
+    }
+
+    private function sqlDateCast(string $expression): string
+    {
+        return match (DB::connection()->getDriverName()) {
+            'pgsql' => "{$expression}::date",
+            'sqlite' => "date({$expression})",
+            default => "DATE({$expression})",
+        };
+    }
+
+    private function sqlYearMonth(string $expression): string
+    {
+        return match (DB::connection()->getDriverName()) {
+            'pgsql' => "to_char({$expression}, 'YYYY-MM')",
+            'sqlite' => "strftime('%Y-%m', {$expression})",
+            default => "DATE_FORMAT({$expression}, '%Y-%m')",
+        };
     }
 
     /**
@@ -431,7 +496,9 @@ class KkProfilingChartService
         }
 
         return match ($category) {
-            'approved' => $query->whereIn('evaluation_status', ['active', 'Auto Approved']),
+            'approved' => $query
+                ->where('status', '!=', 'rejected')
+                ->whereIn('evaluation_status', ['active', 'Auto Approved', 'ID Verified']),
             'pending' => $query
                 ->whereIn('evaluation_status', ['Not Profiled', 'Wrong Credentials'])
                 ->where('status', '!=', 'rejected'),
@@ -499,18 +566,35 @@ class KkProfilingChartService
      */
     private function emptyPayload(string $period, ?Carbon $dateFrom = null, ?Carbon $dateTo = null): array
     {
-        $from = $dateFrom?->toDateString() ?? now()->startOfYear()->toDateString();
-        $to = $dateTo?->toDateString() ?? now()->toDateString();
+        $from = $dateFrom ?? now()->copy()->startOfYear();
+        $to = $dateTo ?? now()->copy()->startOfDay();
+
+        if ($period === 'weekly') {
+            return [
+                'period' => 'weekly',
+                'year' => (int) $from->year,
+                'month' => (int) $from->month,
+                'date_from' => $from->toDateString(),
+                'date_to' => $to->toDateString(),
+                'labels' => [],
+                'approved' => [],
+                'pending' => [],
+                'rejected' => [],
+            ];
+        }
+
+        $buckets = $this->monthBuckets($from, $to);
+        $zeros = array_fill(0, count($buckets), 0);
 
         return [
-            'period' => $period,
-            'year' => $dateFrom?->year ?? now()->year,
-            'date_from' => $from,
-            'date_to' => $to,
-            'labels' => $period === 'weekly' ? [] : ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'],
-            'approved' => [],
-            'pending' => [],
-            'rejected' => [],
+            'period' => 'monthly',
+            'year' => (int) $to->year,
+            'date_from' => $from->toDateString(),
+            'date_to' => $to->toDateString(),
+            'labels' => array_column($buckets, 'label'),
+            'approved' => $zeros,
+            'pending' => $zeros,
+            'rejected' => $zeros,
         ];
     }
 }

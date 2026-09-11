@@ -2134,9 +2134,29 @@ function getComposeAudienceTargets() {
 
 function setComposeAudienceTargets(targets) {
     var selected = Array.isArray(targets) ? targets.slice() : [];
+    if (selected.indexOf('public') >= 0) {
+        selected = ['public', 'federation', 'officials', 'kabataan'];
+    }
     document.querySelectorAll('input[name="compose-audience"]').forEach(function (el) {
         el.checked = selected.indexOf(el.value) >= 0;
     });
+    syncComposeAudienceToggleLabel();
+    updateComposeEmailNotifyHelp();
+}
+
+function onComposeAudienceChange(changed) {
+    var boxes = document.querySelectorAll('input[name="compose-audience"]');
+    var publicBox = document.querySelector('input[name="compose-audience"][value="public"]');
+    if (changed && changed.value === 'public' && changed.checked) {
+        boxes.forEach(function (el) { el.checked = true; });
+    } else if (changed && changed.value !== 'public' && !changed.checked && publicBox) {
+        publicBox.checked = false;
+    } else if (changed && changed.value !== 'public' && changed.checked && publicBox) {
+        var allOthersChecked = Array.from(boxes).every(function (el) {
+            return el.value === 'public' || el.checked;
+        });
+        if (allOthersChecked) publicBox.checked = true;
+    }
     syncComposeAudienceToggleLabel();
     updateComposeEmailNotifyHelp();
 }
@@ -2415,8 +2435,7 @@ document.addEventListener('DOMContentLoaded', function() {
         });
         audienceMenu.querySelectorAll('input[name="compose-audience"]').forEach(function (input) {
             input.addEventListener('change', function () {
-                syncComposeAudienceToggleLabel();
-                updateComposeEmailNotifyHelp();
+                onComposeAudienceChange(input);
             });
         });
         document.addEventListener('click', function (e) {

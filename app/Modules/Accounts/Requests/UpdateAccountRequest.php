@@ -78,6 +78,23 @@ class UpdateAccountRequest extends FormRequest
                 // Keep submitted age; validation will catch invalid DOB.
             }
         }
+
+        // Non-President SK Officials inherit locked President term dates.
+        $account = $this->route('user');
+        if ($account instanceof User && $account->role === User::ROLE_SK_OFFICIAL) {
+            $account->loadMissing('officialProfile');
+            $isPresident = strcasecmp(trim((string) ($account->officialProfile?->federation_position ?? '')), 'President') === 0;
+            if (! $isPresident) {
+                $tenantId = (int) ($this->user()?->tenant_id ?? $account->tenant_id ?? 0);
+                $presidentTerms = $tenantId > 0 ? SkOfficialTermDates::presidentTermDates($tenantId) : null;
+                if ($presidentTerms !== null) {
+                    $this->merge([
+                        'term_start' => $presidentTerms['term_start'],
+                        'term_end' => $presidentTerms['term_end'],
+                    ]);
+                }
+            }
+        }
     }
 
     public function rules(): array

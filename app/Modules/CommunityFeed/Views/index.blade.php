@@ -174,12 +174,12 @@
                                 Select targets
                             </button>
                             <div class="compose-audience-menu" id="compose-audience-menu" hidden role="listbox" aria-multiselectable="true" aria-label="Select who to notify">
-                                <p class="compose-audience-hint">Select one or more. These control who can be notified (email + bell). Public also makes the post shareable.</p>
+                                <p class="compose-audience-hint">Select one or more. These control who gets the notification bell. Email is optional via the checkbox below. Public also makes the post shareable and selects all audiences.</p>
                                 <label class="compose-audience-option">
                                     <input type="checkbox" name="compose-audience" value="public">
                                     <span>
                                         <strong>Public</strong>
-                                        <small>Shareable post. Notifies Federation portal users when email is on.</small>
+                                        <small>Shareable post. Selects Federation, SK Officials, and Kabataan. Bell notifications always send.</small>
                                     </span>
                                 </label>
                                 <label class="compose-audience-option">
@@ -288,7 +288,7 @@
                     Send email notify to selected targets
                 </label>
                 <p id="compose-email-notify-help" class="compose-email-notify-help form-text mb-0">
-                    Email selected audiences across Santa Cruz. Uncheck to skip email (bell notifications still send).
+                    Email selected audiences across Santa Cruz. Uncheck to skip email (bell notifications still send to selected targets).
                 </p>
             </div>
             <p id="compose-body-error" class="compose-field-error" role="alert" hidden></p>

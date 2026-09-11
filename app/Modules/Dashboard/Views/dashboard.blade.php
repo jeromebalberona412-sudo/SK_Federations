@@ -175,7 +175,9 @@
                 </div>
                 <div class="card-body dash-purok-card-body">
                     <div class="kk-chart-canvas-wrap kk-chart-canvas-wrap--purok" id="purokChartWrap">
-                        <canvas id="purokDistributionChart"></canvas>
+                        <div class="purok-chart-scroll-inner" id="purokChartScrollInner">
+                            <canvas id="purokDistributionChart"></canvas>
+                        </div>
                     </div>
                 </div>
             </div>

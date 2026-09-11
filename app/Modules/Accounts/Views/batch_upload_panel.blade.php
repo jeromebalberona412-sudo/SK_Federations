@@ -60,12 +60,13 @@
             </svg>
             <p>
                 Keep the Excel column headers exactly as provided. Middle Name is optional.
+                Empty <strong>Suffix</strong> defaults to <strong>None</strong>.
                 Region, Province, and Municipality are already filled
                 (IV-A CALABARZON, Laguna, Santa Cruz).
                 Birthdate must be for ages <strong>18–24</strong> only.
                 Use <strong>MM/DD/YYYY</strong> for Birthdate and Term dates.
                 @if ($isOfficialsTemplate)
-                    For SK Officials, Term Start may be from 01/01/2023 (or advanced up to 30 days), and Term End must be 3 to 5 years after Term Start. Empty term dates default to the current President/VP term.
+                    For SK Officials, term dates follow the SK Federation President when a President is set (locked in preview). Otherwise Term Start may be from 01/01/2023, and Term End must be 3 to 5 years after Term Start. Empty term dates default to the current leadership term.
                 @else
                     For SK Federation, Term End must be 3 to 5 years after Term Start.
                 @endif

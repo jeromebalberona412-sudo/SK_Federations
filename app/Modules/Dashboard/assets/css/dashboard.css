@@ -4132,7 +4132,7 @@ body.sidebar-collapsed .main-content { margin-left: var(--sidebar-collapsed); }
     border: 1px solid #e5e7eb;
     border-radius: 14px;
     box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
-    overflow: hidden;
+    overflow: visible;
 }
 
 #purok-distribution-section > .card-header.kk-chart-section-header {
@@ -4216,14 +4216,22 @@ body.sidebar-collapsed .main-content { margin-left: var(--sidebar-collapsed); }
 
 .kk-chart-canvas-wrap--purok {
     width: 100%;
-    min-height: 260px;
-    height: 280px;
+    min-height: 280px;
+    height: 320px;
     align-items: stretch;
     justify-content: stretch;
     overflow: hidden;
-    padding: 2px 0 0;
-    border-radius: 8px;
+    padding: 4px 0 2px;
+    border-radius: 10px;
     background: #fff;
+    position: relative;
+}
+
+.purok-chart-scroll-inner {
+    width: 100%;
+    height: 100%;
+    min-height: inherit;
+    position: relative;
 }
 
 .kk-chart-canvas-wrap--purok.is-scroll-x {
@@ -4231,33 +4239,62 @@ body.sidebar-collapsed .main-content { margin-left: var(--sidebar-collapsed); }
     overflow-y: hidden;
     -webkit-overflow-scrolling: touch;
     overscroll-behavior-x: contain;
+    scrollbar-gutter: stable;
     scrollbar-width: thin;
-    scrollbar-color: #94a3b8 #f1f5f9;
+    scrollbar-color: #94a3b8 transparent;
+    padding-bottom: 6px;
+    border: 1px solid #eef2f7;
+    background:
+        linear-gradient(#fff 0 0) padding-box,
+        linear-gradient(90deg, rgba(15, 23, 42, 0.05), transparent 18px) border-box;
 }
 
 .kk-chart-canvas-wrap--purok.is-scroll-x::-webkit-scrollbar {
-    height: 8px;
+    height: 7px;
 }
 
 .kk-chart-canvas-wrap--purok.is-scroll-x::-webkit-scrollbar-track {
-    background: #f1f5f9;
+    background: #f8fafc;
     border-radius: 999px;
+    margin: 0 8px;
 }
 
 .kk-chart-canvas-wrap--purok.is-scroll-x::-webkit-scrollbar-thumb {
     background: #94a3b8;
     border-radius: 999px;
+    border: 1px solid #f8fafc;
+}
+
+.kk-chart-canvas-wrap--purok.is-scroll-x::-webkit-scrollbar-thumb:hover {
+    background: #64748b;
 }
 
 .kk-chart-canvas-wrap--purok.is-scroll-x::-webkit-scrollbar-button {
-    width: 10px;
-    background: #e2e8f0;
+    display: none;
+    width: 0;
+    height: 0;
 }
 
 .kk-chart-canvas-wrap--purok canvas {
     width: 100% !important;
     height: 100% !important;
     max-width: none;
+    display: block;
+}
+
+.kk-chart-canvas-wrap--purok.is-empty {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.kk-chart-canvas-wrap--purok.is-empty .purok-chart-scroll-inner {
+    display: none;
+}
+
+.kk-chart-canvas-wrap--purok .purok-chart-empty {
+    margin: 0;
+    padding: 24px 16px;
 }
 
 .kk-chart-filter-row {
@@ -4294,10 +4331,24 @@ body.sidebar-collapsed .main-content { margin-left: var(--sidebar-collapsed); }
 @media (max-width: 992px) {
     .dash-row { flex-direction: column; }
     .dash-col-4, .dash-col-8 { flex: 1 1 auto; width: 100%; }
-    .kk-chart-header-actions {
-        margin-left: auto;
-        width: auto;
-        justify-content: flex-end;
+    .kk-chart-section-header,
+    #purok-distribution-section .kk-chart-section-header {
+        flex-wrap: wrap;
+        align-items: stretch;
+        gap: 10px;
+    }
+    .kk-chart-header-actions,
+    #purok-distribution-section .kk-chart-header-actions {
+        margin-left: 0;
+        width: 100%;
+        justify-content: flex-start;
+        flex-wrap: wrap;
+    }
+    .kk-barangay-select,
+    #purok-distribution-section .kk-barangay-select {
+        flex: 1 1 auto;
+        min-width: 0;
+        max-width: none;
     }
     .dash-row--balanced .dash-col-4 { max-width: 100%; }
     .dash-row--balanced { flex-direction: column; }
@@ -5578,54 +5629,62 @@ button.activity-item--clickable:active {
 
 @media (max-width: 768px) {
     .dash-page-header {
-        flex-direction: row;
+        flex-direction: column;
         flex-wrap: wrap;
-        align-items: center;
-        justify-content: space-between;
+        align-items: stretch;
+        justify-content: flex-start;
+        gap: 12px;
     }
 
     .dash-page-filters {
-        flex-direction: row;
-        flex-wrap: nowrap;
-        width: auto;
+        flex-direction: column;
+        flex-wrap: wrap;
+        width: 100%;
         flex: 1 1 auto;
-        justify-content: flex-end;
+        justify-content: flex-start;
         min-width: 0;
     }
 
     .dash-header-tools {
         flex-wrap: wrap;
-        justify-content: flex-end;
+        justify-content: flex-start;
         width: 100%;
+        gap: 10px;
     }
 
     .dash-today-card,
     .dash-year-filter,
     .dash-date-range-filter {
-        width: auto;
-        flex: 0 1 auto;
+        width: 100%;
+        flex: 1 1 100%;
         min-height: 48px;
         height: auto;
+        max-width: 100%;
     }
 
     .dash-today-card {
-        max-width: 100%;
         height: auto;
     }
 
     .dash-date-range-filter {
-        max-width: 100%;
         height: auto;
         flex-wrap: wrap;
     }
 
     .dash-date-range-fields {
         flex-wrap: wrap;
+        width: 100%;
+        gap: 8px;
+    }
+
+    .dash-date-field {
+        flex: 1 1 calc(50% - 16px);
+        min-width: 0;
     }
 
     .dash-date-input {
-        width: 138px;
-        max-width: 138px;
+        width: 100%;
+        max-width: none;
         font-size: 13px;
     }
 
@@ -5638,46 +5697,55 @@ button.activity-item--clickable:active {
         white-space: normal;
     }
 
-    .kk-chart-section-header {
-        flex-direction: row;
-        flex-wrap: nowrap;
-        align-items: flex-start;
-    }
-
-    .kk-chart-header-actions {
-        display: inline-flex;
-        flex-wrap: nowrap;
-        gap: 6px;
-        margin-left: auto;
-        justify-content: flex-end;
-    }
-
-    .kk-barangay-select {
-        flex: 0 0 auto;
-        min-width: 110px;
-        max-width: 150px;
-    }
-
-    #purok-distribution-section .kk-chart-section-header {
-        flex-direction: row;
-        align-items: flex-start;
+    /* Stack chart titles + filters so selects never squeeze/overlap the heading */
+    .kk-chart-section-header,
+    #purok-distribution-section .kk-chart-section-header,
+    .dash-demo-chart-header,
+    .dash-abyip-header {
+        flex-direction: column;
+        flex-wrap: wrap;
+        align-items: stretch;
         gap: 10px;
     }
 
-    #purok-distribution-section .kk-chart-header-actions {
-        width: auto;
-        margin-left: auto;
-        max-width: none;
-        flex-wrap: nowrap;
+    .kk-chart-heading,
+    .dash-demo-chart-header > div:first-child {
+        width: 100%;
+        max-width: 100%;
+        padding-right: 0;
     }
 
-    #purok-distribution-section .kk-barangay-select {
-        flex: 0 0 auto;
+    .kk-chart-header-actions,
+    #purok-distribution-section .kk-chart-header-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        width: 100%;
+        margin-left: 0;
+        max-width: none;
+        justify-content: stretch;
+    }
+
+    .kk-barangay-select,
+    #purok-distribution-section .kk-barangay-select,
+    .dash-demo-chart-header .kk-barangay-select {
+        flex: 1 1 calc(50% - 4px);
+        min-width: 0;
+        max-width: none;
         width: auto;
-        max-width: 150px;
-        min-height: 34px;
-        height: 34px;
+        min-height: 36px;
+        height: 36px;
         font-size: 12px;
+    }
+
+    .dash-demo-chart-header .kk-barangay-select {
+        margin-left: 0;
+        align-self: stretch;
+    }
+
+    .kk-export-btn {
+        flex: 1 1 100%;
+        justify-content: center;
     }
 
     .kk-chart-canvas-wrap--purok {
@@ -5688,29 +5756,21 @@ button.activity-item--clickable:active {
     .qa-item {
         min-height: 44px;
     }
+
+    .dash-demo-chart-body {
+        min-height: 240px;
+    }
 }
 
-@media (max-width: 640px) {
-    .kk-chart-section-header,
-    #purok-distribution-section .kk-chart-section-header,
-    .dash-demo-chart-header {
-        flex-wrap: wrap;
-        row-gap: 10px;
-    }
-
-    .kk-chart-header-actions,
-    #purok-distribution-section .kk-chart-header-actions {
-        width: 100%;
-        margin-left: 0;
-        justify-content: flex-end;
+@media (max-width: 480px) {
+    .dash-date-field {
+        flex: 1 1 100%;
     }
 
     .kk-barangay-select,
     #purok-distribution-section .kk-barangay-select,
     .dash-demo-chart-header .kk-barangay-select {
-        min-width: 0;
-        max-width: none;
-        flex: 1 1 auto;
+        flex: 1 1 100%;
     }
 }
 
@@ -5864,25 +5924,6 @@ button.activity-item--clickable:active {
 
     .dash-demo-chart-body canvas {
         max-width: 280px;
-    }
-}
-
-@media (max-width: 768px) {
-    .dash-demo-chart-header {
-        flex-direction: row;
-        flex-wrap: nowrap;
-        align-items: flex-start;
-    }
-
-    .dash-demo-chart-header .kk-barangay-select {
-        width: auto;
-        max-width: 160px;
-        margin-left: auto;
-        flex: 0 0 auto;
-    }
-
-    .dash-demo-chart-body {
-        min-height: 240px;
     }
 }
 
@@ -6182,8 +6223,22 @@ button.activity-item--clickable:active {
     max-height: 280px;
 }
 
-.kk-chart-canvas-wrap--line {
-    height: 280px;
+#kk-profiling-section .kk-chart-section-header {
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+}
+
+#kk-profiling-section .kk-chart-heading h3 {
+    white-space: nowrap;
+}
+
+#kk-profiling-section .kk-chart-header-actions {
+    flex-wrap: wrap;
+}
+
+.kk-chart-canvas-wrap--line.is-weekly {
+    min-height: 240px;
 }
 
 .dash-row--kk-abyip .dash-abyip-body {

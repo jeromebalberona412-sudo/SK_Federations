@@ -17,7 +17,13 @@ class SkFedPageCache
      */
     public function remember(string $bucket, callable $callback, array $parts = [], int $ttl = self::TTL_SECONDS): mixed
     {
-        return Cache::remember($this->payloadKey($bucket, $parts), $ttl, $callback);
+        try {
+            return Cache::remember($this->payloadKey($bucket, $parts), $ttl, $callback);
+        } catch (\Throwable $e) {
+            report($e);
+
+            return $callback();
+        }
     }
 
     public function bump(string $bucket): void

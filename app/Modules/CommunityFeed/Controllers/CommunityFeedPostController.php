@@ -7,6 +7,7 @@ use App\Modules\Archive_Management\Services\FederationPostArchiveService;
 use App\Modules\CommunityFeed\Jobs\NotifyFederationCommunityFeedPostJob;
 use App\Modules\CommunityFeed\Services\CloudinaryService;
 use App\Modules\CommunityFeed\Services\CommunityFeedPostBodyValidator;
+use App\Modules\CommunityFeed\Services\FederationCommunityFeedBroadcastService;
 use App\Modules\CommunityFeed\Services\GoogleDriveVideoUrlService;
 use App\Modules\Shared\Controllers\Controller;
 use App\Modules\Shared\Models\Announcement;
@@ -27,8 +28,10 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Throwable;
 
 class CommunityFeedPostController extends Controller
@@ -263,7 +266,13 @@ class CommunityFeedPostController extends Controller
             $title = ($title !== null && $title !== '') ? $title : null;
         }
         if (is_string($title) && $title !== '') {
-            $this->prohibitedWords->assertClean($title, 'title');
+            try {
+                $this->prohibitedWords->assertClean($title, 'title');
+            } catch (ValidationException $e) {
+                throw $e;
+            } catch (Throwable $e) {
+                report($e);
+            }
         }
 
         $isFederationWide = true;
@@ -309,7 +318,7 @@ class CommunityFeedPostController extends Controller
             ->withCount('reactions')
             ->findOrFail($post->id);
 
-        NotifyFederationCommunityFeedPostJob::dispatch((int) $post->id, $emailNotificationsEnabled);
+        $this->dispatchFederationPostNotifications((int) $fresh->id, (int) $user->id, $emailNotificationsEnabled);
 
         app(SkFedPageCache::class)->bump('community.feed');
         app(SkFedPageCache::class)->bump('archive.deleted_posts');
@@ -1414,7 +1423,6 @@ class CommunityFeedPostController extends Controller
     }
 
     /**
-     * @param  mixed  $raw
      * @return list<string>
      */
     private function normalizeNotifyTargets(mixed $raw, mixed $legacyVisibility = null): array
@@ -1441,13 +1449,37 @@ class CommunityFeedPostController extends Controller
         }
 
         if ($targets === []) {
-            $visibility = is_string($legacyVisibility) ? strtolower(trim($legacyVisibility)) : 'public';
-            $targets = $visibility === 'federation'
-                ? ['federation', 'officials', 'kabataan']
-                : ['public', 'officials', 'kabataan'];
+            return Announcement::defaultNotifyTargetsForVisibility(
+                is_string($legacyVisibility) ? $legacyVisibility : 'public'
+            );
         }
 
-        return $targets;
+        return Announcement::expandNotifyTargets($targets);
+    }
+
+    private function dispatchFederationPostNotifications(int $postId, int $authorUserId, bool $sendEmail): void
+    {
+        dispatch(function () use ($postId, $authorUserId): void {
+            $post = Announcement::query()->find($postId);
+            if ($post === null) {
+                return;
+            }
+
+            try {
+                app(FederationCommunityFeedBroadcastService::class)
+                    ->broadcastInApp($post, $authorUserId);
+            } catch (Throwable $exception) {
+                Log::error('[CommunityFeed] In-app broadcast failed.', [
+                    'community_feed_id' => $postId,
+                    'error' => $exception->getMessage(),
+                ]);
+                report($exception);
+            }
+        })->afterResponse();
+
+        if ($sendEmail) {
+            NotifyFederationCommunityFeedPostJob::dispatch($postId, true, false);
+        }
     }
 
     private function normalizeEmptyLinkUrl(Request $request): void

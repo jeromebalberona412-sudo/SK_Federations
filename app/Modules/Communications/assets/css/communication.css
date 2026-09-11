@@ -2015,7 +2015,7 @@ button.comms-bubble-image,
 .comms-remote-video {
     width: 100%;
     height: 100%;
-    object-fit: cover;
+    object-fit: contain;
     background: #0b0b0b;
 }
 
@@ -2025,7 +2025,7 @@ button.comms-bubble-image,
     top: 1rem;
     width: min(28vw, 180px);
     aspect-ratio: 3 / 4;
-    object-fit: cover;
+    object-fit: contain;
     border-radius: 12px;
     border: 2px solid rgba(255, 255, 255, 0.35);
     background: #1e293b;

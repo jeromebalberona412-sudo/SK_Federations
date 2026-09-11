@@ -4048,6 +4048,14 @@ body.sidebar-collapsed .accounts-page-footer {
     box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.15);
 }
 
+.batch-cell-input[readonly],
+.batch-cell-input.is-term-locked,
+.form-input-light.is-term-locked {
+    background: #f1f5f9;
+    color: #64748b;
+    cursor: not-allowed;
+}
+
 .batch-cell-input-invalid {
     min-width: 220px;
     border-color: #dc2626;
@@ -4423,7 +4431,8 @@ body.sidebar-collapsed .accounts-page-footer {
 .accounts-long-name-keyword {
     color: #047857;
     font-weight: 800;
-    text-transform: lowercase;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
 }
 .accounts-long-name-confirm-input {
     width: 100%;
@@ -4431,6 +4440,9 @@ body.sidebar-collapsed .accounts-page-footer {
     border-radius: 8px;
     padding: 0.65rem 0.75rem;
     font-size: 1rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-weight: 700;
 }
 .accounts-long-name-confirm-input:focus {
     outline: 2px solid rgba(16, 185, 129, 0.35);

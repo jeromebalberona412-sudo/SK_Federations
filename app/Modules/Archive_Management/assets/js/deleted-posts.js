@@ -132,11 +132,12 @@
         const tbody = document.getElementById('archiveTableBody');
         const cacheKey = 'sk_fed_deleted_posts_v1_' + params.toString();
         const cached = window.SkLocalCache?.get(cacheKey);
-        const paintRows = function (rows) {
+        const paintRows = function (rows, meta) {
             archiveRows = rows || [];
             if (!tbody) return;
             if (!archiveRows.length) {
                 tbody.innerHTML = '<tr><td colspan="6">No archived posts found.</td></tr>';
+                renderPagination(meta || { current_page: 1, last_page: 1 });
                 return;
             }
             tbody.innerHTML = archiveRows.map(function (row) {
@@ -151,6 +152,8 @@
                     '</td>' +
                 '</tr>';
             }).join('');
+
+            renderPagination(meta || { current_page: currentPage, last_page: 1 });
 
             window.ArchiveRowActions.bind(tbody, function (action, id) {
                 if (action === 'view') {
@@ -173,13 +176,44 @@
             });
         };
 
+        function renderPagination(meta) {
+            const pag = document.getElementById('archivePagination');
+            if (!pag) return;
+            const page = Number(meta.current_page || 1);
+            const last = Number(meta.last_page || 1);
+            currentPage = page;
+            if (last <= 1) {
+                pag.innerHTML = '';
+                return;
+            }
+            pag.innerHTML =
+                '<div class="archive-pagination-bar">' +
+                    '<button type="button" class="archive-page-btn" data-archive-page="' + Math.max(1, page - 1) + '" ' + (page <= 1 ? 'disabled' : '') + '>Prev</button>' +
+                    '<span class="archive-page-label">Page ' + page + ' of ' + last + '</span>' +
+                    '<button type="button" class="archive-page-btn" data-archive-page="' + Math.min(last, page + 1) + '" ' + (page >= last ? 'disabled' : '') + '>Next</button>' +
+                '</div>';
+            pag.querySelectorAll('[data-archive-page]').forEach(function (btn) {
+                btn.addEventListener('click', function () {
+                    const next = Number(btn.getAttribute('data-archive-page') || 1);
+                    if (next === currentPage) return;
+                    loadArchive(next).catch(showError);
+                });
+            });
+        }
+
         if (cached?.payload) {
-            paintRows(cached.payload.data || []);
+            paintRows(cached.payload.data || [], {
+                current_page: cached.payload.current_page,
+                last_page: cached.payload.last_page,
+            });
             if (window.SkLocalCache.isFresh(cached, 5 * 60 * 1000)) {
                 api(cfg.dataUrl + '?' + params.toString())
                     .then(function (data) {
                         window.SkLocalCache?.set(cacheKey, data);
-                        paintRows(data.data || []);
+                        paintRows(data.data || [], {
+                            current_page: data.current_page,
+                            last_page: data.last_page,
+                        });
                     })
                     .catch(function () {});
                 return;
@@ -190,7 +224,10 @@
 
         const data = await api(cfg.dataUrl + '?' + params.toString());
         window.SkLocalCache?.set(cacheKey, data);
-        paintRows(data.data || []);
+        paintRows(data.data || [], {
+            current_page: data.current_page,
+            last_page: data.last_page,
+        });
     }
 
     function showError(err) {

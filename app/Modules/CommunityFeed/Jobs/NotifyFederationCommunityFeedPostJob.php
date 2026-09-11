@@ -23,6 +23,7 @@ class NotifyFederationCommunityFeedPostJob implements ShouldQueue
     public function __construct(
         public readonly int $postId,
         public readonly bool $sendEmail = false,
+        public readonly bool $sendInApp = true,
     ) {}
 
     public function handle(FederationCommunityFeedBroadcastService $broadcastService): void
@@ -34,14 +35,16 @@ class NotifyFederationCommunityFeedPostJob implements ShouldQueue
 
         $authorUserId = (int) ($post->user_id ?? 0);
 
-        try {
-            $broadcastService->broadcastInApp($post, $authorUserId);
-        } catch (Throwable $exception) {
-            Log::error('[NotifyFederationCommunityFeedPostJob] In-app broadcast failed.', [
-                'community_feed_id' => $this->postId,
-                'error' => $exception->getMessage(),
-            ]);
-            report($exception);
+        if ($this->sendInApp) {
+            try {
+                $broadcastService->broadcastInApp($post, $authorUserId);
+            } catch (Throwable $exception) {
+                Log::error('[NotifyFederationCommunityFeedPostJob] In-app broadcast failed.', [
+                    'community_feed_id' => $this->postId,
+                    'error' => $exception->getMessage(),
+                ]);
+                report($exception);
+            }
         }
 
         if (! $this->sendEmail || ! $post->email_notifications_enabled) {

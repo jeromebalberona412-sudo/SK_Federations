@@ -53,6 +53,43 @@ class Announcement extends Model
     }
 
     /**
+     * Public includes Federation, SK Officials, and Kabataan.
+     *
+     * @param  list<string>|array<int|string, mixed>  $targets
+     * @return list<string>
+     */
+    public static function expandNotifyTargets(array $targets): array
+    {
+        $normalized = [];
+        foreach ($targets as $target) {
+            $key = strtolower(trim((string) $target));
+            if (in_array($key, self::NOTIFY_TARGET_OPTIONS, true) && ! in_array($key, $normalized, true)) {
+                $normalized[] = $key;
+            }
+        }
+
+        if ($normalized === []) {
+            return [];
+        }
+
+        if (in_array('public', $normalized, true)) {
+            return self::NOTIFY_TARGET_OPTIONS;
+        }
+
+        return $normalized;
+    }
+
+    /**
+     * @return list<string>
+     */
+    public static function defaultNotifyTargetsForVisibility(?string $visibility): array
+    {
+        return strtolower(trim((string) $visibility)) === 'federation'
+            ? ['federation', 'officials', 'kabataan']
+            : self::NOTIFY_TARGET_OPTIONS;
+    }
+
+    /**
      * @return list<string>
      */
     public function notifyTargets(): array
@@ -64,24 +101,14 @@ class Announcement extends Model
         }
 
         if (! is_array($raw) || $raw === []) {
-            return $this->isPublicAudience()
-                ? ['public', 'officials', 'kabataan']
-                : ['federation', 'officials', 'kabataan'];
+            return self::defaultNotifyTargetsForVisibility($this->visibility);
         }
 
-        $normalized = [];
-        foreach ($raw as $target) {
-            $key = strtolower(trim((string) $target));
-            if (in_array($key, self::NOTIFY_TARGET_OPTIONS, true) && ! in_array($key, $normalized, true)) {
-                $normalized[] = $key;
-            }
-        }
+        $normalized = self::expandNotifyTargets($raw);
 
         return $normalized !== []
             ? $normalized
-            : ($this->isPublicAudience()
-                ? ['public', 'officials', 'kabataan']
-                : ['federation', 'officials', 'kabataan']);
+            : self::defaultNotifyTargetsForVisibility($this->visibility);
     }
 
     public function shouldNotifyOfficials(): bool

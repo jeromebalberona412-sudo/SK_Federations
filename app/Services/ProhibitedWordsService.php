@@ -22,7 +22,7 @@ class ProhibitedWordsService
     }
 
     /**
-     * Collapse bypass tricks: case, leetspeak, spaces/punctuation, repeated letters.
+     * Letters-only normalize (default). Digit-containing bans use normalizeAlnum().
      */
     public function normalize(string $text): string
     {
@@ -53,8 +53,22 @@ class ProhibitedWordsService
         ];
         $text = strtr($text, $leet);
 
+        // Keep letters only so "p u t a", "p-u-t-a", "p.u.t.a" collapse to "puta".
         $text = preg_replace('/[^\p{L}]+/u', '', $text) ?? '';
 
+        // "fuuuuck" / "gaaago" → single repeated letters.
+        $text = preg_replace('/(.)\1+/u', '$1', $text) ?? '';
+
+        return $text;
+    }
+
+    /**
+     * Keep letters + digits so numeric bans like "8080" still match.
+     */
+    public function normalizeAlnum(string $text): string
+    {
+        $text = mb_strtolower($text, 'UTF-8');
+        $text = preg_replace('/[^\p{L}\p{N}]+/u', '', $text) ?? '';
         $text = preg_replace('/(.)\1+/u', '$1', $text) ?? '';
 
         return $text;
@@ -66,14 +80,20 @@ class ProhibitedWordsService
     public function matches(string $text): array
     {
         $haystack = $this->normalize($text);
-        if ($haystack === '') {
+        $haystackAlnum = $this->normalizeAlnum($text);
+        if ($haystack === '' && $haystackAlnum === '') {
             return [];
         }
 
         $hits = [];
         foreach ($this->normalizedWordList() as $entry) {
-            $word = $entry['normalized'];
-            if ($word !== '' && str_contains($haystack, $word)) {
+            $word = (string) ($entry['normalized'] ?? '');
+            if ($word === '') {
+                continue;
+            }
+
+            $needleHaystack = ! empty($entry['alnum']) ? $haystackAlnum : $haystack;
+            if ($needleHaystack !== '' && str_contains($needleHaystack, $word)) {
                 $hits[] = $entry;
             }
         }
@@ -131,7 +151,7 @@ class ProhibitedWordsService
     }
 
     /**
-     * @return list<array{normalized: string, label: string}>
+     * @return list<array{normalized: string, label: string, alnum: bool}>
      */
     private function normalizedWordList(): array
     {
@@ -142,14 +162,19 @@ class ProhibitedWordsService
         $seen = [];
         $out = [];
         foreach ($this->words() as $word) {
-            $normalized = $this->normalize($word);
+            $letterNorm = $this->normalize($word);
+            $alnumNorm = $this->normalizeAlnum($word);
+            $useAlnum = $letterNorm === '' || mb_strlen($letterNorm) < 3;
+            $normalized = $useAlnum ? $alnumNorm : $letterNorm;
+
             if ($normalized === '' || mb_strlen($normalized) < 3) {
                 continue;
             }
 
             $label = trim(mb_strtolower($word, 'UTF-8'));
-            if (isset($seen[$normalized])) {
-                $index = $seen[$normalized];
+            $seenKey = ($useAlnum ? 'a:' : 'l:').$normalized;
+            if (isset($seen[$seenKey])) {
+                $index = $seen[$seenKey];
                 $existing = $out[$index]['label'];
                 if (str_contains($existing, ' ') && ! str_contains($label, ' ')) {
                     $out[$index]['label'] = $label;
@@ -158,10 +183,11 @@ class ProhibitedWordsService
                 continue;
             }
 
-            $seen[$normalized] = count($out);
+            $seen[$seenKey] = count($out);
             $out[] = [
                 'normalized' => $normalized,
                 'label' => $label,
+                'alnum' => (bool) $useAlnum,
             ];
         }
 

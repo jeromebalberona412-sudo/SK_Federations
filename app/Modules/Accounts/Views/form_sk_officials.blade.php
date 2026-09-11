@@ -173,13 +173,13 @@
                             <div class="form-group-light">
                                 <label class="form-label-light required">Term Start Date (MM/DD/YYYY)</label>
                                 <input type="date" name="term_start" id="official_term_start" class="form-input-light" required>
-                                <p class="form-hint-light">Earliest start is 01/01/2023. Defaults to the current SK Federation President/VP term start.</p>
+                                <p class="form-hint-light" id="official_term_start_hint">Earliest start is 01/01/2023. Defaults to the current SK Federation President term start.</p>
                                 <span class="form-error-light"></span>
                             </div>
                             <div class="form-group-light">
                                 <label class="form-label-light required">Term End Date (MM/DD/YYYY)</label>
                                 <input type="date" name="term_end" id="official_term_end" class="form-input-light" required>
-                                <p class="form-hint-light">Must be 3 to 5 years after term start. Defaults to the current President/VP term end when aligned.</p>
+                                <p class="form-hint-light" id="official_term_end_hint">Must be 3 to 5 years after term start. Locked to the SK Federation President term when a President is set.</p>
                                 <span class="form-error-light"></span>
                             </div>
                         </div>
@@ -284,7 +284,7 @@
                         <div class="form-group-light">
                             <label for="edit_sk_officials_sex" class="form-label-light required">Sex</label>
                             <select id="edit_sk_officials_sex" name="sex" class="form-input-light" required>
-                                <option value="">Select Sex</option>
+                                <option value="" disabled>Select Sex</option>
                                 <option value="Male">Male</option>
                                 <option value="Female">Female</option>
                             </select>
@@ -320,7 +320,7 @@
                         <div class="form-group-light">
                             <label for="edit_sk_officials_position" class="form-label-light required">Position</label>
                             <select id="edit_sk_officials_position" name="position" class="form-input-light" required>
-                                <option value="">Select Position</option>
+                                <option value="" disabled>Select Position</option>
                                 @foreach(\App\Modules\Accounts\Models\OfficialProfile::officialPositionOptions() as $value => $label)
                                     <option value="{{ $value }}">{{ $label }}</option>
                                 @endforeach
@@ -330,7 +330,7 @@
                         <div class="form-group-light">
                             <label for="edit_sk_officials_barangay_id" class="form-label-light required">Barangay</label>
                             <select id="edit_sk_officials_barangay_id" name="barangay_id" class="form-input-light" required>
-                                <option value="">Select Barangay</option>
+                                <option value="" disabled>Select Barangay</option>
                                 @foreach($barangays as $barangay)
                                     <option value="{{ $barangay->id }}">{{ $barangay->name }}</option>
                                 @endforeach
@@ -350,7 +350,7 @@
                         <div class="form-group-light">
                             <label for="edit_sk_officials_term_start" class="form-label-light required">Term Start Date (MM/DD/YYYY)</label>
                             <input type="text" id="edit_sk_officials_term_start" name="term_start" class="form-input-light" placeholder="MM/DD/YYYY" inputmode="numeric" autocomplete="off" required>
-                            <p class="form-hint-light" id="edit_sk_officials_term_start_hint">Earliest start is 01/01/2023. You may advance a little into the future (up to 30 days).</p>
+                            <p class="form-hint-light" id="edit_sk_officials_term_start_hint">Earliest start is 01/01/2023. Locked to the SK Federation President term when a President is set (President can still edit).</p>
                             <span class="form-error-light"></span>
                         </div>
                         <div class="form-group-light">

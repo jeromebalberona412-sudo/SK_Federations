@@ -182,9 +182,14 @@ class BatchAccountImportService
             'term_start', 'term start date', 'term start', 'term_start_date', 'start date', 'term begin', 'term begin date',
         ]));
 
-        if (! $strictDemographics) {
-            $leadershipDefaults = SkOfficialTermDates::leadershipDefaults($this->tenantId);
+        $leadershipDefaults = SkOfficialTermDates::leadershipDefaults($this->tenantId);
+        $presidentTerms = SkOfficialTermDates::presidentTermDates($this->tenantId);
 
+        // President term is the source of truth for all SK Official batch rows.
+        if ($role === User::ROLE_SK_OFFICIAL && $presidentTerms !== null) {
+            $termStart = $presidentTerms['term_start'];
+            $termEnd = $presidentTerms['term_end'];
+        } else {
             if ($termStart === null) {
                 $termStart = $leadershipDefaults['term_start'];
             }
@@ -201,6 +206,10 @@ class BatchAccountImportService
         ]));
 
         $suffixRaw = $this->stringValue($row, ['suffix', 'suffix_input', 'suffix input']);
+        // Empty suffix defaults to None (no suffix).
+        if (trim($suffixRaw) === '') {
+            $suffixRaw = 'None';
+        }
         $suffix = $this->normalizeSuffix($suffixRaw);
         $rawSex = $this->stringValue($row, ['sex']);
         $sex = $this->normalizeSex($rawSex);
@@ -293,10 +302,6 @@ class BatchAccountImportService
             $errors[] = 'Last name must use uppercase letters only; need a letter before each space; no pure spaces.';
         }
 
-        if ($strictDemographics && trim((string) ($data['suffix_input'] ?? '')) === '') {
-            $errors[] = 'Suffix is required.';
-        }
-
         if ($data['suffix'] !== null && mb_strlen((string) $data['suffix']) > 5) {
             $errors[] = 'Suffix must not exceed 5 characters.';
         }
@@ -378,9 +383,12 @@ class BatchAccountImportService
         }
 
         if ($data['term_start'] !== null && $data['term_end'] !== null) {
+            $leadership = SkOfficialTermDates::leadershipDefaults($this->tenantId);
             $errors = array_merge($errors, array_values(SkOfficialTermDates::errorsFor(
                 $data['term_start'],
-                $data['term_end']
+                $data['term_end'],
+                null,
+                $leadership
             )));
         }
 
