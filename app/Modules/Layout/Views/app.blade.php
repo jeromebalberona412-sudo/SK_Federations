@@ -18,6 +18,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" media="print" onload="this.media='all'">
     <noscript><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"></noscript>
     @php
+        $turnoverModal = $turnoverModal ?? ['show' => false];
         $layoutVite = \App\Support\ViteManifest::existing([
             'app/Modules/Dashboard/assets/css/dashboard.css',
             'app/Modules/Layout/assets/css/layout.css',

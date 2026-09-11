@@ -10,6 +10,7 @@ use App\Modules\Accounts\Services\FederationRosterService;
 use App\Modules\AuditLog\Services\AuditLogQueryService;
 use App\Modules\Shared\Models\User;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Schema;
 
@@ -260,14 +261,20 @@ class DashboardStatsService
      */
     public function getBarangays(?int $tenantId): Collection
     {
-        if ($tenantId === null) {
+        if ($tenantId === null || ! Schema::hasTable('barangays')) {
             return collect();
         }
 
-        return Barangay::query()
-            ->where('tenant_id', $tenantId)
-            ->orderBy('name')
-            ->get(['id', 'name']);
+        try {
+            return Barangay::query()
+                ->where('tenant_id', $tenantId)
+                ->orderBy('name')
+                ->get(['id', 'name']);
+        } catch (\Throwable $e) {
+            report($e);
+
+            return collect();
+        }
     }
 
     public function dashboardYear(?int $tenantId): int
@@ -355,7 +362,7 @@ class DashboardStatsService
     }
 
     /**
-     * @param  Builder<\Illuminate\Database\Eloquent\Model>  $query
+     * @param  Builder<Model>  $query
      */
     private function applyCreatedAtDateRange(Builder $query, ?string $dateFrom, ?string $dateTo): void
     {

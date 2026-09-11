@@ -2,7 +2,6 @@
 
 namespace App\Modules\Notifications\Providers;
 
-use App\Modules\Notifications\Controllers\NotificationController;
 use App\Services\SkFederationsNotificationService;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
@@ -26,12 +25,21 @@ class NotificationsServiceProvider extends ServiceProvider
         ], 'notifications-assets');
 
         View::composer('layout::header', function ($view): void {
-            $user = Auth::user();
-            $service = app(SkFederationsNotificationService::class);
+            $notifications = [];
+            $unreadNotificationCount = 0;
+
+            try {
+                $user = Auth::user();
+                $service = app(SkFederationsNotificationService::class);
+                $notifications = $service->recentForUser($user, 5);
+                $unreadNotificationCount = $service->unreadCountForUser($user);
+            } catch (\Throwable $e) {
+                report($e);
+            }
 
             $view->with([
-                'notifications' => $service->recentForUser($user, 5),
-                'unreadNotificationCount' => $service->unreadCountForUser($user),
+                'notifications' => $notifications,
+                'unreadNotificationCount' => $unreadNotificationCount,
             ]);
         });
     }

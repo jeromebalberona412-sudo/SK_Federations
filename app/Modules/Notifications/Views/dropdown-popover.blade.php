@@ -41,7 +41,7 @@
     </div>
 
     <div class="notif-popover-footer">
-        <a href="{{ route('notifications.index') }}" class="notif-see-all-btn" data-no-loading>
+        <a href="{{ \Illuminate\Support\Facades\Route::has('notifications.index') ? route('notifications.index') : url('/notifications') }}" class="notif-see-all-btn" data-no-loading>
             See All Notifications
         </a>
     </div>

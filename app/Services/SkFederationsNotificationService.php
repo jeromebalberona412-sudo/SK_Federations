@@ -26,15 +26,21 @@ class SkFederationsNotificationService
      */
     public function recentForUser(?User $user, int $limit = 5): array
     {
-        if (! $user) {
+        if (! $user || ! $this->notificationsTableReady()) {
             return [];
         }
 
-        return $this->forUserQuery($user)
-            ->limit($limit)
-            ->get()
-            ->map(fn (SkFederationsNotification $notification) => $this->formatNotification($notification))
-            ->all();
+        try {
+            return $this->forUserQuery($user)
+                ->limit($limit)
+                ->get()
+                ->map(fn (SkFederationsNotification $notification) => $this->formatNotification($notification))
+                ->all();
+        } catch (\Throwable $e) {
+            report($e);
+
+            return [];
+        }
     }
 
     /**
@@ -42,25 +48,37 @@ class SkFederationsNotificationService
      */
     public function allForUser(?User $user): array
     {
-        if (! $user) {
+        if (! $user || ! $this->notificationsTableReady()) {
             return [];
         }
 
-        return $this->forUserQuery($user)
-            ->get()
-            ->map(fn (SkFederationsNotification $notification) => $this->formatNotification($notification))
-            ->all();
+        try {
+            return $this->forUserQuery($user)
+                ->get()
+                ->map(fn (SkFederationsNotification $notification) => $this->formatNotification($notification))
+                ->all();
+        } catch (\Throwable $e) {
+            report($e);
+
+            return [];
+        }
     }
 
     public function unreadCountForUser(?User $user): int
     {
-        if (! $user) {
+        if (! $user || ! $this->notificationsTableReady()) {
             return 0;
         }
 
-        return $this->forUserQuery($user)
-            ->whereNull('read_at')
-            ->count();
+        try {
+            return $this->forUserQuery($user)
+                ->whereNull('read_at')
+                ->count();
+        } catch (\Throwable $e) {
+            report($e);
+
+            return 0;
+        }
     }
 
     public function markRead(User $user, int $notificationId): bool
@@ -273,6 +291,15 @@ class SkFederationsNotificationService
             ->filter(fn (User $user) => $user->canAccessFederationPortal())
             ->unique('id')
             ->values();
+    }
+
+    private function notificationsTableReady(): bool
+    {
+        try {
+            return Schema::hasTable('sk_federations_notifications');
+        } catch (\Throwable) {
+            return false;
+        }
     }
 
     /**

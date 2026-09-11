@@ -43,7 +43,19 @@ class EnsureTurnoverTermLock
     {
         $user = $request->user();
 
-        if ($user === null || ! $this->termDetectionService->mustLockPortalForTurnover($user)) {
+        if ($user === null) {
+            return $next($request);
+        }
+
+        try {
+            $mustLock = $this->termDetectionService->mustLockPortalForTurnover($user);
+        } catch (\Throwable $e) {
+            report($e);
+
+            return $next($request);
+        }
+
+        if (! $mustLock) {
             return $next($request);
         }
 

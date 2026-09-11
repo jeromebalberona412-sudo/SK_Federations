@@ -8,9 +8,12 @@ use App\Modules\Dashboard\Services\DashboardStatsService;
 use App\Modules\Dashboard\Services\KkProfilingChartService;
 use App\Modules\Dashboard\Services\SkFedDashboardActivityService;
 use App\Modules\Shared\Controllers\Controller;
+use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\View\View;
 
 class DashboardController extends Controller
@@ -25,7 +28,13 @@ class DashboardController extends Controller
     public function index(Request $request): View
     {
         $tenantId = $request->user()?->tenant_id;
-        $barangays = $this->dashboardStatsService->getBarangays($tenantId);
+
+        try {
+            $barangays = $this->dashboardStatsService->getBarangays($tenantId);
+        } catch (\Throwable $e) {
+            report($e);
+            $barangays = collect();
+        }
 
         try {
             $termDefaults = SkOfficialTermDates::leadershipDefaults((int) ($tenantId ?? 0));
@@ -128,8 +137,8 @@ class DashboardController extends Controller
             'sexDistributionOfficials' => $safe(fn () => $this->dashboardStatsService->sexDistributionOfficials($tenantId, $dateFrom, $dateTo), []),
             'sexDistributionFederations' => $safe(fn () => $this->dashboardStatsService->sexDistributionFederations($tenantId, $dateFrom, $dateTo), []),
             'employmentStatusDistribution' => $safe(fn () => $this->dashboardStatsService->employmentStatusDistribution($tenantId, $dateFrom, $dateTo), []),
-            'federationOfficers' => $safe(fn () => $this->dashboardStatsService->federationOfficers($tenantId), collect()),
-            'topBarangays' => $safe(fn () => $this->dashboardStatsService->topBarangaysByYouth($tenantId, 5, $dateFrom, $dateTo), collect()),
+            'federationOfficers' => $safe(fn () => $this->dashboardStatsService->federationOfficers($tenantId), []),
+            'topBarangays' => $safe(fn () => $this->dashboardStatsService->topBarangaysByYouth($tenantId, 5, $dateFrom, $dateTo), []),
             'barangays' => $barangays,
             'kkBarangayOptions' => $barangays
                 ->map(fn ($barangay) => ['id' => $barangay->id, 'name' => $barangay->name])
@@ -286,15 +295,15 @@ class DashboardController extends Controller
 
     private function earliestDashboardDataDate(?int $tenantId): ?string
     {
-        if (! \Illuminate\Support\Facades\Schema::hasTable('kabataan_registrations')) {
+        if (! Schema::hasTable('kabataan_registrations')) {
             return null;
         }
 
         try {
-            $query = \Illuminate\Support\Facades\DB::table('kabataan_registrations')
+            $query = DB::table('kabataan_registrations')
                 ->whereNull('deleted_at');
 
-            if (\Illuminate\Support\Facades\Schema::hasColumn('kabataan_registrations', 'archived_at')) {
+            if (Schema::hasColumn('kabataan_registrations', 'archived_at')) {
                 $query->whereNull('archived_at');
             }
 
@@ -303,7 +312,7 @@ class DashboardController extends Controller
                 return null;
             }
 
-            return \Carbon\Carbon::parse($minCreated)->toDateString();
+            return Carbon::parse($minCreated)->toDateString();
         } catch (\Throwable $e) {
             report($e);
 

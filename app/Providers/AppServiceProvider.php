@@ -7,9 +7,10 @@ use App\Modules\Accounts\Models\OfficialTerm;
 use App\Modules\Accounts\Policies\AccountPolicy;
 use App\Modules\Authentication\Services\BootstrapSkFedAdminService;
 use App\Modules\Shared\Models\User;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\URL;
 use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;
@@ -74,26 +75,38 @@ class AppServiceProvider extends ServiceProvider
             'layout::sidebar',
             'community_feed::*',
         ], function ($view): void {
-            /** @var User|null $user */
-            $user = Auth::user();
+            try {
+                /** @var User|null $user */
+                $user = Auth::user();
 
-            $user?->loadMissing('officialProfile');
+                $user?->loadMissing('officialProfile');
 
-            $view->with([
-                'user' => $user,
-                'avatar' => asset('Images/SK_Fed_profile.png'),
-                'displayName' => $this->resolveSidebarDisplayName($user),
-                'sidebarMeta' => $this->resolveSidebarMeta($user),
-                'formattedRole' => match (true) {
-                    $user && strtolower((string) $user->email) === BootstrapSkFedAdminService::bootstrapEmailNormalized() => 'Admin',
-                    $user?->isSkFed() => 'SK Federation',
-                    $user?->hasFederationLeadershipAccess() => (string) ($user->officialProfile?->federation_position ?? 'SK Federation'),
-                    (string) ($user?->role ?? '') === 'admin' => 'Administrator',
-                    default => $user?->role
-                        ? ucwords(str_replace('_', ' ', (string) $user->role))
-                        : 'SK Federation',
-                },
-            ]);
+                $view->with([
+                    'user' => $user,
+                    'avatar' => asset('Images/SK_Fed_profile.png'),
+                    'displayName' => $this->resolveSidebarDisplayName($user),
+                    'sidebarMeta' => $this->resolveSidebarMeta($user),
+                    'formattedRole' => match (true) {
+                        $user && strtolower((string) $user->email) === BootstrapSkFedAdminService::bootstrapEmailNormalized() => 'Admin',
+                        $user?->isSkFed() => 'SK Federation',
+                        $user?->hasFederationLeadershipAccess() => (string) ($user->officialProfile?->federation_position ?? 'SK Federation'),
+                        (string) ($user?->role ?? '') === 'admin' => 'Administrator',
+                        default => $user?->role
+                            ? ucwords(str_replace('_', ' ', (string) $user->role))
+                            : 'SK Federation',
+                    },
+                ]);
+            } catch (\Throwable $e) {
+                report($e);
+
+                $view->with([
+                    'user' => Auth::user(),
+                    'avatar' => asset('Images/SK_Fed_profile.png'),
+                    'displayName' => 'User',
+                    'sidebarMeta' => null,
+                    'formattedRole' => 'SK Federation',
+                ]);
+            }
         });
     }
 
@@ -145,13 +158,19 @@ class AppServiceProvider extends ServiceProvider
             return null;
         }
 
-        $term = $profile->terms()
-            ->when(
-                \Illuminate\Support\Facades\Schema::hasColumn('official_terms', 'status'),
-                fn ($query) => $query->where('status', OfficialTerm::STATUS_ACTIVE)
-            )
-            ->orderByDesc('term_start')
-            ->first();
+        $term = null;
+
+        try {
+            $term = $profile->terms()
+                ->when(
+                    Schema::hasColumn('official_terms', 'status'),
+                    fn ($query) => $query->where('status', OfficialTerm::STATUS_ACTIVE)
+                )
+                ->orderByDesc('term_start')
+                ->first();
+        } catch (\Throwable $e) {
+            report($e);
+        }
 
         $formatTerm = static function ($value): string {
             if ($value === null || $value === '') {
@@ -159,7 +178,7 @@ class AppServiceProvider extends ServiceProvider
             }
 
             try {
-                return \Illuminate\Support\Carbon::parse($value)->format('M d, Y');
+                return Carbon::parse($value)->format('M d, Y');
             } catch (\Throwable) {
                 return 'N/A';
             }

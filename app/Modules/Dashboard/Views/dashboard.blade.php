@@ -448,13 +448,18 @@
     };
 </script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-@vite([
-    'app/Modules/Dashboard/assets/js/kkprofilingchart.js',
-    'app/Modules/Dashboard/assets/js/dashboard-purok.js',
-    'app/Modules/Dashboard/assets/js/dashboard-demographics.js',
-    'app/Modules/Dashboard/assets/js/dashboard-activity.js',
-    'app/Modules/Dashboard/assets/js/dashboard-audit.js',
-])
+@php
+    $dashboardVite = \App\Support\ViteManifest::existing([
+        'app/Modules/Dashboard/assets/js/kkprofilingchart.js',
+        'app/Modules/Dashboard/assets/js/dashboard-purok.js',
+        'app/Modules/Dashboard/assets/js/dashboard-demographics.js',
+        'app/Modules/Dashboard/assets/js/dashboard-activity.js',
+        'app/Modules/Dashboard/assets/js/dashboard-audit.js',
+    ]);
+@endphp
+@if ($dashboardVite !== [])
+    @vite($dashboardVite)
+@endif
 <script>
         (() => {
             const heartbeatMs = {{ (int) config('sk_fed_auth.single_session.heartbeat_interval_seconds', 30) }} * 1000;

@@ -3,6 +3,10 @@
 namespace App\Modules\Turnover\Providers;
 
 use App\Modules\Dashboard\Services\DashboardStatsService;
+use App\Modules\Turnover\Listeners\HandleTurnoverPasswordSetup;
+use App\Modules\Turnover\Middleware\EnsureTurnoverTermLock;
+use App\Modules\Turnover\Models\FederationTurnover;
+use App\Modules\Turnover\Policies\FederationTurnoverPolicy;
 use App\Modules\Turnover\Services\FederationTermDetectionService;
 use App\Modules\Turnover\Services\TurnoverBatchTemplateService;
 use App\Modules\Turnover\Services\TurnoverCompletionService;
@@ -16,8 +20,6 @@ use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;
-use App\Modules\Turnover\Listeners\HandleTurnoverPasswordSetup;
-use App\Modules\Turnover\Policies\FederationTurnoverPolicy;
 
 class TurnoverServiceProvider extends ServiceProvider
 {
@@ -40,48 +42,55 @@ class TurnoverServiceProvider extends ServiceProvider
             __DIR__.'/../assets' => public_path('modules/turnover'),
         ], 'turnover-assets');
 
-        Gate::policy(\App\Modules\Turnover\Models\FederationTurnover::class, FederationTurnoverPolicy::class);
+        Gate::policy(FederationTurnover::class, FederationTurnoverPolicy::class);
 
         Event::listen(PasswordReset::class, HandleTurnoverPasswordSetup::class);
 
         View::composer('layout::app', function ($view): void {
-            $user = Auth::user();
+            $fallback = ['show' => false];
 
-            if ($user === null) {
-                $view->with('turnoverModal', ['show' => false]);
+            try {
+                $user = Auth::user();
 
-                return;
+                if ($user === null) {
+                    $view->with('turnoverModal', $fallback);
+
+                    return;
+                }
+
+                $user->loadMissing('officialProfile');
+
+                $turnoverService = app(TurnoverService::class);
+                $context = $turnoverService->dashboardContext($user);
+                $activeTurnover = $context['active_turnover'] ?? null;
+
+                if ($activeTurnover) {
+                    $activeTurnover->load('registrations');
+                }
+
+                $view->with([
+                    'turnoverModal' => [
+                        'show' => (bool) ($context['show_modal'] ?? false),
+                        'portal_locked' => (bool) ($context['portal_locked'] ?? false),
+                        'context' => $context,
+                        'active_turnover' => $activeTurnover,
+                        'progress' => $context['progress'] ?? [],
+                        'barangays' => app(DashboardStatsService::class)->getBarangays((int) $user->tenant_id),
+                        'cssVersion' => @filemtime(app_path('Modules/Turnover/assets/css/turnover.css')) ?: time(),
+                        'jsVersion' => @filemtime(app_path('Modules/Turnover/assets/js/turnover.js')) ?: time(),
+                    ],
+                ]);
+            } catch (\Throwable $e) {
+                report($e);
+                $view->with('turnoverModal', $fallback);
             }
-
-            $user->loadMissing('officialProfile');
-
-            $turnoverService = app(TurnoverService::class);
-            $context = $turnoverService->dashboardContext($user);
-            $activeTurnover = $context['active_turnover'];
-
-            if ($activeTurnover) {
-                $activeTurnover->load('registrations');
-            }
-
-            $view->with([
-                'turnoverModal' => [
-                    'show' => (bool) ($context['show_modal'] ?? false),
-                    'portal_locked' => (bool) ($context['portal_locked'] ?? false),
-                    'context' => $context,
-                    'active_turnover' => $activeTurnover,
-                    'progress' => $context['progress'] ?? [],
-                    'barangays' => app(DashboardStatsService::class)->getBarangays((int) $user->tenant_id),
-                    'cssVersion' => @filemtime(app_path('Modules/Turnover/assets/css/turnover.css')) ?: time(),
-                    'jsVersion' => @filemtime(app_path('Modules/Turnover/assets/js/turnover.js')) ?: time(),
-                ],
-            ]);
         });
 
         Route::middleware('web')
             ->group(__DIR__.'/../Routes/turnover.php');
 
         $this->app->booted(function (): void {
-            Route::pushMiddlewareToGroup('web', \App\Modules\Turnover\Middleware\EnsureTurnoverTermLock::class);
+            Route::pushMiddlewareToGroup('web', EnsureTurnoverTermLock::class);
         });
     }
 }

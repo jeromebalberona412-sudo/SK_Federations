@@ -2,20 +2,19 @@
 
 namespace App\Modules\Turnover\Services;
 
-use App\Modules\Accounts\Models\OfficialProfile;
 use App\Modules\Accounts\Models\OfficialTerm;
 use App\Modules\Accounts\Services\FederationRosterService;
 use App\Modules\Shared\Models\User;
 use App\Modules\Turnover\Models\FederationTurnover;
 use Carbon\Carbon;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Schema;
 
 class FederationTermDetectionService
 {
     public function __construct(
         private readonly FederationRosterService $federationRosterService,
-    ) {
-    }
+    ) {}
 
     public function isFederationLeadershipOfficer(User $user): bool
     {
@@ -63,42 +62,54 @@ class FederationTermDetectionService
 
     public function shouldShowTurnoverModal(User $user): bool
     {
-        if (! $this->isFederationLeadershipOfficer($user)) {
+        try {
+            if (! $this->isFederationLeadershipOfficer($user)) {
+                return false;
+            }
+
+            $tenantId = (int) $user->tenant_id;
+            $context = $this->currentLeadershipContext($tenantId);
+
+            if ($context['term_end'] === null) {
+                return false;
+            }
+
+            if ($this->activeTurnoverForTenant($tenantId) !== null) {
+                return true;
+            }
+
+            if ($this->isTermEnded($context['term_end'])) {
+                return ! $this->hasCompletedTurnoverForTerm($tenantId, $context['current_term_id']);
+            }
+
+            return $this->isWithinNoticeWindow($context['term_end']);
+        } catch (\Throwable $e) {
+            report($e);
+
             return false;
         }
-
-        $tenantId = (int) $user->tenant_id;
-        $context = $this->currentLeadershipContext($tenantId);
-
-        if ($context['term_end'] === null) {
-            return false;
-        }
-
-        if ($this->activeTurnoverForTenant($tenantId) !== null) {
-            return true;
-        }
-
-        if ($this->isTermEnded($context['term_end'])) {
-            return ! $this->hasCompletedTurnoverForTerm($tenantId, $context['current_term_id']);
-        }
-
-        return $this->isWithinNoticeWindow($context['term_end']);
     }
 
     public function mustLockPortalForTurnover(User $user): bool
     {
-        if (! $this->isFederationLeadershipOfficer($user)) {
+        try {
+            if (! $this->isFederationLeadershipOfficer($user)) {
+                return false;
+            }
+
+            $tenantId = (int) $user->tenant_id;
+            $context = $this->currentLeadershipContext($tenantId);
+
+            if ($context['term_end'] === null || ! $this->isTermEnded($context['term_end'])) {
+                return false;
+            }
+
+            return ! $this->hasCompletedTurnoverForTerm($tenantId, $context['current_term_id']);
+        } catch (\Throwable $e) {
+            report($e);
+
             return false;
         }
-
-        $tenantId = (int) $user->tenant_id;
-        $context = $this->currentLeadershipContext($tenantId);
-
-        if ($context['term_end'] === null || ! $this->isTermEnded($context['term_end'])) {
-            return false;
-        }
-
-        return ! $this->hasCompletedTurnoverForTerm($tenantId, $context['current_term_id']);
     }
 
     public function canStartNewTurnover(User $user): bool
@@ -144,12 +155,22 @@ class FederationTermDetectionService
 
     public function activeTurnoverForTenant(int $tenantId): ?FederationTurnover
     {
-        return FederationTurnover::query()
-            ->with(['registrations'])
-            ->where('tenant_id', $tenantId)
-            ->whereIn('status', FederationTurnover::ACTIVE_STATUSES)
-            ->latest('id')
-            ->first();
+        if (! $this->turnoversTableReady()) {
+            return null;
+        }
+
+        try {
+            return FederationTurnover::query()
+                ->with(['registrations'])
+                ->where('tenant_id', $tenantId)
+                ->whereIn('status', FederationTurnover::ACTIVE_STATUSES)
+                ->latest('id')
+                ->first();
+        } catch (\Throwable $e) {
+            report($e);
+
+            return null;
+        }
     }
 
     public function bothIncomingOfficersReady(FederationTurnover $turnover): bool
@@ -167,28 +188,57 @@ class FederationTermDetectionService
 
     private function hasCompletedTurnoverForTerm(int $tenantId, ?int $currentTermId): bool
     {
-        $query = FederationTurnover::query()
-            ->where('tenant_id', $tenantId)
-            ->where('status', FederationTurnover::STATUS_COMPLETED);
-
-        if ($currentTermId !== null) {
-            $query->where('current_term_id', $currentTermId);
+        if (! $this->turnoversTableReady()) {
+            return false;
         }
 
-        return $query->exists();
+        try {
+            $query = FederationTurnover::query()
+                ->where('tenant_id', $tenantId)
+                ->where('status', FederationTurnover::STATUS_COMPLETED);
+
+            if ($currentTermId !== null) {
+                $query->where('current_term_id', $currentTermId);
+            }
+
+            return $query->exists();
+        } catch (\Throwable $e) {
+            report($e);
+
+            return false;
+        }
     }
 
     private function hasActiveTurnover(int $tenantId, ?int $currentTermId): bool
     {
-        $query = FederationTurnover::query()
-            ->where('tenant_id', $tenantId)
-            ->whereIn('status', FederationTurnover::ACTIVE_STATUSES);
-
-        if ($currentTermId !== null) {
-            $query->where('current_term_id', $currentTermId);
+        if (! $this->turnoversTableReady()) {
+            return false;
         }
 
-        return $query->exists();
+        try {
+            $query = FederationTurnover::query()
+                ->where('tenant_id', $tenantId)
+                ->whereIn('status', FederationTurnover::ACTIVE_STATUSES);
+
+            if ($currentTermId !== null) {
+                $query->where('current_term_id', $currentTermId);
+            }
+
+            return $query->exists();
+        } catch (\Throwable $e) {
+            report($e);
+
+            return false;
+        }
+    }
+
+    private function turnoversTableReady(): bool
+    {
+        try {
+            return Schema::hasTable('federation_turnovers');
+        } catch (\Throwable) {
+            return false;
+        }
     }
 
     private function isWithinNoticeWindow(Carbon $termEnd): bool
