@@ -77,8 +77,16 @@ export default defineConfig({
                 'app/Modules/Calendar/assets/css/calendar.css',
                 'app/Modules/Calendar/assets/js/calendar.js',
 
+                // ── Deleted Calendar Notes ────────────────────────────────
+                'app/Modules/Deleted_Calendar_Notes/assets/css/deleted-calendar-notes.css',
+                'app/Modules/Deleted_Calendar_Notes/assets/js/deleted-calendar-notes.js',
+
                 // ── Community Feed ────────────────────────────────────────
                 'app/Modules/CommunityFeed/assets/css/community-feed.css',
+                'app/Modules/CommunityFeed/assets/css/community-feed-public.css',
+                'app/Modules/CommunityFeed/assets/js/prohibited-words.js',
+                'app/Modules/CommunityFeed/assets/js/comment-spam-guard.js',
+                'app/Modules/CommunityFeed/assets/js/community-feed-media.js',
                 'app/Modules/CommunityFeed/assets/js/community-feed.js',
                 'app/Modules/CommunityFeed/assets/css/community-feed-comment-preview.css',
                 'app/Modules/CommunityFeed/assets/js/community-feed-comment-preview.js',

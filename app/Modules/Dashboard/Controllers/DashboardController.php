@@ -39,11 +39,14 @@ class DashboardController extends Controller
 
         $termStart = $termDefaults['term_start'] ?? SkOfficialTermDates::defaultStart();
         $termEnd = $termDefaults['term_end'] ?? SkOfficialTermDates::defaultEnd();
-        // Follow SK Federation President (then VP) term window.
+        $today = now()->timezone(config('app.timezone', 'Asia/Manila'))->toDateString();
+        $dataEarliest = $this->earliestDashboardDataDate($tenantId);
+        // Default range: President term start → today (capped by term end).
         $dateFrom = $termStart;
-        $dateTo = $termEnd;
+        $dateTo = $today <= $termEnd ? $today : $termEnd;
         $dashboardYear = (int) substr((string) $dateFrom, 0, 4);
         $user = $request->user();
+        $showDateAll = $dataEarliest !== null && $dataEarliest < $termStart;
 
         try {
             $statCards = $this->dashboardStatsService->dashboardStatCards($tenantId, $dateFrom, $dateTo);
@@ -141,6 +144,8 @@ class DashboardController extends Controller
             'dateTo' => $dateTo,
             'termStart' => $termStart,
             'termEnd' => $termEnd,
+            'dataEarliest' => $dataEarliest,
+            'showDateAll' => $showDateAll,
             'abyipOverview' => $abyipOverview,
             'kkProfilingInitial' => $kkProfilingInitial,
             'purokChartInitial' => $purokChartInitial,
@@ -241,23 +246,35 @@ class DashboardController extends Controller
     {
         $dateFrom = trim((string) $request->input('date_from', ''));
         $dateTo = trim((string) $request->input('date_to', ''));
+        $rangeMode = strtolower(trim((string) $request->input('range_mode', 'term')));
         $tenantId = (int) ($request->user()?->tenant_id ?? 0);
         $defaults = $tenantId > 0 ? SkOfficialTermDates::leadershipDefaults($tenantId) : null;
         $termStart = $defaults['term_start'] ?? null;
         $termEnd = $defaults['term_end'] ?? null;
+        $today = now()->timezone(config('app.timezone', 'Asia/Manila'))->toDateString();
+        $earliest = $this->earliestDashboardDataDate($request->user()?->tenant_id);
 
         if ($dateFrom === '') {
             $dateFrom = $termStart;
         }
         if ($dateTo === '') {
-            $dateTo = $termEnd;
+            $dateTo = ($termEnd && $today > $termEnd) ? $termEnd : $today;
         }
 
-        if ($termStart && $dateFrom !== '' && $dateFrom < $termStart) {
-            $dateFrom = $termStart;
-        }
-        if ($termEnd && $dateTo !== '' && $dateTo > $termEnd) {
-            $dateTo = $termEnd;
+        if ($rangeMode !== 'all') {
+            if ($termStart && $dateFrom !== '' && $dateFrom < $termStart) {
+                $dateFrom = $termStart;
+            }
+            if ($termEnd && $dateTo !== '' && $dateTo > $termEnd) {
+                $dateTo = $termEnd;
+            }
+        } else {
+            if ($earliest && $dateFrom !== '' && $dateFrom < $earliest) {
+                $dateFrom = $earliest;
+            }
+            if ($dateTo !== '' && $dateTo > $today) {
+                $dateTo = $today;
+            }
         }
 
         if ($dateFrom !== null && $dateTo !== null && $dateFrom !== '' && $dateTo !== '' && $dateFrom > $dateTo) {
@@ -265,6 +282,33 @@ class DashboardController extends Controller
         }
 
         return [$dateFrom ?: null, $dateTo ?: null];
+    }
+
+    private function earliestDashboardDataDate(?int $tenantId): ?string
+    {
+        if (! \Illuminate\Support\Facades\Schema::hasTable('kabataan_registrations')) {
+            return null;
+        }
+
+        try {
+            $query = \Illuminate\Support\Facades\DB::table('kabataan_registrations')
+                ->whereNull('deleted_at');
+
+            if (\Illuminate\Support\Facades\Schema::hasColumn('kabataan_registrations', 'archived_at')) {
+                $query->whereNull('archived_at');
+            }
+
+            $minCreated = $query->min('created_at');
+            if (! $minCreated) {
+                return null;
+            }
+
+            return \Carbon\Carbon::parse($minCreated)->toDateString();
+        } catch (\Throwable $e) {
+            report($e);
+
+            return null;
+        }
     }
 
     public function kkProfilingData(Request $request): JsonResponse

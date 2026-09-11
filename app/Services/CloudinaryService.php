@@ -10,6 +10,7 @@ use RuntimeException;
 class CloudinaryService
 {
     private Cloudinary $cloudinary;
+
     private string $folder;
 
     public function __construct()
@@ -18,7 +19,7 @@ class CloudinaryService
         $this->cloudinary = new Cloudinary([
             'cloud' => [
                 'cloud_name' => config('services.cloudinary.cloud_name'),
-                'api_key'    => config('services.cloudinary.api_key'),
+                'api_key' => config('services.cloudinary.api_key'),
                 'api_secret' => config('services.cloudinary.api_secret'),
             ],
         ]);
@@ -39,8 +40,8 @@ class CloudinaryService
         $this->ensureConfigured();
 
         $options = [
-            'public_id'     => $this->folder . '/' . $publicId,
-            'overwrite'     => true,
+            'public_id' => $this->folder.'/'.$publicId,
+            'overwrite' => true,
             'resource_type' => 'image',
         ];
 
@@ -57,8 +58,8 @@ class CloudinaryService
 
         return [
             'public_id' => $result['public_id'],
-            'url'       => $this->deliverUrl($result['public_id'], $version),
-            'version'   => $version,
+            'url' => $this->deliverUrl($result['public_id'], $version),
+            'version' => $version,
         ];
     }
 
@@ -67,6 +68,35 @@ class CloudinaryService
      *
      * @return array{public_id: string, url: string, version: int|null}
      */
+    /**
+     * Upload a Community Feed video using the configured unsigned/signed preset options.
+     *
+     * @return array{public_id: string, url: string, bytes: int|null, mime_type: string|null, duration: float|null}
+     */
+    public function uploadCommunityVideo(UploadedFile $file): array
+    {
+        $this->ensureConfigured();
+
+        $preset = trim((string) config('services.cloudinary.community_video_upload_preset', 'SK_Federations_community_video'));
+        $path = $file->getRealPath() ?: $file->getPathname();
+
+        $options = [
+            'resource_type' => 'video',
+            'upload_preset' => $preset !== '' ? $preset : 'SK_Federations_community_video',
+        ];
+
+        $result = $this->cloudinary->uploadApi()->upload($path, $options);
+        $url = (string) ($result['secure_url'] ?? $result['url'] ?? '');
+
+        return [
+            'public_id' => (string) ($result['public_id'] ?? ''),
+            'url' => $url,
+            'bytes' => isset($result['bytes']) ? (int) $result['bytes'] : null,
+            'mime_type' => isset($result['format']) ? 'video/'.strtolower((string) $result['format']) : $file->getMimeType(),
+            'duration' => isset($result['duration']) ? (float) $result['duration'] : null,
+        ];
+    }
+
     public function uploadCommunicationImage(UploadedFile $file): array
     {
         $this->ensureConfigured();
@@ -134,11 +164,11 @@ class CloudinaryService
 
     public function normalizeUrl(?string $url): ?string
     {
-        if (!$url || !$this->isConfigured()) {
+        if (! $url || ! $this->isConfigured()) {
             return $url;
         }
 
-        if (!str_contains($url, 'res.cloudinary.com')) {
+        if (! str_contains($url, 'res.cloudinary.com')) {
             return $url;
         }
 
@@ -152,11 +182,11 @@ class CloudinaryService
     public function extractPublicIdFromUrl(string $url): ?string
     {
         $path = parse_url($url, PHP_URL_PATH);
-        if (!is_string($path) || !str_contains($path, '/sk_oneportal/')) {
+        if (! is_string($path) || ! str_contains($path, '/sk_oneportal/')) {
             return null;
         }
 
-        if (!preg_match('#(/sk_oneportal/.+)$#', $path, $matches)) {
+        if (! preg_match('#(/sk_oneportal/.+)$#', $path, $matches)) {
             return null;
         }
 
@@ -166,7 +196,7 @@ class CloudinaryService
     public function extractVersionFromUrl(string $url): ?int
     {
         $path = parse_url($url, PHP_URL_PATH);
-        if (!is_string($path) || !preg_match('#/v(\d+)/#', $path, $matches)) {
+        if (! is_string($path) || ! preg_match('#/v(\d+)/#', $path, $matches)) {
             return null;
         }
 
@@ -181,19 +211,19 @@ class CloudinaryService
 
         $token = match (true) {
             $updatedAt instanceof DateTimeInterface => $updatedAt->getTimestamp(),
-            is_int($updatedAt)                        => $updatedAt,
+            is_int($updatedAt) => $updatedAt,
             is_string($updatedAt) && $updatedAt !== '' => strtotime($updatedAt) ?: time(),
-            default                                   => time(),
+            default => time(),
         };
 
         $separator = str_contains($url, '?') ? '&' : '?';
 
-        return $url . $separator . 'cb=' . $token;
+        return $url.$separator.'cb='.$token;
     }
 
     private function ensureConfigured(): void
     {
-        if (!$this->isConfigured()) {
+        if (! $this->isConfigured()) {
             throw new RuntimeException(
                 'Cloudinary is not configured. Set CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, and CLOUDINARY_API_SECRET in .env.'
             );

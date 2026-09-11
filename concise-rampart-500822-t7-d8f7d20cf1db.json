@@ -1,0 +1,13 @@
+{
+  "type": "service_account",
+  "project_id": "concise-rampart-500822-t7",
+  "private_key_id": "d8f7d20cf1db3c3f20a13f2feef9530e251c9cbe",
+  "private_key": "-----BEGIN PRIVATE KEY-----\nMIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQC6DcA+yGwjYLo7\nSz+1IG4piArFQiMDjlybDNiluhz+3phZExtvtGN7/5IAReKGDH+Z+zTaelFBEGLx\nc4De/0qrXsqkWfY0LzGPxn9VGiEjtBCahB/9AppnhCQh+Ou8W5JS9hvhXbzCPkcy\nqGQQp32HzifueQjY8DJsS53dkf3i3kZeYlTGhQ9qCipHC/9fiUuZxinERYbd5V9a\nnBoSgdA93pYBYqVRioLVNA0EvQb+0ggFKXJxur7CyeL9KccJDGFByVe67kR501Wg\n/DcmyV1nyXTqQ8Z3abej+waRQbp1uDl+Xqi5BH0JBZ1Vkcxs8Ap9JqGhLY4HvZbb\nKygwQVydAgMBAAECggEAO0Gv7g8VafsftUzVIJIQpAehLoxO7I4F7pgb1ES/gWlR\n6mTMgzpXySFv1chsSjdm2JsKjV8RzAA1EyOvctaqaIRLVCcW5C33wgv9eBRXY7Cw\n7RWRvpp6pOeQPoWyRw5/Pw8FeDTLrq35LSg2nptJvtwpGanQ6I8v8A/xWqVp0Dxh\nuUmoQrIdOGA1g/P2xLNwTdL47CO8WENlyfSEhf+QPEOlBFhE1hlv4LS/gx4JCPOA\n3Il1Y4X9cRv6f2URp93giJ+1WmQlvP3feuJYp8L56IgRh5EaKvzsBv7SPgRtODWv\nDBGnOWyvxkskI5f1/P72I5m326w1cWE42YgdGFB+vQKBgQDnZjY//T497GXIdk2u\nANzhz76kDtIw6u+/Ef9aQySYzd0b8K3sTqmcru/h/V2uK4hCEYg2R3O+nIolgPLD\nHUWM56HJLfSBEM3Vs0w6o+oMp8cuIuKEJgKHs++ApZ9vlNFZR6+TQh/muY5s+X12\nKFrAoaGPNWstZvczw7NQeghY2wKBgQDN1WjVYs0ICbYePDZw9JTtJxDMJ9KTueIJ\n8HNDrFXRbz8wZ2a3ohH+o+XNG5cTXu1Gi8f3uoeMwyuFRZGmg6SuCADAdE4nn3s1\nxGHanEPBMsghCF/zMpfaatQI8hbXLaSYMtlIbE9DOtysbp9TOg+KdfVARg6TiAds\ndwKcA7c95wKBgEmRcYX+mZ9OXT3SfvfnRlJ0ngPCwojS6M4yhqDH4AbEzJtpdaI/\nkCVEaPfMedA5/uQids/q/52GX1V1HblywP3/VqyDc8zk7swWaRHrsym63dSJOsMQ\n4pUKXAbmoT30bmqYI/YJe+L685Ep8P1z7wZ3XMoPDbgtmEJY4dWgNq8pAoGBAJQR\nxnVius3idpFvjVZai9vCM5I5v4EnwhSWVcTD74RW++TtLXZCb6F38/NFurtjmVsb\naQGrvKElMWSQ9EMOBmRvO2M3B5X3YyH9oMsriI4t4svog2Wm6phkKx44UPgATJx0\nT9yKlcZuTJr6hUDQzqczTfcrroaw325GeqkS/znXAoGAGCngsNcKmDxTV/s5aut1\nLM5FciNYGuXq2Ho+Qm6UctopIFNa9V0SMBNDCHj1OTnbx2JiqwqicuOHbCU6jDhA\n+w2Kp9RPqXEu1az53LD/4V2XuOOqb9yg35Pe6/8w4ouwMZ7Sii07KJKtBC3gsRfs\nFbvIh2Wa4w+kiJ9+4BVlk2w=\n-----END PRIVATE KEY-----\n",
+  "client_email": "sk-oneportal-drive@concise-rampart-500822-t7.iam.gserviceaccount.com",
+  "client_id": "107133044268279981407",
+  "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+  "token_uri": "https://oauth2.googleapis.com/token",
+  "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+  "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/sk-oneportal-drive%40concise-rampart-500822-t7.iam.gserviceaccount.com",
+  "universe_domain": "googleapis.com"
+}

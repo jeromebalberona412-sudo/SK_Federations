@@ -7,6 +7,7 @@ use App\Modules\Shared\Controllers\Controller;
 use App\Modules\Shared\Models\Announcement;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
 use Illuminate\View\View;
 
 class CommunityFeedController extends Controller
@@ -21,6 +22,7 @@ class CommunityFeedController extends Controller
             'user' => $request->user(),
             'barangayProfiles' => $this->feedService->listBarangayProfiles($tenantId),
             'commentPreviewPost' => null,
+            'feedYearsWithPosts' => $this->yearsWithFederationPosts(),
         ]);
     }
 
@@ -35,6 +37,7 @@ class CommunityFeedController extends Controller
                 'comments.reactions',
                 'user',
                 'images',
+                'videos',
                 'reactions.user',
             ])
             ->withCount('reactions')
@@ -44,6 +47,38 @@ class CommunityFeedController extends Controller
             'user' => $user,
             'barangayProfiles' => $this->feedService->listBarangayProfiles($user?->tenant_id),
             'commentPreviewPost' => app(CommunityFeedPostController::class)->formatPostForPage($post, (int) $user->id),
+            'feedYearsWithPosts' => $this->yearsWithFederationPosts(),
+        ]);
+    }
+
+    public function publicShow(string $token): View|Response
+    {
+        $token = strtoupper(trim($token));
+
+        if (! preg_match('/^[0-9A-HJKMNP-TV-Z]{26}$/', $token)) {
+            return response()
+                ->view('community_feed::public-post', [
+                    'available' => false,
+                    'post' => null,
+                ], 404);
+        }
+
+        $post = Announcement::query()
+            ->whereRaw('UPPER(share_token) = ?', [$token])
+            ->with(['barangay', 'images', 'videos'])
+            ->first();
+
+        if ($post === null || ! $post->isShareable()) {
+            return response()
+                ->view('community_feed::public-post', [
+                    'available' => false,
+                    'post' => null,
+                ], 404);
+        }
+
+        return view('community_feed::public-post', [
+            'available' => true,
+            'post' => app(CommunityFeedPostController::class)->formatPublicPost($post),
         ]);
     }
 
@@ -108,6 +143,7 @@ class CommunityFeedController extends Controller
                 'comments.reactions',
                 'user',
                 'images',
+                'videos',
                 'reactions.user',
             ])
             ->withCount('reactions')
@@ -150,6 +186,7 @@ class CommunityFeedController extends Controller
                 'comments.reactions',
                 'user',
                 'images',
+                'videos',
                 'reactions.user',
             ])
             ->withCount('reactions')
@@ -159,6 +196,23 @@ class CommunityFeedController extends Controller
             ->orderByDesc('created_at')
             ->get()
             ->map(fn (Announcement $post) => $formatter->formatPostForPage($post, $userId))
+            ->values()
+            ->all();
+    }
+
+    /**
+     * @return list<int>
+     */
+    private function yearsWithFederationPosts(): array
+    {
+        return Announcement::query()
+            ->active()
+            ->whereRaw('"is_federation_wide" = true')
+            ->selectRaw('DISTINCT EXTRACT(YEAR FROM created_at)::integer as year')
+            ->orderByDesc('year')
+            ->pluck('year')
+            ->map(static fn ($year): int => (int) $year)
+            ->filter(static fn (int $year): bool => $year >= 2000 && $year <= 2100)
             ->values()
             ->all();
     }

@@ -50,8 +50,11 @@ class CalendarController extends Controller
         $validated = $request->validate([
             'note_date' => ['required', 'date'],
             'title' => ['required', 'string', 'max:50'],
-            'content' => ['required', 'string', 'max:500'],
+            'content' => ['required', 'string'],
         ]);
+
+        $validated['title'] = $this->assertValidNoteTitle($validated['title']);
+        $validated['content'] = $this->assertValidNoteContent($validated['content']);
 
         $this->assertCanCreateNote($validated['note_date']);
 
@@ -96,8 +99,11 @@ class CalendarController extends Controller
 
         $validated = $request->validate([
             'title' => ['required', 'string', 'max:50'],
-            'content' => ['required', 'string', 'max:500'],
+            'content' => ['required', 'string'],
         ]);
+
+        $validated['title'] = $this->assertValidNoteTitle($validated['title']);
+        $validated['content'] = $this->assertValidNoteContent($validated['content']);
 
         $note->update($validated);
 
@@ -226,5 +232,70 @@ class CalendarController extends Controller
             'created_at' => $note->created_at?->toIso8601String(),
             'updated_at' => $note->updated_at?->toIso8601String(),
         ];
+    }
+
+    /**
+     * Title: required, max 50, no spaces or newlines.
+     */
+    protected function assertValidNoteTitle(string $title): string
+    {
+        $clean = preg_replace('/\s+/u', '', $title) ?? '';
+        $clean = mb_substr($clean, 0, 50);
+
+        if ($clean === '') {
+            throw ValidationException::withMessages([
+                'title' => ['Title is required.'],
+            ]);
+        }
+
+        if (mb_strlen($clean) > 50) {
+            throw ValidationException::withMessages([
+                'title' => ['Title must be 50 characters or less.'],
+            ]);
+        }
+
+        return $clean;
+    }
+
+    /**
+     * Same visual-line weighted rule as Community Feed / Communications chat:
+     * a completed newline counts as at least one full line width, not +1.
+     */
+    protected function assertValidNoteContent(string $content): string
+    {
+        $normalized = str_replace(["\r\n", "\r"], "\n", $content);
+
+        if ($normalized === '' || preg_match('/\S/u', $normalized) !== 1) {
+            throw ValidationException::withMessages([
+                'content' => ['Content is required.'],
+            ]);
+        }
+
+        if ($this->countedNoteLength($normalized) > 1000) {
+            throw ValidationException::withMessages([
+                'content' => ['Content must be 1,000 characters or less (new lines count as a full line).'],
+            ]);
+        }
+
+        return $normalized;
+    }
+
+    protected function countedNoteLength(string $normalizedBody, int $charsPerLine = 36): int
+    {
+        $cpl = max(8, $charsPerLine);
+        $lines = explode("\n", $normalizedBody);
+        $total = 0;
+        $lastIndex = count($lines) - 1;
+
+        foreach ($lines as $index => $line) {
+            $len = mb_strlen($line);
+            if ($index < $lastIndex) {
+                $total += max($cpl, $len);
+            } else {
+                $total += $len;
+            }
+        }
+
+        return $total;
     }
 }

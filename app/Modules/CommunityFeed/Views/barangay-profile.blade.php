@@ -116,6 +116,41 @@
 
 <div id="feedToast" class="feed-toast" role="status" aria-live="polite"></div>
 
+<div id="videoLightbox" class="image-lightbox video-lightbox" aria-hidden="true">
+    <button type="button" id="videoLightboxClose" class="lightbox-close" aria-label="Close">&times;</button>
+    <button type="button" id="videoLightboxPrev" class="lightbox-nav lightbox-prev" aria-label="Previous video">&#10094;</button>
+    <div class="lightbox-viewport video-lightbox-viewport" id="videoLightboxViewport">
+        <div id="videoLightboxFrame" class="video-lightbox-frame"></div>
+    </div>
+    <button type="button" id="videoLightboxNext" class="lightbox-nav lightbox-next" aria-label="Next video">&#10095;</button>
+    <div id="videoLightboxCounter" class="lightbox-counter"></div>
+</div>
+
+<div id="sharePostModal" class="program-modal" aria-hidden="true">
+    <div class="modal-overlay" onclick="closeShareModal()"></div>
+    <div class="modal-container share-post-modal" role="dialog" aria-modal="true" aria-labelledby="sharePostModalTitle">
+        <div class="modal-header">
+            <h2 id="sharePostModalTitle">Share post</h2>
+            <button type="button" class="modal-close" onclick="closeShareModal()" aria-label="Close">
+                <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"/></svg>
+            </button>
+        </div>
+        <form class="share-post-form" id="sharePostForm" onsubmit="event.preventDefault(); copySharePostLink();">
+            <div class="modal-body">
+                <p class="share-post-hint">Anyone with this link can view this post.</p>
+                <label class="share-post-label" for="sharePostLinkInput">Public post link</label>
+                <div class="share-post-field">
+                    <input type="text" id="sharePostLinkInput" class="share-post-link-input" readonly value="" aria-label="Public post link">
+                </div>
+            </div>
+            <div class="modal-footer-btns share-post-footer">
+                <button type="button" class="btn-secondary" onclick="closeShareModal()">Close</button>
+                <button type="submit" class="btn-primary" id="copySharePostLinkBtn">Copy link</button>
+            </div>
+        </form>
+    </div>
+</div>
+
 <div id="imageLightbox" class="image-lightbox" aria-hidden="true">
     <button type="button" id="lightboxClose" class="lightbox-close" aria-label="Close">&times;</button>
     <div class="lightbox-toolbar">
@@ -188,24 +223,32 @@
 
 @push('scripts')
     <script>
+        window.__skProhibitedWords = @json(config('prohibited_words', []));
         window.currentAvatar = @json($avatar ?? '');
         window.CommunityFeedConfig = {
             userAvatar: @json($avatar ?? ''),
             userDisplayName: @json($user->name ?? 'SK Federation'),
-            feedPollMs: 30000,
+            feedPollMs: 8000,
+            commentPollMs: 5000,
             commentsPageUrl: @json(url('/barangay-profile/' . ($slug ?? '') . '/comments/__ID__')),
+            prohibitedWords: window.__skProhibitedWords,
+            cloudinaryCloudName: @json(config('services.cloudinary.cloud_name')),
+            communityVideoPreset: @json(config('services.cloudinary.community_video_upload_preset')),
+            communityVideoMaxBytes: @json((int) config('services.cloudinary.community_video_max_bytes', 262144000)),
+            communityVideoMaxCount: @json((int) config('services.cloudinary.community_video_max_count', 5)),
         };
         window.CommentPreviewConfig = {
             post: @json($commentPreviewPost ?? null),
             userAvatar: @json($avatar ?? ''),
             userDisplayName: @json($user->name ?? 'SK Federation'),
             feedUrl: @json(route('skfed.barangay-profile', ['slug' => $slug ?? ''])),
+            prohibitedWords: window.__skProhibitedWords,
         };
         window.BarangayProfileConfig = {
             slug: @json($slug ?? ''),
             barangayId: @json($profile['id'] ?? null),
             posts: @json($formattedPosts ?? []),
-            feedPollMs: 30000,
+            feedPollMs: 8000,
         };
         function showFeedToast(message, type) {
             var el = document.getElementById('feedToast');
@@ -220,6 +263,8 @@
         window.showFeedToast = showFeedToast;
     </script>
     @vite([
+        'app/Modules/CommunityFeed/assets/js/prohibited-words.js',
+        'app/Modules/CommunityFeed/assets/js/community-feed-media.js',
         'app/Modules/CommunityFeed/assets/js/community-feed.js',
         'app/Modules/CommunityFeed/assets/js/community-feed-comment-preview.js',
         'app/Modules/CommunityFeed/assets/js/barangay-profile.js',

@@ -2,18 +2,25 @@
 
 namespace App\Modules\CommunityFeed\Controllers;
 
+use App\Modules\Accounts\Models\OfficialProfile;
 use App\Modules\Archive_Management\Services\FederationPostArchiveService;
+use App\Modules\CommunityFeed\Jobs\NotifyFederationCommunityFeedPostJob;
 use App\Modules\CommunityFeed\Services\CloudinaryService;
+use App\Modules\CommunityFeed\Services\CommunityFeedPostBodyValidator;
+use App\Modules\CommunityFeed\Services\GoogleDriveVideoUrlService;
 use App\Modules\Shared\Controllers\Controller;
 use App\Modules\Shared\Models\Announcement;
 use App\Modules\Shared\Models\AnnouncementComment;
 use App\Modules\Shared\Models\AnnouncementCommentReaction;
 use App\Modules\Shared\Models\AnnouncementImage;
 use App\Modules\Shared\Models\AnnouncementReaction;
+use App\Modules\Shared\Models\AnnouncementVideo;
 use App\Modules\Shared\Models\User;
 use App\Services\CommunityFeedAvatarService;
 use App\Services\FeedCommentRateLimiter;
+use App\Services\ProhibitedWordsService;
 use App\Services\SkFederationsNotificationService;
+use App\Services\SkFedPageCache;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -28,34 +35,45 @@ class CommunityFeedPostController extends Controller
 {
     private const MAX_IMAGES = 20;
 
-    private const MAX_BODY_LENGTH = 5000;
-
-    private const MAX_LINK_LENGTH = 63;
+    private const ALLOWED_VIDEO_MIMES = [
+        'video/mp4',
+        'video/webm',
+        'video/quicktime',
+        'video/x-m4v',
+    ];
 
     public function __construct(
         private readonly CloudinaryService $cloudinary,
         private readonly SkFederationsNotificationService $notificationService,
         private readonly CommunityFeedAvatarService $avatarService,
+        private readonly CommunityFeedPostBodyValidator $postBodyValidator,
+        private readonly ProhibitedWordsService $prohibitedWords,
+        private readonly GoogleDriveVideoUrlService $googleDriveVideoUrl,
     ) {}
 
     // GET /api/community-feed?filter=all&page=1
     public function feed(Request $request): JsonResponse
     {
         $user = Auth::user();
-        $pageCache = app(\App\Services\SkFedPageCache::class);
+        $pageCache = app(SkFedPageCache::class);
         $perPage = min(100, max(1, (int) $request->get('per_page', 100)));
         $filter = (string) ($request->filter ?: 'all');
         $search = trim((string) $request->get('search', ''));
         $barangayId = $request->filled('barangay_id') ? (int) $request->barangay_id : null;
+        $year = (int) $request->query('year', 0);
+        if ($year < 2000 || $year > 2100) {
+            $year = 0;
+        }
 
-        $payload = $pageCache->remember('community.feed', function () use ($request, $user, $perPage, $filter, $search, $barangayId) {
+        $payload = $pageCache->remember('community.feed', function () use ($user, $perPage, $filter, $search, $barangayId, $year) {
             $query = Announcement::with([
                 'barangay',
                 'comments.user',
                 'comments.reactions',
                 'user',
                 'images',
-                'reactions.user',
+                'videos',
+                'reactions.user.officialProfile',
             ])
                 ->withCount('reactions')
                 ->active();
@@ -69,6 +87,10 @@ class CommunityFeedPostController extends Controller
             if ($barangayId) {
                 $query->where('barangay_id', $barangayId)
                     ->whereRaw('"is_federation_wide" = false');
+            }
+
+            if ($year > 0) {
+                $query->whereYear('created_at', $year);
             }
 
             if ($search !== '') {
@@ -88,6 +110,7 @@ class CommunityFeedPostController extends Controller
                 'last_page' => $posts->lastPage(),
                 'total' => $posts->total(),
                 'user_id' => $user->id,
+                'year' => $year > 0 ? $year : null,
             ];
         }, [
             'user' => $user->id,
@@ -96,9 +119,10 @@ class CommunityFeedPostController extends Controller
             'filter' => $filter,
             'search' => $search,
             'barangay_id' => $barangayId,
-        ], 60);
+            'year' => $year,
+        ], 20);
 
-        return response()->json($payload)->header('Cache-Control', 'private, max-age=30');
+        return response()->json($payload)->header('Cache-Control', 'private, max-age=10');
     }
 
     public function formatPostForPage(Announcement $post, int $userId): array
@@ -106,59 +130,172 @@ class CommunityFeedPostController extends Controller
         return $this->formatPost($post, $userId);
     }
 
+    /**
+     * @return array<string, mixed>
+     */
+    public function formatPublicPost(Announcement $post): array
+    {
+        $authorName = Str::limit(
+            $post->is_federation_wide
+                ? 'SK Federation'
+                : ('SK Brgy. '.($post->barangay?->name ?? 'Barangay')),
+            50,
+            '...'
+        );
+
+        $imageRecords = $post->relationLoaded('images') ? $post->images : collect();
+        $images = $imageRecords
+            ->map(fn ($img) => $this->cloudinary->normalizeUrl($img->image_url))
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+
+        $videoItems = $this->formatVideos($post);
+        $primaryDrive = collect($videoItems)->first(
+            fn ($v) => ($v['provider'] ?? null) === AnnouncementVideo::PROVIDER_GOOGLE_DRIVE
+        );
+
+        return [
+            'type' => $post->type,
+            'title' => $post->title,
+            'body' => $post->body,
+            'images' => $images,
+            'videos' => $videoItems,
+            'link_url' => $post->link_url,
+            'google_drive_video' => $primaryDrive ?: $this->googleDriveVideoUrl->present($post->link_url),
+            'author_name' => $authorName,
+            'barangay_name' => $post->barangay?->name,
+            'barangay_logo_url' => $this->avatarService->barangayLogo((int) $post->barangay_id),
+            'time' => $post->created_at?->diffForHumans(),
+            'posted_at' => $post->created_at?->timezone(config('app.timezone'))->format('F j, Y g:i A'),
+        ];
+    }
+
     public function show(int $id): JsonResponse
     {
         $user = Auth::user();
-        $post = Announcement::query()
-            ->active()
-            ->with([
-                'barangay',
-                'comments.user',
-                'comments.reactions',
-                'user',
-                'images',
-                'reactions.user',
-            ])
-            ->withCount('reactions')
-            ->findOrFail($id);
+        $pageCache = app(SkFedPageCache::class);
 
-        return response()->json($this->formatPost($post, $user->id));
+        $payload = $pageCache->remember('community.feed', function () use ($id, $user) {
+            $post = Announcement::query()
+                ->active()
+                ->with([
+                    'barangay',
+                    'comments.user',
+                    'comments.reactions',
+                    'user',
+                    'images',
+                    'videos',
+                    'reactions.user.officialProfile',
+                ])
+                ->withCount('reactions')
+                ->findOrFail($id);
+
+            return $this->formatPost($post, $user->id);
+        }, [
+            'show' => $id,
+            'user' => (int) $user->id,
+        ], 8);
+
+        return response()->json($payload)->header('Cache-Control', 'private, max-age=5');
     }
 
     // POST /api/community-feed
     public function store(Request $request): JsonResponse
     {
-        $request->merge([
-            'link_url' => filled($request->input('link_url')) ? $request->input('link_url') : null,
-            'title' => filled($request->input('title')) ? $request->input('title') : null,
-        ]);
+        $this->normalizeEmptyLinkUrl($request);
 
         $validated = $request->validate([
-            'type' => 'required|in:announcement,event,activity,program,update',
-            'title' => 'nullable|string|max:255',
-            'body' => 'required|string|max:'.self::MAX_BODY_LENGTH,
-            'link_url' => 'nullable|url|max:'.self::MAX_LINK_LENGTH,
+            'type' => 'required|in:announcement,event,activity,program,update,photo',
+            'title' => [
+                Rule::requiredIf(fn () => $request->input('type') === 'update'),
+                'nullable',
+                'string',
+                'max:50',
+            ],
+            'body' => 'nullable|string',
+            'link_url' => 'nullable|string|max:2048',
+            'link_kind' => 'nullable|in:link,google_drive_video',
             'images' => 'nullable|array|max:'.self::MAX_IMAGES,
             'images.*' => 'image|max:5120',
+            'videos' => 'nullable|array|max:'.$this->maxVideoCount(),
+            'videos.*' => 'file|mimetypes:'.implode(',', self::ALLOWED_VIDEO_MIMES).'|max:'.$this->maxVideoKilobytes(),
+            'uploaded_videos' => 'nullable|array|max:'.$this->maxVideoCount(),
+            'uploaded_videos.*.public_id' => 'required|string|max:512',
+            'uploaded_videos.*.video_url' => 'required|string|max:2048',
+            'uploaded_videos.*.bytes' => 'nullable|integer|min:0',
+            'uploaded_videos.*.mime_type' => 'nullable|string|max:100',
+            'email_notifications_enabled' => 'sometimes|boolean',
+            'visibility' => 'nullable|in:public,federation',
+            'notify_targets' => 'nullable|array|min:1',
+            'notify_targets.*' => 'in:public,federation,officials,kabataan',
         ]);
 
+        $hasMedia = $request->hasFile('images')
+            || $request->hasFile('videos')
+            || ! empty($validated['uploaded_videos'] ?? [])
+            || (($validated['link_kind'] ?? null) === 'google_drive_video' && filled($validated['link_url'] ?? null));
+        $rawBody = (string) ($validated['body'] ?? '');
+        $body = (trim($rawBody) === '' && $hasMedia)
+            ? ''
+            : $this->postBodyValidator->assertValid($rawBody);
+        $linkUrl = $this->googleDriveVideoUrl->normalizeForStorage(
+            $validated['link_url'] ?? null,
+            ($validated['link_kind'] ?? null) === 'google_drive_video'
+        );
+
+        if (($validated['type'] ?? '') === 'photo') {
+            $hasVideos = $request->hasFile('videos')
+                || ! empty($validated['uploaded_videos'] ?? [])
+                || (($validated['link_kind'] ?? null) === 'google_drive_video');
+            if ($hasVideos) {
+                return response()->json([
+                    'message' => 'Photo posts are for images only. Videos are not allowed.',
+                ], 422);
+            }
+            $linkUrl = null;
+        }
+
         $user = Auth::user();
+        $title = isset($validated['title']) ? trim((string) $validated['title']) : null;
+        if ($validated['type'] !== 'update') {
+            $title = ($title !== null && $title !== '') ? $title : null;
+        }
+        if (is_string($title) && $title !== '') {
+            $this->prohibitedWords->assertClean($title, 'title');
+        }
+
         $isFederationWide = true;
         if (config('database.connections.'.config('database.default').'.driver') === 'pgsql') {
             $isFederationWide = DB::raw('true');
         }
 
+        $emailNotificationsEnabled = $request->boolean('email_notifications_enabled');
+        $notifyTargets = $this->normalizeNotifyTargets(
+            $request->input('notify_targets'),
+            $validated['visibility'] ?? null
+        );
+        $visibility = in_array('public', $notifyTargets, true) ? 'public' : 'federation';
+
         $post = Announcement::create([
             'type' => $validated['type'],
-            'title' => $validated['title'] ?? null,
-            'body' => $validated['body'],
-            'link_url' => $validated['link_url'] ?? null,
+            'title' => $title,
+            'body' => $body,
+            'link_url' => $linkUrl,
+            'email_notifications_enabled' => DB::raw($emailNotificationsEnabled ? 'true' : 'false'),
             'user_id' => $user->id,
             'barangay_id' => null,
             'is_federation_wide' => $isFederationWide,
+            'visibility' => $visibility,
+            'notify_targets' => $notifyTargets,
         ]);
 
+        $post->email_notifications_enabled = $emailNotificationsEnabled;
+
         $this->storePostImages($post, $request);
+        $this->storePostVideos($post, $request, $linkUrl, ($validated['link_kind'] ?? null) === 'google_drive_video');
+        $this->storeUploadedVideoMetadata($post, (array) ($validated['uploaded_videos'] ?? []));
 
         $fresh = Announcement::with([
             'barangay',
@@ -166,15 +303,24 @@ class CommunityFeedPostController extends Controller
             'comments.reactions',
             'user',
             'images',
-            'reactions.user',
+            'videos',
+            'reactions.user.officialProfile',
         ])
             ->withCount('reactions')
             ->findOrFail($post->id);
 
-        app(\App\Services\SkFedPageCache::class)->bump('community.feed');
-        app(\App\Services\SkFedPageCache::class)->bump('archive.deleted_posts');
+        NotifyFederationCommunityFeedPostJob::dispatch((int) $post->id, $emailNotificationsEnabled);
 
-        return response()->json($this->formatPost($fresh, $user->id), 201);
+        app(SkFedPageCache::class)->bump('community.feed');
+        app(SkFedPageCache::class)->bump('archive.deleted_posts');
+
+        $payload = $this->formatPost($fresh, $user->id);
+        $payload['email_notifications_queued'] = $emailNotificationsEnabled;
+        $payload['message'] = $emailNotificationsEnabled
+            ? 'Federation post published. Email notifications have been queued for selected targets.'
+            : 'Federation post published successfully.';
+
+        return response()->json($payload, 201);
     }
 
     // PUT /api/community-feed/{id}
@@ -185,27 +331,105 @@ class CommunityFeedPostController extends Controller
             ->whereRaw('"is_federation_wide" = true')
             ->firstOrFail();
 
-        $request->merge([
-            'link_url' => filled($request->input('link_url')) ? $request->input('link_url') : null,
-            'title' => filled($request->input('title')) ? $request->input('title') : null,
-        ]);
+        $this->normalizeEmptyLinkUrl($request);
 
         $validated = $request->validate([
-            'type' => 'sometimes|in:announcement,event,activity,program,update',
-            'title' => 'nullable|string|max:255',
-            'body' => 'sometimes|string|max:'.self::MAX_BODY_LENGTH,
-            'link_url' => 'nullable|url|max:'.self::MAX_LINK_LENGTH,
+            'type' => 'sometimes|in:announcement,event,activity,program,update,photo',
+            'title' => [
+                Rule::requiredIf(fn () => ($request->input('type') ?? $post->type) === 'update'),
+                'nullable',
+                'string',
+                'max:50',
+            ],
+            'body' => 'sometimes|string',
+            'link_url' => 'nullable|string|max:2048',
+            'link_kind' => 'nullable|in:link,google_drive_video',
             'images' => 'nullable|array|max:'.self::MAX_IMAGES,
             'images.*' => 'image|max:5120',
+            'videos' => 'nullable|array|max:'.$this->maxVideoCount(),
+            'videos.*' => 'file|mimetypes:'.implode(',', self::ALLOWED_VIDEO_MIMES).'|max:'.$this->maxVideoKilobytes(),
+            'uploaded_videos' => 'nullable|array|max:'.$this->maxVideoCount(),
+            'uploaded_videos.*.public_id' => 'required|string|max:512',
+            'uploaded_videos.*.video_url' => 'required|string|max:2048',
+            'uploaded_videos.*.bytes' => 'nullable|integer|min:0',
+            'uploaded_videos.*.mime_type' => 'nullable|string|max:100',
             'removed_image_ids' => 'nullable|array',
             'removed_image_ids.*' => 'integer',
+            'removed_video_ids' => 'nullable|array',
+            'removed_video_ids.*' => 'integer',
+            'clear_videos' => 'sometimes|boolean',
+            'visibility' => 'nullable|in:public,federation',
+            'notify_targets' => 'nullable|array|min:1',
+            'notify_targets.*' => 'in:public,federation,officials,kabataan',
         ]);
 
-        $post->update(collect($validated)->except(['images', 'removed_image_ids'])->all());
+        if ($request->has('notify_targets') || $request->has('visibility')) {
+            $notifyTargets = $this->normalizeNotifyTargets(
+                $request->input('notify_targets', $post->notify_targets),
+                $validated['visibility'] ?? $post->visibility
+            );
+            $validated['notify_targets'] = $notifyTargets;
+            $validated['visibility'] = in_array('public', $notifyTargets, true) ? 'public' : 'federation';
+        }
+
+        if (array_key_exists('body', $validated)) {
+            $hasMedia = $request->hasFile('images')
+                || $request->hasFile('videos')
+                || ! empty($validated['uploaded_videos'] ?? [])
+                || $post->images()->exists()
+                || $post->videos()->exists()
+                || (($validated['link_kind'] ?? $request->input('link_kind')) === 'google_drive_video');
+            $rawBody = (string) $validated['body'];
+            $validated['body'] = (trim($rawBody) === '' && $hasMedia)
+                ? ''
+                : $this->postBodyValidator->assertValid($rawBody);
+        }
+
+        if (array_key_exists('title', $validated)) {
+            $title = is_string($validated['title']) ? trim($validated['title']) : '';
+            $nextType = $validated['type'] ?? $post->type;
+            if ($nextType === 'update') {
+                $validated['title'] = $title;
+                if ($title !== '') {
+                    $this->prohibitedWords->assertClean($title, 'title');
+                }
+            } else {
+                $validated['title'] = $title !== '' ? $title : null;
+                if ($title !== '') {
+                    $this->prohibitedWords->assertClean($title, 'title');
+                }
+            }
+        }
+
+        if (array_key_exists('link_url', $validated) || $request->has('link_url')) {
+            $validated['link_url'] = $this->googleDriveVideoUrl->normalizeForStorage(
+                $request->input('link_url'),
+                ($validated['link_kind'] ?? $request->input('link_kind')) === 'google_drive_video'
+            );
+        }
+
+        $post->update(collect($validated)->except([
+            'images',
+            'videos',
+            'uploaded_videos',
+            'removed_image_ids',
+            'removed_video_ids',
+            'clear_videos',
+            'link_kind',
+        ])->all());
 
         $removedIds = array_values(array_filter(array_map('intval', (array) $request->input('removed_image_ids', []))));
         if ($removedIds !== []) {
             $post->images()->whereIn('id', $removedIds)->delete();
+        }
+
+        $removedVideoIds = array_values(array_filter(array_map('intval', (array) $request->input('removed_video_ids', []))));
+        if ($removedVideoIds !== []) {
+            $post->videos()->whereIn('id', $removedVideoIds)->delete();
+        }
+
+        if ($request->boolean('clear_videos')) {
+            $post->videos()->delete();
         }
 
         $currentCount = $post->images()->count();
@@ -214,13 +438,48 @@ class CommunityFeedPostController extends Controller
             $this->storePostImages($post, $request, $currentCount, $remaining);
         }
 
-        app(\App\Services\SkFedPageCache::class)->bump('community.feed');
+        $linkForVideos = array_key_exists('link_url', $validated) ? $validated['link_url'] : $post->link_url;
+        $requireDrive = ($validated['link_kind'] ?? $request->input('link_kind')) === 'google_drive_video';
+        $this->storePostVideos($post, $request, $linkForVideos, $requireDrive);
+        $this->storeUploadedVideoMetadata($post, (array) ($validated['uploaded_videos'] ?? []));
+
+        app(SkFedPageCache::class)->bump('community.feed');
 
         return response()->json($this->formatPost(
-            $post->load(['barangay', 'comments.user', 'comments.reactions', 'user', 'images', 'reactions.user'])
+            $post->load(['barangay', 'comments.user', 'comments.reactions', 'user', 'images', 'videos', 'reactions.user.officialProfile'])
                 ->loadCount('reactions'),
             Auth::id()
         ));
+    }
+
+    public function uploadVideo(Request $request): JsonResponse
+    {
+        $request->validate([
+            'video' => 'required|file|mimetypes:'.implode(',', self::ALLOWED_VIDEO_MIMES).'|max:'.$this->maxVideoKilobytes(),
+        ]);
+
+        $file = $request->file('video');
+        try {
+            $result = $this->cloudinary->uploadCommunityVideo($file);
+        } catch (Throwable $e) {
+            return response()->json([
+                'message' => 'The video failed to upload. '.$e->getMessage(),
+            ], 422);
+        }
+
+        if (($result['public_id'] ?? '') === '' || ($result['url'] ?? '') === '') {
+            return response()->json([
+                'message' => 'Unable to upload video. Please try again.',
+            ], 422);
+        }
+
+        return response()->json([
+            'provider' => AnnouncementVideo::PROVIDER_CLOUDINARY,
+            'public_id' => $result['public_id'],
+            'video_url' => $result['url'],
+            'bytes' => $result['bytes'] ?? $file->getSize(),
+            'mime_type' => $result['mime_type'] ?? $file->getMimeType(),
+        ], 201);
     }
 
     // DELETE /api/community-feed/{id}
@@ -234,8 +493,8 @@ class CommunityFeedPostController extends Controller
         app(FederationPostArchiveService::class)
             ->archive($post, Auth::user());
 
-        app(\App\Services\SkFedPageCache::class)->bump('community.feed');
-        app(\App\Services\SkFedPageCache::class)->bump('archive.deleted_posts');
+        app(SkFedPageCache::class)->bump('community.feed');
+        app(SkFedPageCache::class)->bump('archive.deleted_posts');
 
         return response()->json(['success' => true]);
     }
@@ -246,7 +505,7 @@ class CommunityFeedPostController extends Controller
         Announcement::query()->findOrFail($id);
 
         $reactions = AnnouncementReaction::query()
-            ->with('user')
+            ->with('user.officialProfile')
             ->where('community_feed_id', $id)
             ->latest()
             ->get();
@@ -339,11 +598,13 @@ class CommunityFeedPostController extends Controller
 
         $counts = $this->reactionCountsForPost($id);
         $count = array_sum($counts);
-        $reactions = AnnouncementReaction::with('user')
+        $reactions = AnnouncementReaction::with('user.officialProfile')
             ->where('community_feed_id', $id)
             ->latest()
             ->limit(12)
             ->get();
+
+        $this->bumpFeedCache();
 
         return response()->json([
             'liked' => $userReaction !== null,
@@ -410,6 +671,8 @@ class CommunityFeedPostController extends Controller
 
         $counts = $this->reactionCountsForComment($comment->id);
 
+        $this->bumpFeedCache();
+
         return response()->json([
             'liked' => $userReaction !== null,
             'count' => array_sum($counts),
@@ -429,6 +692,12 @@ class CommunityFeedPostController extends Controller
             return response()->json([
                 'message' => $cooldown['message'],
                 'retry_after' => $cooldown['retry_after'],
+                'rate_limit' => [
+                    'locked' => true,
+                    'retry_after' => $cooldown['retry_after'],
+                    'burst_used' => $cooldown['burst_used'],
+                    'burst_remaining' => $cooldown['burst_remaining'],
+                ],
             ], 429);
         }
 
@@ -436,6 +705,8 @@ class CommunityFeedPostController extends Controller
             'body' => 'required|string|max:'.FeedCommentRateLimiter::MAX_BODY_LENGTH,
             'parent_id' => 'nullable|integer',
         ]);
+
+        $this->prohibitedWords->assertClean((string) $request->input('body'), 'body');
 
         $post = Announcement::query()->findOrFail($id);
 
@@ -481,12 +752,19 @@ class CommunityFeedPostController extends Controller
             }
         }
 
-        $limiter->hit('sk_fed', (int) $user->id);
+        $rateLimit = $limiter->hit('sk_fed', (int) $user->id);
+        $payload = $this->formatComment($comment->load(['user', 'reactions']), $user->id);
+        $payload['rate_limit'] = [
+            'locked' => $rateLimit['locked'],
+            'retry_after' => $rateLimit['retry_after'],
+            'burst_used' => $rateLimit['burst_used'],
+            'burst_remaining' => $rateLimit['burst_remaining'],
+            'message' => $rateLimit['message'],
+        ];
 
-        return response()->json(
-            $this->formatComment($comment->load(['user', 'reactions']), $user->id),
-            201
-        );
+        $this->bumpFeedCache();
+
+        return response()->json($payload, 201);
     }
 
     public function updateComment(Request $request, int $id, int $commentId): JsonResponse
@@ -496,8 +774,12 @@ class CommunityFeedPostController extends Controller
             'body' => 'required|string|max:'.FeedCommentRateLimiter::MAX_BODY_LENGTH,
         ]);
 
+        $this->prohibitedWords->assertClean($validated['body'], 'body');
+
         $comment = $this->ownedComment($id, $commentId, $user);
         $comment->update(['body' => $validated['body']]);
+
+        $this->bumpFeedCache();
 
         return response()->json(
             $this->formatComment($comment->fresh(['user', 'reactions']), $user->id)
@@ -521,6 +803,8 @@ class CommunityFeedPostController extends Controller
 
         $comment->delete();
 
+        $this->bumpFeedCache();
+
         return response()->json(['success' => true]);
     }
 
@@ -533,7 +817,7 @@ class CommunityFeedPostController extends Controller
             ->firstOrFail();
 
         $reactions = AnnouncementCommentReaction::query()
-            ->with('user')
+            ->with('user.officialProfile')
             ->where('comment_id', $comment->id)
             ->latest()
             ->get();
@@ -545,12 +829,7 @@ class CommunityFeedPostController extends Controller
                 $reaction->user_type,
                 $reaction->user?->name
             ),
-            'role_label' => match ($reaction->user_type) {
-                'sk_fed' => 'SK Federation',
-                'sk_official' => 'SK Official',
-                'kabataan' => 'Kabataan Member',
-                default => 'Member',
-            },
+            'role_label' => $this->resolveRoleLabel($reaction->user_type, $reaction->user),
             'reaction_type' => $reaction->reaction_type ?: 'like',
         ])->values();
 
@@ -617,6 +896,15 @@ class CommunityFeedPostController extends Controller
             ->values()
             ->all();
         $images = array_values(array_unique(array_column($imageItems, 'url')));
+        $videoItems = $this->formatVideos($post);
+        $primaryDrive = collect($videoItems)->first(
+            fn ($v) => ($v['provider'] ?? null) === AnnouncementVideo::PROVIDER_GOOGLE_DRIVE
+        );
+        $legacyDrive = $primaryDrive ?: $this->googleDriveVideoUrl->present($post->link_url);
+        $canShare = $post->isShareable();
+        $shareUrl = $canShare
+            ? route('community-feed.public.show', ['token' => $post->share_token])
+            : null;
         $comments = $post->relationLoaded('comments') ? $post->comments : collect();
 
         return [
@@ -627,7 +915,13 @@ class CommunityFeedPostController extends Controller
             'image_url' => $images[0] ?? null,
             'images' => $images,
             'image_items' => $imageItems,
+            'videos' => $videoItems,
             'link_url' => $post->link_url,
+            'google_drive_video' => $legacyDrive,
+            'visibility' => $post->visibility ?: 'public',
+            'notify_targets' => $post->notifyTargets(),
+            'can_share' => $canShare,
+            'share_url' => $shareUrl,
             'is_federation_wide' => (bool) $post->is_federation_wide,
             'barangay_name' => $post->barangay?->name,
             'barangay_logo_url' => $this->avatarService->barangayLogo((int) $post->barangay_id),
@@ -732,12 +1026,43 @@ class CommunityFeedPostController extends Controller
 
     private function resolveReactorRoleLabel(AnnouncementReaction $reaction): string
     {
-        return match ($reaction->user_type) {
-            'sk_fed' => 'SK Federation',
-            'sk_official' => 'SK Official',
+        return $this->resolveRoleLabel($reaction->user_type, $reaction->user);
+    }
+
+    private function resolveRoleLabel(?string $userType, ?User $user): string
+    {
+        return match ($userType) {
             'kabataan' => 'Kabataan Member',
+            'sk_fed' => $this->resolveSkFedRoleLabel($user),
+            'sk_official' => $this->resolveSkOfficialRoleLabel($user),
             default => 'Member',
         };
+    }
+
+    private function resolveSkOfficialRoleLabel(?User $user): string
+    {
+        $position = trim((string) ($user?->officialProfile?->position ?? ''));
+        if ($position === '') {
+            return 'SK Official';
+        }
+
+        $options = OfficialProfile::officialPositionOptions();
+        if (isset($options[$position])) {
+            return $options[$position];
+        }
+
+        if (strcasecmp($position, 'Chairman') === 0) {
+            return 'SK Chairperson';
+        }
+
+        return 'SK Official ('.$position.')';
+    }
+
+    private function resolveSkFedRoleLabel(?User $user): string
+    {
+        $federationPosition = trim((string) ($user?->officialProfile?->federation_position ?? ''));
+
+        return $federationPosition !== '' ? $federationPosition : 'SK Federation';
     }
 
     /**
@@ -886,5 +1211,249 @@ class CommunityFeedPostController extends Controller
         Cache::put($cacheKey, $seq, now()->addMinutes(10));
 
         return false;
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function formatVideos(Announcement $post): array
+    {
+        $records = $post->relationLoaded('videos') ? $post->videos : collect();
+
+        return $records
+            ->filter(static fn (AnnouncementVideo $video): bool => ($video->status ?: 'active') === 'active')
+            ->map(function (AnnouncementVideo $video) {
+                if ($video->provider === AnnouncementVideo::PROVIDER_GOOGLE_DRIVE) {
+                    $drive = $this->googleDriveVideoUrl->present(
+                        $video->video_url ?: ('https://drive.google.com/file/d/'.$video->google_drive_file_id.'/view')
+                    );
+
+                    return [
+                        'id' => $video->id,
+                        'provider' => AnnouncementVideo::PROVIDER_GOOGLE_DRIVE,
+                        'video_url' => $drive['media_url'] ?? $video->video_url,
+                        'public_id' => null,
+                        'google_drive_file_id' => $drive['external_id'] ?? $video->google_drive_file_id,
+                        'google_drive_folder_id' => $video->google_drive_folder_id,
+                        'name' => $video->name,
+                        'preview_url' => $drive['preview_url'] ?? null,
+                        'open_url' => $drive['open_url'] ?? ($video->web_view_link ?: null),
+                        'mime_type' => $video->mime_type,
+                        'bytes' => $video->bytes,
+                        'drive_created_at' => optional($video->drive_created_at)?->toIso8601String(),
+                        'status' => $video->status ?: 'active',
+                        'media_type' => 'google_drive_video',
+                        'external_provider' => 'google_drive',
+                        'external_id' => $drive['external_id'] ?? $video->google_drive_file_id,
+                    ];
+                }
+
+                return [
+                    'id' => $video->id,
+                    'provider' => AnnouncementVideo::PROVIDER_CLOUDINARY,
+                    'video_url' => $video->video_url,
+                    'public_id' => $video->public_id,
+                    'google_drive_file_id' => null,
+                    'google_drive_folder_id' => null,
+                    'name' => $video->name,
+                    'preview_url' => null,
+                    'open_url' => null,
+                    'mime_type' => $video->mime_type,
+                    'bytes' => $video->bytes,
+                    'drive_created_at' => null,
+                    'status' => $video->status ?: 'active',
+                    'media_type' => 'cloudinary_video',
+                    'external_provider' => 'cloudinary',
+                    'external_id' => $video->public_id,
+                ];
+            })->values()->all();
+    }
+
+    private function storePostVideos(
+        Announcement $post,
+        Request $request,
+        ?string $linkUrl,
+        bool $isDriveLink
+    ): void {
+        $now = now();
+        $sort = (int) ($post->videos()->max('sort_order') ?? -1);
+        $maxCount = $this->maxVideoCount();
+
+        if ($isDriveLink && $linkUrl) {
+            $drive = $this->googleDriveVideoUrl->parse($linkUrl);
+            if ($drive) {
+                $post->videos()
+                    ->where('provider', AnnouncementVideo::PROVIDER_GOOGLE_DRIVE)
+                    ->delete();
+
+                AnnouncementVideo::create([
+                    'community_feed_id' => $post->id,
+                    'provider' => AnnouncementVideo::PROVIDER_GOOGLE_DRIVE,
+                    'video_url' => $drive['media_url'],
+                    'public_id' => null,
+                    'google_drive_file_id' => $drive['external_id'],
+                    'mime_type' => 'video/*',
+                    'bytes' => null,
+                    'sort_order' => ++$sort,
+                    'created_at' => $now,
+                ]);
+            }
+        }
+
+        if (! $request->hasFile('videos')) {
+            return;
+        }
+
+        $files = $request->file('videos');
+        if (! is_array($files)) {
+            $files = [$files];
+        }
+
+        $current = $post->videos()->where('provider', AnnouncementVideo::PROVIDER_CLOUDINARY)->count();
+        $slots = max(0, $maxCount - $current);
+
+        foreach (array_slice($files, 0, $slots) as $file) {
+            if ($file === null) {
+                continue;
+            }
+
+            try {
+                $result = $this->cloudinary->uploadCommunityVideo($file);
+                if (($result['public_id'] ?? '') === '' || ($result['url'] ?? '') === '') {
+                    continue;
+                }
+
+                AnnouncementVideo::create([
+                    'community_feed_id' => $post->id,
+                    'provider' => AnnouncementVideo::PROVIDER_CLOUDINARY,
+                    'video_url' => $result['url'],
+                    'public_id' => $result['public_id'],
+                    'google_drive_file_id' => null,
+                    'mime_type' => $result['mime_type'] ?? $file->getMimeType(),
+                    'bytes' => $result['bytes'] ?? $file->getSize(),
+                    'sort_order' => ++$sort,
+                    'created_at' => $now,
+                ]);
+            } catch (Throwable) {
+                continue;
+            }
+        }
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $uploaded
+     */
+    private function storeUploadedVideoMetadata(Announcement $post, array $uploaded): void
+    {
+        if ($uploaded === []) {
+            return;
+        }
+
+        $now = now();
+        $sort = (int) ($post->videos()->max('sort_order') ?? -1);
+        $maxCount = $this->maxVideoCount();
+        $current = $post->videos()->where('provider', AnnouncementVideo::PROVIDER_CLOUDINARY)->count();
+        $slots = max(0, $maxCount - $current);
+        $cloudName = trim((string) config('services.cloudinary.cloud_name', ''));
+        $folder = trim((string) config('services.cloudinary.community_video_folder', 'SK_Federations_community_video'), '/');
+
+        foreach (array_slice($uploaded, 0, $slots) as $row) {
+            $publicId = trim((string) ($row['public_id'] ?? ''));
+            $videoUrl = trim((string) ($row['video_url'] ?? ''));
+            if ($publicId === '' || $videoUrl === '') {
+                continue;
+            }
+            if (! str_contains($videoUrl, 'res.cloudinary.com')) {
+                continue;
+            }
+            if ($cloudName !== '' && ! str_contains($videoUrl, '/'.$cloudName.'/')) {
+                continue;
+            }
+            $inFolder = $folder === ''
+                || str_starts_with($publicId, $folder.'/')
+                || $publicId === $folder
+                || str_contains($videoUrl, '/'.$folder.'/')
+                || str_contains($videoUrl, '/video/upload/');
+            if (! $inFolder) {
+                continue;
+            }
+            if ($post->videos()->where('public_id', $publicId)->exists()) {
+                continue;
+            }
+
+            AnnouncementVideo::create([
+                'community_feed_id' => $post->id,
+                'provider' => AnnouncementVideo::PROVIDER_CLOUDINARY,
+                'video_url' => $videoUrl,
+                'public_id' => $publicId,
+                'google_drive_file_id' => null,
+                'mime_type' => isset($row['mime_type']) ? (string) $row['mime_type'] : null,
+                'bytes' => isset($row['bytes']) ? (int) $row['bytes'] : null,
+                'sort_order' => ++$sort,
+                'created_at' => $now,
+                'status' => 'active',
+            ]);
+        }
+    }
+
+    private function maxVideoCount(): int
+    {
+        return max(1, (int) config('services.cloudinary.community_video_max_count', 5));
+    }
+
+    private function maxVideoKilobytes(): int
+    {
+        $bytes = (int) config('services.cloudinary.community_video_max_bytes', 262144000);
+
+        return max(1, (int) floor($bytes / 1024));
+    }
+
+    private function bumpFeedCache(): void
+    {
+        app(SkFedPageCache::class)->bump('community.feed');
+    }
+
+    /**
+     * @param  mixed  $raw
+     * @return list<string>
+     */
+    private function normalizeNotifyTargets(mixed $raw, mixed $legacyVisibility = null): array
+    {
+        $allowed = Announcement::NOTIFY_TARGET_OPTIONS;
+        $targets = [];
+
+        if (is_string($raw)) {
+            $decoded = json_decode($raw, true);
+            if (is_array($decoded)) {
+                $raw = $decoded;
+            } else {
+                $raw = array_filter(array_map('trim', explode(',', $raw)));
+            }
+        }
+
+        if (is_array($raw)) {
+            foreach ($raw as $item) {
+                $key = strtolower(trim((string) $item));
+                if (in_array($key, $allowed, true) && ! in_array($key, $targets, true)) {
+                    $targets[] = $key;
+                }
+            }
+        }
+
+        if ($targets === []) {
+            $visibility = is_string($legacyVisibility) ? strtolower(trim($legacyVisibility)) : 'public';
+            $targets = $visibility === 'federation'
+                ? ['federation', 'officials', 'kabataan']
+                : ['public', 'officials', 'kabataan'];
+        }
+
+        return $targets;
+    }
+
+    private function normalizeEmptyLinkUrl(Request $request): void
+    {
+        if ($request->has('link_url') && trim((string) $request->input('link_url')) === '') {
+            $request->merge(['link_url' => null]);
+        }
     }
 }

@@ -4,6 +4,11 @@ use App\Modules\CommunityFeed\Controllers\CommunityFeedController;
 use App\Modules\CommunityFeed\Controllers\CommunityFeedPostController;
 use Illuminate\Support\Facades\Route;
 
+Route::get('/community/post/{token}', [CommunityFeedController::class, 'publicShow'])
+    ->middleware('throttle:60,1')
+    ->where('token', '[0-9A-Za-z]{26}')
+    ->name('community-feed.public.show');
+
 Route::get('/modules/community-feed/{type}/{file}', function ($type, $file) {
     $path = __DIR__."/../assets/{$type}/{$file}";
 
@@ -49,6 +54,7 @@ Route::middleware(['auth', 'session.timeout', 'verified', 'single.session', 'sk_
             Route::get('/', [CommunityFeedPostController::class, 'feed'])->name('api.community-feed.feed');
             Route::post('/', [CommunityFeedPostController::class, 'store'])->name('api.community-feed.store');
             Route::post('/upload-image', [CommunityFeedPostController::class, 'uploadImage'])->name('api.community-feed.upload-image');
+            Route::post('/upload-video', [CommunityFeedPostController::class, 'uploadVideo'])->name('api.community-feed.upload-video');
             Route::get('/{id}', [CommunityFeedPostController::class, 'show'])->whereNumber('id')->name('api.community-feed.show');
             Route::put('/{id}', [CommunityFeedPostController::class, 'update'])->whereNumber('id')->name('api.community-feed.update');
             Route::delete('/{id}', [CommunityFeedPostController::class, 'destroy'])->whereNumber('id')->name('api.community-feed.destroy');

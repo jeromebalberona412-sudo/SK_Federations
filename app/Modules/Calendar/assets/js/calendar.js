@@ -2,9 +2,59 @@ document.addEventListener('DOMContentLoaded', () => {
     initializeCalendar();
 });
 
-const CONTENT_MAX = 500;
+const CONTENT_MAX = 1000;
 const TITLE_MAX = 50;
+const CONTENT_CHARS_PER_LINE_FALLBACK = 36;
 const CALENDAR_CELL_TITLE_PREVIEW = 22;
+
+function normalizeNoteContent(text) {
+    return String(text || '').replace(/\r\n|\r/g, '\n');
+}
+
+/** Title: max 50 chars, no spaces or newlines (spaces stripped silently). */
+function sanitizeNoteTitle(text) {
+    return String(text || '').replace(/[\s\r\n\u00a0]+/g, '').slice(0, TITLE_MAX);
+}
+
+function validateNoteTitle(raw) {
+    const title = sanitizeNoteTitle(raw);
+    if (!title) {
+        return { ok: false, title: '', message: 'Title is required.' };
+    }
+    if (title.length > TITLE_MAX) {
+        return { ok: false, title, message: `Title must be ${TITLE_MAX} characters or less.` };
+    }
+    return { ok: true, title, message: null };
+}
+
+/** Same visual-line rule as Community Feed / Communications chat. */
+function estimateNoteCharsPerLine(el) {
+    if (!el || !el.clientWidth) return CONTENT_CHARS_PER_LINE_FALLBACK;
+    const style = window.getComputedStyle(el);
+    const fontSize = parseFloat(style.fontSize) || 14;
+    const pad = (parseFloat(style.paddingLeft) || 0) + (parseFloat(style.paddingRight) || 0);
+    const width = Math.max(0, el.clientWidth - pad);
+    return Math.max(16, Math.floor(width / Math.max(fontSize * 0.55, 7)));
+}
+
+function measureNoteContentLength(text, charsPerLine) {
+    const cpl = Math.max(8, Number(charsPerLine) || CONTENT_CHARS_PER_LINE_FALLBACK);
+    const lines = normalizeNoteContent(text).split('\n');
+    let total = 0;
+    for (let i = 0; i < lines.length; i += 1) {
+        const len = Array.from(lines[i]).length;
+        if (i < lines.length - 1) {
+            total += Math.max(cpl, len);
+        } else {
+            total += len;
+        }
+    }
+    return total;
+}
+
+function countedNoteLength(text, el) {
+    return measureNoteContentLength(text, estimateNoteCharsPerLine(el));
+}
 
 function truncateCalendarPreview(text, maxLength = CALENDAR_CELL_TITLE_PREVIEW) {
     const value = String(text || '').trim();
@@ -383,11 +433,14 @@ function initializeCalendar() {
 
             cell.className = 'calendar-day';
             if (isTodayCell) cell.classList.add('is-today');
-            if (hasNote) cell.classList.add('has-notes');
-            if (isPast || isPastYear || isNextYear) cell.classList.add('is-past');
-            if (!hasNote && (isPast || isPastYear || isNextYear)) {
-                cell.classList.add('is-disabled');
+            if (hasNote) {
+                cell.classList.add('has-notes');
+                if (isTodayCell) cell.classList.add('notes-today');
+                else if (isPast || isPastYear) cell.classList.add('notes-past');
+                else cell.classList.add('notes-future');
             }
+            if ((isPast || isPastYear || isNextYear) && !hasNote) cell.classList.add('is-past');
+            if (isPast && !hasNote) cell.classList.add('is-disabled');
             if (hasNote && !canEdit) {
                 cell.classList.add('is-view-only');
             }
@@ -469,9 +522,9 @@ function initializeCalendar() {
             document.body.appendChild(overlay);
         }
 
-        let selMonth = current.getMonth();
-        let selDay = Math.min(current.getDate(), 28);
-        let selYear = current.getFullYear();
+        let selMonth = today.getMonth();
+        let selDay = today.getDate();
+        let selYear = today.getFullYear();
 
         function clampDay() {
             const maxDay = new Date(selYear, selMonth + 1, 0).getDate();
@@ -485,7 +538,18 @@ function initializeCalendar() {
 
         function updateDisplay() {
             const d = new Date(selYear, selMonth, selDay);
-            displayEl.textContent = d.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+            const isTodaySelected = (
+                selYear === today.getFullYear()
+                && selMonth === today.getMonth()
+                && selDay === today.getDate()
+            );
+            const label = d.toLocaleDateString(undefined, {
+                weekday: 'long',
+                month: 'long',
+                day: 'numeric',
+                year: 'numeric',
+            });
+            displayEl.textContent = isTodaySelected ? `Today · ${label}` : label;
         }
 
         function renderColumns() {
@@ -493,7 +557,10 @@ function initializeCalendar() {
             monthCol.innerHTML = '';
             for (let i = 0; i < 12; i++) {
                 const item = document.createElement('div');
-                item.className = 'calendar-jump-item' + (i === selMonth ? ' selected' : '');
+                const isTodayMonth = i === today.getMonth() && selYear === today.getFullYear();
+                item.className = 'calendar-jump-item'
+                    + (i === selMonth ? ' selected' : '')
+                    + (isTodayMonth ? ' is-today' : '');
                 item.textContent = monthNamesShort[i];
                 item.dataset.value = i;
                 item.addEventListener('click', () => {
@@ -509,7 +576,14 @@ function initializeCalendar() {
             const daysInMonth = new Date(selYear, selMonth + 1, 0).getDate();
             for (let d = 1; d <= daysInMonth; d++) {
                 const item = document.createElement('div');
-                item.className = 'calendar-jump-item' + (d === selDay ? ' selected' : '');
+                const isTodayDay = (
+                    d === today.getDate()
+                    && selMonth === today.getMonth()
+                    && selYear === today.getFullYear()
+                );
+                item.className = 'calendar-jump-item'
+                    + (d === selDay ? ' selected' : '')
+                    + (isTodayDay ? ' is-today' : '');
                 item.textContent = String(d).padStart(2, '0');
                 item.dataset.value = d;
                 item.addEventListener('click', () => {
@@ -523,7 +597,9 @@ function initializeCalendar() {
             yearCol.innerHTML = '';
             for (let y = MIN_YEAR; y <= 2100; y++) {
                 const item = document.createElement('div');
-                item.className = 'calendar-jump-item' + (y === selYear ? ' selected' : '');
+                item.className = 'calendar-jump-item'
+                    + (y === selYear ? ' selected' : '')
+                    + (y === today.getFullYear() ? ' is-today' : '');
                 item.textContent = y;
                 item.dataset.value = y;
                 item.addEventListener('click', () => {
@@ -535,9 +611,18 @@ function initializeCalendar() {
                 yearCol.appendChild(item);
             }
 
-            monthCol.parentElement.scrollTop = selMonth * 36;
-            dayCol.parentElement.scrollTop = (selDay - 1) * 36;
-            yearCol.parentElement.scrollTop = (selYear - MIN_YEAR) * 36;
+            monthCol.parentElement.scrollTop = 0;
+            dayCol.parentElement.scrollTop = 0;
+            yearCol.parentElement.scrollTop = 0;
+
+            requestAnimationFrame(() => {
+                [monthCol, dayCol, yearCol].forEach((colInner) => {
+                    const selected = colInner.querySelector('.calendar-jump-item.selected');
+                    if (selected) {
+                        selected.scrollIntoView({ block: 'center', inline: 'nearest' });
+                    }
+                });
+            });
         }
 
         function hide() {
@@ -566,27 +651,169 @@ function initializeCalendar() {
         overlay.addEventListener('click', onBackdrop);
 
         overlay.classList.add('show');
+        requestAnimationFrame(() => {
+            [monthCol, dayCol, yearCol].forEach((colInner) => {
+                const selected = colInner.querySelector('.calendar-jump-item.selected');
+                if (selected) selected.scrollIntoView({ block: 'center', inline: 'nearest' });
+            });
+        });
     }
 
-    let backdrop, modal, titleInput, contentArea, charCounter, closeBtn, cancelBtn, saveBtn, editBtn, delBtn, toggleBtn;
+    let backdrop, modal, titleInput, contentArea, charCounter, titleCounter, closeBtn, cancelBtn, saveBtn, editBtn, delBtn, toggleBtn;
     let dateKey, isEditMode, originalNote, activeYear, activeMonthIndex, activeDay;
 
+    function updateTitleCounter() {
+        if (!titleCounter || !titleInput) return;
+        const len = sanitizeNoteTitle(titleInput.value).length;
+        titleCounter.textContent = `${len} / ${TITLE_MAX}`;
+        titleCounter.classList.toggle('is-over', len > TITLE_MAX);
+    }
+
     function updateCharCounter() {
-        if (!charCounter) return;
-        const contentLen = contentArea ? contentArea.value.length : 0;
-        const titleLen = titleInput ? titleInput.value.length : 0;
-        charCounter.textContent = `Title: ${titleLen} / ${TITLE_MAX} · Content: ${contentLen} / ${CONTENT_MAX}`;
-        charCounter.classList.toggle('is-over', contentLen > CONTENT_MAX || titleLen > TITLE_MAX);
+        if (!charCounter || !contentArea) return;
+        const len = countedNoteLength(contentArea.value, contentArea);
+        charCounter.textContent = `${len} / ${CONTENT_MAX} characters`;
+        charCounter.classList.toggle('is-over', len > CONTENT_MAX);
+    }
+
+    function bindTitleInputLimit(input) {
+        if (!input || input.dataset.titleLimitBound === '1') return;
+        input.dataset.titleLimitBound = '1';
+
+        input.addEventListener('beforeinput', (event) => {
+            if (event.isComposing || input.readOnly) return;
+            const type = event.inputType || '';
+            if (type.startsWith('delete') || type === 'historyUndo' || type === 'historyRedo') {
+                return;
+            }
+            if (type === 'insertLineBreak' || type === 'insertParagraph') {
+                event.preventDefault();
+                return;
+            }
+            if (typeof event.data === 'string' && /[\s\r\n\u00a0]/.test(event.data)) {
+                event.preventDefault();
+                return;
+            }
+            if (typeof event.data === 'string') {
+                const value = String(input.value || '');
+                const start = input.selectionStart ?? value.length;
+                const end = input.selectionEnd ?? start;
+                const projected = sanitizeNoteTitle(value.slice(0, start) + event.data + value.slice(end));
+                if (projected.length > TITLE_MAX) {
+                    event.preventDefault();
+                    showToast(`Title must be ${TITLE_MAX} characters or less.`, 'error');
+                }
+            }
+        });
+
+        input.addEventListener('paste', (event) => {
+            if (input.readOnly) return;
+            event.preventDefault();
+            const rawPaste = event.clipboardData?.getData('text') ?? '';
+            const pastedClean = sanitizeNoteTitle(rawPaste);
+            const value = String(input.value || '');
+            const start = input.selectionStart ?? value.length;
+            const end = input.selectionEnd ?? start;
+            const before = sanitizeNoteTitle(value.slice(0, start));
+            const after = sanitizeNoteTitle(value.slice(end));
+            const room = Math.max(0, TITLE_MAX - before.length - after.length);
+            const insert = pastedClean.slice(0, room);
+            const next = sanitizeNoteTitle(before + insert + after);
+            input.value = next;
+            const caret = Math.min(before.length + insert.length, next.length);
+            input.setSelectionRange(caret, caret);
+            updateTitleCounter();
+            if (pastedClean.length > room) {
+                showToast(`Title must be ${TITLE_MAX} characters or less.`, 'error');
+            }
+        });
+
+        input.addEventListener('input', () => {
+            const cleaned = sanitizeNoteTitle(input.value);
+            if (input.value !== cleaned) {
+                const start = input.selectionStart ?? cleaned.length;
+                input.value = cleaned;
+                const caret = Math.min(start, cleaned.length);
+                input.setSelectionRange(caret, caret);
+            }
+            updateTitleCounter();
+        });
+    }
+
+    function wouldExceedNoteLimit(textarea, insertText) {
+        const value = String(textarea.value || '');
+        const start = textarea.selectionStart ?? value.length;
+        const end = textarea.selectionEnd ?? start;
+        const nextValue = value.slice(0, start) + insertText + value.slice(end);
+        return countedNoteLength(nextValue, textarea) > CONTENT_MAX;
+    }
+
+    function bindNoteContentLimit(textarea) {
+        if (!textarea || textarea.dataset.lineLimitBound === '1') return;
+        textarea.dataset.lineLimitBound = '1';
+
+        textarea.addEventListener('beforeinput', (event) => {
+            if (event.isComposing || textarea.readOnly) return;
+            const type = event.inputType || '';
+            if (type.startsWith('delete') || type === 'historyUndo' || type === 'historyRedo') {
+                return;
+            }
+
+            let insertText = '';
+            if (typeof event.data === 'string') {
+                insertText = event.data;
+            } else if (type === 'insertLineBreak' || type === 'insertParagraph') {
+                insertText = '\n';
+            } else if (type === 'insertFromPaste') {
+                return;
+            } else {
+                return;
+            }
+
+            if (wouldExceedNoteLimit(textarea, insertText)) {
+                event.preventDefault();
+                showToast(
+                    `Content must be ${CONTENT_MAX} characters or less (new lines count as a full line).`,
+                    'error'
+                );
+                updateCharCounter();
+            }
+        });
+
+        textarea.addEventListener('paste', (event) => {
+            if (textarea.readOnly) return;
+            const pasted = event.clipboardData?.getData('text') ?? '';
+            if (pasted === '') return;
+
+            event.preventDefault();
+            const value = String(textarea.value || '');
+            const start = textarea.selectionStart ?? value.length;
+            const end = textarea.selectionEnd ?? start;
+            const nextValue = value.slice(0, start) + pasted + value.slice(end);
+
+            if (countedNoteLength(nextValue, textarea) > CONTENT_MAX) {
+                showToast(
+                    `Content must be ${CONTENT_MAX} characters or less (new lines count as a full line).`,
+                    'error'
+                );
+                updateCharCounter();
+                return;
+            }
+
+            textarea.setRangeText(pasted, start, end, 'end');
+            updateCharCounter();
+        });
     }
 
     function switchToViewMode() {
         isEditMode = false;
         const note = notes[dateKey] || {};
-        titleInput.value = note.title || '';
+        titleInput.value = sanitizeNoteTitle(note.title || '');
         titleInput.readOnly = true;
         contentArea.value = note.content || '';
         contentArea.readOnly = true;
         if (charCounter) charCounter.style.display = 'none';
+        if (titleCounter) titleCounter.style.display = 'none';
         cancelBtn.style.display = 'none';
         saveBtn.style.display = 'none';
         editBtn.style.display = canEditDate(activeYear, activeMonthIndex, activeDay) ? '' : 'none';
@@ -600,6 +827,8 @@ function initializeCalendar() {
         titleInput.readOnly = false;
         contentArea.readOnly = false;
         if (charCounter) charCounter.style.display = '';
+        if (titleCounter) titleCounter.style.display = '';
+        updateTitleCounter();
         updateCharCounter();
         cancelBtn.style.display = '';
         saveBtn.style.display = '';
@@ -631,10 +860,11 @@ function initializeCalendar() {
                     </div>
                     <div class="calendar-modal-body">
                         <label class="calendar-note-label">Title</label>
-                        <input type="text" class="calendar-note-title-input" placeholder="Note title..." maxlength="${TITLE_MAX}" />
+                        <input type="text" class="calendar-note-title-input" placeholder="Note title..." maxlength="${TITLE_MAX}" autocomplete="off" />
+                        <div class="calendar-note-title-counter">0 / ${TITLE_MAX}</div>
                         <label class="calendar-note-label">Content</label>
-                        <textarea class="calendar-note-content" placeholder="Write your note..." maxlength="${CONTENT_MAX}"></textarea>
-                        <div class="calendar-note-char-counter">Title: 0 / ${TITLE_MAX} · Content: 0 / ${CONTENT_MAX}</div>
+                        <textarea class="calendar-note-content" placeholder="Write your note..."></textarea>
+                        <div class="calendar-note-char-counter">0 / ${CONTENT_MAX} characters</div>
                         <div class="calendar-modal-actions">
                             <button type="button" class="btn-secondary calendar-modal-cancel" style="display:none">Cancel</button>
                             <button type="button" class="btn-primary calendar-modal-save" style="display:none">Save</button>
@@ -652,6 +882,7 @@ function initializeCalendar() {
         modal.querySelector('.calendar-modal-title').textContent = `Notes for ${monthLabelText} ${day}`;
         titleInput = modal.querySelector('.calendar-note-title-input');
         contentArea = modal.querySelector('.calendar-note-content');
+        titleCounter = modal.querySelector('.calendar-note-title-counter');
         charCounter = modal.querySelector('.calendar-note-char-counter');
         closeBtn = modal.querySelector('.calendar-modal-close');
         cancelBtn = modal.querySelector('.calendar-modal-cancel');
@@ -660,9 +891,11 @@ function initializeCalendar() {
         delBtn = modal.querySelector('.modal-action-btn.delete');
         toggleBtn = modal.querySelector('.modal-toggle-btn');
 
-        titleInput.value = note ? (note.title || '') : '';
+        titleInput.value = note ? sanitizeNoteTitle(note.title || '') : '';
         contentArea.value = note ? (note.content || '') : '';
-        originalNote = note ? { title: note.title || '', content: note.content || '' } : { title: '', content: '' };
+        originalNote = note
+            ? { title: sanitizeNoteTitle(note.title || ''), content: note.content || '' }
+            : { title: '', content: '' };
 
         if (hasNote) {
             switchToViewMode();
@@ -675,7 +908,9 @@ function initializeCalendar() {
         toggleBtn.textContent = '□';
 
         contentArea.oninput = updateCharCounter;
-        titleInput.oninput = updateCharCounter;
+        bindNoteContentLimit(contentArea);
+        bindTitleInputLimit(titleInput);
+        updateTitleCounter();
 
         function hide() {
             backdrop.classList.remove('show', 'modal-maximized');
@@ -688,15 +923,16 @@ function initializeCalendar() {
             toggleBtn.removeEventListener('click', onToggle);
             backdrop.removeEventListener('click', onBackdrop);
             contentArea.oninput = null;
-            if (titleInput) titleInput.oninput = null;
         }
 
         function isNoteDirty() {
             if (!isEditMode || !originalNote) {
                 return false;
             }
-            return titleInput.value.trim() !== originalNote.title
-                || contentArea.value.trim() !== originalNote.content;
+            const t = sanitizeNoteTitle(titleInput.value);
+            const c = normalizeNoteContent(contentArea.value);
+            const origContent = normalizeNoteContent(originalNote.content);
+            return t !== sanitizeNoteTitle(originalNote.title) || c !== origContent;
         }
 
         function confirmDiscardIfDirty() {
@@ -769,23 +1005,23 @@ function initializeCalendar() {
         }
 
         async function onSave() {
-            const title = titleInput.value.trim();
-            const content = contentArea.value.trim();
+            const titleCheck = validateNoteTitle(titleInput.value);
+            const content = normalizeNoteContent(contentArea.value);
 
-            if (!title) {
-                showToast('Title is required.', 'error');
+            if (!titleCheck.ok) {
+                showToast(titleCheck.message || 'Title is required.', 'error');
                 return;
             }
-            if (title.length > TITLE_MAX) {
-                showToast(`Title must be ${TITLE_MAX} characters or less.`, 'error');
-                return;
-            }
-            if (!content) {
+            const title = titleCheck.title;
+            if (content === '' || !/\S/u.test(content)) {
                 showToast('Content is required.', 'error');
                 return;
             }
-            if (content.length > CONTENT_MAX) {
-                showToast(`Content must be ${CONTENT_MAX} characters or less.`, 'error');
+            if (countedNoteLength(content, contentArea) > CONTENT_MAX) {
+                showToast(
+                    `Content must be ${CONTENT_MAX} characters or less (new lines count as a full line).`,
+                    'error'
+                );
                 return;
             }
 
@@ -848,8 +1084,9 @@ function initializeCalendar() {
             if (!(await confirmDiscardIfDirty())) {
                 return;
             }
-            titleInput.value = originalNote.title;
+            titleInput.value = sanitizeNoteTitle(originalNote.title);
             contentArea.value = originalNote.content;
+            updateTitleCounter();
             updateCharCounter();
             if (notes[dateKey]) switchToViewMode();
             else hide();

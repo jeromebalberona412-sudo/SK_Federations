@@ -82,6 +82,10 @@
                             <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clip-rule="evenodd"/></svg>
                             Photo
                         </button>
+                        <button type="button" class="compose-action-btn" data-compose-open="video">
+                            <svg viewBox="0 0 20 20" fill="currentColor"><path d="M2 6a2 2 0 012-2h6a2 2 0 012 2v8a2 2 0 01-2 2H4a2 2 0 01-2-2V6zm12.553 1.106A1 1 0 0014 8v4a1 1 0 00.553.894l2 1A1 1 0 0018 13V7a1 1 0 00-1.447-.894l-2 1z"/></svg>
+                            Video
+                        </button>
                     </div>
                 </div>
 
@@ -90,11 +94,17 @@
                     <div class="feed-header__intro">
                         <h1>SK Community Feed</h1>
                     </div>
-                    <div class="feed-header__search">
-                        <svg class="feed-header__search-icon" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                            <path fill-rule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clip-rule="evenodd"/>
-                        </svg>
-                        <input type="search" id="feedSearchInput" class="feed-header__search-input" placeholder="Search posts, programs, announcements..." autocomplete="off" aria-label="Search community feed">
+                    <div class="feed-header__tools">
+                        <div class="feed-header__search">
+                            <svg class="feed-header__search-icon" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                                <path fill-rule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clip-rule="evenodd"/>
+                            </svg>
+                            <input type="search" id="feedSearchInput" class="feed-header__search-input" placeholder="Search posts, programs, announcements..." autocomplete="off" aria-label="Search community feed">
+                        </div>
+                        <button type="button" class="feed-filters-btn" id="feedFiltersBtn" aria-haspopup="dialog" aria-controls="feedFiltersModal">
+                            <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path d="M3 4a1 1 0 011-1h12a1 1 0 01.8 1.6L12 11.333V15a1 1 0 01-.553.894l-2 1A1 1 0 018 16v-4.667L3.2 4.6A1 1 0 013 4z"/></svg>
+                            <span>Filters</span>
+                        </button>
                     </div>
                 </div>
 
@@ -107,7 +117,7 @@
             <aside class="programs-sidebar" id="programsSidebar">
                 <div class="sidebar-card">
                     <h2 class="sidebar-title">Barangay SK Profiles</h2>
-                    <p class="sidebar-subtitle">Browse SK officials from each barangay ({{ count($barangayProfiles ?? []) }} barangays).</p>
+                    <p class="sidebar-subtitle">Browse SK officials from each barangay.</p>
                     <div class="brgy-link-list" id="brgyLinkList">
                         @forelse($barangayProfiles ?? [] as $brgy)
                         <a href="{{ route('skfed.barangay-profile', ['slug' => $brgy['slug']]) }}" class="brgy-link-item">
@@ -159,25 +169,66 @@
                     <img src="{{ $avatar }}" alt="Avatar" class="compose-avatar-sm">
                     <div>
                         <div class="compose-author-name">{{ $user->name ?? 'SK Official' }}</div>
-                        <select class="compose-visibility-select" id="compose-visibility" aria-label="Visibility">
-                            <option value="public">🌐 Public</option>
-                            <option value="federation">🔒 Federation Only</option>
-                        </select>
+                        <div class="compose-audience-wrap" id="compose-audience-wrap">
+                            <button type="button" class="compose-visibility-select compose-audience-toggle" id="compose-audience-toggle" aria-haspopup="listbox" aria-expanded="false" aria-label="Notify targets">
+                                Select targets
+                            </button>
+                            <div class="compose-audience-menu" id="compose-audience-menu" hidden role="listbox" aria-multiselectable="true" aria-label="Select who to notify">
+                                <p class="compose-audience-hint">Select one or more. These control who can be notified (email + bell). Public also makes the post shareable.</p>
+                                <label class="compose-audience-option">
+                                    <input type="checkbox" name="compose-audience" value="public">
+                                    <span>
+                                        <strong>Public</strong>
+                                        <small>Shareable post. Notifies Federation portal users when email is on.</small>
+                                    </span>
+                                </label>
+                                <label class="compose-audience-option">
+                                    <input type="checkbox" name="compose-audience" value="federation">
+                                    <span>
+                                        <strong>Federation</strong>
+                                        <small>Federation portal users only (not publicly shareable unless Public is also selected).</small>
+                                    </span>
+                                </label>
+                                <label class="compose-audience-option">
+                                    <input type="checkbox" name="compose-audience" value="officials">
+                                    <span>
+                                        <strong>SK Officials</strong>
+                                        <small>All SK Officials across Santa Cruz barangays.</small>
+                                    </span>
+                                </label>
+                                <label class="compose-audience-option">
+                                    <input type="checkbox" name="compose-audience" value="kabataan">
+                                    <span>
+                                        <strong>Kabataan</strong>
+                                        <small>All eligible Kabataan members across Santa Cruz.</small>
+                                    </span>
+                                </label>
+                            </div>
+                        </div>
                     </div>
                 </div>
                 <div class="compose-type-row">
-                    <label class="compose-type-label">Post Type:</label>
+                    <label class="compose-type-label" for="compose-type">Post Type:</label>
                     <select class="compose-type-select" id="compose-type" aria-label="Post type">
                         <option value="update">Update</option>
                         <option value="announcement">Announcement</option>
                         <option value="event">Event</option>
+                        <option value="photo">Photo</option>
                         <option value="activity">Activity</option>
                         <option value="program">Youth Program</option>
                     </select>
                 </div>
-                <textarea class="compose-textarea" id="compose-content" placeholder="Write something..." rows="6" maxlength="5000"></textarea>
-                <div class="compose-char-row">
-                    <span id="compose-char-count" class="compose-char-count">0 / 5000</span>
+                <div class="compose-update-title-wrap" id="compose-update-title-wrap">
+                    <label class="compose-type-label" for="compose-title">Please specify what update</label>
+                    <input type="text" id="compose-title" class="compose-title-input" maxlength="50" placeholder="e.g. Clean-up drive schedule" autocomplete="off" aria-describedby="compose-title-count compose-title-error">
+                    <div class="compose-title-meta">
+                        <span id="compose-title-count" class="compose-char-count">0 / 50</span>
+                    </div>
+                    <p id="compose-title-error" class="compose-field-error" role="alert"></p>
+                </div>
+                <textarea class="compose-textarea" id="compose-content" placeholder="Write something..." rows="6"></textarea>
+                <div class="compose-char-row" aria-live="polite">
+                    <span id="compose-char-count" class="compose-char-count">0 / 25000</span>
                 </div>
                 <div class="compose-attach-row">
                     <label class="compose-attach-btn" for="compose-image-input" title="Upload Image">
@@ -185,24 +236,65 @@
                         Photo
                     </label>
                     <input type="file" id="compose-image-input" accept="image/*" multiple style="display:none;" onchange="previewImages(this)">
-                    <label class="compose-attach-btn" id="compose-link-btn" onclick="toggleLinkInput()" title="Add Link">
-                        <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M12.586 4.586a2 2 0 112.828 2.828l-3 3a2 2 0 01-2.828 0 1 1 0 00-1.414 1.414 4 4 0 005.656 0l3-3a4 4 0 00-5.656-5.656l-1.5 1.5a1 1 0 101.414 1.414l1.5-1.5zm-5 5a2 2 0 012.828 0 1 1 0 101.414-1.414 4 4 0 00-5.656 0l-3 3a4 4 0 105.656 5.656l1.5-1.5a1 1 0 10-1.414-1.414l-1.5 1.5a2 2 0 11-2.828-2.828l3-3z" clip-rule="evenodd"/></svg>
-                        Link
-                    </label>
+                    <button type="button" class="compose-attach-btn" id="compose-add-video-btn" onclick="toggleVideoMethodPanel()">
+                        <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path d="M2 6a2 2 0 012-2h6a2 2 0 012 2v8a2 2 0 01-2 2H4a2 2 0 01-2-2V6zm12.553 1.106A1 1 0 0014 8v4a1 1 0 00.553.894l2 1A1 1 0 0018 13V7a1 1 0 00-1.447-.894l-2 1z"/></svg>
+                        Add Video
+                    </button>
                 </div>
                 <p id="compose-images-meta" class="compose-images-meta"></p>
                 <div id="compose-images-preview" class="compose-images-preview"></div>
-                <div id="compose-link-input-wrap" style="display:none;margin-top:10px;">
-                    <input type="url" id="compose-link-input" class="compose-link-field" maxlength="63" placeholder="Paste a link (https://...)">
-                    <span id="compose-link-error" class="compose-link-error" role="alert"></span>
+                <div id="compose-video-method-wrap" class="compose-video-method-wrap" hidden>
+                    <p class="compose-media-label">Video Upload Method</p>
+                    <div class="compose-video-method-list" role="radiogroup" aria-label="Video upload method">
+                        <label class="compose-video-method-option">
+                            <input type="radio" name="compose-video-method" value="upload" checked>
+                            <span><strong>Upload Video</strong><small>Upload the video directly to SK OnePortal.</small></span>
+                        </label>
+                        <label class="compose-video-method-option">
+                            <input type="radio" name="compose-video-method" value="drive">
+                            <span><strong>Use Google Drive Link</strong><small>Paste one Google Drive video file link.</small></span>
+                        </label>
+                    </div>
+                    <div id="compose-video-upload-panel" class="compose-video-upload-panel">
+                        <label class="compose-attach-btn" for="compose-video-input-file">
+                            <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path d="M2 6a2 2 0 012-2h6a2 2 0 012 2v8a2 2 0 01-2 2H4a2 2 0 01-2-2V6zm12.553 1.106A1 1 0 0014 8v4a1 1 0 00.553.894l2 1A1 1 0 0018 13V7a1 1 0 00-1.447-.894l-2 1z"/></svg>
+                            Choose videos
+                        </label>
+                        <input type="file" id="compose-video-input-file" accept="video/mp4,video/webm,video/quicktime,.mp4,.webm,.mov" multiple hidden>
+                        <p class="compose-video-help">Maximum video size: 250 MB<br>Allowed: MP4, WebM, MOV<br>Up to 5 videos</p>
+                        <p id="compose-videos-meta" class="compose-images-meta"></p>
+                        <div id="compose-videos-preview" class="compose-videos-preview"></div>
+                        <p id="compose-video-upload-error" class="compose-field-error" role="alert" hidden></p>
+                    </div>
+                    <div id="compose-video-drive-panel" class="compose-video-input-wrap" hidden>
+                        <label class="compose-media-label" for="compose-video-input">Google Drive Video Link</label>
+                        <input type="url" id="compose-video-input" class="compose-link-field" placeholder="Paste Google Drive video link here" autocomplete="off" inputmode="url" aria-describedby="compose-video-help compose-video-error">
+                        <p id="compose-video-help" class="compose-video-help">For <strong>1 specific video</strong> only (single file link, not a folder).</p>
+                        <p id="compose-video-error" class="compose-field-error" role="alert" hidden></p>
+                        <button type="button" class="compose-remove-video-btn" id="compose-remove-video-btn" hidden onclick="clearComposeDriveVideo()">Remove Drive link</button>
+                    </div>
                 </div>
             </div>
+            <div id="compose-email-notify-wrap" class="compose-email-notify form-check">
+                <input
+                    class="form-check-input"
+                    type="checkbox"
+                    id="compose-email-notify"
+                    value="1"
+                    checked
+                    autocomplete="off"
+                >
+                <label class="form-check-label" for="compose-email-notify">
+                    Send email notify to selected targets
+                </label>
+                <p id="compose-email-notify-help" class="compose-email-notify-help form-text mb-0">
+                    Email selected audiences across Santa Cruz. Uncheck to skip email (bell notifications still send).
+                </p>
+            </div>
+            <p id="compose-body-error" class="compose-field-error" role="alert" hidden></p>
             <div class="modal-footer-btns">
                 <button class="btn-secondary" onclick="closeComposeModal()">Cancel</button>
-                <button type="button" class="btn-primary" id="composePostBtn" onclick="submitPost()">
-                    <svg viewBox="0 0 20 20" fill="currentColor" style="width:16px;height:16px;"><path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z"/></svg>
-                    Post
-                </button>
+                <button type="button" class="btn-primary" id="composePostBtn" onclick="submitPost()">Post</button>
             </div>
         </div>
     </div>
@@ -226,6 +318,41 @@
         <div id="lightboxCounter" class="lightbox-counter"></div>
     </div>
 
+    <div id="videoLightbox" class="image-lightbox video-lightbox" aria-hidden="true">
+        <button type="button" id="videoLightboxClose" class="lightbox-close" aria-label="Close">&times;</button>
+        <button type="button" id="videoLightboxPrev" class="lightbox-nav lightbox-prev" aria-label="Previous video">&#10094;</button>
+        <div class="lightbox-viewport video-lightbox-viewport" id="videoLightboxViewport">
+            <div id="videoLightboxFrame" class="video-lightbox-frame"></div>
+        </div>
+        <button type="button" id="videoLightboxNext" class="lightbox-nav lightbox-next" aria-label="Next video">&#10095;</button>
+        <div id="videoLightboxCounter" class="lightbox-counter"></div>
+    </div>
+
+    <div id="sharePostModal" class="program-modal" aria-hidden="true">
+        <div class="modal-overlay" onclick="closeShareModal()"></div>
+        <div class="modal-container share-post-modal" role="dialog" aria-modal="true" aria-labelledby="sharePostModalTitle">
+            <div class="modal-header">
+                <h2 id="sharePostModalTitle">Share post</h2>
+                <button type="button" class="modal-close" onclick="closeShareModal()" aria-label="Close">
+                    <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"/></svg>
+                </button>
+            </div>
+            <form class="share-post-form" id="sharePostForm" onsubmit="event.preventDefault(); copySharePostLink();">
+                <div class="modal-body">
+                    <p class="share-post-hint">Anyone with this link can view this post.</p>
+                    <label class="share-post-label" for="sharePostLinkInput">Public post link</label>
+                    <div class="share-post-field">
+                        <input type="text" id="sharePostLinkInput" class="share-post-link-input" readonly value="" aria-label="Public post link">
+                    </div>
+                </div>
+                <div class="modal-footer-btns share-post-footer">
+                    <button type="button" class="btn-secondary" onclick="closeShareModal()">Close</button>
+                    <button type="submit" class="btn-primary" id="copySharePostLinkBtn">Copy link</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <div id="reactionViewerModal" class="reaction-viewer" aria-hidden="true">
         <div class="reaction-viewer-overlay" onclick="closeReactionViewer()"></div>
         <div class="reaction-viewer-panel" role="dialog" aria-label="People who reacted">
@@ -234,6 +361,47 @@
                 <button type="button" class="reaction-viewer-close" onclick="closeReactionViewer()" aria-label="Close">&times;</button>
             </div>
             <div class="reaction-viewer-list" id="reactionViewerList"></div>
+        </div>
+    </div>
+
+    <div id="archivePostModal" class="program-modal comment-action-modal">
+        <div class="modal-overlay" onclick="closeArchiveModal()"></div>
+        <div class="modal-container" style="max-width:440px;">
+            <div class="modal-header">
+                <h2>Delete Post</h2>
+                <button type="button" class="modal-close" onclick="closeArchiveModal()" aria-label="Close">
+                    <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"/></svg>
+                </button>
+            </div>
+            <div class="modal-body">
+                <p style="font-size:14px;color:#555;line-height:1.65;margin:0;">
+                    This post will be moved to Deleted Posts.<br><br>
+                    You can restore it from Archive Management within 30 days.<br><br>
+                    After 30 days, the post and uploads may be permanently deleted.
+                </p>
+            </div>
+            <div class="modal-footer-btns">
+                <button type="button" class="btn-secondary" onclick="closeArchiveModal()">Cancel</button>
+                <button type="button" class="btn-danger" id="confirmArchiveBtn" onclick="confirmArchivePost()">Delete Post</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="feedFiltersModal" class="program-modal" aria-hidden="true">
+        <div class="modal-overlay" data-feed-filters-close></div>
+        <div class="modal-container feed-filters-modal" role="dialog" aria-modal="true" aria-labelledby="feedFiltersTitle">
+            <div class="modal-header">
+                <h2 id="feedFiltersTitle">Post filters</h2>
+                <button type="button" class="modal-close" data-feed-filters-close aria-label="Close"><svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"/></svg></button>
+            </div>
+            <div class="modal-body">
+                <label class="feed-filters-label" for="feedFilterYear">Go to:</label>
+                <select id="feedFilterYear" class="feed-filters-select" aria-label="Filter posts by year"></select>
+            </div>
+            <div class="modal-footer-btns feed-filters-footer">
+                <button type="button" class="feed-filters-clear" id="feedFiltersClear">Clear</button>
+                <button type="button" class="btn-primary" id="feedFiltersDone">Done</button>
+            </div>
         </div>
     </div>
 
@@ -247,7 +415,7 @@
                 </button>
             </div>
             <div class="modal-body">
-                <textarea id="editCommentBody" class="edit-comment-textarea" maxlength="500" placeholder="Write a comment..."></textarea>
+                <textarea id="editCommentBody" class="edit-comment-textarea" maxlength="2000" placeholder="Write a comment..."></textarea>
             </div>
             <div class="modal-footer-btns">
                 <button type="button" class="btn-secondary" onclick="closeEditCommentModal()">Cancel</button>
@@ -280,18 +448,28 @@
     @include('community_feed::comment-preview')
 
     <script>
+        window.__skProhibitedWords = @json(config('prohibited_words', []));
         window.currentAvatar = @json($avatar ?? '');
         window.CommunityFeedConfig = {
             userAvatar: @json($avatar ?? ''),
             userDisplayName: @json($user->name ?? 'SK Federation'),
-            feedPollMs: 30000,
+            feedPollMs: 5000,
+            commentPollMs: 3000,
+            deletedPostsUrl: @json(route('archived.deleted-posts')),
+            feedYearsWithPosts: @json($feedYearsWithPosts ?? []),
             commentsPageUrl: @json(url('/community-feed/comments/__ID__')),
+            prohibitedWords: window.__skProhibitedWords,
+            cloudinaryCloudName: @json(config('services.cloudinary.cloud_name')),
+            communityVideoPreset: @json(config('services.cloudinary.community_video_upload_preset')),
+            communityVideoMaxBytes: @json((int) config('services.cloudinary.community_video_max_bytes', 262144000)),
+            communityVideoMaxCount: @json((int) config('services.cloudinary.community_video_max_count', 5)),
         };
         window.CommentPreviewConfig = {
             post: @json($commentPreviewPost ?? null),
             userAvatar: @json($avatar ?? ''),
             userDisplayName: @json($user->name ?? 'SK Federation'),
             feedUrl: @json(route('community-feed')),
+            prohibitedWords: window.__skProhibitedWords,
         };
         function showFeedToast(message, type) {
             var el = document.getElementById('feedToast');
@@ -306,6 +484,9 @@
         window.showFeedToast = showFeedToast;
     </script>
     @vite([
+        'app/Modules/CommunityFeed/assets/js/prohibited-words.js',
+        'app/Modules/CommunityFeed/assets/js/comment-spam-guard.js',
+        'app/Modules/CommunityFeed/assets/js/community-feed-media.js',
         'app/Modules/CommunityFeed/assets/js/community-feed.js',
         'app/Modules/CommunityFeed/assets/js/community-feed-comment-preview.js',
     ])

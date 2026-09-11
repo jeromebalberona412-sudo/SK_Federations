@@ -1,5 +1,5 @@
 @php
-    $archiveManagementOpen = request()->routeIs('archived.*');
+    $archiveManagementOpen = request()->routeIs('archived.*', 'deleted-calendar-notes');
     $accountsOpen = request()->routeIs('accounts.*');
     $isFederationAccountsActive = request()->routeIs('accounts.federation.index') || (request()->routeIs('accounts.manage') && (request('account_type', 'sk_federation') === 'sk_federation'));
     $isOfficialsAccountsActive = request()->routeIs('accounts.officials.index');
@@ -86,6 +86,9 @@
             </a>
             <a href="{{ route('archived.deleted-posts') }}" class="menu-item submenu-item submenu-item--plain {{ request()->routeIs('archived.deleted-posts*') ? 'active' : '' }}" data-no-loading>
                 <span>Deleted Posts</span>
+            </a>
+            <a href="{{ route('deleted-calendar-notes') }}" class="menu-item submenu-item submenu-item--plain {{ request()->routeIs('deleted-calendar-notes*') ? 'active' : '' }}" data-no-loading>
+                <span>Deleted Calendar Notes</span>
             </a>
             <a href="{{ route('archived.sk-officials-records') }}" class="menu-item submenu-item submenu-item--plain {{ request()->routeIs('archived.sk-officials-records') ? 'active' : '' }}" data-no-loading>
                 <span>SK Officials Records</span>

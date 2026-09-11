@@ -1,0 +1,346 @@
+/* Row actions meatballs menu — matches SK Federations account actions */
+.row-actions-menu {
+    position: relative;
+    display: inline-flex;
+    justify-content: center;
+    width: 100%;
+}
+
+/* Table bodies scroll sideways on mobile. Action menus use position:fixed. */
+.saf-table-wrap,
+.schol-table-wrap,
+.sports-table-wrap,
+.spl-table-wrapper,
+.sl-table-wrapper,
+.table-wrapper {
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    -webkit-overflow-scrolling: touch;
+    max-width: 100%;
+}
+
+.saf-forms-table-card:has(.row-actions-menu),
+.saf-forms-table-card:has(.row-actions-trigger),
+.schol-table-card:has(.row-actions-menu),
+.schol-table-card:has(.row-actions-trigger),
+.sports-table-card:has(.row-actions-menu),
+.sports-table-card:has(.row-actions-trigger) {
+    overflow: visible !important;
+}
+
+.saf-forms-table tbody tr,
+.schol-table tbody tr,
+.sports-table tbody tr,
+.kabataan-table tbody tr,
+.kk-table tbody tr {
+    position: relative;
+}
+
+.saf-forms-table th.col-actions,
+.saf-forms-table td.col-actions {
+    width: 64px !important;
+    min-width: 64px !important;
+    max-width: 64px !important;
+}
+
+.row-actions-trigger {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    padding: 0;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    background: #ffffff;
+    color: #64748b;
+    font-size: 16px;
+    line-height: 1;
+    cursor: pointer;
+    transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.row-actions-trigger:hover,
+.row-actions-menu.is-open .row-actions-trigger {
+    background: #f8fafc;
+    border-color: #cbd5e1;
+    color: #334155;
+    box-shadow: 0 1px 4px rgba(15, 23, 42, 0.08);
+}
+
+.row-actions-dropdown {
+    position: absolute;
+    top: calc(100% + 6px);
+    right: 0;
+    z-index: 1300;
+    min-width: 168px;
+    padding: 6px;
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    box-shadow: 0 10px 28px rgba(15, 23, 42, 0.14);
+    opacity: 0;
+    visibility: hidden;
+    transform: translateY(-4px);
+    transition: opacity 0.15s ease, transform 0.15s ease, visibility 0.15s ease;
+    pointer-events: none;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.row-actions-menu.is-open .row-actions-dropdown {
+    opacity: 1;
+    visibility: visible;
+    transform: translateY(0);
+    pointer-events: auto;
+}
+
+.row-actions-menu.is-open .row-actions-dropdown.is-floating,
+body > .row-actions-dropdown.is-floating {
+    position: fixed;
+    top: auto;
+    right: auto;
+    left: auto;
+    bottom: auto;
+    transform: none;
+    z-index: 10050;
+}
+
+.row-actions-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    padding: 8px 10px;
+    border: none;
+    border-radius: 8px;
+    font-size: 12px;
+    font-weight: 600;
+    font-family: inherit;
+    text-align: left;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background 0.12s ease, color 0.12s ease, box-shadow 0.12s ease;
+}
+
+.row-actions-item svg {
+    width: 13px;
+    height: 13px;
+    flex-shrink: 0;
+}
+
+/* View Details — dark (legacy btn-action-view) */
+.row-actions-item-view {
+    background: #1a56c9;
+    color: #ffffff;
+    box-shadow: 0 4px 12px rgba(29, 78, 216, 0.25);
+}
+
+.row-actions-item-view svg {
+    color: #ffffff;
+}
+
+.row-actions-item-view:hover {
+    background: #0039A8;
+    color: #ffffff;
+}
+
+.row-actions-item-view:hover svg {
+    color: #ffffff;
+}
+
+/* Documents — blue (legacy btn-action-documents) */
+.row-actions-item-documents {
+    background: #eff6ff;
+    color: #1d4ed8;
+    border: 1px solid #bfdbfe;
+}
+
+.row-actions-item-documents svg {
+    color: #2563eb;
+}
+
+.row-actions-item-documents:hover {
+    background: #dbeafe;
+    color: #1e40af;
+    transform: translateY(-1px);
+}
+
+.row-actions-item-documents:hover svg {
+    color: #1d4ed8;
+}
+
+/* Approve — green (legacy kk-btn-approve) */
+.row-actions-item-approve {
+    background: #16a34a;
+    color: #ffffff;
+    box-shadow: 0 4px 12px rgba(34, 197, 94, 0.35);
+}
+
+.row-actions-item-approve svg {
+    color: #ffffff;
+}
+
+.row-actions-item-approve:hover {
+    background: #15803d;
+    color: #ffffff;
+    transform: translateY(-1px);
+    box-shadow: 0 6px 16px rgba(34, 197, 94, 0.45);
+}
+
+.row-actions-item-approve:hover svg {
+    color: #ffffff;
+}
+
+/* Restore — green (distinct from yellow Edit) */
+.row-actions-item-restore {
+    background: #16a34a;
+    color: #ffffff;
+    box-shadow: 0 4px 12px rgba(34, 197, 94, 0.35);
+}
+
+.row-actions-item-restore svg {
+    color: #ffffff;
+}
+
+.row-actions-item-restore:hover {
+    background: #15803d;
+    color: #ffffff;
+    transform: translateY(-1px);
+    box-shadow: 0 6px 16px rgba(34, 197, 94, 0.45);
+}
+
+.row-actions-item-restore:hover svg {
+    color: #ffffff;
+}
+
+/* Edit — yellow */
+.row-actions-item-edit {
+    background: #eab308;
+    color: #ffffff;
+    box-shadow: 0 4px 12px rgba(234, 179, 8, 0.35);
+}
+
+.row-actions-item-edit svg {
+    color: #ffffff;
+}
+
+.row-actions-item-edit:hover {
+    background: #ca8a04;
+    color: #ffffff;
+    box-shadow: 0 6px 16px rgba(234, 179, 8, 0.45);
+}
+
+.row-actions-item-edit:hover svg {
+    color: #ffffff;
+}
+
+/* Print — matches View Details */
+.row-actions-item-print {
+    background: #1a56c9;
+    color: #ffffff;
+    box-shadow: 0 4px 12px rgba(29, 78, 216, 0.25);
+}
+
+.row-actions-item-print svg {
+    color: #ffffff;
+}
+
+.row-actions-item-print:hover {
+    background: #0039A8;
+    color: #ffffff;
+    transform: translateY(-1px);
+}
+
+.row-actions-item-print:hover svg {
+    color: #ffffff;
+}
+
+/* Revoke — orange warning */
+.row-actions-item-revoke {
+    background: #ea580c;
+    color: #ffffff;
+    box-shadow: 0 4px 12px rgba(234, 88, 12, 0.35);
+}
+
+.row-actions-item-revoke svg {
+    color: #ffffff;
+}
+
+.row-actions-item-revoke:hover {
+    background: #c2410c;
+    color: #ffffff;
+    transform: translateY(-1px);
+}
+
+.row-actions-item-revoke:hover svg {
+    color: #ffffff;
+}
+
+/* Reject / Delete — red (legacy kk-btn-reject) */
+.row-actions-item-danger {
+    background: #dc2626;
+    color: #ffffff;
+    box-shadow: 0 4px 12px rgba(239, 68, 68, 0.35);
+}
+
+.row-actions-item-danger svg {
+    color: #ffffff;
+}
+
+.row-actions-item-danger:hover {
+    background: #b91c1c;
+    color: #ffffff;
+    box-shadow: 0 6px 16px rgba(239, 68, 68, 0.45);
+}
+
+.row-actions-item-danger:hover svg {
+    color: #ffffff;
+}
+
+.col-actions,
+.td-actions {
+    width: 64px;
+    min-width: 64px;
+    max-width: 64px;
+    text-align: center;
+    overflow: visible;
+    position: relative;
+    padding-left: 4px !important;
+    padding-right: 4px !important;
+}
+
+.table-external-actions {
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    min-height: 32px;
+    margin: 0 0 8px;
+}
+
+.kabataan-page .table-wrapper,
+.kkprofiling-page .table-wrapper,
+.archive-posts-page .table-wrapper {
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+}
+
+.kabataan-page .row-actions-trigger,
+.kkprofiling-page .row-actions-trigger {
+    background: transparent;
+}
+
+.kabataan-table tbody tr,
+.kk-table tbody tr {
+    position: relative;
+}
+
+.kabataan-table th.col-actions,
+.kabataan-table td.col-actions,
+.kk-table th.col-actions,
+.kk-table td.col-actions {
+    width: 64px !important;
+    min-width: 64px !important;
+    max-width: 64px !important;
+}

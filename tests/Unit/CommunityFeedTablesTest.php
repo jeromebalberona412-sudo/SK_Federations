@@ -6,12 +6,14 @@ use App\Modules\Shared\Models\AnnouncementComment;
 use App\Modules\Shared\Models\AnnouncementCommentReaction;
 use App\Modules\Shared\Models\AnnouncementImage;
 use App\Modules\Shared\Models\AnnouncementReaction;
+use App\Modules\Shared\Models\AnnouncementVideo;
 
 test('community feed models use the renamed community_feeds tables', function () {
     expect((new Announcement)->getTable())->toBe('community_feeds')
         ->and((new AnnouncementComment)->getTable())->toBe('community_feed_comments')
         ->and((new AnnouncementReaction)->getTable())->toBe('community_feed_reactions')
         ->and((new AnnouncementImage)->getTable())->toBe('community_feed_images')
+        ->and((new AnnouncementVideo)->getTable())->toBe('community_feed_videos')
         ->and((new AnnouncementCommentReaction)->getTable())->toBe('community_feed_comment_reactions');
 });
 

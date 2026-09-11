@@ -23,8 +23,9 @@
 
         <section class="calendar-main-section">
             <div class="calendar-legend">
-                <span class="legend-item"><span class="legend-dot has-notes"></span>Day with notes</span>
-                <span class="legend-item"><span class="legend-dot today"></span>Today</span>
+                <span class="legend-item"><span class="legend-dot notes-past"></span>Past notes</span>
+                <span class="legend-item"><span class="legend-dot notes-today"></span>Today notes</span>
+                <span class="legend-item"><span class="legend-dot notes-future"></span>Future notes</span>
             </div>
 
             <div class="calendar-grid" id="calendarGrid"></div>

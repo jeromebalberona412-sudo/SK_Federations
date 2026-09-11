@@ -1,0 +1,593 @@
+/* Deleted Calendar Notes — shell + table styles (Federations layout::app) */
+
+.deleted-calendar-notes-page.page-container {
+    padding: 0;
+}
+
+.deleted-calendar-notes-page .page-header-section {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+}
+
+.deleted-calendar-notes-page .page-title {
+    font-size: 28px;
+    font-weight: 700;
+    color: #111827;
+}
+
+.deleted-calendar-notes-page .page-subtitle {
+    font-size: 14px;
+    color: #6b7280;
+    margin-top: 2px;
+}
+
+.deleted-calendar-notes-page .filter-input {
+    padding: 10px 14px;
+    border-radius: 10px;
+    border: 1px solid #d1d5db;
+    font-size: 14px;
+    color: #111827;
+    background: #fff;
+    min-width: 220px;
+}
+
+.deleted-calendar-notes-page .filter-input:focus {
+    outline: none;
+    border-color: #0039A8;
+    box-shadow: 0 0 0 3px rgba(0, 57, 168, 0.12);
+}
+
+.deleted-calendar-notes-page .page-content-section {
+    background: #fff;
+    border-radius: 18px;
+    padding: 22px;
+    box-shadow: 0 10px 28px rgba(15, 23, 42, 0.16);
+    border: 1px solid rgba(148, 163, 184, 0.45);
+}
+
+.deleted-calendar-notes-page .section-heading-row {
+    margin-bottom: 16px;
+}
+
+.deleted-calendar-notes-page .section-title {
+    font-size: 20px;
+    font-weight: 600;
+    color: #111827;
+}
+
+.deleted-calendar-notes-page .filter-tabs-row {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 16px;
+    flex-wrap: wrap;
+}
+
+.deleted-calendar-notes-page .filter-tab {
+    padding: 8px 18px;
+    border-radius: 8px;
+    border: 1.5px solid #e5e7eb;
+    background: #ffffff;
+    color: #374151;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+}
+
+.deleted-calendar-notes-page .filter-tab:hover {
+    border-color: #dc2626;
+    color: #dc2626;
+    background: #fef2f2;
+}
+
+.deleted-calendar-notes-page .filter-tab.active {
+    background: #0039A8;
+    color: #ffffff;
+    border-color: #0039A8;
+    box-shadow: 0 4px 12px rgba(44, 44, 62, 0.25);
+}
+
+.deleted-calendar-notes-page .restore-success-banner {
+    display: none;
+    align-items: center;
+    gap: 12px;
+    background: #f0fdf4;
+    border: 1.5px solid #86efac;
+    border-radius: 12px;
+    padding: 14px 20px;
+    margin-bottom: 16px;
+    font-size: 14px;
+    font-weight: 600;
+    color: #15803d;
+    opacity: 0;
+    transform: translateY(-8px);
+    transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+.deleted-calendar-notes-page .restore-success-banner.show {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+.deleted-calendar-notes-page .restore-banner-icon {
+    width: 28px;
+    height: 28px;
+    background: #22c55e;
+    color: #ffffff;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    font-weight: 900;
+    flex-shrink: 0;
+}
+
+.deleted-calendar-notes-page .deleted-at-badge {
+    display: inline-block;
+    font-size: 11px;
+    color: #dc2626;
+    background: #fef2f2;
+    border: 1px solid #fecaca;
+    padding: 2px 8px;
+    border-radius: 10px;
+    white-space: nowrap;
+    font-weight: 600;
+}
+
+.deleted-calendar-notes-page .deleted-time-badge {
+    display: inline-block;
+    font-size: 11px;
+    color: #6b7280;
+    background: #f3f4f6;
+    border: 1px solid #e5e7eb;
+    padding: 2px 8px;
+    border-radius: 10px;
+    white-space: nowrap;
+    font-weight: 500;
+}
+
+.restore-modal-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.45);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1200;
+    padding: 16px;
+}
+
+.restore-modal-box {
+    background: #fff;
+    border-radius: 16px;
+    width: 100%;
+    max-width: 400px;
+    overflow: hidden;
+    box-shadow: 0 20px 50px rgba(15, 23, 42, 0.4);
+}
+
+.restore-modal-header {
+    background: #22c55e;
+    padding: 18px 22px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+}
+
+.restore-modal-title {
+    font-size: 17px;
+    font-weight: 700;
+    color: #fff;
+    margin: 0;
+}
+
+.restore-modal-body {
+    padding: 22px 22px 14px;
+    text-align: center;
+}
+
+.restore-modal-message {
+    font-size: 14px;
+    color: #374151;
+    margin-bottom: 8px;
+}
+
+.restore-modal-name {
+    font-size: 16px;
+    font-weight: 700;
+    color: #111827;
+    word-break: break-word;
+}
+
+.restore-modal-footer {
+    padding: 14px 22px 18px;
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+    border-top: 1px solid #f3f4f6;
+}
+
+.btn-cancel-restore {
+    background: #f3f4f6;
+    color: #374151;
+    border: 1px solid #d1d5db;
+    padding: 9px 20px;
+    border-radius: 10px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.btn-confirm-restore {
+    background: #22c55e;
+    color: #fff;
+    border: none;
+    padding: 9px 22px;
+    border-radius: 10px;
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.view-modal-header {
+    background: #0039A8;
+    justify-content: space-between;
+}
+
+.view-modal-close {
+    background: none;
+    border: none;
+    color: #ffffff;
+    font-size: 18px;
+    font-weight: 700;
+    cursor: pointer;
+    line-height: 1;
+    padding: 4px 8px;
+}
+
+.dk-deleted-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px 32px;
+    padding: 14px 22px;
+    background: #fef2f2;
+    border-bottom: 1px solid #fecaca;
+}
+
+.dk-deleted-meta-item {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.dk-deleted-meta-label {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #991b1b;
+}
+
+.dk-deleted-meta-value {
+    font-size: 15px;
+    font-weight: 700;
+    color: #7f1d1d;
+}
+
+.dk-view-subtitle {
+    display: block;
+    font-size: 12px;
+    font-weight: 500;
+    color: rgba(255, 255, 255, 0.8);
+    margin-top: 2px;
+}
+
+/* Deleted Calendar Notes — one-line cells, rounded red header, split deleted columns */
+
+.deleted-calendar-notes-page .module-stats-grid,
+.deleted-calendar-notes-page .pagination-container {
+    display: none !important;
+}
+
+.deleted-calendar-notes-page .table-card {
+    border-radius: 16px;
+    overflow: hidden;
+    background: #ffffff;
+}
+
+.deleted-calendar-notes-page .table-wrapper {
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    -webkit-overflow-scrolling: touch;
+    max-width: 100%;
+    border-radius: 16px;
+}
+
+.deleted-calendar-notes-page .dcn-table {
+    min-width: 980px;
+    table-layout: fixed;
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+}
+
+.deleted-calendar-notes-page .dcn-table thead {
+    background: #dc2626;
+}
+
+.deleted-calendar-notes-page .dcn-table tbody td.dcn-col-title,
+.deleted-calendar-notes-page .dcn-table tbody td.dcn-col-content {
+    text-align: left;
+}
+
+.deleted-calendar-notes-page .dcn-table thead th {
+    background: #dc2626;
+    color: #fff;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    text-align: center;
+    border-right: 1px solid rgba(255, 255, 255, 0.4);
+}
+
+.deleted-calendar-notes-page .dcn-table thead th:first-child {
+    border-top-left-radius: 16px;
+}
+
+.deleted-calendar-notes-page .dcn-table thead th:last-child {
+    border-top-right-radius: 16px;
+    border-right: none;
+}
+
+.deleted-calendar-notes-page .dcn-table th,
+.deleted-calendar-notes-page .dcn-table td {
+    vertical-align: middle;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    padding: 10px 12px;
+    line-height: 1.25;
+    height: 48px;
+    max-height: 48px;
+}
+
+.deleted-calendar-notes-page .dcn-col-title {
+    width: 15%;
+}
+
+.deleted-calendar-notes-page .dcn-col-date {
+    width: 11%;
+}
+
+.deleted-calendar-notes-page .dcn-col-content {
+    width: 22%;
+}
+
+.deleted-calendar-notes-page .dcn-col-deleted-date {
+    width: 12%;
+}
+
+.deleted-calendar-notes-page .dcn-col-deleted-time {
+    width: 11%;
+}
+
+.deleted-calendar-notes-page .dcn-col-auto {
+    width: 12%;
+}
+
+.deleted-calendar-notes-page .dcn-table .col-actions {
+    width: 72px;
+    min-width: 72px;
+    max-width: 72px;
+    white-space: nowrap;
+}
+
+.deleted-calendar-notes-page .dcn-table thead th.col-actions {
+    background: #dc2626;
+}
+
+.deleted-calendar-notes-page .dcn-cell-ellipsis,
+.deleted-calendar-notes-page .dcn-title-text,
+.deleted-calendar-notes-page .dcn-content-preview {
+    display: block;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    word-break: normal;
+    line-height: 1.25;
+}
+
+.deleted-calendar-notes-page .dcn-title-text {
+    font-weight: 600;
+    color: #111827;
+}
+
+.deleted-calendar-notes-page .dcn-content-preview {
+    color: #4b5563;
+    font-size: 0.875rem;
+}
+
+.deleted-calendar-notes-page .deleted-at-badge,
+.deleted-calendar-notes-page .deleted-time-badge,
+.deleted-calendar-notes-page .dcn-auto-delete-badge {
+    display: inline-block;
+    max-width: 100%;
+    margin: 0 auto;
+    vertical-align: middle;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.deleted-calendar-notes-page .dcn-auto-delete-badge {
+    padding: 0.2rem 0.55rem;
+    border-radius: 999px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    background: #fef3c7;
+    color: #92400e;
+}
+
+.deleted-calendar-notes-page .dcn-auto-delete-badge.is-urgent {
+    background: #fee2e2;
+    color: #991b1b;
+}
+
+.deleted-calendar-notes-page .row-actions-menu {
+    width: auto;
+}
+
+.deleted-calendar-notes-page .empty-state-row td {
+    white-space: normal;
+    height: auto;
+    max-height: none;
+    padding: 28px 16px;
+}
+
+.dcn-view-modal-box {
+    max-width: min(640px, 92vw);
+}
+
+.dcn-view-body {
+    padding: 1rem 1.25rem 1.5rem;
+}
+
+.dcn-view-note-title {
+    margin: 0 0 0.75rem;
+    font-size: 1.125rem;
+    font-weight: 700;
+    color: #111827;
+    word-break: break-word;
+}
+
+.dcn-view-note-content {
+    margin: 0;
+    white-space: pre-wrap;
+    word-break: break-word;
+    font-family: inherit;
+    font-size: 0.95rem;
+    line-height: 1.5;
+    color: #374151;
+    background: #f9fafb;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    padding: 0.9rem 1rem;
+    max-height: min(50vh, 360px);
+    overflow: auto;
+}
+
+.deleted-calendar-notes-page .dcn-status-banner-copy {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+.deleted-calendar-notes-page .dcn-status-banner-detail {
+    font-size: 13px;
+    font-weight: 500;
+    color: inherit;
+    opacity: 0.9;
+}
+
+.deleted-calendar-notes-page .restore-success-banner.is-error {
+    background: #fef2f2;
+    border-color: #fecaca;
+    color: #b91c1c;
+}
+
+.deleted-calendar-notes-page .restore-success-banner.is-error .restore-banner-icon {
+    background: #dc2626;
+}
+
+.dcn-conflict-modal-box .dcn-conflict-message {
+    text-align: center;
+    color: #475569;
+    line-height: 1.5;
+}
+
+.dcn-conflict-modal-box .restore-modal-footer {
+    justify-content: center;
+}
+
+.dcn-conflict-ok-btn {
+    min-width: 120px;
+}
+
+@media (max-width: 1024px) {
+    .deleted-calendar-notes-page .page-header-section {
+        flex-wrap: wrap;
+        gap: 12px;
+    }
+
+    .deleted-calendar-notes-page .page-header-right {
+        width: 100%;
+    }
+
+    .deleted-calendar-notes-page .filter-input {
+        width: 100%;
+        max-width: none;
+        min-width: 0;
+    }
+
+    .deleted-calendar-notes-page .dcn-table {
+        min-width: 920px;
+    }
+}
+
+@media (max-width: 768px) {
+    .deleted-calendar-notes-page {
+        padding-left: 12px;
+        padding-right: 12px;
+    }
+
+    .deleted-calendar-notes-page .page-header-section {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .deleted-calendar-notes-page .page-title {
+        font-size: 1.35rem;
+        line-height: 1.25;
+    }
+
+    .deleted-calendar-notes-page .page-subtitle {
+        font-size: 0.875rem;
+        line-height: 1.4;
+    }
+
+    .deleted-calendar-notes-page .filter-tabs-row {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .deleted-calendar-notes-page .filter-tabs-group {
+        flex-wrap: nowrap;
+        min-width: max-content;
+    }
+
+    .deleted-calendar-notes-page .table-card,
+    .deleted-calendar-notes-page .table-wrapper {
+        border-radius: 14px;
+    }
+
+    .deleted-calendar-notes-page .dcn-table thead th:first-child {
+        border-top-left-radius: 14px;
+    }
+
+    .deleted-calendar-notes-page .dcn-table thead th:last-child {
+        border-top-right-radius: 14px;
+    }
+
+    .deleted-calendar-notes-page .dcn-table {
+        min-width: 860px;
+    }
+}

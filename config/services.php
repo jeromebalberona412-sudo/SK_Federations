@@ -48,6 +48,29 @@ return [
         'barangay_logos_folder' => env('CLOUDINARY_BARANGAY_LOGOS_FOLDER', 'sk_oneportal/barangay_logos'),
         'communication_folder' => env('CLOUDINARY_COMMUNICATION_FOLDER', 'communication'),
         'communication_upload_preset' => env('CLOUDINARY_COMMUNICATION_UPLOAD_PRESET', ''),
+        'community_video_folder' => env('CLOUDINARY_COMMUNITY_VIDEO_FOLDER', 'SK_Federations_community_video'),
+        'community_video_upload_preset' => env(
+            'CLOUDINARY_COMMUNITY_VIDEO_UPLOAD_PRESET',
+            'SK_Federations_community_video'
+        ),
+        'community_video_max_bytes' => (int) env('CLOUDINARY_COMMUNITY_VIDEO_MAX_BYTES', 262144000),
+        'community_video_max_count' => (int) env('CLOUDINARY_COMMUNITY_VIDEO_MAX_COUNT', 5),
+    ],
+
+    'google_drive' => [
+        // Prefer service account (share Drive files/folders with the SA email).
+        'api_key' => env('GOOGLE_DRIVE_API_KEY'),
+        // Absolute path, project-relative path, or raw JSON string.
+        // Default: project-root concise-rampart service account JSON (same as SK Officials).
+        'service_account_json' => env(
+            'GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON',
+            base_path('concise-rampart-500822-t7-d8f7d20cf1db.json')
+        ),
+        'service_account_email' => env(
+            'GOOGLE_DRIVE_SERVICE_ACCOUNT_EMAIL',
+            'sk-oneportal-drive@concise-rampart-500822-t7.iam.gserviceaccount.com'
+        ),
+        'folder_max_videos' => (int) env('GOOGLE_DRIVE_FOLDER_MAX_VIDEOS', 50),
     ],
 
     'supabase' => [

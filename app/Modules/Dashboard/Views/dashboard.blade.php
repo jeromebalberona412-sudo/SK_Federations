@@ -7,15 +7,23 @@
         <div class="dash-page-header">
             <div class="dash-page-header-left">
                 <h1 class="dash-page-title">Dashboard</h1>
-                <p class="dash-page-sub">Welcome back, <strong>{{ $user->name ?? 'SK Federation' }}</strong> &mdash; SK Federation</p>
+                <p class="dash-page-sub">
+                    <span class="dash-page-sub-line">Welcome back,</span>
+                    <strong class="dash-page-sub-name">{{ $user->name ?? 'SK Federation' }}</strong>
+                    <span class="dash-page-sub-org">SK Federation</span>
+                </p>
             </div>
             <div class="dash-page-filters">
                 @php
                     $dashYear = (int) ($dashboardYear ?? now()->year);
                     $dashTermStart = $termStart ?? ($dateFrom ?? sprintf('%04d-01-01', $dashYear));
-                    $dashTermEnd = $termEnd ?? ($dateTo ?? now()->toDateString());
+                    $dashTermEnd = $termEnd ?? now()->toDateString();
+                    $dashToday = now()->timezone(config('app.timezone', 'Asia/Manila'))->toDateString();
+                    $dashDateToCap = $dashToday <= $dashTermEnd ? $dashToday : $dashTermEnd;
                     $dashDateFrom = $dateFrom ?? $dashTermStart;
-                    $dashDateTo = $dateTo ?? $dashTermEnd;
+                    $dashDateTo = $dateTo ?? $dashDateToCap;
+                    $dashDataEarliest = $dataEarliest ?? null;
+                    $dashShowAll = !empty($showDateAll);
                 @endphp
                 <div class="dash-header-tools" id="dashHeaderTools">
                     <a href="{{ route('calendar') }}" class="dash-today-card" aria-label="Open calendar — Today's date">
@@ -29,10 +37,13 @@
                         class="dash-date-range-filter"
                         id="dashDateRangeFilter"
                         data-default-from="{{ $dashTermStart }}"
-                        data-default-to="{{ $dashTermEnd }}"
+                        data-default-to="{{ $dashDateToCap }}"
                         data-term-start="{{ $dashTermStart }}"
                         data-term-end="{{ $dashTermEnd }}"
                         data-term-year="{{ $dashYear }}"
+                        data-data-earliest="{{ $dashDataEarliest ?? '' }}"
+                        data-today="{{ $dashToday }}"
+                        data-range-mode="term"
                     >
                         <div class="dash-date-range-fields">
                             <label class="dash-date-field" for="dashDateFrom">
@@ -59,15 +70,26 @@
                                     min="{{ $dashTermStart }}"
                                     max="{{ $dashTermEnd }}"
                                     aria-label="Filter to date"
-                                    title="To (term end)"
+                                    title="To (today / term end)"
                                 >
                             </label>
+                            @if($dashShowAll)
+                            <button
+                                type="button"
+                                class="dash-date-all-btn"
+                                id="dashDateAllBtn"
+                                title="Show all data from the earliest record to today"
+                                aria-label="Show all historical data"
+                            >
+                                All
+                            </button>
+                            @endif
                             <button
                                 type="button"
                                 class="dash-date-reset-btn"
                                 id="dashDateResetBtn"
-                                title="Reset to President term start and term end"
-                                aria-label="Reset date filter to President term start and term end"
+                                title="Reset to term start and today"
+                                aria-label="Reset date filter to term start and today"
                             >
                                 <i class="fas fa-undo" aria-hidden="true"></i>
                             </button>
@@ -85,7 +107,7 @@
                 <span class="dash-reminder-label">Today's Reminder</span>
                 <span class="dash-reminder-text" id="reminderText">
                     @if(!empty($todayReminder))
-                        {{ $todayReminder['date_label'] }} — {{ $todayReminder['title'] }}
+                        {{ $todayReminder['title'] }}
                     @endif
                 </span>
             </div>
@@ -135,7 +157,7 @@
         <div class="dash-row dash-row--top-split">
             <div class="content-card dash-main-chart-card" id="purok-distribution-section">
                 <div class="card-header kk-chart-section-header">
-                    <div>
+                    <div class="kk-chart-heading">
                         <h3>Kabataan per Purok/Sitio</h3>
                         <p class="kk-chart-subtitle">Youth population distribution</p>
                     </div>
@@ -206,7 +228,7 @@
         <div class="dash-row dash-row--kk-abyip">
             <div class="content-card dash-kk-chart-card" id="kk-profiling-section">
                 <div class="card-header kk-chart-section-header">
-                    <div>
+                    <div class="kk-chart-heading">
                         <h3>KK Profiling by Month</h3>
                     </div>
                     <div class="kk-chart-header-actions">
@@ -268,7 +290,7 @@
         <div class="dash-row dash-row--demographics">
             <div class="content-card dash-col-6" id="kabataan-sex-section">
                 <div class="card-header dash-demo-chart-header">
-                    <div>
+                    <div class="kk-chart-heading">
                         <h3><i class="fas fa-venus-mars" style="color:#213F99;margin-right:8px;"></i>Sex Distribution</h3>
                         <p class="dash-demo-chart-sub">Male vs Female — Kabataan, SK Officials &amp; SK Federations</p>
                     </div>
@@ -288,7 +310,7 @@
 
             <div class="content-card dash-col-6" id="employment-status-section">
                 <div class="card-header dash-demo-chart-header">
-                    <div>
+                    <div class="kk-chart-heading">
                         <h3><i class="fas fa-briefcase" style="color:#213F99;margin-right:8px;"></i>Employment Status Distribution</h3>
                         <p class="dash-demo-chart-sub">Current employment profile of registered Kabataan</p>
                     </div>

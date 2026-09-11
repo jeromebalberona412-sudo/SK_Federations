@@ -6,7 +6,7 @@
 
 <div class="content-card dash-kk-chart-card dash-abyip-card" id="dash-abyip-section">
     <div class="card-header kk-chart-section-header">
-        <div>
+        <div class="kk-chart-heading">
             <h3>ABYIP Program Submissions</h3>
             <p class="kk-chart-subtitle" id="dashAbyipSubtitle">Barangays that submitted ABYIP — {{ $abyipStats['fiscal_year_label'] ?? ('CY '.$abyipYear) }}</p>
         </div>

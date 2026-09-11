@@ -78,14 +78,15 @@ document.addEventListener('DOMContentLoaded', function () {
 
         const range = typeof window.getDashboardDateRange === 'function'
             ? window.getDashboardDateRange()
-            : { date_from: '', date_to: '' };
+            : { date_from: '', date_to: '', range_mode: 'term' };
         const params = new URLSearchParams({
             page: String(state.page),
             per_page: String(state.perPage),
             date_from: range.date_from || '',
             date_to: range.date_to || '',
+            range_mode: range.range_mode || 'term',
         });
-        const cacheKey = 'sk_fed_dash_audit_v1_' + params.toString();
+        const cacheKey = 'sk_fed_dash_audit_v2_' + params.toString();
         const cached = window.SkLocalCache?.get(cacheKey);
         const paint = (payload) => {
             state.rows = (payload.data || []).slice(0, state.perPage);

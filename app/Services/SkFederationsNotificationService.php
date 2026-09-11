@@ -5,7 +5,9 @@ namespace App\Services;
 use App\Models\SkFederationsNotification;
 use App\Modules\Accounts\Models\OfficialProfile;
 use App\Modules\Shared\Models\User;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 
@@ -237,7 +239,17 @@ class SkFederationsNotificationService
     }
 
     /**
-     * @return \Illuminate\Support\Collection<int, User>
+     * Public helper for Community Feed email broadcasts.
+     *
+     * @return Collection<int, User>
+     */
+    public function federationPortalUsersForBroadcast()
+    {
+        return $this->federationPortalUsers();
+    }
+
+    /**
+     * @return Collection<int, User>
      */
     private function federationPortalUsers()
     {
@@ -264,7 +276,7 @@ class SkFederationsNotificationService
     }
 
     /**
-     * @return \Illuminate\Database\Eloquent\Builder<SkFederationsNotification>
+     * @return Builder<SkFederationsNotification>
      */
     private function forUserQuery(User $user)
     {

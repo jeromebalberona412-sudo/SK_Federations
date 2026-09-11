@@ -7,8 +7,14 @@ let editingPostId = null;
 let pendingFiles = [];
 let existingImages = [];
 let removedImageIds = [];
+let currentYearFilter = 0;
+let feedYearOptions = [];
+let defaultFeedYear = new Date().getFullYear();
+let pendingArchivePostId = null;
 const MAX_IMAGES = 20;
-const MAX_BODY_LENGTH = 5000;
+const MAX_BODY_CHARS = (window.SkCfMedia && window.SkCfMedia.MAX_BODY_CHARS) || 25000;
+const MIN_BODY_CHARS = 3;
+const UPDATE_TITLE_MAX = 50;
 const MAX_LINK_LENGTH = 63;
 let lightboxImages = [];
 let lightboxIndex = 0;
@@ -58,8 +64,9 @@ function loadPosts(reset) {
 
     var container = document.getElementById('feed-posts');
     var url = '/api/community-feed?per_page=100&page=1'
-        + (feedSearch ? '&search=' + encodeURIComponent(feedSearch) : '');
-    var cacheKey = 'sk_fed_community_feed_v2_all_' + (feedSearch || '');
+        + (feedSearch ? '&search=' + encodeURIComponent(feedSearch) : '')
+        + (currentYearFilter > 0 ? '&year=' + encodeURIComponent(String(currentYearFilter)) : '');
+    var cacheKey = 'sk_fed_community_feed_v3_' + (currentYearFilter || 'all') + '_' + (feedSearch || '');
 
     function paintFeed(data) {
         posts = (data.data || []).filter(function(p) { return p && p.id; });
@@ -68,9 +75,7 @@ function loadPosts(reset) {
         if (container.dataset.feedSignature === signature && container.querySelector('[data-post-id]')) {
             posts.forEach(function (p) {
                 knownPostIds.add(Number(p.id));
-                postCache.set(Number(p.id), p);
-                var existing = container.querySelector('[data-post-id="' + p.id + '"]');
-                if (existing) existing.dataset.postType = p.type || '';
+                softSyncPostEngagement(p);
             });
             applyFeedView();
             return;
@@ -87,6 +92,10 @@ function loadPosts(reset) {
             el.innerHTML = buildPost(p);
             bindPostImageClicks(el, p);
             bindReactionControls(el);
+            if (window.SkCfMedia) {
+                window.SkCfMedia.bindVideoAlbumGrids(el);
+                window.SkCfMedia.bindDriveVideoEmbeds(el);
+            }
             container.appendChild(el);
         });
         applyFeedView();
@@ -157,20 +166,30 @@ function postExistsInDom(id) {
 function pollFeedUpdates() {
     if (document.hidden || isLoading) return;
     if (document.getElementById('composeModal')?.classList.contains('active')) return;
-    if (document.getElementById('commentPreviewShell')?.classList.contains('is-open')) return;
 
     var params = '/api/community-feed?per_page=100&page=1'
-        + (feedSearch ? '&search=' + encodeURIComponent(feedSearch) : '');
+        + (feedSearch ? '&search=' + encodeURIComponent(feedSearch) : '')
+        + (currentYearFilter > 0 ? '&year=' + encodeURIComponent(String(currentYearFilter)) : '');
 
     apiFetch(params, { method: 'GET' })
         .then(function (r) { return r.ok ? r.json() : null; })
         .then(function (data) {
             if (!data) return;
-            var fresh = (data.data || []).filter(function (p) {
+            var items = data.data || [];
+            var fresh = [];
+            items.forEach(function (p) {
                 var id = Number(p.id);
-                return id && !knownPostIds.has(id) && !postExistsInDom(id);
+                if (!id) return;
+                if (knownPostIds.has(id) || postExistsInDom(id)) {
+                    softSyncPostEngagement(p);
+                    return;
+                }
+                fresh.push(p);
             });
-            if (!fresh.length) return;
+            if (!fresh.length) {
+                maybePollOpenReactionViewer();
+                return;
+            }
             var container = document.getElementById('feed-posts');
             fresh.reverse().forEach(function (p) {
                 knownPostIds.add(Number(p.id));
@@ -183,10 +202,15 @@ function pollFeedUpdates() {
                 el.innerHTML = buildPost(p);
                 bindPostImageClicks(el, p);
                 bindReactionControls(el);
+                if (window.SkCfMedia) {
+                    window.SkCfMedia.bindVideoAlbumGrids(el);
+                    window.SkCfMedia.bindDriveVideoEmbeds(el);
+                }
                 if (container.firstChild) container.insertBefore(el, container.firstChild);
                 else container.appendChild(el);
             });
             applyFeedView();
+            maybePollOpenReactionViewer();
             setTimeout(function () {
                 document.querySelectorAll('.post-card-new').forEach(function (el) { el.classList.remove('post-card-new'); });
             }, 1200);
@@ -194,8 +218,49 @@ function pollFeedUpdates() {
         .catch(function () { /* silent poll failure */ });
 }
 
+function softSyncPostEngagement(p) {
+    if (!p || !p.id) return;
+    var id = Number(p.id);
+    postCache.set(id, Object.assign({}, postCache.get(id) || {}, p));
+    var idx = posts.findIndex(function (x) { return Number(x.id) === id; });
+    if (idx >= 0) posts[idx] = Object.assign({}, posts[idx], p);
+    else posts.push(p);
+
+    var card = document.querySelector('.post-card[data-post-id="' + id + '"]');
+    if (!card) return;
+    card.dataset.postType = p.type || '';
+
+    var liked = Boolean(p.liked);
+    var reactionType = p.reaction_type || (liked ? 'like' : '');
+    paintPostReaction(id, liked, reactionType, Number(p.likes || 0));
+    refreshPostStats(id);
+
+    var preview = document.getElementById('comment-preview-' + id);
+    if (preview) preview.outerHTML = buildCommentPreviewHtml(p);
+
+    if (window.openCommentPreview && document.getElementById('commentPreviewShell')?.classList.contains('is-open')) {
+        // Comment shell has its own poll; keep cache warm only.
+    }
+}
+
+function maybePollOpenReactionViewer() {
+    var modal = document.getElementById('reactionViewerModal');
+    if (!modal || !modal.classList.contains('open') || !reactionViewerState.postId) return;
+    var url = reactionViewerState.target === 'comment'
+        ? '/api/community-feed/' + reactionViewerState.postId + '/comments/' + reactionViewerState.commentId + '/reactions'
+        : '/api/community-feed/' + reactionViewerState.postId + '/likes';
+    apiFetch(url, { method: 'GET' })
+        .then(function (r) { return r.ok ? r.json() : null; })
+        .then(function (data) {
+            if (!data) return;
+            reactionViewerState.data = data;
+            renderReactionViewer(reactionViewerState.filter || 'all');
+        })
+        .catch(function () {});
+}
+
 function startFeedPolling() {
-    var interval = window.CommunityFeedConfig?.feedPollMs || 30000;
+    var interval = window.CommunityFeedConfig?.feedPollMs || 8000;
     if (feedPollTimer) clearInterval(feedPollTimer);
     feedPollTimer = setInterval(pollFeedUpdates, interval);
 }
@@ -204,6 +269,25 @@ function startFeedPolling() {
 function renderPosts(reset) {
     loadPosts(reset);
 }
+
+function replacePostCard(updated) {
+    if (!updated || !updated.id) return;
+    var id = Number(updated.id);
+    postCache.set(id, updated);
+    var idx = posts.findIndex(function (p) { return Number(p.id) === id; });
+    if (idx >= 0) posts[idx] = updated;
+    var card = document.querySelector('.post-card[data-post-id="' + id + '"]');
+    if (!card) return;
+    card.dataset.postType = updated.type || '';
+    card.innerHTML = buildPost(updated);
+    bindPostImageClicks(card, updated);
+    bindReactionControls(card);
+    if (window.SkCfMedia) {
+        window.SkCfMedia.bindVideoAlbumGrids(card);
+        window.SkCfMedia.bindDriveVideoEmbeds(card);
+    }
+}
+window.replacePostCard = replacePostCard;
 
 function escapeHtml(v) {
     return String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -590,7 +674,7 @@ function buildCommentItem(c, postId, isReply) {
         + '</div>'
         + viewReplies
         + '<div class="comment-reply-box" id="fed-reply-' + c.id + '" style="display:none;gap:8px;margin-top:8px;">'
-        + '<input type="text" class="comment-input" placeholder="Write a reply..." maxlength="500" onkeydown="if(event.key===\'Enter\'){event.preventDefault();addComment(' + postId + ',this,' + c.id + ');}">'
+        + '<input type="text" class="comment-input" placeholder="Write a reply..." maxlength="2000" onkeydown="if(event.key===\'Enter\'){event.preventDefault();addComment(' + postId + ',this,' + c.id + ');}">'
         + '</div>'
         + (repliesHtml ? '<div class="comment-replies" id="fed-replies-' + c.id + '" hidden>' + repliesHtml + '</div>' : '')
         + '</div></div>';
@@ -632,7 +716,7 @@ function buildCommentInput(p) {
     var userAvatar = window.currentAvatar || FED_AVATAR;
     return '<div class="comment-input-wrapper">'
         + avatarImg(userAvatar, 'comment-avatar', 'You')
-        + '<input type="text" class="comment-input" placeholder="Write a comment..." maxlength="500" onkeydown="submitComment(event,' + p.id + ',this)">'
+        + '<input type="text" class="comment-input" placeholder="Write a comment..." maxlength="2000" onkeydown="submitComment(event,' + p.id + ',this)">'
         + '<button type="button" class="send-comment-btn" onclick="submitCommentBtn(' + p.id + ',this)">'
         + '<svg viewBox="0 0 20 20" fill="currentColor"><path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z"/></svg>'
         + '</button></div>';
@@ -738,12 +822,16 @@ function renderReactionViewer(filter) {
         return;
     }
     list.innerHTML = reactors.map(function (row) {
+        var role = row.role_label ? '<span class="reaction-viewer-role">' + escapeHtml(row.role_label) + '</span>' : '';
         return '<div class="reaction-viewer-row">'
             + '<div class="reaction-viewer-avatar-wrap">'
             + '<img src="' + escapeHtml(row.avatar_url) + '" alt="">'
             + '<span class="reaction-viewer-emoji">' + (REACTION_EMOJI[row.reaction_type] || '') + '</span>'
             + '</div>'
+            + '<div class="reaction-viewer-meta">'
             + '<span class="reaction-viewer-name">' + escapeHtml(truncateName(row.name)) + '</span>'
+            + role
+            + '</div>'
             + '</div>';
     }).join('');
 }
@@ -764,11 +852,12 @@ function buildPost(p) {
         images = [p.image_url];
     }
     var mediaHtml = buildImageGrid(images, p.id);
-    if (p.link_url) {
-        mediaHtml += '<a href="' + escapeHtml(p.link_url) + '" target="_blank" rel="noopener" class="post-link-preview">'
+    var videoHtml = window.SkCfMedia ? window.SkCfMedia.buildPostVideosHtml(p) : '';
+    var linkHtml = (!videoHtml && p.link_url && !p.google_drive_video)
+        ? '<a href="' + escapeHtml(p.link_url) + '" target="_blank" rel="noopener" class="post-link-preview">'
             + '<svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M12.586 4.586a2 2 0 112.828 2.828l-3 3a2 2 0 01-2.828 0 1 1 0 00-1.414 1.414 4 4 0 005.656 0l3-3a4 4 0 00-5.656-5.656l-1.5 1.5a1 1 0 101.414 1.414l1.5-1.5zm-5 5a2 2 0 012.828 0 1 1 0 101.414-1.414 4 4 0 00-5.656 0l-3 3a4 4 0 105.656 5.656l1.5-1.5a1 1 0 10-1.414-1.414l-1.5 1.5a2 2 0 11-2.828-2.828l3-3z" clip-rule="evenodd"/></svg>'
-            + escapeHtml(p.link_url) + '</a>';
-    }
+            + escapeHtml(p.link_url) + '</a>'
+        : '';
 
     var detailsHtml = '';
     if (p.details) {
@@ -780,13 +869,13 @@ function buildPost(p) {
 
     var optionsHtml = '';
     if (p.owned) {
-        optionsHtml = '<div style="position:relative;">'
-            + '<button class="post-options-btn" onclick="togglePostOptions(' + p.id + ', event)" aria-label="Post options">'
+        optionsHtml = '<div class="post-options-wrap">'
+            + '<button type="button" class="post-options-btn" onclick="togglePostOptions(' + p.id + ', event)" aria-label="Post options" title="More">'
             + '<svg viewBox="0 0 20 20" fill="currentColor"><path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z"/></svg>'
             + '</button>'
             + '<div class="post-options-menu" id="options-menu-' + p.id + '">'
-            + '<button onclick="editPost(' + p.id + ')"><svg viewBox="0 0 20 20" fill="currentColor"><path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z"/></svg>Edit</button>'
-            + '<button class="danger" onclick="deletePost(' + p.id + ')"><svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd"/></svg>Delete</button>'
+            + '<button type="button" onclick="editPost(' + p.id + ')"><svg viewBox="0 0 20 20" fill="currentColor"><path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z"/></svg>Edit</button>'
+            + '<button type="button" class="danger" onclick="deletePost(' + p.id + ')"><svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd"/></svg>Delete</button>'
             + '</div></div>';
     }
 
@@ -803,7 +892,7 @@ function buildPost(p) {
         + '<div class="post-content">'
         + (p.title ? '<h2 class="post-title">' + escapeHtml(p.title) + '</h2>' : '')
         + '<p class="post-text">' + escapeHtml(p.body || '') + '</p>'
-        + mediaHtml
+        + mediaHtml + videoHtml + linkHtml
         + '</div>'
         + statsHtml
         + '<div class="post-actions">'
@@ -816,6 +905,7 @@ function buildPost(p) {
         + '<button type="button" class="action-btn comment-btn" onclick="openComments(' + p.id + ')">'
         + '<svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M18 10c0 3.866-3.582 7-8 7a8.841 8.841 0 01-4.083-.98L2 17l1.338-3.123C2.493 12.767 2 11.434 2 10c0-3.866 3.582-7 8-7s8 3.134 8 7zM7 9H5v2h2V9zm8 0h-2v2h2V9zM9 9h2v2H9V9z" clip-rule="evenodd"/></svg>'
         + '<span id="comment-count-' + p.id + '">Comment</span></button>'
+        + (window.SkCfMedia ? window.SkCfMedia.buildShareButtonHtml(p) : '')
         + '</div>'
         + buildCommentPreviewHtml(p);
 }
@@ -1188,10 +1278,27 @@ function refreshFeedCommentUi(id, p) {
 
 function addComment(id, input, parentId) {
     if (!input || input.dataset.sending === '1') return;
+    var blocked = window.FeedCommentGuard && window.FeedCommentGuard.assertCanComment
+        ? window.FeedCommentGuard.assertCanComment()
+        : null;
+    if (blocked) {
+        notifyFeed(blocked, 'error');
+        return;
+    }
     var text = input.value.trim();
     if (!text) return;
-    if (text.length > 500) {
-        notifyFeed('Comments and replies are limited to 500 characters.', 'error');
+    var lengthError = window.FeedCommentGuard && window.FeedCommentGuard.assertBodyLength
+        ? window.FeedCommentGuard.assertBodyLength(text)
+        : (text.length > 2000 ? 'Comments and replies are limited to 2,000 characters.' : null);
+    if (lengthError) {
+        notifyFeed(lengthError, 'error');
+        return;
+    }
+    var prohibited = window.ProhibitedWords && window.ProhibitedWords.assertClean
+        ? window.ProhibitedWords.assertClean(text)
+        : null;
+    if (prohibited) {
+        notifyFeed(prohibited, 'error');
         return;
     }
     input.dataset.sending = '1';
@@ -1222,12 +1329,16 @@ function addComment(id, input, parentId) {
 
     apiFetch('/api/community-feed/' + id + '/comment', { method: 'POST', body: JSON.stringify(payload) })
         .then(function(r) {
-            if (!r.ok) {
-                return r.json().then(function(data) {
-                    throw new Error(data.message || 'Unable to post comment.');
-                });
-            }
-            return r.json();
+            return r.json().then(function(data) {
+                if (!r.ok) {
+                    var err = new Error(data.message || 'Unable to post comment.');
+                    err.status = r.status;
+                    err.retry_after = data.retry_after || (data.rate_limit && data.rate_limit.retry_after) || null;
+                    err.payload = data;
+                    throw err;
+                }
+                return data;
+            });
         })
         .then(function(c) {
             var post = posts.find(function (x) { return Number(x.id) === Number(id); }) || postCache.get(Number(id));
@@ -1237,7 +1348,10 @@ function addComment(id, input, parentId) {
                 postCache.set(Number(id), post);
                 refreshFeedCommentUi(id, post);
             }
-            notifyFeed(parentId ? 'Reply added successfully.' : 'Comment added successfully.');
+            if (window.FeedCommentGuard) window.FeedCommentGuard.applyFromPayload(c);
+            if (!(c && c.rate_limit && c.rate_limit.locked)) {
+                notifyFeed(parentId ? 'Reply added successfully.' : 'Comment added successfully.');
+            }
         })
         .catch(function(err) {
             var post = posts.find(function (x) { return Number(x.id) === Number(id); }) || postCache.get(Number(id));
@@ -1245,8 +1359,14 @@ function addComment(id, input, parentId) {
                 removeCachedComment(post.comments || [], tempId);
                 refreshFeedCommentUi(id, post);
             }
-            notifyFeed(parentId ? 'Unable to add your reply. Please try again.' : 'Unable to add your comment. Please try again.', 'error');
             if (input) input.value = text;
+            if (err && (err.retry_after || (err.payload && err.payload.rate_limit && err.payload.rate_limit.locked))) {
+                if (window.FeedCommentGuard) {
+                    window.FeedCommentGuard.applyFromPayload(err.payload || { retry_after: err.retry_after, locked: true });
+                }
+            } else {
+                notifyFeed(parentId ? 'Unable to add your reply. Please try again.' : 'Unable to add your comment. Please try again.', 'error');
+            }
         })
         .finally(function () {
             if (input) input.dataset.sending = '0';
@@ -1256,9 +1376,29 @@ function addComment(id, input, parentId) {
 let pendingCommentAction = null;
 
 function commentBodyText(commentId) {
-    return document.getElementById('comment-text-' + commentId)?.textContent
-        || document.getElementById('cp-text-' + commentId)?.textContent
-        || '';
+    var feedEl = document.getElementById('comment-text-' + commentId);
+    if (feedEl) return feedEl.dataset.full || feedEl.textContent || '';
+    var previewEl = document.getElementById('cp-text-' + commentId);
+    if (previewEl) return previewEl.dataset.full || previewEl.textContent || '';
+    var cached = null;
+    posts.concat(Array.from(postCache.values())).some(function (p) {
+        cached = findCachedComment(p.comments || [], commentId);
+        return Boolean(cached);
+    });
+    return cached ? (cached.body || '') : '';
+}
+
+function updateCachedCommentBody(postId, commentId, body) {
+    var targets = [];
+    var fromPosts = posts.find(function (x) { return Number(x.id) === Number(postId); });
+    if (fromPosts) targets.push(fromPosts);
+    var fromCache = postCache.get(Number(postId));
+    if (fromCache && fromCache !== fromPosts) targets.push(fromCache);
+    targets.forEach(function (p) {
+        var comment = findCachedComment(p.comments || [], commentId);
+        if (comment) comment.body = body;
+        postCache.set(Number(postId), p);
+    });
 }
 
 function editComment(postId, commentId) {
@@ -1268,11 +1408,13 @@ function editComment(postId, commentId) {
     });
     var modal = document.getElementById('editCommentModal');
     var field = document.getElementById('editCommentBody');
+    var title = document.getElementById('editCommentTitle') || modal?.querySelector('h2');
     if (!modal || !field) return;
+    if (title) title.textContent = pendingCommentAction.isReply ? 'Edit Reply' : 'Edit Comment';
     field.value = commentBodyText(commentId);
     modal.classList.add('active');
     document.body.style.overflow = 'hidden';
-    setTimeout(function () { field.focus(); }, 50);
+    setTimeout(function () { field.focus(); field.setSelectionRange(field.value.length, field.value.length); }, 50);
 }
 
 function closeEditCommentModal() {
@@ -1290,8 +1432,15 @@ function confirmEditComment() {
     var isReply = pendingCommentAction.isReply;
     var body = document.getElementById('editCommentBody')?.value.trim();
     if (!body) return;
-    if (body.length > 500) {
-        notifyFeed('Comments and replies are limited to 500 characters.', 'error');
+    if (body.length > 2000 || (window.FeedCommentGuard && window.FeedCommentGuard.assertBodyLength && window.FeedCommentGuard.assertBodyLength(body))) {
+        notifyFeed((window.FeedCommentGuard && window.FeedCommentGuard.COMMENT_LIMIT_MSG) || 'Comments and replies are limited to 2,000 characters.', 'error');
+        return;
+    }
+    var editProhibited = window.ProhibitedWords && window.ProhibitedWords.assertClean
+        ? window.ProhibitedWords.assertClean(body)
+        : null;
+    if (editProhibited) {
+        notifyFeed(editProhibited, 'error');
         return;
     }
     var btn = document.getElementById('confirmEditCommentBtn');
@@ -1308,9 +1457,16 @@ function confirmEditComment() {
         })
         .then(function (updated) {
             var feedEl = document.getElementById('comment-text-' + commentId);
-            if (feedEl) feedEl.textContent = updated.body;
+            if (feedEl) {
+                feedEl.textContent = updated.body;
+                feedEl.dataset.full = updated.body || '';
+            }
             var previewEl = document.getElementById('cp-text-' + commentId);
-            if (previewEl) previewEl.textContent = updated.body;
+            if (previewEl) {
+                previewEl.textContent = updated.body;
+                previewEl.dataset.full = updated.body || '';
+            }
+            updateCachedCommentBody(postId, commentId, updated.body || '');
             document.dispatchEvent(new CustomEvent('community-feed:comment-updated', { detail: updated }));
             closeEditCommentModal();
             notifyFeed(isReply ? 'Reply updated successfully.' : 'Comment updated successfully.');
@@ -1384,10 +1540,14 @@ window.toggleLinkInput = toggleLinkInput;
 window.toggleComposeFullscreen = toggleComposeFullscreen;
 window.previewImages = previewImages;
 window.deleteComment = deleteComment;
+window.editComment = editComment;
 window.closeEditCommentModal = closeEditCommentModal;
 window.confirmEditComment = confirmEditComment;
 window.closeDeleteCommentModal = closeDeleteCommentModal;
 window.confirmDeleteComment = confirmDeleteComment;
+window.openArchiveModal = openArchiveModal;
+window.closeArchiveModal = closeArchiveModal;
+window.confirmArchivePost = confirmArchivePost;
 window.openComments = openComments;
 window.toggleComments = toggleComments;
 window.setReaction = setReaction;
@@ -1421,6 +1581,10 @@ function mountFeedPostsList(list, containerId, filterType) {
         el.innerHTML = buildPost(p);
         bindPostImageClicks(el, p);
         bindReactionControls(el);
+        if (window.SkCfMedia) {
+            window.SkCfMedia.bindVideoAlbumGrids(el);
+            window.SkCfMedia.bindDriveVideoEmbeds(el);
+        }
         container.appendChild(el);
     });
 }
@@ -1430,6 +1594,7 @@ window.mountFeedPostsList = mountFeedPostsList;
 function bindFilterBarScrollHide() {
     var toolbar = document.querySelector('.feed-sticky-toolbar');
     var bar = document.querySelector('.feed-filter-bar:not(.bfp-filter-bar)');
+    var feedSection = document.querySelector('.feed-section');
     if (!toolbar || !bar) return;
 
     var DOWN_THRESHOLD = 14;
@@ -1439,8 +1604,18 @@ function bindFilterBarScrollHide() {
     var ticking = false;
     var hidden = false;
 
-    function scrollY() {
-        return window.scrollY || document.documentElement.scrollTop || 0;
+    function scrollRoot() {
+        if (!feedSection) return window;
+        var overflowY = window.getComputedStyle(feedSection).overflowY;
+        if (overflowY === 'auto' || overflowY === 'scroll') return feedSection;
+        return window;
+    }
+
+    function currentY() {
+        var root = scrollRoot();
+        return root === window
+            ? (window.scrollY || document.documentElement.scrollTop || 0)
+            : root.scrollTop;
     }
 
     function showBar() {
@@ -1458,7 +1633,7 @@ function bindFilterBarScrollHide() {
 
     function apply() {
         ticking = false;
-        var y = Math.max(0, scrollY());
+        var y = Math.max(0, currentY());
         var delta = y - lastY;
         lastY = y;
 
@@ -1481,13 +1656,14 @@ function bindFilterBarScrollHide() {
         requestAnimationFrame(apply);
     }
 
-    lastY = scrollY();
+    lastY = currentY();
     showBar();
 
     window.addEventListener('scroll', onScroll, { passive: true });
+    if (feedSection) feedSection.addEventListener('scroll', onScroll, { passive: true });
     window.addEventListener('resize', function () {
-        lastY = scrollY();
-        if (scrollY() <= TOP_SHOW) showBar();
+        lastY = currentY();
+        if (currentY() <= TOP_SHOW) showBar();
     });
     bar.addEventListener('focusin', showBar);
 }
@@ -1550,40 +1726,104 @@ function bindFeedToolbar() {
 }
 
 function togglePostOptions(id, e) {
-    e.stopPropagation();
+    if (e) {
+        e.preventDefault();
+        e.stopPropagation();
+    }
     var menu = document.getElementById('options-menu-' + id);
     if (!menu) return;
     var isOpen = menu.classList.contains('open');
-    document.querySelectorAll('.post-options-menu.open').forEach(function(m) { m.classList.remove('open'); });
-    if (!isOpen) menu.classList.add('open');
+    document.querySelectorAll('.post-options-menu.open, .comment-options-menu.open').forEach(function (m) {
+        m.classList.remove('open');
+    });
+    document.querySelectorAll('.post-card.is-menu-open').forEach(function (card) {
+        card.classList.remove('is-menu-open');
+    });
+    closeAllReactionPickers();
+    if (!isOpen) {
+        menu.classList.add('open');
+        var card = menu.closest('.post-card');
+        if (card) card.classList.add('is-menu-open');
+    }
 }
+
+window.togglePostOptions = togglePostOptions;
+window.editPost = editPost;
+window.deletePost = deletePost;
 
 
 function deletePost(id) {
-    if (!confirm('Are you sure you want to delete this post?')) return;
+    openArchiveModal(id);
+}
+
+function openArchiveModal(id) {
+    pendingArchivePostId = id;
+    document.getElementById('archivePostModal')?.classList.add('active');
+    document.querySelectorAll('.post-options-menu.open, .comment-options-menu.open').forEach(function (m) {
+        m.classList.remove('open');
+    });
+    document.querySelectorAll('.post-card.is-menu-open').forEach(function (card) {
+        card.classList.remove('is-menu-open');
+    });
+}
+
+function closeArchiveModal() {
+    pendingArchivePostId = null;
+    document.getElementById('archivePostModal')?.classList.remove('active');
+}
+
+function confirmArchivePost() {
+    if (!pendingArchivePostId) return;
+    var id = pendingArchivePostId;
+    var btn = document.getElementById('confirmArchiveBtn');
+    if (btn) {
+        btn.disabled = true;
+        btn.textContent = 'Deleting…';
+    }
     apiFetch('/api/community-feed/' + id, { method: 'DELETE' })
-        .then(function(r) {
+        .then(function (r) {
             return r.json().then(function (data) {
                 if (!r.ok) throw new Error(data.message || 'Unable to delete the post.');
                 return data;
             });
         })
-        .then(function() {
-            if (window.SkLocalCache) window.SkLocalCache.clearByPrefix('sk_fed_community_feed_v1_');
-            posts = posts.filter(function(x) { return x.id !== id; });
+        .then(function () {
+            if (window.SkLocalCache) {
+                window.SkLocalCache.clearByPrefix('sk_fed_community_feed_v');
+                window.SkLocalCache.clearByPrefix('sk_fed_deleted_posts_v1_');
+            }
+            posts = posts.filter(function (x) { return Number(x.id) !== Number(id); });
+            knownPostIds.delete(Number(id));
+            postCache.delete(Number(id));
             var el = document.querySelector('[data-post-id="' + id + '"]');
             if (el) el.remove();
-            document.querySelectorAll('.post-options-menu.open').forEach(function(m) { m.classList.remove('open'); });
-            notifyFeed('Post deleted successfully.');
+            closeArchiveModal();
+            var dest = window.CommunityFeedConfig?.deletedPostsUrl || '/archived/deleted-posts';
+            try {
+                sessionStorage.setItem('sk_cf_toast', JSON.stringify({
+                    message: 'Post moved to Deleted Posts.',
+                    type: 'success',
+                }));
+            } catch (_) { /* ignore */ }
+            window.location.href = dest;
         })
         .catch(function () {
             notifyFeed('Unable to delete the post. Please try again.', 'error');
+        })
+        .finally(function () {
+            if (btn) {
+                btn.disabled = false;
+                btn.textContent = 'Delete Post';
+            }
         });
 }
 
 function editPost(id) {
-    var p = posts.find(function(x) { return x.id === id; });
-    if (!p) return;
+    var p = posts.find(function(x) { return Number(x.id) === Number(id); }) || postCache.get(Number(id));
+    if (!p) {
+        notifyFeed('Unable to open this post for editing.', 'error');
+        return;
+    }
     editingPostId = id;
     pendingFiles = [];
     removedImageIds = [];
@@ -1601,17 +1841,35 @@ function editPost(id) {
     document.getElementById('edit-post-id').value = id;
     document.getElementById('compose-content').value = p.body || '';
     document.getElementById('compose-type').value = p.type || 'update';
-    document.getElementById('compose-link-input-wrap').style.display = 'none';
-    document.getElementById('compose-link-input').value = '';
+    var titleInput = document.getElementById('compose-title');
+    if (titleInput) titleInput.value = p.title || '';
+    var linkWrap = document.getElementById('compose-link-input-wrap');
+    if (linkWrap) linkWrap.style.display = 'none';
+    var linkInput = document.getElementById('compose-link-input');
+    if (linkInput) linkInput.value = '';
     setComposeLinkError('');
-    if (p.link_url) {
-        document.getElementById('compose-link-input').value = p.link_url;
-        document.getElementById('compose-link-input-wrap').style.display = 'block';
+    if (window.SkCfMedia) {
+        window.SkCfMedia.fillEditPostVideos(p);
+        window.SkCfMedia.updateComposeTitleUi();
     }
+    setComposeAudienceTargets(p.notify_targets || (
+        (p.visibility === 'federation')
+            ? ['federation', 'officials', 'kabataan']
+            : ['public', 'officials', 'kabataan']
+    ));
+    var emailWrap = document.getElementById('compose-email-notify-wrap');
+    if (emailWrap) emailWrap.hidden = true;
     refreshPreviewGrid();
     updateCharCount();
     document.querySelectorAll('.post-options-menu.open').forEach(function(m) { m.classList.remove('open'); });
-    document.getElementById('composeModal').classList.add('active');
+    document.querySelectorAll('.post-card.is-menu-open').forEach(function (card) {
+        card.classList.remove('is-menu-open');
+    });
+    var modal = document.getElementById('composeModal');
+    if (modal) {
+        modal.classList.add('active');
+        modal.setAttribute('aria-hidden', 'false');
+    }
 }
 
 function totalSelectedImages() {
@@ -1623,7 +1881,7 @@ function setComposePostLoading(loading, label) {
     if (!btn) return;
     if (loading) {
         if (!btn.dataset.originalHtml) {
-            btn.dataset.originalHtml = btn.innerHTML;
+            btn.dataset.originalHtml = 'Post';
         }
         btn.disabled = true;
         btn.classList.add('is-loading');
@@ -1632,9 +1890,8 @@ function setComposePostLoading(loading, label) {
     }
     btn.disabled = false;
     btn.classList.remove('is-loading');
-    if (btn.dataset.originalHtml) {
-        btn.innerHTML = btn.dataset.originalHtml;
-    }
+    btn.textContent = 'Post';
+    btn.dataset.originalHtml = 'Post';
 }
 
 function isValidPostLink(value) {
@@ -1653,42 +1910,103 @@ function setComposeLinkError(message) {
 }
 
 function submitPost() {
-    var content = document.getElementById('compose-content').value.trim();
-    if (!content) { notifyFeed('Please write something.', 'error'); return; }
-    if (content.length > MAX_BODY_LENGTH) {
-        notifyFeed('Posts are limited to ' + MAX_BODY_LENGTH + ' characters.', 'error');
-        return;
-    }
-
+    var bodyEl = document.getElementById('compose-content');
+    var media = window.SkCfMedia;
+    var body = media ? media.normalizePostBody(bodyEl ? bodyEl.value : '') : String(bodyEl && bodyEl.value || '').trim();
+    var hasImages = totalSelectedImages() > 0;
     var type = document.getElementById('compose-type').value;
-    var linkVal = document.getElementById('compose-link-input').value.trim();
-    var titleVal = document.getElementById('compose-title') ? document.getElementById('compose-title').value.trim() : '';
 
-    setComposeLinkError('');
-    if (linkVal.length > MAX_LINK_LENGTH) {
-        setComposeLinkError('Links are limited to ' + MAX_LINK_LENGTH + ' characters.');
-        notifyFeed('Links are limited to ' + MAX_LINK_LENGTH + ' characters.', 'error');
+    if (type === 'photo' && media) {
+        var methodWrap = document.getElementById('compose-video-method-wrap');
+        var photoHasVideos = (methodWrap && !methodWrap.hidden)
+            || media.readyUploadedVideos().length
+            || media.hasUploadingVideos();
+        if (photoHasVideos) {
+            notifyFeed('Photo posts are for images only. Remove videos to continue.', 'error');
+            return;
+        }
+    }
+
+    var linkPayload = media ? media.resolveComposeLinkPayload() : { link: null, linkKind: null, error: null };
+    if (linkPayload.error) {
+        if (media) {
+            media.setComposeVideoError(linkPayload.error);
+            window.toggleVideoMethodPanel && window.toggleVideoMethodPanel();
+        }
+        notifyFeed(linkPayload.error, 'error');
+        document.getElementById('compose-video-input') && document.getElementById('compose-video-input').focus();
         return;
     }
-    if (linkVal && !isValidPostLink(linkVal)) {
-        setComposeLinkError('Enter a valid URL starting with http:// or https://');
-        notifyFeed('Enter a valid URL starting with http:// or https://', 'error');
+    if (media) media.setComposeVideoError('');
+
+    var hasVideos = media && (
+        media.readyUploadedVideos().length
+        || media.hasUploadingVideos()
+        || Boolean(linkPayload.link)
+    );
+    var allowEmptyBody = hasImages || Boolean(hasVideos);
+    var bodyError = media
+        ? media.validatePostBody(body, bodyEl, { allowEmpty: allowEmptyBody })
+        : ((!body && !allowEmptyBody) ? 'Please write something. Posts cannot be empty or only spaces.' : null);
+    if (bodyError) {
+        notifyFeed(bodyError, 'error');
+        if (media && media.setComposeBodyError) media.setComposeBodyError(bodyError);
+        bodyEl && bodyEl.focus();
         return;
     }
+    if (media && media.setComposeBodyError) media.setComposeBodyError('');
+    if (!body && allowEmptyBody) body = '';
+
+    var titleError = media ? media.validateUpdateTitle(type) : '';
+    if (titleError) {
+        notifyFeed(titleError, 'error');
+        if (media && media.setComposeTitleError) media.setComposeTitleError(titleError);
+        document.getElementById('compose-title') && document.getElementById('compose-title').focus();
+        return;
+    }
+    if (media && media.setComposeTitleError) media.setComposeTitleError('');
+    var titleVal = type === 'update' && document.getElementById('compose-title')
+        ? document.getElementById('compose-title').value.trim()
+        : '';
+
+    var linkVal = linkPayload.link || '';
+    var linkKind = linkPayload.linkKind || '';
+    var readyVideos = media ? media.readyUploadedVideos() : [];
+    var uploadingIds = media ? media.getPendingUploadIds() : [];
 
     var fd = new FormData();
     fd.append('type', type);
-    fd.append('body', content);
-    if (titleVal) fd.append('title', titleVal);
-    if (linkVal) fd.append('link_url', linkVal);
+    fd.append('body', body);
+    if (type === 'update') fd.append('title', titleVal);
+    else if (titleVal) fd.append('title', titleVal);
+    fd.append('link_url', linkVal);
+    if (linkKind) fd.append('link_kind', linkKind);
     pendingFiles.forEach(function (file) { fd.append('images[]', file); });
     removedImageIds.forEach(function (imageId) { fd.append('removed_image_ids[]', imageId); });
+    if (media) {
+        media.appendUploadedVideosToFormData(fd, readyVideos);
+        if (editingPostId !== null) media.appendRemovedVideoIds(fd);
+    }
+    if (editingPostId === null) {
+        var emailNotify = document.getElementById('compose-email-notify');
+        fd.append('email_notifications_enabled', emailNotify && emailNotify.checked ? '1' : '0');
+    }
+    var targets = getComposeAudienceTargets();
+    if (!targets.length) {
+        notifyFeed('Select at least one audience target.', 'error');
+        return;
+    }
+    targets.forEach(function (target) {
+        fd.append('notify_targets[]', target);
+    });
+    fd.append('visibility', targets.indexOf('public') >= 0 ? 'public' : 'federation');
 
-    savePostForm(fd);
+    savePostForm(fd, uploadingIds);
 }
 
-function savePostForm(formData) {
+function savePostForm(formData, uploadingIds) {
     var isEdit = editingPostId !== null;
+    uploadingIds = uploadingIds || [];
     var url = isEdit ? '/api/community-feed/' + editingPostId : '/api/community-feed';
     var method = isEdit ? 'POST' : 'POST';
     if (isEdit) formData.append('_method', 'PUT');
@@ -1722,7 +2040,14 @@ function savePostForm(formData) {
             if (!saved || !saved.id) throw new Error('Invalid response from server.');
             if (window.SkLocalCache) window.SkLocalCache.clearByPrefix('sk_fed_community_feed_v1_');
             closeComposeModal();
-            notifyFeed(isEdit ? 'Post updated successfully.' : 'Post created successfully.');
+            if (uploadingIds.length && window.SkCfMedia) {
+                window.SkCfMedia.queueAttachVideosToPost(saved.id, uploadingIds);
+                notifyFeed(isEdit ? 'Post updated. Remaining videos are still uploading…' : 'Post published. Videos are still uploading in the background…');
+            } else if (!isEdit && saved.email_notifications_queued) {
+                notifyFeed('Post published. Email notifications queued for selected targets.');
+            } else {
+                notifyFeed(isEdit ? 'Post updated successfully.' : (saved.message || 'Post created successfully.'));
+            }
             renderPosts(true);
         })
         .catch(function(err) {
@@ -1743,6 +2068,7 @@ function openComposeModal(type) {
     pendingFiles = [];
     existingImages = [];
     removedImageIds = [];
+    if (window.SkCfMedia) window.SkCfMedia.resetComposeMediaState();
     document.getElementById('compose-modal-title').textContent = 'Create Post';
     document.getElementById('edit-post-id').value = '';
     document.getElementById('compose-content').value = '';
@@ -1750,19 +2076,29 @@ function openComposeModal(type) {
     if (previewWrap) previewWrap.innerHTML = '';
     var meta = document.getElementById('compose-images-meta');
     if (meta) meta.textContent = '';
-    document.getElementById('compose-link-input-wrap').style.display = 'none';
-    document.getElementById('compose-link-input').value = '';
+    var linkWrap = document.getElementById('compose-link-input-wrap');
+    if (linkWrap) linkWrap.style.display = 'none';
+    var linkInput = document.getElementById('compose-link-input');
+    if (linkInput) linkInput.value = '';
     setComposeLinkError('');
     var fileInput = document.getElementById('compose-image-input');
     if (fileInput) fileInput.value = '';
     if (type && document.getElementById('compose-type')) {
         var sel = document.getElementById('compose-type');
-        var map = { announcement:'announcement', event:'event', activity:'activity', program:'program', photo:'update' };
-        sel.value = map[type] || type || 'update';
+        var allowed = ['update', 'announcement', 'event', 'photo', 'activity', 'program'];
+        sel.value = allowed.indexOf(type) >= 0 ? type : 'update';
     }
+    if (window.SkCfMedia) window.SkCfMedia.updateComposeTitleUi();
+    var emailNotify = document.getElementById('compose-email-notify');
+    var emailWrap = document.getElementById('compose-email-notify-wrap');
+    if (emailWrap) emailWrap.hidden = false;
+    if (emailNotify) emailNotify.checked = true;
+    setComposeAudienceTargets([]);
+    updateComposeEmailNotifyHelp();
     var modal = document.getElementById('composeModal');
     if (!modal) return;
     modal.classList.add('active');
+    modal.setAttribute('aria-hidden', 'false');
     modal.classList.remove('compose-maximized');
     var btn = document.getElementById('composeFullscreenBtn');
     if (btn) {
@@ -1771,20 +2107,82 @@ function openComposeModal(type) {
     }
     updateCharCount();
     if (type === 'photo') {
-        var fileInput = document.getElementById('compose-image-input');
+        var photoInput = document.getElementById('compose-image-input');
         window.setTimeout(function () {
-            if (fileInput) fileInput.click();
+            if (photoInput) photoInput.click();
+        }, 50);
+    }
+    if (type === 'video') {
+        window.setTimeout(function () {
+            if (window.toggleVideoMethodPanel) window.toggleVideoMethodPanel();
         }, 50);
     }
 }
 
+var AUDIENCE_LABELS = {
+    public: 'Public',
+    federation: 'Federation',
+    officials: 'SK Officials',
+    kabataan: 'Kabataan',
+};
+
+function getComposeAudienceTargets() {
+    return Array.from(document.querySelectorAll('input[name="compose-audience"]:checked'))
+        .map(function (el) { return el.value; })
+        .filter(Boolean);
+}
+
+function setComposeAudienceTargets(targets) {
+    var selected = Array.isArray(targets) ? targets.slice() : [];
+    document.querySelectorAll('input[name="compose-audience"]').forEach(function (el) {
+        el.checked = selected.indexOf(el.value) >= 0;
+    });
+    syncComposeAudienceToggleLabel();
+    updateComposeEmailNotifyHelp();
+}
+
+function syncComposeAudienceToggleLabel() {
+    var btn = document.getElementById('compose-audience-toggle');
+    if (!btn) return;
+    var targets = getComposeAudienceTargets();
+    if (!targets.length) {
+        btn.textContent = 'Select targets';
+        return;
+    }
+    btn.textContent = targets.map(function (t) { return AUDIENCE_LABELS[t] || t; }).join(', ');
+}
+
+function setComposeAudienceMenuOpen(open) {
+    var menu = document.getElementById('compose-audience-menu');
+    var btn = document.getElementById('compose-audience-toggle');
+    if (!menu || !btn) return;
+    menu.hidden = !open;
+    btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+}
+
+function updateComposeEmailNotifyHelp() {
+    var help = document.getElementById('compose-email-notify-help');
+    if (!help) return;
+    var targets = getComposeAudienceTargets();
+    if (!targets.length) {
+        help.textContent = 'Select at least one audience. Uncheck email to skip sending.';
+        return;
+    }
+    var labels = targets.map(function (t) { return AUDIENCE_LABELS[t] || t; });
+    help.textContent = 'Email selected: ' + labels.join(', ') + '. Uncheck to skip email (bell notifications still send to selected targets).';
+}
+
 function closeComposeModal() {
     var modal = document.getElementById('composeModal');
-    if (modal) modal.classList.remove('active', 'compose-maximized');
+    if (modal) {
+        modal.classList.remove('active', 'compose-maximized');
+        modal.setAttribute('aria-hidden', 'true');
+    }
     editingPostId = null;
     pendingFiles = [];
     existingImages = [];
     removedImageIds = [];
+    if (window.SkCfMedia) window.SkCfMedia.resetComposeMediaState();
 }
 
 function toggleComposeFullscreen() {
@@ -1800,12 +2198,14 @@ function toggleComposeFullscreen() {
 }
 
 function updateCharCount() {
+    if (window.SkCfMedia) {
+        window.SkCfMedia.updateCharCount();
+        return;
+    }
     var el = document.getElementById('compose-content');
     var counter = document.getElementById('compose-char-count');
     if (!el || !counter) return;
-    var len = el.value.length;
-    counter.textContent = len + ' / ' + MAX_BODY_LENGTH;
-    counter.classList.toggle('over-limit', len > MAX_BODY_LENGTH);
+    counter.textContent = el.value.length + ' / ' + MAX_BODY_CHARS;
 }
 
 function previewImages(input) {
@@ -1896,6 +2296,95 @@ function toggleLinkInput() {
     }
 }
 
+function getFeedYearsWithPosts() {
+    var years = Array.isArray(window.CommunityFeedConfig?.feedYearsWithPosts)
+        ? window.CommunityFeedConfig.feedYearsWithPosts
+        : [];
+    return [...new Set(years.map(Number).filter(function (y) { return y >= 2000 && y <= 2100; }))].sort(function (a, b) { return b - a; });
+}
+
+function resolveDefaultFeedYear(years) {
+    years = years || getFeedYearsWithPosts();
+    var now = new Date().getFullYear();
+    if (years.indexOf(now) >= 0) return now;
+    if (years.length) return years[0];
+    return now;
+}
+
+function populateFeedYearOptions() {
+    var select = document.getElementById('feedFilterYear');
+    if (!select) return;
+    feedYearOptions = getFeedYearsWithPosts();
+    defaultFeedYear = resolveDefaultFeedYear(feedYearOptions);
+    if (!currentYearFilter) currentYearFilter = defaultFeedYear;
+    var previous = currentYearFilter || Number(select.value) || defaultFeedYear;
+    select.innerHTML = '';
+    feedYearOptions.forEach(function (y) {
+        var opt = document.createElement('option');
+        opt.value = String(y);
+        opt.textContent = String(y);
+        select.appendChild(opt);
+    });
+    if (!feedYearOptions.length) {
+        var fallback = document.createElement('option');
+        fallback.value = String(defaultFeedYear);
+        fallback.textContent = String(defaultFeedYear);
+        select.appendChild(fallback);
+    }
+    var selected = feedYearOptions.indexOf(previous) >= 0 ? previous : defaultFeedYear;
+    select.value = String(selected);
+    currentYearFilter = selected;
+    var clearBtn = document.getElementById('feedFiltersClear');
+    if (clearBtn) clearBtn.hidden = feedYearOptions.length < 2;
+}
+
+function openFeedFiltersModal() {
+    populateFeedYearOptions();
+    var modal = document.getElementById('feedFiltersModal');
+    if (!modal) return;
+    modal.classList.add('active');
+    modal.setAttribute('aria-hidden', 'false');
+}
+
+function closeFeedFiltersModal() {
+    var modal = document.getElementById('feedFiltersModal');
+    if (!modal) return;
+    modal.classList.remove('active');
+    modal.setAttribute('aria-hidden', 'true');
+}
+
+function applyFeedYearFilter(year) {
+    var next = Number(year) || defaultFeedYear;
+    if (next === currentYearFilter) {
+        closeFeedFiltersModal();
+        return;
+    }
+    currentYearFilter = next;
+    if (window.SkLocalCache) window.SkLocalCache.clearByPrefix('sk_fed_community_feed_v');
+    knownPostIds.clear();
+    posts = [];
+    closeFeedFiltersModal();
+    renderPosts(true);
+}
+
+function bindFeedYearFilters() {
+    populateFeedYearOptions();
+    document.getElementById('feedFiltersBtn')?.addEventListener('click', openFeedFiltersModal);
+    document.querySelectorAll('[data-feed-filters-close]').forEach(function (el) {
+        el.addEventListener('click', closeFeedFiltersModal);
+    });
+    document.getElementById('feedFiltersClear')?.addEventListener('click', function () {
+        var select = document.getElementById('feedFilterYear');
+        var year = resolveDefaultFeedYear(feedYearOptions);
+        if (select) select.value = String(year);
+        applyFeedYearFilter(year);
+    });
+    document.getElementById('feedFiltersDone')?.addEventListener('click', function () {
+        var select = document.getElementById('feedFilterYear');
+        applyFeedYearFilter(select?.value || defaultFeedYear);
+    });
+}
+
 /* ── PROGRAM MODALS ── (defined in blade inline script for success modal support) ── */
 
 /* ── Layout shell (sidebar, notifications, profile) provided by layout.js ── */
@@ -1905,13 +2394,58 @@ document.addEventListener('DOMContentLoaded', function() {
     ensureFeedReactionAudio();
     bindFilterBarScrollHide();
     bindFeedToolbar();
+    bindFeedYearFilters();
+    try {
+        var rawToast = sessionStorage.getItem('sk_cf_toast');
+        if (rawToast) {
+            sessionStorage.removeItem('sk_cf_toast');
+            var payload = JSON.parse(rawToast);
+            if (payload?.message) {
+                setTimeout(function () { notifyFeed(payload.message, payload.type || 'success'); }, 200);
+            }
+        }
+    } catch (_) { /* ignore */ }
+    var audienceToggle = document.getElementById('compose-audience-toggle');
+    var audienceMenu = document.getElementById('compose-audience-menu');
+    if (audienceToggle && audienceMenu) {
+        audienceToggle.addEventListener('click', function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            setComposeAudienceMenuOpen(audienceMenu.hidden);
+        });
+        audienceMenu.querySelectorAll('input[name="compose-audience"]').forEach(function (input) {
+            input.addEventListener('change', function () {
+                syncComposeAudienceToggleLabel();
+                updateComposeEmailNotifyHelp();
+            });
+        });
+        document.addEventListener('click', function (e) {
+            var wrap = document.getElementById('compose-audience-wrap');
+            if (!wrap || wrap.contains(e.target)) return;
+            setComposeAudienceMenuOpen(false);
+        });
+        syncComposeAudienceToggleLabel();
+        updateComposeEmailNotifyHelp();
+    }
+    document.addEventListener('click', function () {
+        document.querySelectorAll('.post-options-menu.open').forEach(function (m) { m.classList.remove('open'); });
+        document.querySelectorAll('.post-card.is-menu-open').forEach(function (card) {
+            card.classList.remove('is-menu-open');
+        });
+    });
     document.querySelector('.feed-sticky-toolbar')?.classList.remove('is-hidden');
     document.querySelector('.feed-filter-bar')?.classList.remove('is-hidden');
     document.addEventListener('pointerdown', ensureFeedReactionAudio, { once: true, capture: true });
     if (document.getElementById('feed-posts')) {
         renderPosts(true);
     }
-    document.getElementById('compose-content')?.addEventListener('input', updateCharCount);
+    if (window.SkCfMedia) {
+        window.SkCfMedia.bindComposeBodyValidation();
+        window.SkCfMedia.bindComposeMediaEvents();
+    } else {
+        document.getElementById('compose-content')?.addEventListener('input', updateCharCount);
+    }
+    window.postCache = postCache;
     document.getElementById('compose-link-input')?.addEventListener('input', function () {
         var linkVal = document.getElementById('compose-link-input').value.trim();
         if (!linkVal) {
@@ -1970,6 +2504,8 @@ document.addEventListener('DOMContentLoaded', function() {
             }
             closeReactionViewer();
             closeLightbox();
+            if (window.closeVideoLightbox) closeVideoLightbox();
+            if (window.closeShareModal) closeShareModal();
         }
     });
 

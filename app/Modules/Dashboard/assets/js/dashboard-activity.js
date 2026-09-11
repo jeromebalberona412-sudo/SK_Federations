@@ -103,11 +103,18 @@ document.addEventListener('DOMContentLoaded', function () {
             dateTo = tmp;
         }
 
-        return { date_from: dateFrom, date_to: dateTo };
+        return {
+            date_from: dateFrom,
+            date_to: dateTo,
+            range_mode: filter?.dataset?.rangeMode === 'all' ? 'all' : 'term',
+        };
     }
 
     function statsCacheKey(range) {
-        return 'sk_fed_dashboard_stats_v5_' + (range.date_from || '') + '_' + (range.date_to || '');
+        return 'sk_fed_dashboard_stats_v6_'
+            + (range.date_from || '') + '_'
+            + (range.date_to || '') + '_'
+            + (range.range_mode || 'term');
     }
 
     function seedStatsCacheFromInitial() {
@@ -117,6 +124,7 @@ document.addEventListener('DOMContentLoaded', function () {
         const range = {
             date_from: feed.date_from || getDashboardDateRangeParams().date_from,
             date_to: feed.date_to || getDashboardDateRangeParams().date_to,
+            range_mode: 'term',
         };
         const key = statsCacheKey(range);
         if (!window.SkLocalCache.get(key)?.payload) {
@@ -145,6 +153,7 @@ document.addEventListener('DOMContentLoaded', function () {
         const params = new URLSearchParams({
             date_from: range.date_from || '',
             date_to: range.date_to || '',
+            range_mode: range.range_mode || 'term',
         });
 
         return feedUrl + (feedUrl.includes('?') ? '&' : '?') + params.toString();
@@ -159,6 +168,7 @@ document.addEventListener('DOMContentLoaded', function () {
         const params = new URLSearchParams({
             date_from: range.date_from || '',
             date_to: range.date_to || '',
+            range_mode: range.range_mode || 'term',
         });
         return endpoint + (endpoint.includes('?') ? '&' : '?') + params.toString();
     }
@@ -387,8 +397,7 @@ document.addEventListener('DOMContentLoaded', function () {
             return;
         }
 
-        const dateLabel = reminder.date_label ? reminder.date_label + ' — ' : '';
-        textEl.textContent = dateLabel + reminder.title;
+        textEl.textContent = reminder.title;
         banner.hidden = false;
     }
 
@@ -590,6 +599,7 @@ document.addEventListener('DOMContentLoaded', function () {
             per_page: String(modalState.perPage),
             date_from: range.date_from || '',
             date_to: range.date_to || '',
+            range_mode: range.range_mode || 'term',
         });
 
         try {

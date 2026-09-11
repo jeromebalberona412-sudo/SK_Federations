@@ -47,6 +47,11 @@ class KabataanRegistration extends Model
         return $this->belongsTo(User::class, 'reviewed_by_user_id');
     }
 
+    public function user(): BelongsTo
+    {
+        return $this->belongsTo(User::class);
+    }
+
     public function getFullNameAttribute(): string
     {
         $name = trim($this->first_name.' '.$this->middle_name.' '.$this->last_name);

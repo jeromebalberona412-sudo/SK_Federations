@@ -4004,8 +4004,30 @@ body.sidebar-collapsed .main-content { margin-left: var(--sidebar-collapsed); }
 
 /* ── KK Profiling Chart ── */
 .kk-chart-section-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
     flex-wrap: nowrap;
-    gap: 8px;
+    gap: 12px;
+    min-width: 0;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.kk-chart-section-header > div:first-child,
+.kk-chart-heading {
+    min-width: 0;
+    flex: 1 1 auto;
+    padding-right: 8px;
+}
+
+.kk-chart-section-header h3 {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 700;
+    line-height: 1.3;
+    color: #0f172a;
+    letter-spacing: -0.01em;
 }
 
 .kk-chart-section-header .card-header,
@@ -4015,32 +4037,43 @@ body.sidebar-collapsed .main-content { margin-left: var(--sidebar-collapsed); }
 }
 
 .kk-chart-subtitle {
-    margin: 2px 0 0;
-    font-size: 11px;
+    margin: 4px 0 0;
+    font-size: 13px;
+    font-weight: 500;
     color: #64748b;
+    line-height: 1.4;
 }
 
 .kk-chart-header-actions {
     display: inline-flex;
     align-items: center;
-    gap: 6px;
+    justify-content: flex-end;
+    gap: 8px;
+    flex: 0 0 auto;
     flex-wrap: nowrap;
     margin-left: auto;
+    max-width: none;
+    min-width: 0;
 }
 
 .kk-barangay-select {
-    min-width: 100px;
-    max-width: 130px;
-    height: 32px;
-    padding: 0 8px;
+    flex: 0 0 auto;
+    min-width: 118px;
+    max-width: 168px;
+    width: auto;
+    height: 34px;
+    padding: 0 10px;
     border: 1.5px solid #e2e8f0;
     border-radius: 8px;
     background: #fff;
     color: #1e293b;
-    font-size: 11px;
+    font-size: 12px;
     font-weight: 600;
     font-family: inherit;
+    line-height: 1.2;
     cursor: pointer;
+    white-space: nowrap;
+    text-overflow: ellipsis;
 }
 
 .kk-barangay-select:focus {
@@ -4092,30 +4125,105 @@ body.sidebar-collapsed .main-content { margin-left: var(--sidebar-collapsed); }
     justify-content: center;
 }
 
-/* Kabataan per Purok/Sitio — keep every barangay/purok label visible */
+/* Kabataan per Purok/Sitio — match SK Officials dashboard bar chart */
+#purok-distribution-section {
+    min-width: 0;
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 14px;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+    overflow: hidden;
+}
+
+#purok-distribution-section > .card-header.kk-chart-section-header {
+    align-items: flex-start;
+    gap: 12px;
+    flex-wrap: nowrap;
+    padding: 16px 18px 10px;
+    border-bottom: none;
+    background: #fff;
+}
+
+#purok-distribution-section .kk-chart-heading h3 {
+    margin: 0;
+    font-size: 15px;
+    font-weight: 800;
+    line-height: 1.3;
+    color: #111827;
+    letter-spacing: -0.01em;
+    font-family: inherit;
+}
+
+#purok-distribution-section .kk-chart-subtitle {
+    margin: 2px 0 0;
+    font-size: 12px;
+    font-weight: 500;
+    line-height: 1.4;
+    color: #9ca3af;
+    font-family: inherit;
+}
+
 #purok-distribution-section .kk-chart-header-actions {
-    flex-wrap: wrap;
-    max-width: 100%;
+    flex-wrap: nowrap;
+    max-width: none;
+    flex: 0 0 auto;
+    gap: 8px;
+    margin-left: auto;
 }
 
 #purok-distribution-section .kk-barangay-select {
-    min-width: min(100%, 160px);
-    max-width: 100%;
-    flex: 1 1 160px;
+    min-width: 132px;
+    max-width: 190px;
+    flex: 0 0 auto;
+    width: auto;
+    height: 34px;
+    padding: 0 28px 0 10px;
+    border: 1.5px solid #e2e8f0;
+    border-radius: 8px;
+    background-color: #fff;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%23475569' d='M1.4 1.4L6 6 10.6 1.4'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 10px center;
+    background-size: 10px 7px;
+    color: #1e293b;
+    font-size: 12px;
+    font-weight: 600;
+    font-family: inherit;
+    line-height: 1.2;
+    appearance: none;
+    -webkit-appearance: none;
+    cursor: pointer;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+#purok-distribution-section .kk-barangay-select:focus {
+    outline: 2px solid #213F99;
+    border-color: #213F99;
+    box-shadow: none;
+}
+
+#purok-distribution-section .kk-barangay-select[hidden] {
+    display: none !important;
 }
 
 .dash-purok-card-body {
     min-width: 0;
     overflow: visible;
+    padding: 4px 14px 14px;
+    background: #fff;
 }
 
 .kk-chart-canvas-wrap--purok {
     width: 100%;
-    min-height: 280px;
+    min-height: 260px;
     height: 280px;
     align-items: stretch;
     justify-content: stretch;
     overflow: hidden;
+    padding: 2px 0 0;
+    border-radius: 8px;
+    background: #fff;
 }
 
 .kk-chart-canvas-wrap--purok.is-scroll-x {
@@ -4123,6 +4231,27 @@ body.sidebar-collapsed .main-content { margin-left: var(--sidebar-collapsed); }
     overflow-y: hidden;
     -webkit-overflow-scrolling: touch;
     overscroll-behavior-x: contain;
+    scrollbar-width: thin;
+    scrollbar-color: #94a3b8 #f1f5f9;
+}
+
+.kk-chart-canvas-wrap--purok.is-scroll-x::-webkit-scrollbar {
+    height: 8px;
+}
+
+.kk-chart-canvas-wrap--purok.is-scroll-x::-webkit-scrollbar-track {
+    background: #f1f5f9;
+    border-radius: 999px;
+}
+
+.kk-chart-canvas-wrap--purok.is-scroll-x::-webkit-scrollbar-thumb {
+    background: #94a3b8;
+    border-radius: 999px;
+}
+
+.kk-chart-canvas-wrap--purok.is-scroll-x::-webkit-scrollbar-button {
+    width: 10px;
+    background: #e2e8f0;
 }
 
 .kk-chart-canvas-wrap--purok canvas {
@@ -4165,7 +4294,11 @@ body.sidebar-collapsed .main-content { margin-left: var(--sidebar-collapsed); }
 @media (max-width: 992px) {
     .dash-row { flex-direction: column; }
     .dash-col-4, .dash-col-8 { flex: 1 1 auto; width: 100%; }
-    .kk-chart-header-actions { margin-left: 0; width: 100%; }
+    .kk-chart-header-actions {
+        margin-left: auto;
+        width: auto;
+        justify-content: flex-end;
+    }
     .dash-row--balanced .dash-col-4 { max-width: 100%; }
     .dash-row--balanced { flex-direction: column; }
 }
@@ -4991,6 +5124,33 @@ body.dash-activity-modal-open { overflow: hidden; }
     font-size: 14px;
     color: #64748b;
     margin: 0;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 4px 6px;
+    line-height: 1.35;
+    max-width: 42rem;
+}
+
+.dash-page-sub-line {
+    font-weight: 500;
+    color: #64748b;
+}
+
+.dash-page-sub-name {
+    font-weight: 700;
+    color: #1e293b;
+}
+
+.dash-page-sub-org {
+    font-weight: 600;
+    color: #475569;
+}
+
+.dash-page-sub-org::before {
+    content: "— ";
+    font-weight: 500;
+    color: #94a3b8;
 }
 
 .dash-page-filters {
@@ -5121,15 +5281,15 @@ body.dash-activity-modal-open { overflow: hidden; }
 .dash-date-input {
     border: 1px solid #cbd5e1;
     border-radius: 8px;
-    padding: 4px 8px;
-    font-size: 13px;
+    padding: 4px 6px;
+    font-size: 12px;
     font-weight: 600;
     background: #fff;
     color: #1e293b;
     min-height: 32px;
     height: 32px;
-    width: 148px;
-    max-width: 148px;
+    width: 132px;
+    max-width: 132px;
     box-sizing: border-box;
 }
 
@@ -5155,6 +5315,41 @@ body.dash-activity-modal-open { overflow: hidden; }
     color: #94a3b8;
     flex-shrink: 0;
     line-height: 1;
+}
+
+.dash-date-all-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0;
+    padding: 0 10px;
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    background: #f8fafc;
+    color: #334155;
+    font-size: 12px;
+    font-weight: 700;
+    line-height: 1;
+    min-width: 40px;
+    min-height: 32px;
+    height: 32px;
+    cursor: pointer;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+.dash-date-all-btn:hover,
+.dash-date-all-btn:focus-visible {
+    background: #eff6ff;
+    border-color: #93c5fd;
+    color: #1e3a8a;
+    outline: none;
+}
+
+.dash-date-all-btn.is-active {
+    background: #213F99;
+    border-color: #213F99;
+    color: #fff;
 }
 
 .dash-date-reset-btn {
@@ -5213,14 +5408,15 @@ body.dash-activity-modal-open { overflow: hidden; }
 
 .dash-year-select,
 .kk-barangay-select {
-    border: 1px solid #cbd5e1;
+    border: 1.5px solid #e2e8f0;
     border-radius: 8px;
-    padding: 6px 10px;
-    font-size: 13px;
-    font-weight: 700;
+    padding: 0 10px;
+    font-size: 12px;
+    font-weight: 600;
     background: #fff;
-    min-height: 32px;
-    height: 32px;
+    color: #1e293b;
+    min-height: 34px;
+    height: 34px;
     box-sizing: border-box;
 }
 
@@ -5443,47 +5639,78 @@ button.activity-item--clickable:active {
     }
 
     .kk-chart-section-header {
-        flex-direction: column;
-        align-items: stretch;
+        flex-direction: row;
+        flex-wrap: nowrap;
+        align-items: flex-start;
     }
 
     .kk-chart-header-actions {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 8px;
+        display: inline-flex;
+        flex-wrap: nowrap;
+        gap: 6px;
+        margin-left: auto;
+        justify-content: flex-end;
     }
 
     .kk-barangay-select {
-        flex: 1 1 140px;
-        max-width: none;
-        min-width: 0;
+        flex: 0 0 auto;
+        min-width: 110px;
+        max-width: 150px;
     }
 
     #purok-distribution-section .kk-chart-section-header {
-        flex-direction: column;
-        align-items: stretch;
+        flex-direction: row;
+        align-items: flex-start;
         gap: 10px;
     }
 
     #purok-distribution-section .kk-chart-header-actions {
-        width: 100%;
-        margin-left: 0;
+        width: auto;
+        margin-left: auto;
+        max-width: none;
+        flex-wrap: nowrap;
     }
 
     #purok-distribution-section .kk-barangay-select {
-        flex: 1 1 100%;
-        width: 100%;
-        max-width: 100%;
-        min-height: 40px;
-        font-size: 13px;
+        flex: 0 0 auto;
+        width: auto;
+        max-width: 150px;
+        min-height: 34px;
+        height: 34px;
+        font-size: 12px;
     }
 
     .kk-chart-canvas-wrap--purok {
-        min-height: 300px;
+        min-height: 280px;
+        height: 300px;
     }
 
     .qa-item {
         min-height: 44px;
+    }
+}
+
+@media (max-width: 640px) {
+    .kk-chart-section-header,
+    #purok-distribution-section .kk-chart-section-header,
+    .dash-demo-chart-header {
+        flex-wrap: wrap;
+        row-gap: 10px;
+    }
+
+    .kk-chart-header-actions,
+    #purok-distribution-section .kk-chart-header-actions {
+        width: 100%;
+        margin-left: 0;
+        justify-content: flex-end;
+    }
+
+    .kk-barangay-select,
+    #purok-distribution-section .kk-barangay-select,
+    .dash-demo-chart-header .kk-barangay-select {
+        min-width: 0;
+        max-width: none;
+        flex: 1 1 auto;
     }
 }
 
@@ -5513,6 +5740,15 @@ button.activity-item--clickable:active {
     min-width: 0;
     display: flex;
     flex-direction: column;
+    overflow: visible;
+}
+
+.dash-row--top-split > .content-card > .card-header,
+.dash-row--kk-abyip > .content-card > .card-header,
+.dash-row--demographics > .content-card > .card-header {
+    overflow: visible;
+    position: relative;
+    z-index: 2;
 }
 
 .dash-row--kk-abyip {
@@ -5549,20 +5785,37 @@ button.activity-item--clickable:active {
     align-items: flex-start;
     justify-content: space-between;
     gap: 12px;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
+    min-width: 0;
+}
+
+.dash-demo-chart-header > div:first-child {
+    min-width: 0;
+    flex: 1 1 auto;
+    padding-right: 8px;
 }
 
 .dash-demo-chart-header h3 {
     margin: 0;
-    font-size: 1rem;
-    line-height: 1.35;
+    font-size: 16px;
+    font-weight: 700;
+    line-height: 1.3;
+    color: #0f172a;
+    letter-spacing: -0.01em;
 }
 
 .dash-demo-chart-sub {
     margin: 4px 0 0;
     color: #64748b;
-    font-size: 0.82rem;
+    font-size: 13px;
+    font-weight: 500;
     line-height: 1.4;
+}
+
+.dash-demo-chart-header .kk-barangay-select {
+    flex: 0 0 auto;
+    margin-left: auto;
+    align-self: flex-start;
 }
 
 .dash-demo-chart-body {
@@ -5616,13 +5869,16 @@ button.activity-item--clickable:active {
 
 @media (max-width: 768px) {
     .dash-demo-chart-header {
-        flex-direction: column;
-        align-items: stretch;
+        flex-direction: row;
+        flex-wrap: nowrap;
+        align-items: flex-start;
     }
 
     .dash-demo-chart-header .kk-barangay-select {
-        width: 100%;
-        max-width: 100%;
+        width: auto;
+        max-width: 160px;
+        margin-left: auto;
+        flex: 0 0 auto;
     }
 
     .dash-demo-chart-body {
@@ -5963,7 +6219,8 @@ button.activity-item--clickable:active {
     }
 
     .kk-chart-canvas-wrap--purok {
-        min-height: 320px;
+        min-height: 280px;
+        height: 300px;
     }
 
     .dash-abyip-summary {

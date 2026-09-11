@@ -33,33 +33,53 @@ function getDashboardDateRange() {
     const fromInput = document.getElementById('dashDateFrom');
     const toInput = document.getElementById('dashDateTo');
     const filter = document.getElementById('dashDateRangeFilter');
+    const today = filter?.dataset.today || getTodayIsoDate();
     const termStart = filter?.dataset.termStart || filter?.dataset.defaultFrom || `${new Date().getFullYear()}-01-01`;
-    const termEnd = filter?.dataset.termEnd || filter?.dataset.defaultTo || getTodayIsoDate();
+    const termEnd = filter?.dataset.termEnd || today;
+    const earliest = filter?.dataset.dataEarliest || '';
+    const rangeMode = filter?.dataset.rangeMode === 'all' ? 'all' : 'term';
     const defaultFrom = filter?.dataset.defaultFrom || termStart;
-    const defaultTo = filter?.dataset.defaultTo || termEnd;
+    const defaultTo = filter?.dataset.defaultTo || (today <= termEnd ? today : termEnd);
 
     let dateFrom = fromInput?.value || defaultFrom;
     let dateTo = toInput?.value || defaultTo;
 
     if (!isValidIsoDate(dateFrom) || !isValidIsoDate(dateTo)) {
-        return { date_from: defaultFrom, date_to: defaultTo, valid: false };
+        return { date_from: defaultFrom, date_to: defaultTo, range_mode: rangeMode, valid: false };
     }
 
-    if (termStart && isValidIsoDate(termStart) && dateFrom < termStart) {
-        dateFrom = termStart;
-        if (fromInput) fromInput.value = dateFrom;
-    }
-    if (termEnd && isValidIsoDate(termEnd) && dateTo > termEnd) {
-        dateTo = termEnd;
-        if (toInput) toInput.value = dateTo;
-    }
-    if (termEnd && isValidIsoDate(termEnd) && dateFrom > termEnd) {
-        dateFrom = termEnd;
-        if (fromInput) fromInput.value = dateFrom;
-    }
-    if (termStart && isValidIsoDate(termStart) && dateTo < termStart) {
-        dateTo = termStart;
-        if (toInput) toInput.value = dateTo;
+    if (rangeMode === 'all') {
+        const minBound = isValidIsoDate(earliest) ? earliest : termStart;
+        const maxBound = today;
+        if (dateFrom < minBound) {
+            dateFrom = minBound;
+            if (fromInput) fromInput.value = dateFrom;
+        }
+        if (dateTo > maxBound) {
+            dateTo = maxBound;
+            if (toInput) toInput.value = dateTo;
+        }
+        if (fromInput && toInput) {
+            fromInput.min = minBound;
+            fromInput.max = maxBound;
+            toInput.min = dateFrom;
+            toInput.max = maxBound;
+        }
+    } else {
+        if (termStart && dateFrom < termStart) {
+            dateFrom = termStart;
+            if (fromInput) fromInput.value = dateFrom;
+        }
+        if (termEnd && dateTo > termEnd) {
+            dateTo = termEnd;
+            if (toInput) toInput.value = dateTo;
+        }
+        if (fromInput && toInput) {
+            fromInput.min = termStart || '';
+            fromInput.max = termEnd || '';
+            toInput.min = dateFrom || termStart || '';
+            toInput.max = termEnd || '';
+        }
     }
 
     if (dateFrom && dateTo && dateFrom > dateTo) {
@@ -70,14 +90,7 @@ function getDashboardDateRange() {
         if (toInput) toInput.value = dateTo;
     }
 
-    if (fromInput && toInput) {
-        fromInput.min = termStart || '';
-        fromInput.max = termEnd || '';
-        toInput.min = dateFrom || termStart || '';
-        toInput.max = termEnd || '';
-    }
-
-    return { date_from: dateFrom, date_to: dateTo, valid: true };
+    return { date_from: dateFrom, date_to: dateTo, range_mode: rangeMode, valid: true };
 }
 
 window.getDashboardDateRange = getDashboardDateRange;
@@ -97,6 +110,13 @@ function refreshDashboardDateFilteredViews() {
     document.dispatchEvent(new CustomEvent('dashboard:date-range-changed'));
 }
 
+function setDashboardRangeMode(mode) {
+    const filter = document.getElementById('dashDateRangeFilter');
+    const allBtn = document.getElementById('dashDateAllBtn');
+    if (filter) filter.dataset.rangeMode = mode === 'all' ? 'all' : 'term';
+    if (allBtn) allBtn.classList.toggle('is-active', mode === 'all');
+}
+
 function resetDashboardDateRange() {
     const fromInput = document.getElementById('dashDateFrom');
     const toInput = document.getElementById('dashDateTo');
@@ -105,10 +125,12 @@ function resetDashboardDateRange() {
         return;
     }
 
+    setDashboardRangeMode('term');
     const termStart = filter?.dataset.termStart || filter?.dataset.defaultFrom || `${new Date().getFullYear()}-01-01`;
-    const termEnd = filter?.dataset.termEnd || filter?.dataset.defaultTo || getTodayIsoDate();
+    const termEnd = filter?.dataset.termEnd || getTodayIsoDate();
+    const today = filter?.dataset.today || getTodayIsoDate();
     const defaultFrom = filter?.dataset.defaultFrom || termStart;
-    const defaultTo = filter?.dataset.defaultTo || termEnd;
+    const defaultTo = filter?.dataset.defaultTo || (today <= termEnd ? today : termEnd);
 
     fromInput.value = defaultFrom;
     toInput.value = defaultTo;
@@ -117,6 +139,30 @@ function resetDashboardDateRange() {
     toInput.min = defaultFrom;
     toInput.max = termEnd || '';
 
+    refreshDashboardDateFilteredViews();
+}
+
+function applyDashboardAllDateRange() {
+    const fromInput = document.getElementById('dashDateFrom');
+    const toInput = document.getElementById('dashDateTo');
+    const filter = document.getElementById('dashDateRangeFilter');
+    if (!fromInput || !toInput || !filter) {
+        return;
+    }
+
+    const earliest = filter.dataset.dataEarliest || filter.dataset.termStart || '';
+    const today = filter.dataset.today || getTodayIsoDate();
+    if (!isValidIsoDate(earliest)) {
+        return;
+    }
+
+    setDashboardRangeMode('all');
+    fromInput.value = earliest;
+    toInput.value = today;
+    fromInput.min = earliest;
+    fromInput.max = today;
+    toInput.min = earliest;
+    toInput.max = today;
     refreshDashboardDateFilteredViews();
 }
 
@@ -133,6 +179,7 @@ function getKkProfilingFilters() {
         period,
         date_from: range.date_from,
         date_to: range.date_to,
+        range_mode: range.range_mode || 'term',
         month: period === 'weekly' ? String(monthFilter?.value || (now.getMonth() + 1)) : '',
     };
 }
@@ -404,6 +451,9 @@ function wireDashboardDateRangeFilter() {
     toInput.addEventListener('input', onChange);
     resetBtn?.addEventListener('click', function () {
         resetDashboardDateRange();
+    });
+    document.getElementById('dashDateAllBtn')?.addEventListener('click', function () {
+        applyDashboardAllDateRange();
     });
     fromInput.dataset.kkWired = 'true';
     toInput.dataset.kkWired = 'true';
