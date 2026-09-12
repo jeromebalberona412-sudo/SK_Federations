@@ -756,20 +756,34 @@ class AccountService
             ]);
         }
 
-        $target->forceFill([
-            'status' => User::STATUS_INACTIVE,
-        ])->save();
-        $target->delete();
+        DB::transaction(function () use ($target, $admin) {
+            $target->loadMissing(['officialProfile.latestTerm', 'barangay']);
 
-        $this->clearInvitationStateForUser($target);
+            // Archive snapshot MUST succeed before removing from the active list.
+            if ($target->role === User::ROLE_SK_OFFICIAL) {
+                app(\App\Modules\Archive_Management\Services\DeletedArchiveService::class)
+                    ->archiveOfficial($target, $admin);
+            }
 
-        $this->logAuditAction(
-            $admin,
-            'account_deactivated',
-            'users',
-            (string) $target->id,
-            ['email' => $target->email, 'role' => $target->role]
-        );
+            $target->forceFill([
+                'status' => User::STATUS_INACTIVE,
+            ])->save();
+            $target->delete();
+
+            $this->clearInvitationStateForUser($target);
+
+            $this->logAuditAction(
+                $admin,
+                'account_deactivated',
+                'users',
+                (string) $target->id,
+                [
+                    'email' => $target->email,
+                    'role' => $target->role,
+                    'archived' => $target->role === User::ROLE_SK_OFFICIAL,
+                ]
+            );
+        });
     }
 
     public function restoreAccount(User $target, User $admin): User
@@ -782,20 +796,29 @@ class AccountService
             ]);
         }
 
-        $target->restore();
-        $target->forceFill([
-            'status' => User::STATUS_ACTIVE,
-        ])->save();
+        return DB::transaction(function () use ($target, $admin) {
+            $target->restore();
+            $target->forceFill([
+                'status' => User::STATUS_ACTIVE,
+            ])->save();
 
-        $this->logAuditAction(
-            $admin,
-            'account_restored',
-            'users',
-            (string) $target->id,
-            ['email' => $target->email, 'role' => $target->role]
-        );
+            if ($target->role === User::ROLE_SK_OFFICIAL) {
+                \App\Modules\Archive_Management\Models\DeletedSkOfficial::query()
+                    ->where('original_user_id', $target->id)
+                    ->whereNull('restored_at')
+                    ->update(['restored_at' => now()]);
+            }
 
-        return $target->fresh(['officialProfile.terms', 'barangay']);
+            $this->logAuditAction(
+                $admin,
+                'account_restored',
+                'users',
+                (string) $target->id,
+                ['email' => $target->email, 'role' => $target->role]
+            );
+
+            return $target->fresh(['officialProfile.terms', 'barangay']);
+        });
     }
 
     /**

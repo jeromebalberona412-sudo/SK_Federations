@@ -319,15 +319,16 @@ class AdminAccountController extends Controller
         }
 
         $message = $failedCount > 0
-            ? "{$deleted} account(s) deleted. {$failedCount} could not be deleted."
-            : "{$deleted} account(s) deleted and moved to Deleted SK Officials.";
+            ? "{$deleted} SK Official(s) moved to Deleted SK Officials. {$failedCount} could not be deleted."
+            : ($deleted === 1
+                ? 'SK Official moved to Deleted SK Officials.'
+                : "{$deleted} SK Officials moved to Deleted SK Officials.");
 
         return response()->json([
             'success' => true,
             'message' => $message,
             'deleted' => $deleted,
             'failed' => $result['failed'],
-            'redirect' => route('archived.deleted-sk-officials'),
         ]);
     }
 
@@ -592,27 +593,27 @@ class AdminAccountController extends Controller
                     return response()->json([
                         'success' => true,
                         'already_deleted' => true,
-                        'message' => 'Account was already deleted and is in Deleted SK Officials.',
-                        'redirect' => route('archived.deleted-sk-officials'),
+                        'message' => 'SK Official was already deleted and is in Deleted SK Officials.',
+                        'deleted_id' => (int) $trashed->id,
                     ]);
                 }
 
                 return redirect()
-                    ->route('archived.deleted-sk-officials')
-                    ->with('status', 'Account was already deleted and is in Deleted SK Officials.');
+                    ->route($this->accountsListRouteFor($trashed))
+                    ->with('status', 'SK Official was already deleted and is in Deleted SK Officials.');
             }
 
             if ($request->expectsJson()) {
                 return response()->json([
                     'success' => false,
                     'not_found' => true,
-                    'message' => 'Account not found. It may have already been permanently removed.',
+                    'message' => 'Failed to delete SK Official.',
                 ], 422);
             }
 
             return redirect()
                 ->back()
-                ->withErrors(['account' => 'Account not found. It may have already been permanently removed.']);
+                ->withErrors(['account' => 'Failed to delete SK Official.']);
         }
 
         $this->authorize('deactivate', $target);
@@ -623,14 +624,21 @@ class AdminAccountController extends Controller
         if ($request->expectsJson()) {
             return response()->json([
                 'success' => true,
-                'message' => 'Account deleted and moved to Deleted SK Officials.',
-                'redirect' => route('archived.deleted-sk-officials'),
+                'message' => 'SK Official moved to Deleted SK Officials.',
+                'deleted_id' => (int) $target->id,
             ]);
         }
 
         return redirect()
-            ->route('archived.deleted-sk-officials')
-            ->with('status', 'Account deleted and moved to Deleted SK Officials.');
+            ->route($this->accountsListRouteFor($target))
+            ->with('status', 'SK Official moved to Deleted SK Officials.');
+    }
+
+    private function accountsListRouteFor(User $account): string
+    {
+        return $account->role === User::ROLE_SK_OFFICIAL
+            ? 'accounts.officials.index'
+            : 'accounts.federation.index';
     }
 
     public function resetPassword(Request $request, User $user): RedirectResponse

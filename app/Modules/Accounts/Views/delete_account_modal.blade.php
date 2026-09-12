@@ -12,9 +12,10 @@
         </div>
         <div class="delete-confirm-body">
             <p class="delete-confirm-message" id="deleteModalMessage">
-                Are you sure you want to permanently delete this account?
+                Are you sure you want to delete this SK Official?
+                The account will be moved to Deleted SK Officials.
             </p>
-            <p class="delete-confirm-desc">This action cannot be undone.</p>
+            <p class="delete-confirm-desc">The archived record remains available in Archive Management.</p>
 
             <label class="delete-confirm-label" for="deleteConfirmationInput">Type DELETE to confirm</label>
             <input type="text" id="deleteConfirmationInput" class="delete-confirm-input"

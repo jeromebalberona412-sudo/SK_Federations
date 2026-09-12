@@ -17,9 +17,13 @@ onArchiveReady(function () {
 });
 
 function formatRecordName(record) {
-    return [record.lastName, record.firstName, record.middleName, record.suffix]
+    const composed = [record.lastName, record.firstName, record.middleName, record.suffix]
         .filter((part) => part && String(part).trim() !== '')
         .join(', ');
+    if (composed) {
+        return composed;
+    }
+    return String(record.fullName || record.full_name || record.email || '—').trim() || '—';
 }
 
 function escapeDsoHtml(value) {
@@ -181,14 +185,14 @@ function normalizeDsoRecord(record) {
 function renderDsoLoadingState() {
     const tbody = document.getElementById('dsoTableBody');
     if (tbody) {
-        tbody.innerHTML = '<tr class="dso-empty-row"><td colspan="8">Loading deleted records...</td></tr>';
+        tbody.innerHTML = '<tr class="dso-empty-row"><td colspan="9">Loading deleted records...</td></tr>';
     }
 }
 
 function renderDsoErrorState(message) {
     const tbody = document.getElementById('dsoTableBody');
     const info = document.getElementById('dsoPaginationInfo');
-    if (tbody) tbody.innerHTML = `<tr class="dso-empty-row"><td colspan="8">${message}</td></tr>`;
+    if (tbody) tbody.innerHTML = `<tr class="dso-empty-row"><td colspan="9">${message}</td></tr>`;
     if (info) info.textContent = '0 records';
     renderDsoPagination(0);
 }
@@ -283,22 +287,16 @@ function renderDsoTable() {
 
     tbody.innerHTML = page.map((r) => {
         const fullName = formatRecordName(r);
-        const daysLeft = Number(r.days_remaining ?? 30);
-        const urgent = daysLeft <= 7 ? ' is-urgent' : '';
-        const autoLabel = r.auto_delete_label
-            || (daysLeft <= 0
-                ? 'Deleting soon'
-                : `Auto delete in ${daysLeft} day${daysLeft === 1 ? '' : 's'}`);
         return `
         <tr>
             <td class="dso-name-cell">${fullName}</td>
-            <td>${r.position || '—'}</td>
-            <td>${r.barangay || '—'}</td>
-            <td>${r.municipality || '—'}</td>
-            <td>${r.term || '—'}</td>
-            <td><span class="dso-deleted-badge">${r.deletedDate}</span></td>
-            <td><span class="dso-time-badge">${r.deletedTime}</span></td>
-            <td><span class="dso-auto-delete-badge${urgent}" title="${escapeDsoHtml(autoLabel)}">${escapeDsoHtml(autoLabel)}</span></td>
+            <td>${escapeDsoHtml(r.position || '—')}</td>
+            <td>${escapeDsoHtml(r.barangay || '—')}</td>
+            <td>${escapeDsoHtml(r.municipality || '—')}</td>
+            <td>${escapeDsoHtml(r.term || '—')}</td>
+            <td><span class="dso-deleted-badge">${escapeDsoHtml(r.deletedDate)}</span></td>
+            <td><span class="dso-time-badge">${escapeDsoHtml(r.deletedTime)}</span></td>
+            <td>${escapeDsoHtml(r.deleted_by || '—')}</td>
             <td>
                 ${window.ArchiveRowActions.renderMenu(r.id, { view: true, restore: true })}
             </td>
@@ -406,7 +404,9 @@ function openDsoViewModal(id) {
             ${dsoProfileGroup('fa-trash-can', 'Deletion', [
                 ['Date Deleted', r.deletedDate],
                 ['Time Deleted', r.deletedTime],
-                ['Auto Delete', r.auto_delete_label || '—'],
+                ['Deleted By', r.deleted_by || '—'],
+                ['Original Account ID', r.original_user_id || '—'],
+                ['Archive ID', r.archive_id || r.id || '—'],
             ])}
         </div>`;
 

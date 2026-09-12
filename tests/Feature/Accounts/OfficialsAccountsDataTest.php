@@ -161,18 +161,25 @@ it('moves a deleted official out of accounts data and into the deleted archive',
         ->getJson(route('archived.deleted-sk-officials.data'));
 
     $archiveResponse->assertOk();
-    $archiveIds = collect($archiveResponse->json('data'))->pluck('id')->map(fn ($id) => (int) $id)->all();
-    expect($archiveIds)->toContain($official->id);
+    $archiveRows = collect($archiveResponse->json('data'));
+    expect($archiveRows->pluck('original_user_id')->map(fn ($id) => (int) $id)->all())->toContain($official->id);
 
-    $archivedRow = collect($archiveResponse->json('data'))->firstWhere('id', $official->id);
-    expect($archivedRow['days_remaining'])->toBeGreaterThan(0)
-        ->and($archivedRow['days_remaining'])->toBeLessThanOrEqual(30);
+    $archivedRow = $archiveRows->firstWhere('original_user_id', $official->id);
+    expect($archivedRow['email'])->toBe($official->email)
+        ->and($archivedRow['firstName'])->toBe('ARCHIVE')
+        ->and($archivedRow['lastName'])->toBe('MOVE');
+
+    expect(DB::table('deleted_sk_officials')
+        ->where('original_user_id', $official->id)
+        ->whereNull('restored_at')
+        ->exists())->toBeTrue();
 
     User::withTrashed()->whereKey($official->id)->forceDelete();
+    DB::table('deleted_sk_officials')->where('original_user_id', $official->id)->delete();
     $admin->forceDelete();
 });
 
-it('redirects delete responses to the deleted sk officials archive', function () {
+it('keeps delete responses on the SK Officials list without archive redirect', function () {
     $tenantId = (int) DB::table('tenants')->where('code', config('sk_fed_auth.tenant_code'))->value('id');
     $barangayId = (int) Barangay::query()->where('tenant_id', $tenantId)->value('id');
 
@@ -207,13 +214,19 @@ it('redirects delete responses to the deleted sk officials archive', function ()
         ->postJson(route('accounts.deactivate', $official))
         ->assertOk()
         ->assertJsonPath('success', true)
-        ->assertJsonPath('redirect', route('archived.deleted-sk-officials'));
+        ->assertJsonPath('message', 'SK Official moved to Deleted SK Officials.')
+        ->assertJsonPath('deleted_id', $official->id)
+        ->assertJsonMissing(['redirect']);
+
+    expect(User::withTrashed()->whereKey($official->id)->first()?->trashed())->toBeTrue();
+    expect(DB::table('deleted_sk_officials')->where('original_user_id', $official->id)->whereNull('restored_at')->exists())->toBeTrue();
 
     User::withTrashed()->whereKey($official->id)->forceDelete();
+    DB::table('deleted_sk_officials')->where('original_user_id', $official->id)->delete();
     $admin->forceDelete();
 });
 
-it('permanently purges deleted sk officials after 30 days', function () {
+it('does not permanently purge archived sk officials after 30 days', function () {
     $tenantId = (int) DB::table('tenants')->where('code', config('sk_fed_auth.tenant_code'))->value('id');
     $barangayId = (int) Barangay::query()->where('tenant_id', $tenantId)->value('id');
 
@@ -256,12 +269,21 @@ it('permanently purges deleted sk officials after 30 days', function () {
     User::withTrashed()->whereKey($official->id)->update([
         'deleted_at' => now()->subDays(31),
     ]);
+    DB::table('deleted_sk_officials')
+        ->where('original_user_id', $official->id)
+        ->update([
+            'deleted_at' => now()->subDays(31),
+            'archived_at' => now()->subDays(31),
+        ]);
 
     $purged = app(DeletedArchiveService::class)
         ->purgeExpiredDeletedOfficials($tenantId);
 
-    expect($purged)->toBe(1)
-        ->and(User::withTrashed()->find($official->id))->toBeNull();
+    expect($purged)->toBe(0)
+        ->and(User::withTrashed()->find($official->id))->not->toBeNull()
+        ->and(DB::table('deleted_sk_officials')->where('original_user_id', $official->id)->whereNull('restored_at')->exists())->toBeTrue();
 
+    User::withTrashed()->whereKey($official->id)->forceDelete();
+    DB::table('deleted_sk_officials')->where('original_user_id', $official->id)->delete();
     $admin->forceDelete();
 });

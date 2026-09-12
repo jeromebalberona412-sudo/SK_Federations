@@ -74,6 +74,17 @@ class BarangayMonitoringService
             ->with(['creator:id,name', 'creator.officialProfile:id,user_id,position'])
             ->where('barangay_id', $barangayId)
             ->orderByDesc('created_at')
+            ->select([
+                'id',
+                'barangay_id',
+                'document_title',
+                'fiscal_year',
+                'status',
+                'rejection_reason',
+                'created_by',
+                'created_at',
+            ])
+            ->selectRaw("(CASE WHEN pdf_data IS NOT NULL AND pdf_data <> '' THEN 1 ELSE 0 END) as has_pdf_flag")
             ->get()
             ->map(fn (Abyip $document) => [
                 'id' => $document->id,
@@ -86,11 +97,129 @@ class BarangayMonitoringService
                 'submitted_by_role' => $this->formatOfficialPosition($document->creator?->officialProfile?->position),
                 'status' => strtolower((string) ($document->status ?? Abyip::STATUS_PENDING)),
                 'rejection_reason' => $document->rejection_reason,
-                'has_pdf' => filled($document->pdf_data),
-                'file' => filled($document->pdf_data) ? url('/api/barangay-abyip/'.$document->id.'/file') : null,
-                'file_url' => filled($document->pdf_data) ? url('/api/barangay-abyip/'.$document->id.'/file') : null,
+                'has_pdf' => (bool) ($document->has_pdf_flag ?? false),
+                'file' => (bool) ($document->has_pdf_flag ?? false) ? url('/api/barangay-abyip/'.$document->id.'/file') : null,
+                'file_url' => (bool) ($document->has_pdf_flag ?? false) ? url('/api/barangay-abyip/'.$document->id.'/file') : null,
             ])
             ->all();
+    }
+
+    /**
+     * Batch resolve barangay IDs for catalog names (one query).
+     *
+     * @param  array<string, string>  $slugToName
+     * @return array<string, int|null> slug => barangay_id
+     */
+    public function resolveBarangayIdsBySlug(array $slugToName): array
+    {
+        $out = [];
+        foreach (array_keys($slugToName) as $slug) {
+            $out[$slug] = null;
+        }
+
+        if ($slugToName === [] || ! Schema::hasTable('barangays')) {
+            return $out;
+        }
+
+        $names = array_values(array_unique(array_filter($slugToName)));
+        $rows = Barangay::query()
+            ->whereIn('name', $names)
+            ->get(['id', 'name']);
+
+        $nameToId = [];
+        foreach ($rows as $row) {
+            $nameToId[(string) $row->name] = (int) $row->id;
+        }
+
+        foreach ($slugToName as $slug => $name) {
+            $out[$slug] = $nameToId[$name] ?? null;
+        }
+
+        return $out;
+    }
+
+    /**
+     * Latest ABYIP status per barangay without loading pdf_data.
+     *
+     * @param  list<int>  $barangayIds
+     * @return array<int, array{status: string, submitted_by: ?string, submitted_by_role: ?string, latest_report: ?array<string, mixed>}>
+     */
+    public function resolveAbyipStatusMap(array $barangayIds): array
+    {
+        $ids = array_values(array_unique(array_filter(array_map('intval', $barangayIds))));
+        $empty = [
+            'status' => 'not_submitted',
+            'submitted_by' => null,
+            'submitted_by_role' => null,
+            'latest_report' => null,
+        ];
+        $out = [];
+        foreach ($ids as $id) {
+            $out[$id] = $empty;
+        }
+
+        if ($ids === [] || ! Schema::hasTable('abyip')) {
+            return $out;
+        }
+
+        $currentYear = (int) now()->format('Y');
+        $documents = Abyip::query()
+            ->documents()
+            ->with(['creator:id,name', 'creator.officialProfile:id,user_id,position'])
+            ->whereIn('barangay_id', $ids)
+            ->orderByDesc('created_at')
+            ->get([
+                'id',
+                'barangay_id',
+                'document_title',
+                'fiscal_year',
+                'status',
+                'rejection_reason',
+                'created_by',
+                'created_at',
+            ]);
+
+        $byBarangay = [];
+        foreach ($documents as $document) {
+            $bid = (int) $document->barangay_id;
+            $byBarangay[$bid] = $byBarangay[$bid] ?? [];
+            $byBarangay[$bid][] = $document;
+        }
+
+        foreach ($byBarangay as $bid => $docs) {
+            $currentYearDoc = null;
+            foreach ($docs as $doc) {
+                if ((int) ($doc->fiscal_year ?? 0) === $currentYear) {
+                    $currentYearDoc = $doc;
+                    break;
+                }
+            }
+            $latest = $currentYearDoc ?? $docs[0];
+            $status = strtolower((string) ($latest->status ?? Abyip::STATUS_PENDING));
+            if (! in_array($status, [Abyip::STATUS_PENDING, Abyip::STATUS_APPROVED, Abyip::STATUS_REJECTED], true)) {
+                $status = Abyip::STATUS_PENDING;
+            }
+
+            $report = [
+                'id' => $latest->id,
+                'name' => $latest->document_title ?: 'ABYIP '.$latest->fiscal_year,
+                'title' => $latest->document_title ?: 'ABYIP '.$latest->fiscal_year,
+                'fiscal_year' => $latest->fiscal_year,
+                'date_submitted' => $latest->created_at?->toDateTimeString(),
+                'submitted_by' => $latest->creator?->name ?? 'N/A',
+                'submitted_by_role' => $this->formatOfficialPosition($latest->creator?->officialProfile?->position),
+                'status' => $status,
+            ];
+
+            $out[$bid] = [
+                'status' => $status,
+                'submitted_by' => $report['submitted_by'],
+                'submitted_by_role' => $report['submitted_by_role'],
+                'latest_report' => $report,
+            ];
+        }
+
+        return $out;
     }
 
     /**
@@ -98,9 +227,7 @@ class BarangayMonitoringService
      */
     public function resolveAbyipStatus(?int $barangayId): array
     {
-        $reports = $this->getAbyipReports($barangayId);
-
-        if ($reports === []) {
+        if ($barangayId === null) {
             return [
                 'status' => 'not_submitted',
                 'submitted_by' => null,
@@ -109,22 +236,13 @@ class BarangayMonitoringService
             ];
         }
 
-        $currentYear = (int) now()->format('Y');
-        $currentYearReport = collect($reports)->first(
-            fn (array $report) => (int) ($report['fiscal_year'] ?? 0) === $currentYear
-        );
-        $latest = $currentYearReport ?? $reports[0];
-        $status = strtolower((string) ($latest['status'] ?? Abyip::STATUS_PENDING));
+        $map = $this->resolveAbyipStatusMap([$barangayId]);
 
-        if (! in_array($status, [Abyip::STATUS_PENDING, Abyip::STATUS_APPROVED, Abyip::STATUS_REJECTED], true)) {
-            $status = Abyip::STATUS_PENDING;
-        }
-
-        return [
-            'status' => $status,
-            'submitted_by' => $latest['submitted_by'] ?? null,
-            'submitted_by_role' => $latest['submitted_by_role'] ?? null,
-            'latest_report' => $latest,
+        return $map[$barangayId] ?? [
+            'status' => 'not_submitted',
+            'submitted_by' => null,
+            'submitted_by_role' => null,
+            'latest_report' => null,
         ];
     }
 

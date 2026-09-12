@@ -189,12 +189,14 @@ window.AccountsDeleteModal = (function () {
                 setModalLoading(false);
 
                 if (!response.ok || !data.success) {
-                    alert(data.message || 'Failed to delete selected accounts.');
+                    showAccountToast(data.message || 'Failed to delete SK Official.', 'error');
                     return;
                 }
 
                 removeOfficialAccountRowsFromTable(bulkIds);
                 window.SkLocalCache?.clearByPrefix?.('sk_fed_deleted_sk_officials_v1_');
+                clearOfficialsAccountsLocalCache();
+                closeAccountDetailPanelsAfterDelete();
 
                 const root = document.getElementById('mainContent');
                 if (root?._x_dataStack?.[0]?.clearSelection) {
@@ -202,13 +204,7 @@ window.AccountsDeleteModal = (function () {
                 }
 
                 closeModal();
-                showAccountToast(data.message || 'Accounts deleted successfully!', 'delete');
-                window.SkLocalCache?.clearByPrefix?.('sk_fed_deleted_sk_officials_v1_');
-                if (data.redirect) {
-                    window.setTimeout(function () {
-                        window.location.assign(data.redirect);
-                    }, 900);
-                }
+                showAccountToast(data.message || 'SK Official moved to Deleted SK Officials.', 'delete');
                 return;
             }
 
@@ -228,14 +224,17 @@ window.AccountsDeleteModal = (function () {
 
             if (!response.ok || !data.success) {
                 // Stale cache / already purged: drop the row so the table matches the DB.
-                if (data.not_found || response.status === 404 || response.status === 422) {
+                if (data.not_found || data.already_deleted || response.status === 404 || response.status === 422) {
                     removeOfficialAccountRowsFromTable(targetId);
                     clearOfficialsAccountsLocalCache();
+                    closeAccountDetailPanelsAfterDelete();
                 }
                 const message = data.message
-                    || (response.status === 419 ? 'Session expired. Please refresh the page and try again.' : 'Failed to delete account.');
-                alert(message);
-                if (data.not_found || response.status === 404 || response.status === 422) {
+                    || (response.status === 419
+                        ? 'Session expired. Please refresh the page and try again.'
+                        : 'Failed to delete SK Official.');
+                showAccountToast(message, 'error');
+                if (data.not_found || data.already_deleted || response.status === 404 || response.status === 422) {
                     closeModal();
                 }
                 return;
@@ -244,6 +243,7 @@ window.AccountsDeleteModal = (function () {
             removeOfficialAccountRowsFromTable(targetId);
             window.SkLocalCache?.clearByPrefix?.('sk_fed_deleted_sk_officials_v1_');
             clearOfficialsAccountsLocalCache();
+            closeAccountDetailPanelsAfterDelete();
 
             const root = document.getElementById('mainContent');
             const alpine = root?._x_dataStack?.[0];
@@ -253,16 +253,27 @@ window.AccountsDeleteModal = (function () {
             }
 
             closeModal();
-            showAccountToast(data.message || 'Account deleted successfully!', 'delete');
-            if (data.redirect) {
-                window.setTimeout(function () {
-                    window.location.assign(data.redirect);
-                }, 900);
-            }
+            showAccountToast(data.message || 'SK Official moved to Deleted SK Officials.', 'delete');
         } catch (error) {
             setModalLoading(false);
-            alert('An unexpected error occurred. Please try again.');
+            showAccountToast(error?.message || 'Failed to archive SK Official. No data was deleted.', 'error');
         }
+    }
+
+    function closeAccountDetailPanelsAfterDelete() {
+        try {
+            window.closeViewModal?.();
+        } catch (_) { /* ignore */ }
+        try {
+            window.closeEditSkOfficialsModal?.();
+        } catch (_) { /* ignore */ }
+        try {
+            window.closeEditModal?.();
+        } catch (_) { /* ignore */ }
+        document.querySelectorAll('.account-actions-menu.is-open').forEach((menu) => {
+            menu.classList.remove('is-open');
+            menu.querySelector('.account-actions-trigger')?.setAttribute('aria-expanded', 'false');
+        });
     }
 
     function wireEvents() {
@@ -298,8 +309,8 @@ window.AccountsDeleteModal = (function () {
             targetId = id;
             bulkIds = [];
             const { title, message } = els();
-            if (title) title.textContent = 'Delete Account';
-            if (message) message.textContent = 'Are you sure you want to permanently delete this account?';
+            if (title) title.textContent = 'Delete SK Official';
+            if (message) message.textContent = 'Are you sure you want to delete this SK Official? The account will be moved to Deleted SK Officials.';
             openModal();
         },
         openBulk(ids) {
@@ -307,8 +318,8 @@ window.AccountsDeleteModal = (function () {
             targetId = null;
             bulkIds = [...ids];
             const { title, message } = els();
-            if (title) title.textContent = 'Delete Selected Accounts';
-            if (message) message.textContent = 'Are you sure you want to permanently delete the selected account(s)?';
+            if (title) title.textContent = 'Delete Selected SK Officials';
+            if (message) message.textContent = 'Are you sure you want to delete the selected SK Official(s)? They will be moved to Deleted SK Officials.';
             openModal();
         },
         close: closeModal,

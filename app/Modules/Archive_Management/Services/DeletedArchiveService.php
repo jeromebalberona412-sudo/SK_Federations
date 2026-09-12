@@ -4,42 +4,25 @@ namespace App\Modules\Archive_Management\Services;
 
 use App\Modules\Accounts\Models\Barangay;
 use App\Modules\Accounts\Models\OfficialProfile;
-use App\Modules\Accounts\Models\OfficialTerm;
 use App\Modules\Accounts\Services\AccountService;
+use App\Modules\Archive_Management\Models\DeletedSkOfficial;
 use App\Modules\Shared\Models\User;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 class DeletedArchiveService
 {
-    public const RETENTION_DAYS = 30;
-
     public function __construct(private readonly AccountService $accountService) {}
 
     /**
-     * Permanently remove soft-deleted SK Officials past the retention window.
+     * Intentionally disabled — archived SK Officials are retained indefinitely.
      */
     public function purgeExpiredDeletedOfficials(?int $tenantId = null): int
     {
-        $cutoff = now()->subDays(self::RETENTION_DAYS);
-
-        $query = User::onlyTrashed()
-            ->where('role', User::ROLE_SK_OFFICIAL)
-            ->where('deleted_at', '<=', $cutoff);
-
-        if ($tenantId !== null) {
-            $query->where('tenant_id', $tenantId);
-        }
-
-        $purged = 0;
-        foreach ($query->get() as $user) {
-            $this->accountService->permanentlyDeleteTrashedAccount($user);
-            $purged++;
-        }
-
-        return $purged;
+        return 0;
     }
 
     /**
@@ -47,29 +30,30 @@ class DeletedArchiveService
      */
     public function listDeletedAccounts(string $role, int $tenantId, Request $request): array
     {
-        if ($role === User::ROLE_SK_OFFICIAL) {
-            $this->purgeExpiredDeletedOfficials($tenantId);
+        if ($role !== User::ROLE_SK_OFFICIAL) {
+            return [
+                'data' => [],
+                'stats' => ['total' => 0, 'today' => 0, 'month' => 0],
+                'filters' => $this->buildFilterOptions(collect(), $tenantId, $role),
+            ];
         }
 
-        $query = User::onlyTrashed()
-            ->with(['barangay', 'officialProfile.latestTerm'])
+        $query = DeletedSkOfficial::query()
+            ->activeArchive()
             ->where('tenant_id', $tenantId)
             ->where('role', $role)
-            ->orderByDesc('deleted_at');
+            ->orderByDesc('deleted_at')
+            ->orderByDesc('id');
 
         if ($search = trim((string) $request->input('search', ''))) {
             $query->where(function ($builder) use ($search) {
-                $builder->where('name', 'ilike', "%{$search}%")
+                $builder->where('full_name', 'ilike', "%{$search}%")
                     ->orWhere('email', 'ilike', "%{$search}%")
-                    ->orWhereHas('officialProfile', function ($profileQuery) use ($search) {
-                        $profileQuery->where('first_name', 'ilike', "%{$search}%")
-                            ->orWhere('last_name', 'ilike', "%{$search}%")
-                            ->orWhere('middle_name', 'ilike', "%{$search}%")
-                            ->orWhere('position', 'ilike', "%{$search}%");
-                    })
-                    ->orWhereHas('barangay', function ($barangayQuery) use ($search) {
-                        $barangayQuery->where('name', 'ilike', "%{$search}%");
-                    });
+                    ->orWhere('first_name', 'ilike', "%{$search}%")
+                    ->orWhere('last_name', 'ilike', "%{$search}%")
+                    ->orWhere('middle_name', 'ilike', "%{$search}%")
+                    ->orWhere('position', 'ilike', "%{$search}%")
+                    ->orWhere('barangay_name', 'ilike', "%{$search}%");
             });
         }
 
@@ -89,53 +73,44 @@ class DeletedArchiveService
         }
 
         if ($barangay = trim((string) $request->input('barangay', ''))) {
-            $query->whereHas('barangay', fn ($builder) => $builder->where('name', $barangay));
+            $query->where('barangay_name', $barangay);
         }
 
         if ($position = trim((string) $request->input('position', ''))) {
-            $query->whereHas('officialProfile', fn ($builder) => $builder->where('position', $position));
+            $query->where('position', $position);
         }
 
         if ($term = trim((string) $request->input('term', ''))) {
-            [$startYear, $endYear] = array_pad(explode('-', $term), 2, null);
-            if ($startYear && $endYear) {
-                $query->whereHas('officialProfile.latestTerm', function ($builder) use ($startYear, $endYear) {
-                    $builder->whereYear('term_start', (int) $startYear)
-                        ->whereYear('term_end', (int) $endYear);
-                });
-            }
+            $query->where('term_label', $term);
         }
 
         $records = $query->get();
 
-        $all = User::onlyTrashed()
-            ->with(['barangay', 'officialProfile.latestTerm'])
+        $all = DeletedSkOfficial::query()
+            ->activeArchive()
             ->where('tenant_id', $tenantId)
             ->where('role', $role)
             ->orderByDesc('deleted_at')
             ->get();
 
         return [
-            'data' => $records->map(fn (User $user) => $this->formatDeletedAccount($user))->values()->all(),
+            'data' => $records->map(fn (DeletedSkOfficial $row) => $this->formatDeletedAccount($row))->values()->all(),
             'stats' => [
                 'total' => $all->count(),
-                'today' => $all->filter(fn (User $user) => $user->deleted_at?->isToday())->count(),
-                'month' => $all->filter(fn (User $user) => $user->deleted_at?->isCurrentMonth())->count(),
+                'today' => $all->filter(fn (DeletedSkOfficial $row) => $row->deleted_at?->isToday())->count(),
+                'month' => $all->filter(fn (DeletedSkOfficial $row) => $row->deleted_at?->isCurrentMonth())->count(),
             ],
             'filters' => $this->buildFilterOptions($all, $tenantId, $role),
-            'retention_days' => self::RETENTION_DAYS,
         ];
     }
 
     /**
-     * Filter options for the Deleted SK Officials page (all barangays + positions).
-     *
      * @return array<string, list<string>>
      */
     public function filterCatalog(int $tenantId, string $role = User::ROLE_SK_OFFICIAL): array
     {
-        $all = User::onlyTrashed()
-            ->with(['barangay', 'officialProfile.latestTerm'])
+        $all = DeletedSkOfficial::query()
+            ->activeArchive()
             ->where('tenant_id', $tenantId)
             ->where('role', $role)
             ->get();
@@ -143,94 +118,173 @@ class DeletedArchiveService
         return $this->buildFilterOptions($all, $tenantId, $role);
     }
 
-    public function restoreAccount(int $accountId, string $role, User $admin): User
+    public function restoreAccount(int $archiveOrUserId, string $role, User $admin): User
     {
-        $account = User::onlyTrashed()
-            ->with(['officialProfile.latestTerm'])
+        if ($role !== User::ROLE_SK_OFFICIAL) {
+            throw ValidationException::withMessages([
+                'account' => 'Only deleted SK Officials can be restored from this archive.',
+            ]);
+        }
+
+        $archive = DeletedSkOfficial::query()
+            ->activeArchive()
             ->where('tenant_id', $admin->tenant_id)
             ->where('role', $role)
-            ->whereKey($accountId)
+            ->where(function ($query) use ($archiveOrUserId) {
+                $query->whereKey($archiveOrUserId)
+                    ->orWhere('original_user_id', $archiveOrUserId);
+            })
+            ->orderByDesc('id')
             ->first();
 
-        if (! $account) {
+        if (! $archive) {
             throw ValidationException::withMessages([
                 'account' => 'Deleted account not found or already restored.',
             ]);
         }
 
-        return $this->accountService->restoreAccount($account, $admin);
+        $originalUserId = (int) ($archive->original_user_id ?? 0);
+        if ($originalUserId <= 0) {
+            throw ValidationException::withMessages([
+                'account' => 'This archived account can no longer be restored because the original user record is unavailable.',
+            ]);
+        }
+
+        $user = User::onlyTrashed()
+            ->where('tenant_id', $admin->tenant_id)
+            ->where('role', $role)
+            ->whereKey($originalUserId)
+            ->first();
+
+        if (! $user) {
+            throw ValidationException::withMessages([
+                'account' => 'Deleted account not found or already restored.',
+            ]);
+        }
+
+        return DB::transaction(function () use ($user, $admin, $archive) {
+            $restored = $this->accountService->restoreAccount($user, $admin);
+            $archive->forceFill([
+                'restored_at' => now(),
+            ])->save();
+
+            return $restored;
+        });
+    }
+
+    /**
+     * Snapshot an SK Official into the dedicated archive table.
+     */
+    public function archiveOfficial(User $target, User $admin, ?string $reason = null): DeletedSkOfficial
+    {
+        $target->loadMissing(['officialProfile.latestTerm', 'barangay']);
+
+        $profile = $target->officialProfile;
+        $term = $profile?->latestTerm;
+        $now = now();
+
+        return DeletedSkOfficial::query()->create([
+            'tenant_id' => (int) $target->tenant_id,
+            'original_user_id' => (int) $target->id,
+            'barangay_id' => $target->barangay_id !== null ? (int) $target->barangay_id : null,
+            'barangay_name' => $target->barangay?->name,
+            'email' => $target->email,
+            'full_name' => $target->name,
+            'first_name' => $profile?->first_name,
+            'middle_name' => $profile?->middle_name,
+            'last_name' => $profile?->last_name,
+            'suffix' => $profile?->suffix,
+            'contact_number' => $profile?->contact_number,
+            'position' => $profile?->position,
+            'federation_position' => $profile?->federation_position,
+            'role' => $target->role ?: User::ROLE_SK_OFFICIAL,
+            'account_status' => $target->status,
+            'sex' => $profile?->sex,
+            'date_of_birth' => $profile?->date_of_birth,
+            'age' => $profile?->age,
+            'municipality' => $profile?->municipality,
+            'province' => $profile?->province,
+            'region' => $profile?->region,
+            'term_start' => $term?->term_start,
+            'term_end' => $term?->term_end,
+            'term_status' => $term?->status,
+            'term_label' => $this->formatTermLabel($term?->term_start, $term?->term_end),
+            'email_verified_at' => $target->email_verified_at,
+            'original_created_at' => $target->created_at,
+            'original_updated_at' => $target->updated_at,
+            'deleted_at' => $now,
+            'deleted_by' => (int) $admin->id,
+            'deleted_by_name' => $admin->name,
+            'deletion_reason' => $reason,
+            'archived_at' => $now,
+        ]);
     }
 
     /**
      * @return array<string, mixed>
      */
-    private function formatDeletedAccount(User $user): array
+    private function formatDeletedAccount(DeletedSkOfficial $row): array
     {
-        $profile = $user->officialProfile;
-        $term = $profile?->latestTerm;
-        $deletedAt = $user->deleted_at;
-        $daysRemaining = $this->daysRemaining($deletedAt);
+        $deletedAt = $row->deleted_at ?? $row->archived_at;
 
         return [
-            'id' => $user->id,
-            'firstName' => $profile?->first_name ?? '',
-            'middleName' => $profile?->middle_name ?? '',
-            'lastName' => $profile?->last_name ?? '',
-            'suffix' => $profile?->suffix ?? '',
-            'position' => $profile?->position ?? '—',
-            'barangay' => $user->barangay?->name ?? '—',
-            'municipality' => $profile?->municipality ?? 'Santa Cruz',
-            'province' => $profile?->province ?? 'Laguna',
-            'region' => $profile?->region ?? 'IV-A CALABARZON',
-            'contactNumber' => $profile?->contact_number ?? '—',
-            'email' => $user->email,
-            'sex' => $profile?->sex ?? '—',
-            'dateOfBirth' => $profile?->date_of_birth?->format('M d, Y') ?? '—',
-            'age' => $profile?->age,
-            'emailVerification' => $user->email_verified_at?->format('m/d/Y h:i A') ?? 'Not Verified',
-            'termStart' => $term?->term_start?->format('M d, Y') ?? '—',
-            'termEnd' => $term?->term_end?->format('M d, Y') ?? '—',
-            'term' => $this->formatTermLabel($term),
-            'accountStatus' => $user->status ?? '—',
-            'termStatus' => $term?->status ?? '—',
+            'id' => $row->id,
+            'archive_id' => $row->id,
+            'original_user_id' => $row->original_user_id,
+            'fullName' => $row->full_name ?: $this->composeName($row),
+            'full_name' => $row->full_name ?: $this->composeName($row),
+            'firstName' => $row->first_name ?? '',
+            'middleName' => $row->middle_name ?? '',
+            'lastName' => $row->last_name ?? '',
+            'suffix' => $row->suffix ?? '',
+            'position' => $row->position ?? '—',
+            'barangay' => $row->barangay_name ?? '—',
+            'municipality' => $row->municipality ?? 'Santa Cruz',
+            'province' => $row->province ?? 'Laguna',
+            'region' => $row->region ?? 'IV-A CALABARZON',
+            'contactNumber' => $row->contact_number ?? '—',
+            'email' => $row->email,
+            'sex' => $row->sex ?? '—',
+            'dateOfBirth' => $row->date_of_birth?->format('M d, Y') ?? '—',
+            'age' => $row->age,
+            'emailVerification' => $row->email_verified_at?->format('m/d/Y h:i A') ?? 'Not Verified',
+            'termStart' => $row->term_start?->format('M d, Y') ?? '—',
+            'termEnd' => $row->term_end?->format('M d, Y') ?? '—',
+            'term' => $row->term_label ?: '—',
+            'accountStatus' => $row->account_status ?? '—',
+            'termStatus' => $row->term_status ?? '—',
             'deletedDate' => $deletedAt?->format('M d, Y') ?? '—',
             'deletedTime' => $deletedAt?->format('h:i A') ?? '—',
             'deleted_at' => $deletedAt?->toIso8601String(),
-            'days_remaining' => $daysRemaining,
-            'auto_delete_label' => $daysRemaining <= 0
-                ? 'Deleting soon'
-                : 'Auto delete in '.$daysRemaining.' day'.($daysRemaining === 1 ? '' : 's'),
+            'deleted_by' => $row->deleted_by_name ?? '—',
+            'archived_at' => $row->archived_at?->toIso8601String(),
         ];
     }
 
-    private function daysRemaining(?Carbon $deletedAt): int
+    private function composeName(DeletedSkOfficial $row): string
     {
-        if ($deletedAt === null) {
-            return self::RETENTION_DAYS;
-        }
+        $composed = collect([$row->last_name, $row->first_name, $row->middle_name, $row->suffix])
+            ->map(fn ($part) => trim((string) $part))
+            ->filter()
+            ->implode(', ');
 
-        $expiresAt = $deletedAt->copy()->addDays(self::RETENTION_DAYS);
-
-        if ($expiresAt->lte(now())) {
-            return 0;
-        }
-
-        $secondsLeft = $expiresAt->getTimestamp() - now()->getTimestamp();
-
-        return (int) max(1, (int) ceil($secondsLeft / 86400));
+        return $composed !== '' ? $composed : (string) ($row->email ?: '—');
     }
 
-    private function formatTermLabel(?OfficialTerm $term): string
+    private function formatTermLabel(mixed $start, mixed $end): ?string
     {
-        if (! $term?->term_start || ! $term?->term_end) {
-            return '—';
+        if (! $start || ! $end) {
+            return null;
         }
 
-        return $term->term_start->format('Y').'-'.$term->term_end->format('Y');
+        $startDate = $start instanceof Carbon ? $start : Carbon::parse($start);
+        $endDate = $end instanceof Carbon ? $end : Carbon::parse($end);
+
+        return $startDate->format('Y').'-'.$endDate->format('Y');
     }
 
     /**
-     * @param  Collection<int, User>  $records
+     * @param  Collection<int, DeletedSkOfficial>  $records
      * @return array<string, list<string>>
      */
     private function buildFilterOptions($records, int $tenantId, string $role): array
@@ -246,7 +300,7 @@ class DeletedArchiveService
 
         if ($barangays === []) {
             $barangays = $records
-                ->map(fn (User $user) => $user->barangay?->name)
+                ->map(fn (DeletedSkOfficial $row) => $row->barangay_name)
                 ->filter()
                 ->unique()
                 ->sort()
@@ -259,7 +313,7 @@ class DeletedArchiveService
             : array_values(OfficialProfile::FEDERATION_POSITIONS);
 
         $fromDeleted = $records
-            ->map(fn (User $user) => $user->officialProfile?->position)
+            ->map(fn (DeletedSkOfficial $row) => $row->position)
             ->filter()
             ->unique()
             ->values()
@@ -268,15 +322,15 @@ class DeletedArchiveService
         sort($positions);
 
         $terms = $records
-            ->map(fn (User $user) => $this->formatTermLabel($user->officialProfile?->latestTerm))
-            ->filter(fn (string $term) => $term !== '—')
+            ->map(fn (DeletedSkOfficial $row) => $row->term_label)
+            ->filter()
             ->unique()
             ->sort()
             ->values()
             ->all();
 
         $years = $records
-            ->map(fn (User $user) => $user->deleted_at?->format('Y'))
+            ->map(fn (DeletedSkOfficial $row) => ($row->deleted_at ?? $row->archived_at)?->format('Y'))
             ->filter()
             ->unique()
             ->sortDesc()

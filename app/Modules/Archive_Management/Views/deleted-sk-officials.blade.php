@@ -16,7 +16,7 @@
     <div class="dso-page-header row">
         <div class="dso-header-left col-md-6">
             <h1 class="dso-page-title">Deleted SK Officials</h1>
-            <p class="dso-page-subtitle">Records removed from the SK Officials list. Unrestored accounts are permanently deleted after 30 days.</p>
+            <p class="dso-page-subtitle">Deleted SK Official accounts are archived and stored here. Records remain available until restored.</p>
         </div>
         <div class="dso-header-right col-md-6">
             <select id="dsoYearFilter" class="dso-year-filter form-select">
@@ -80,7 +80,7 @@
                         <th>Term</th>
                         <th>Date Deleted</th>
                         <th>Time Deleted</th>
-                        <th>Auto Delete</th>
+                        <th>Deleted By</th>
                         <th class="dso-col-actions">Actions</th>
                     </tr>
                 </thead>

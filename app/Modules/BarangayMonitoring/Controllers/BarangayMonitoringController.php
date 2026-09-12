@@ -24,18 +24,35 @@ class BarangayMonitoringController extends Controller
         $pageCache = app(SkFedPageCache::class);
         $payload = $pageCache->remember('barangay.monitoring.index', function () {
             $logoService = app(BarangayLogoUrlService::class);
-            $barangays = [];
+            $catalog = $this->barangayCatalog();
+            $slugToName = [];
+            foreach ($catalog as $slug => $row) {
+                $slugToName[$slug] = (string) ($row['name'] ?? $this->monitoringService->nameFromSlug($slug) ?? '');
+            }
 
-            foreach ($this->barangayCatalog() as $slug => $row) {
-                $barangayId = $this->monitoringService->resolveBarangayId($slug);
-                $abyipStatus = $this->monitoringService->resolveAbyipStatus($barangayId);
+            $idBySlug = $this->monitoringService->resolveBarangayIdsBySlug($slugToName);
+            $barangayIds = array_values(array_filter(array_map('intval', $idBySlug)));
+            $statusMap = $this->monitoringService->resolveAbyipStatusMap($barangayIds);
+            $logoMap = $logoService->resolveMany($barangayIds);
+
+            $barangays = [];
+            foreach ($catalog as $slug => $row) {
+                $barangayId = $idBySlug[$slug] ?? null;
+                $abyipStatus = ($barangayId && isset($statusMap[$barangayId]))
+                    ? $statusMap[$barangayId]
+                    : [
+                        'status' => 'not_submitted',
+                        'submitted_by' => null,
+                        'submitted_by_role' => null,
+                        'latest_report' => null,
+                    ];
 
                 $barangays[] = array_merge($row, [
                     'barangay_id' => $barangayId,
                     'status' => $abyipStatus['status'],
                     'submitted_by' => $abyipStatus['submitted_by'],
                     'submitted_by_role' => $abyipStatus['submitted_by_role'] ?? null,
-                    'logo_url' => $barangayId ? $logoService->resolve($barangayId) : null,
+                    'logo_url' => $barangayId ? ($logoMap[$barangayId] ?? null) : null,
                 ]);
             }
 
@@ -72,9 +89,21 @@ class BarangayMonitoringController extends Controller
         $barangayData['barangay_id'] = $barangayId;
         $barangayData['logo_url'] = $barangayId ? app(BarangayLogoUrlService::class)->resolve($barangayId) : null;
         $barangayData['abyip']['reports'] = $this->monitoringService->getAbyipReports($barangayId);
-        $barangayData['accomplishments'] = $this->monitoringService->getApprovedAccomplishments($barangayId);
-        $barangayData['accomplishment_years'] = $this->monitoringService->accomplishmentYears($barangayId);
-        $barangayData['accomplishment_terms'] = $this->monitoringService->accomplishmentTerms($barangayId);
+        $accomplishments = $this->monitoringService->getApprovedAccomplishments($barangayId);
+        $barangayData['accomplishments'] = $accomplishments;
+        $barangayData['accomplishment_years'] = collect($accomplishments)
+            ->pluck('year')
+            ->unique()
+            ->sortDesc()
+            ->map(fn ($year) => (string) $year)
+            ->values()
+            ->all();
+        $barangayData['accomplishment_terms'] = collect($accomplishments)
+            ->pluck('term')
+            ->unique()
+            ->sortDesc()
+            ->values()
+            ->all();
         $barangayData['abyip_schedule'] = $this->scheduleService->currentSchedule();
 
         $complianceStatus = $this->calculateComplianceStatus($barangayId);

@@ -17,7 +17,6 @@ class DeletedArchiveController extends Controller
 
     public function officialsIndex(Request $request): View
     {
-        $this->deletedArchiveService->purgeExpiredDeletedOfficials();
         $tenantId = $this->resolveTenantId($request->user());
         $filters = $this->deletedArchiveService->filterCatalog($tenantId, User::ROLE_SK_OFFICIAL);
 

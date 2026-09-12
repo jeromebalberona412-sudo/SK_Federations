@@ -266,8 +266,8 @@
 
 <div id="accountToast" role="status" aria-live="polite"><span id="accountToastMsg">Account successfully created!</span></div>
 <div id="accountToastEdit" role="status" aria-live="polite"><span id="accountToastEditMsg">Account updated successfully!</span></div>
-<div id="accountToastDelete" role="status" aria-live="polite"><span id="accountToastDeleteMsg">Account deleted successfully!</span></div>
-<div id="accountToastError" role="alert" aria-live="assertive"><span id="accountToastErrorMsg">Unable to save account.</span></div>
+<div id="accountToastDelete" role="status" aria-live="polite"><span id="accountToastDeleteMsg">SK Official deleted successfully.</span></div>
+<div id="accountToastError" role="alert" aria-live="assertive"><span id="accountToastErrorMsg">Failed to delete SK Official.</span></div>
 @endsection
 
 @push('scripts')

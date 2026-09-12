@@ -5,6 +5,7 @@ namespace App\Modules\Barangay_ABYIP\Services;
 use App\Models\Abyip;
 use App\Modules\Shared\Models\User;
 use App\Services\AbyipApprovalProvisioningService;
+use App\Services\SkFedPageCache;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -110,6 +111,7 @@ class BarangayAbyipService
 
         $document->refresh(['barangay:id,name']);
         $this->approvalProvisioningService->provision($document);
+        app(SkFedPageCache::class)->bump('barangay.monitoring.index');
 
         return $this->formatSubmission($document);
     }
@@ -134,6 +136,8 @@ class BarangayAbyipService
                 'rejection_reason' => $reason,
             ]);
         });
+
+        app(SkFedPageCache::class)->bump('barangay.monitoring.index');
 
         return $this->formatSubmission($document->fresh(['barangay', 'creator']));
     }
@@ -163,6 +167,8 @@ class BarangayAbyipService
                 'rejection_reason' => null,
             ]);
         });
+
+        app(SkFedPageCache::class)->bump('barangay.monitoring.index');
 
         return $this->formatSubmission($document->fresh(['barangay', 'creator']));
     }

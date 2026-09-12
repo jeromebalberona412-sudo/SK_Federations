@@ -12,6 +12,7 @@ class ArchiveManagementServiceProvider extends ServiceProvider
     public function boot(): void
     {
         $this->loadViewsFrom(__DIR__.'/../Views', 'archive-management');
+        $this->loadMigrationsFrom(__DIR__.'/../Database/Migrations');
 
         $this->publishes([
             __DIR__.'/../assets' => public_path('modules/archive-management'),

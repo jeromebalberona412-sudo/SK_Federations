@@ -16,25 +16,50 @@ class BarangayLogoUrlService
             return null;
         }
 
-        $logo = DB::table('barangay_logos')
-            ->where('barangay_id', $barangayId)
+        $map = $this->resolveMany([$barangayId]);
+
+        return $map[$barangayId] ?? null;
+    }
+
+    /**
+     * @param  list<int>  $barangayIds
+     * @return array<int, string|null>
+     */
+    public function resolveMany(array $barangayIds): array
+    {
+        $ids = array_values(array_unique(array_filter(array_map('intval', $barangayIds))));
+        $out = [];
+        foreach ($ids as $id) {
+            $out[$id] = null;
+        }
+
+        if ($ids === []) {
+            return $out;
+        }
+
+        $rows = DB::table('barangay_logos')
+            ->whereIn('barangay_id', $ids)
             ->orderByDesc('updated_at')
-            ->first(['url', 'cloudinary_public_id', 'cloudinary_version', 'updated_at']);
+            ->get(['barangay_id', 'url', 'cloudinary_public_id', 'cloudinary_version', 'updated_at']);
 
-        if (! $logo) {
-            return null;
+        $seen = [];
+        foreach ($rows as $logo) {
+            $bid = (int) $logo->barangay_id;
+            if (isset($seen[$bid])) {
+                continue;
+            }
+            $seen[$bid] = true;
+
+            $url = $logo->url;
+            if ($logo->cloudinary_public_id && $this->cloudinary->isConfigured()) {
+                $version = $logo->cloudinary_version
+                    ? (int) $logo->cloudinary_version
+                    : $this->cloudinary->extractVersionFromUrl((string) $logo->url);
+                $url = $this->cloudinary->deliverUrl($logo->cloudinary_public_id, $version);
+            }
+            $out[$bid] = CloudinaryService::cacheBust((string) $url, $logo->updated_at);
         }
 
-        $url = $logo->url;
-
-        if ($logo->cloudinary_public_id && $this->cloudinary->isConfigured()) {
-            $version = $logo->cloudinary_version
-                ? (int) $logo->cloudinary_version
-                : $this->cloudinary->extractVersionFromUrl((string) $logo->url);
-
-            $url = $this->cloudinary->deliverUrl($logo->cloudinary_public_id, $version);
-        }
-
-        return CloudinaryService::cacheBust((string) $url, $logo->updated_at);
+        return $out;
     }
 }

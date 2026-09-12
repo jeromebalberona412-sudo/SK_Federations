@@ -2,20 +2,18 @@
 
 namespace App\Console\Commands;
 
-use App\Modules\Archive_Management\Services\DeletedArchiveService;
 use Illuminate\Console\Command;
 
 class PurgeDeletedSkOfficials extends Command
 {
     protected $signature = 'sk-officials:purge-deleted';
 
-    protected $description = 'Permanently delete soft-deleted SK Officials older than 30 days';
+    protected $description = 'Disabled: archived SK Officials are retained in deleted_sk_officials and are not auto-purged.';
 
-    public function handle(DeletedArchiveService $deletedArchiveService): int
+    public function handle(): int
     {
-        $purged = $deletedArchiveService->purgeExpiredDeletedOfficials();
-
-        $this->info('Purged '.$purged.' deleted SK Official account(s).');
+        $this->warn('Automatic permanent deletion of archived SK Officials is disabled.');
+        $this->info('Records remain in deleted_sk_officials until an authorized restore/manual process is used.');
 
         return self::SUCCESS;
     }
