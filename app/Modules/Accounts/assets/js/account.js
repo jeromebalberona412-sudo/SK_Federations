@@ -1457,65 +1457,6 @@ function confirmLongNameModal() {
     else _validateSkOfficialMiddleName(el, { finalize: false });
 }
 
-let pendingAgeConfirm = null;
-let ageConfirmWired = false;
-
-function settleAgeConfirm(accepted) {
-    const modal = document.getElementById('accountsAgeConfirmModal');
-    if (modal) modal.hidden = true;
-    const pending = pendingAgeConfirm;
-    pendingAgeConfirm = null;
-    if (pending) {
-        pending.resolve(accepted);
-        if (!accepted) pending.trigger?.focus?.();
-    }
-}
-
-function wireAgeConfirmModal() {
-    if (ageConfirmWired) return;
-    ageConfirmWired = true;
-    document.getElementById('accountsAgeConfirmContinueBtn')?.addEventListener('click', () => settleAgeConfirm(true));
-    document.getElementById('accountsAgeConfirmCancelBtn')?.addEventListener('click', () => settleAgeConfirm(false));
-    document.getElementById('accountsAgeConfirmCloseBtn')?.addEventListener('click', () => settleAgeConfirm(false));
-    document.getElementById('accountsAgeConfirmBackdrop')?.addEventListener('click', () => settleAgeConfirm(false));
-    document.addEventListener('keydown', (event) => {
-        if (event.key === 'Escape' && pendingAgeConfirm) {
-            event.preventDefault();
-            settleAgeConfirm(false);
-        }
-    });
-}
-
-/**
- * Safety fallback for a birthdate past the maximum age. Resolves true only when
- * the administrator explicitly confirms; the server still validates the record.
- */
-function confirmSkOverAge(form) {
-    wireAgeConfirmModal();
-    const modal = document.getElementById('accountsAgeConfirmModal');
-    if (!modal) return Promise.resolve(true);
-    if (pendingAgeConfirm) return Promise.resolve(false);
-
-    const dob = form?.querySelector('[name="date_of_birth"]');
-    const iso = normalizeDateInputValue(dob?.value || '');
-    const eligibilityAge = calculateSkEligibilityAge(iso, form);
-    const config = getSkEligibilityConfig(form);
-    const message = document.getElementById('accountsAgeConfirmMessage');
-    if (message) {
-        const ageText = eligibilityAge === null || eligibilityAge === undefined
-            ? `${config.ageMax + 1} years old or older`
-            : `${eligibilityAge} years old`;
-        message.textContent = `The selected birthdate indicates that this SK Official is ${ageText}.`;
-    }
-
-    modal.hidden = false;
-    document.getElementById('accountsAgeConfirmContinueBtn')?.focus();
-
-    return new Promise((resolve) => {
-        pendingAgeConfirm = { resolve, trigger: dob };
-    });
-}
-
 function cancelLongNameModal() {
     if (pendingLongName?.el) {
         const el = pendingLongName.el;
@@ -1789,25 +1730,17 @@ function getSkEligibilityConfig(formOrReference) {
     const root = document.getElementById('mainContent');
     let reference = '';
 
-    if (formOrReference) {
-        if (typeof formOrReference === 'string') {
-            reference = normalizeDateInputValue(formOrReference);
-        } else if (typeof formOrReference.querySelector === 'function') {
-            const termStartInput = formOrReference.querySelector('[name="term_start"]');
-            if (termStartInput && termStartInput.value) {
-                reference = normalizeDateInputValue(termStartInput.value);
-            }
-        }
+    if (formOrReference && typeof formOrReference === 'string') {
+        reference = normalizeDateInputValue(formOrReference);
     }
 
     if (!reference) {
-        const rootStart = (root?.dataset.defaultTermStart || '').trim();
         const rootRef = (root?.dataset.skDobReference || '').trim();
-        reference = normalizeDateInputValue(rootStart) || normalizeDateInputValue(rootRef) || window.AccountDateFieldUtils?.SK_ELECTION_DATE || '2023-10-30';
+        reference = normalizeDateInputValue(rootRef) || formatLocalDate(new Date());
     }
 
     const bounds = window.AccountDateFieldUtils?.getSkElectionBounds?.(reference) || {
-        min: addYearsToDateString(reference, -SK_OFFICIAL_AGE_MAX),
+        min: addYearsToDateString(reference, -(SK_OFFICIAL_AGE_MAX + 1)),
         max: addYearsToDateString(reference, -SK_OFFICIAL_AGE_MIN),
     };
 
@@ -1843,6 +1776,10 @@ function getSkUnderAgeMessage(formOrReference) {
     return `SK Official must be at least ${getSkEligibilityConfig(formOrReference).ageMin} years old.`;
 }
 
+function getSkOverAgeMessage(formOrReference) {
+    return `SK Official must not be older than ${getSkEligibilityConfig(formOrReference).ageMax} years old.`;
+}
+
 /** Birthday-aware age in completed years at the eligibility reference date. */
 function calculateSkEligibilityAge(isoValue, formOrReference) {
     const config = getSkEligibilityConfig(formOrReference);
@@ -1855,6 +1792,13 @@ function calculateSkEligibilityAge(isoValue, formOrReference) {
 /** Returns 'ok', 'under', 'over', or 'invalid' for a normalized ISO birthdate. */
 function classifySkBirthdate(isoValue, formOrReference) {
     if (!isoValue) return 'invalid';
+    const age = calculateSkEligibilityAge(isoValue, formOrReference);
+    if (age !== null && !Number.isNaN(age)) {
+        const config = getSkEligibilityConfig(formOrReference);
+        if (age < config.ageMin) return 'under';
+        if (age > config.ageMax) return 'over';
+        return 'ok';
+    }
     const bounds = getSkOfficialBirthdateBounds(formOrReference);
     if (!bounds.min || !bounds.max) return 'ok';
     if (isoValue > bounds.max) return 'under';
@@ -1909,21 +1853,9 @@ function wireSkFedManualValidation(form) {
         if (input) {
             input.addEventListener('change', () => {
                 validateTermRange(form);
-                if (name === 'term_start') {
-                    applySkDobPickerBounds(form);
-                    if (form.querySelector('[name="date_of_birth"]')?.value) {
-                        _validateSkFedBirthdate(form);
-                    }
-                }
             });
             input.addEventListener('blur', () => {
                 validateTermRange(form);
-                if (name === 'term_start') {
-                    applySkDobPickerBounds(form);
-                    if (form.querySelector('[name="date_of_birth"]')?.value) {
-                        _validateSkFedBirthdate(form);
-                    }
-                }
             });
         }
     });
@@ -2010,26 +1942,26 @@ function validateSkBirthdateField(form) {
 
     const rawValue = dob.value;
     if (!rawValue) {
-        _showErr(dob, 'Birthdate is required');
+        _showErr(dob, 'Birthdate is required.');
         if (age) age.value = '';
         return false;
     }
 
     if (dob.type === 'text' && !isStrictUsDateFormat(rawValue)) {
-        _showErr(dob, 'Birthdate must use MM/DD/YYYY format');
+        _showErr(dob, 'Birthdate must use MM/DD/YYYY format.');
         if (age) age.value = '';
         return false;
     }
 
     const val = normalizeDateInputValue(rawValue);
     if (!val) {
-        _showErr(dob, 'Birthdate must be a valid date in MM/DD/YYYY format');
+        _showErr(dob, 'Birthdate must be a valid date in MM/DD/YYYY format.');
         if (age) age.value = '';
         return false;
     }
 
     if (val >= formatLocalDate(new Date())) {
-        _showErr(dob, 'Birthdate must be before today');
+        _showErr(dob, 'Birthdate must be before today.');
         if (age) age.value = '';
         return false;
     }
@@ -2039,7 +1971,7 @@ function validateSkBirthdateField(form) {
 
     const ageNum = parseInt(String(computedAge || ''), 10);
     if (Number.isNaN(ageNum) || ageNum < 1 || ageNum > 150) {
-        _showErr(dob, 'Birthdate must produce a valid age');
+        _showErr(dob, 'Birthdate must produce a valid age.');
         return false;
     }
 
@@ -2051,7 +1983,7 @@ function validateSkBirthdateField(form) {
 
     if (classification === 'over') {
         if (!keepsStoredBirthdate(form, val)) {
-            _showErr(dob, getSkBirthdateRuleMessage(form));
+            _showErr(dob, getSkOverAgeMessage(form));
             return false;
         }
     }
@@ -2062,15 +1994,6 @@ function validateSkBirthdateField(form) {
 
 function _validateSkOfficialBirthdate(form) {
     return validateSkBirthdateField(form);
-}
-
-/** True when the form's birthdate is past the maximum age and needs confirmation. */
-function skBirthdateNeedsOverAgeConfirm(form) {
-    const dob = form?.querySelector('[name="date_of_birth"]');
-    if (!dob) return false;
-    const val = normalizeDateInputValue(dob.value);
-    if (!val) return false;
-    return classifySkBirthdate(val, form) === 'over';
 }
 
 /**
@@ -2398,21 +2321,9 @@ function wireSkOfficialsManualValidation(form) {
         if (input) {
             input.addEventListener('change', () => {
                 validateTermRange(form);
-                if (name === 'term_start') {
-                    applySkDobPickerBounds(form);
-                    if (form.querySelector('[name="date_of_birth"]')?.value) {
-                        _validateSkOfficialBirthdate(form);
-                    }
-                }
             });
             input.addEventListener('blur', () => {
                 validateTermRange(form);
-                if (name === 'term_start') {
-                    applySkDobPickerBounds(form);
-                    if (form.querySelector('[name="date_of_birth"]')?.value) {
-                        _validateSkOfficialBirthdate(form);
-                    }
-                }
             });
         }
     });
@@ -2778,11 +2689,6 @@ function applyTermDateConstraints(form) {
                     : maxEnd;
                 endInput.value = nextEnd;
             }
-        }
-        applySkDobPickerBounds(form);
-        const dobField = form.querySelector('[name="date_of_birth"]');
-        if (dobField && dobField.value) {
-            validateSkBirthdateField(form);
         }
         validateTermRange(form);
     };
@@ -3856,7 +3762,7 @@ function validateBatchAccountRow(row, rowNumber, role, seenEmails, seenFingerpri
             if (classification === 'under') {
                 errors.push({ row: rowNumber, field: 'date_of_birth', error: getSkUnderAgeMessage(data.term_start) });
             } else if (classification === 'over') {
-                errors.push({ row: rowNumber, field: 'date_of_birth', error: `${getSkBirthdateRuleMessage(data.term_start)}.` });
+                errors.push({ row: rowNumber, field: 'date_of_birth', error: getSkOverAgeMessage(data.term_start) });
             }
         }
     }
@@ -4982,10 +4888,6 @@ document.addEventListener('DOMContentLoaded', function () {
                 return;
             }
 
-            if (skBirthdateNeedsOverAgeConfirm(officialsForm) && !(await confirmSkOverAge(officialsForm))) {
-                return;
-            }
-
             const formData = new FormData(officialsForm);
             const payload = {};
             for (const [k, v] of formData.entries()) { if (k !== '_token') payload[k] = v; }
@@ -5082,10 +4984,6 @@ document.addEventListener('DOMContentLoaded', function () {
                 return;
             }
 
-            if (skBirthdateNeedsOverAgeConfirm(fedForm) && !(await confirmSkOverAge(fedForm))) {
-                return;
-            }
-
             clearAllErrors(fedForm);
             fedForm.querySelectorAll('.validation-error').forEach(err => err.remove());
 
@@ -5158,10 +5056,6 @@ document.addEventListener('DOMContentLoaded', function () {
             if (form.id === 'editAccountForm' && !validateSkFedManualForm(form)) {
                 const first = form.querySelector('.is-invalid');
                 if (first) first.focus();
-                return;
-            }
-
-            if (skBirthdateNeedsOverAgeConfirm(form) && !(await confirmSkOverAge(form))) {
                 return;
             }
 

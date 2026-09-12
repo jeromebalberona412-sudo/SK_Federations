@@ -1,0 +1,394 @@
+/**
+ * SK OnePortal - SK Federations Interactive Guided Tour Styles
+ */
+
+/* ── Tour Root & Backdrops ────────────────────────────────────────── */
+.sk-tour-root {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 999999;
+    pointer-events: auto;
+}
+
+.sk-tour-backdrop {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: rgba(15, 23, 42, 0.72);
+    z-index: 1000000;
+    transition: opacity 0.25s ease;
+}
+
+/* ── Spotlight Cutout & Glowing Highlight ──────────────────────────── */
+.sk-tour-spotlight {
+    position: fixed;
+    pointer-events: none;
+    z-index: 1000001;
+    border-radius: 8px;
+    border: 2px solid #3b82f6;
+    box-shadow: 0 0 0 9999px rgba(15, 23, 42, 0.72), 0 0 25px rgba(59, 130, 246, 0.65);
+    transition: top 0.26s cubic-bezier(0.4, 0, 0.2, 1),
+                left 0.26s cubic-bezier(0.4, 0, 0.2, 1),
+                width 0.26s cubic-bezier(0.4, 0, 0.2, 1),
+                height 0.26s cubic-bezier(0.4, 0, 0.2, 1),
+                border-radius 0.2s ease,
+                opacity 0.2s ease;
+}
+
+/* ── Elevated Element Under Tour ──────────────────────────────────── */
+.sk-tour-highlighted-element {
+    position: relative !important;
+    z-index: 1000002 !important;
+    transition: box-shadow 0.2s ease;
+}
+
+/* ── Floating Tooltip / Card ──────────────────────────────────────── */
+.sk-tour-card {
+    position: fixed;
+    z-index: 1000005;
+    width: min(400px, calc(100vw - 32px));
+    max-height: calc(100vh - 32px);
+    overflow-y: auto;
+    background: #ffffff;
+    border-radius: 14px;
+    box-shadow: 0 20px 35px -5px rgba(15, 23, 42, 0.3),
+                0 10px 18px -3px rgba(15, 23, 42, 0.18),
+                0 0 0 1px rgba(226, 232, 240, 0.95);
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    transition: top 0.26s cubic-bezier(0.4, 0, 0.2, 1),
+                left 0.26s cubic-bezier(0.4, 0, 0.2, 1),
+                transform 0.2s ease,
+                opacity 0.2s ease;
+}
+
+/* ── Card Header & Badge ──────────────────────────────────────────── */
+.sk-tour-card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+}
+
+.sk-tour-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 3px 10px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #1d4ed8;
+    background: #dbeafe;
+    border-radius: 9999px;
+    border: 1px solid #bfdbfe;
+}
+
+.sk-tour-close-btn {
+    border: none;
+    background: transparent;
+    color: #94a3b8;
+    font-size: 1rem;
+    width: 28px;
+    height: 28px;
+    border-radius: 6px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: color 0.18s ease, background 0.18s ease;
+}
+
+.sk-tour-close-btn:hover {
+    color: #334155;
+    background: #f1f5f9;
+}
+
+/* ── Card Body & Typography ───────────────────────────────────────── */
+.sk-tour-card-body {
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+}
+
+.sk-tour-icon-wrap {
+    width: 42px;
+    height: 42px;
+    min-width: 42px;
+    border-radius: 10px;
+    background: linear-gradient(135deg, #2563eb, #1d4ed8);
+    color: #ffffff;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.15rem;
+    box-shadow: 0 4px 10px rgba(37, 99, 235, 0.3);
+}
+
+.sk-tour-text-wrap {
+    flex: 1;
+    min-width: 0;
+}
+
+.sk-tour-title {
+    margin: 0 0 6px 0;
+    font-size: 1.08rem;
+    font-weight: 700;
+    color: #0f172a;
+    line-height: 1.35;
+}
+
+.sk-tour-description {
+    margin: 0;
+    font-size: 0.875rem;
+    color: #475569;
+    line-height: 1.55;
+}
+
+/* ── Card Footer & Buttons ────────────────────────────────────────── */
+.sk-tour-card-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-top: 4px;
+    padding-top: 14px;
+    border-top: 1px solid #f1f5f9;
+}
+
+.sk-tour-actions-right {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.sk-tour-btn {
+    border: none;
+    border-radius: 8px;
+    padding: 7px 14px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    cursor: pointer;
+    transition: background 0.18s ease, color 0.18s ease, box-shadow 0.18s ease, transform 0.1s ease;
+    text-decoration: none;
+}
+
+.sk-tour-btn:active {
+    transform: scale(0.98);
+}
+
+.sk-tour-btn--skip {
+    background: transparent;
+    color: #64748b;
+    padding-left: 4px;
+    padding-right: 4px;
+}
+
+.sk-tour-btn--skip:hover {
+    color: #dc2626;
+    background: #fef2f2;
+}
+
+.sk-tour-btn--back {
+    background: #f1f5f9;
+    color: #334155;
+    border: 1px solid #e2e8f0;
+}
+
+.sk-tour-btn--back:hover {
+    background: #e2e8f0;
+    color: #0f172a;
+}
+
+.sk-tour-btn--next {
+    background: #2563eb;
+    color: #ffffff;
+    box-shadow: 0 4px 10px rgba(37, 99, 235, 0.35);
+}
+
+.sk-tour-btn--next:hover {
+    background: #1d4ed8;
+    box-shadow: 0 6px 14px rgba(37, 99, 235, 0.45);
+}
+
+.sk-tour-btn--finish {
+    background: #10b981 !important;
+    color: #ffffff !important;
+    box-shadow: 0 4px 10px rgba(16, 185, 129, 0.35) !important;
+}
+
+.sk-tour-btn--finish:hover {
+    background: #059669 !important;
+    box-shadow: 0 6px 14px rgba(16, 185, 129, 0.45) !important;
+}
+
+/* ── Skip Confirmation Modal ──────────────────────────────────────── */
+.sk-tour-confirm-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.65);
+    z-index: 1000010;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+    animation: skTourFadeIn 0.2s ease;
+}
+
+.sk-tour-confirm-box {
+    background: #ffffff;
+    width: min(360px, calc(100vw - 32px));
+    border-radius: 14px;
+    padding: 24px;
+    text-align: center;
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.35);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+}
+
+.sk-tour-confirm-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    background: #eff6ff;
+    color: #2563eb;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.35rem;
+}
+
+.sk-tour-confirm-box h4 {
+    margin: 0;
+    font-size: 1.12rem;
+    font-weight: 700;
+    color: #0f172a;
+}
+
+.sk-tour-confirm-box p {
+    margin: 0;
+    font-size: 0.86rem;
+    color: #475569;
+    line-height: 1.5;
+}
+
+.sk-tour-confirm-actions {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    width: 100%;
+    margin-top: 6px;
+}
+
+.sk-tour-confirm-btn {
+    flex: 1;
+    border: none;
+    border-radius: 8px;
+    padding: 8px 14px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.18s ease;
+}
+
+.sk-tour-confirm-btn--cancel {
+    background: #2563eb;
+    color: #ffffff;
+}
+
+.sk-tour-confirm-btn--cancel:hover {
+    background: #1d4ed8;
+}
+
+.sk-tour-confirm-btn--confirm {
+    background: #f1f5f9;
+    color: #475569;
+}
+
+.sk-tour-confirm-btn--confirm:hover {
+    background: #e2e8f0;
+    color: #dc2626;
+}
+
+/* ── Header Tutorial Guide Button ─────────────────────────────────── */
+.tutorial-header-btn {
+    color: #ffffff !important;
+}
+
+.tutorial-header-btn:hover,
+.tutorial-header-btn:focus-visible {
+    background: rgba(255, 255, 255, 0.16) !important;
+    color: #fbbf24 !important;
+}
+
+/* ── Animations ───────────────────────────────────────────────────── */
+@keyframes skTourFadeIn {
+    from {
+        opacity: 0;
+        transform: scale(0.96);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+/* ── Responsive rules ─────────────────────────────────────────────── */
+@media (max-width: 640px) {
+    .sk-tour-card {
+        width: calc(100vw - 24px);
+        padding: 16px;
+        gap: 12px;
+    }
+
+    .sk-tour-icon-wrap {
+        width: 36px;
+        height: 36px;
+        min-width: 36px;
+        font-size: 1rem;
+    }
+
+    .sk-tour-title {
+        font-size: 1rem;
+    }
+
+    .sk-tour-description {
+        font-size: 0.825rem;
+    }
+
+    .sk-tour-card-footer {
+        flex-direction: column-reverse;
+        align-items: stretch;
+        gap: 8px;
+    }
+
+    .sk-tour-actions-right {
+        display: flex;
+        width: 100%;
+        justify-content: space-between;
+    }
+
+    .sk-tour-actions-right .sk-tour-btn {
+        flex: 1;
+    }
+
+    .sk-tour-btn--skip {
+        text-align: center;
+        padding: 6px;
+    }
+}

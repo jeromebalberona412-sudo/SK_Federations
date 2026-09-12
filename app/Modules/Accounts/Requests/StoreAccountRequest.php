@@ -111,10 +111,7 @@ class StoreAccountRequest extends FormRequest
         $termStartMin = SkOfficialTermDates::FIRST_START;
         $termStartMax = SkOfficialTermDates::maxStart();
 
-        $termStart = $this->input('term_start');
-        $referenceDate = is_string($termStart) && trim($termStart) !== '' ? trim($termStart) : SkOfficialTermDates::ELECTION_DATE;
-
-        $bounds = SkOfficialTermDates::birthdateBounds($referenceDate);
+        $bounds = SkOfficialTermDates::birthdateBounds();
         $dobMin = $bounds['min'];
         $dobMax = $bounds['max'];
 
@@ -197,9 +194,13 @@ class StoreAccountRequest extends FormRequest
             return;
         }
 
-        $termStart = $this->input('term_start');
-        $referenceDate = is_string($termStart) && trim($termStart) !== '' ? trim($termStart) : SkOfficialTermDates::ELECTION_DATE;
-        $error = SkOfficialTermDates::birthdateErrorFor($this->input('date_of_birth'), $referenceDate);
+        $dob = $this->input('date_of_birth');
+        if ($dob === null || trim((string) $dob) === '') {
+            $validator->errors()->add('date_of_birth', SkOfficialTermDates::MSG_DOB_REQUIRED);
+            return;
+        }
+
+        $error = SkOfficialTermDates::birthdateErrorFor($dob);
         if ($error !== null) {
             $validator->errors()->add('date_of_birth', $error);
         }
@@ -267,9 +268,6 @@ class StoreAccountRequest extends FormRequest
      */
     public function messages(): array
     {
-        $termStart = $this->input('term_start');
-        $referenceDate = is_string($termStart) && trim($termStart) !== '' ? trim($termStart) : SkOfficialTermDates::ELECTION_DATE;
-
         return [
             'email.unique' => 'This email is already taken.',
             'email.required' => ValidEmailAddress::MSG_REQUIRED,
@@ -283,8 +281,9 @@ class StoreAccountRequest extends FormRequest
             'middle_name.regex' => 'Middle name must use uppercase letters only; need a letter before each space; no pure spaces.',
             'middle_name.min' => 'Middle name must be at least 2 characters when provided.',
             'middle_name.max' => 'Middle name must not exceed 150 characters.',
+            'date_of_birth.required' => SkOfficialTermDates::MSG_DOB_REQUIRED,
             'date_of_birth.before' => 'Birthdate must be before today.',
-            'date_of_birth.after_or_equal' => SkOfficialTermDates::overMaxAgeMessage($referenceDate),
+            'date_of_birth.after_or_equal' => SkOfficialTermDates::MSG_OVER_MAX_AGE,
             'date_of_birth.before_or_equal' => SkOfficialTermDates::MSG_UNDER_MIN_AGE,
             'age.min' => 'Age must be a valid number.',
             'age.max' => 'Age must be a valid number.',

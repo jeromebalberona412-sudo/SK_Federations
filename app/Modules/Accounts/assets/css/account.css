@@ -4448,8 +4448,7 @@ body.sidebar-collapsed .accounts-page-footer {
     }
 }
 /* Longer legal name confirmation modal */
-.accounts-long-name-overlay,
-.accounts-age-confirm-overlay {
+.accounts-long-name-overlay {
     position: fixed;
     inset: 0;
     z-index: 12000;
@@ -4458,18 +4457,15 @@ body.sidebar-collapsed .accounts-page-footer {
     justify-content: center;
     padding: 0.75rem;
 }
-.accounts-long-name-overlay[hidden],
-.accounts-age-confirm-overlay[hidden] {
+.accounts-long-name-overlay[hidden] {
     display: none !important;
 }
-.accounts-long-name-backdrop,
-.accounts-age-confirm-backdrop {
+.accounts-long-name-backdrop {
     position: absolute;
     inset: 0;
     background: rgba(15, 23, 42, 0.55);
 }
-.accounts-long-name-card,
-.accounts-age-confirm-card {
+.accounts-long-name-card {
     position: relative;
     z-index: 1;
     width: min(440px, 100%);
@@ -4481,8 +4477,7 @@ body.sidebar-collapsed .accounts-page-footer {
     box-shadow: 0 18px 48px rgba(15, 23, 42, 0.35);
     overflow: hidden;
 }
-.accounts-long-name-header,
-.accounts-age-confirm-header {
+.accounts-long-name-header {
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -4490,15 +4485,13 @@ body.sidebar-collapsed .accounts-page-footer {
     padding: 1rem 1.1rem;
     border-bottom: 1px solid #e5e7eb;
 }
-.accounts-long-name-title,
-.accounts-age-confirm-title {
+.accounts-long-name-title {
     margin: 0;
     font-size: 1.05rem;
     font-weight: 700;
     color: #111827;
 }
-.accounts-long-name-close,
-.accounts-age-confirm-close {
+.accounts-long-name-close {
     border: 0;
     background: transparent;
     font-size: 1.5rem;
@@ -4508,41 +4501,19 @@ body.sidebar-collapsed .accounts-page-footer {
     padding: 0.15rem 0.4rem;
 }
 .accounts-long-name-close:hover,
-.accounts-long-name-close:focus-visible,
-.accounts-age-confirm-close:hover,
-.accounts-age-confirm-close:focus-visible {
+.accounts-long-name-close:focus-visible {
     color: #111827;
 }
-.accounts-long-name-body,
-.accounts-age-confirm-body {
+.accounts-long-name-body {
     padding: 1rem 1.1rem;
     display: grid;
     gap: 0.85rem;
 }
-.accounts-long-name-lead,
-.accounts-age-confirm-message {
+.accounts-long-name-lead {
     margin: 0;
     color: #374151;
     font-size: 0.95rem;
     line-height: 1.5;
-}
-.accounts-age-confirm-message {
-    font-weight: 600;
-    color: #b45309;
-}
-.accounts-age-confirm-range,
-.accounts-age-confirm-note {
-    margin: 0;
-    font-size: 0.88rem;
-    line-height: 1.5;
-    color: #4b5563;
-}
-.accounts-age-confirm-note {
-    padding: 0.6rem 0.7rem;
-    border-radius: 8px;
-    background: #f8fafc;
-    border: 1px solid #e2e8f0;
-    color: #64748b;
 }
 .accounts-long-name-confirm-box {
     display: grid;
@@ -4578,8 +4549,7 @@ body.sidebar-collapsed .accounts-page-footer {
     color: #b91c1c;
     font-size: 0.85rem;
 }
-.accounts-long-name-footer,
-.accounts-age-confirm-footer {
+.accounts-long-name-footer {
     padding: 0.85rem 1.1rem 1.1rem;
     display: flex;
     justify-content: flex-end;

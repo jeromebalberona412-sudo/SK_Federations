@@ -13,6 +13,7 @@ final class SkOfficialTermDates
 
     /** SK Barangay Election Date under RA 11935 / RA 10742 / RA 11768 */
     public const ELECTION_DATE = '2023-10-30';
+    public const SK_ELECTION_DATE = self::ELECTION_DATE;
 
     public const SK_MIN_AGE = 18;
 
@@ -20,28 +21,33 @@ final class SkOfficialTermDates
 
     public const MSG_UNDER_MIN_AGE = 'SK Official must be at least '.self::SK_MIN_AGE.' years old.';
 
+    public const MSG_OVER_MAX_AGE = 'SK Official must not be older than '.self::SK_MAX_AGE.' years old.';
+
+    public const MSG_DOB_REQUIRED = 'Birthdate is required.';
+
     /**
-     * Single reference date for SK age eligibility. The SK Reform Act
-     * (RA 10742 / RA 11768) measures eligibility on election day, so the
-     * configured election date — not the current date — drives the age window.
+     * Reference date for SK age eligibility. When not explicitly specified,
+     * defaults to the current date (today) so that officials are between
+     * SK_MIN_AGE (18) and SK_MAX_AGE (30) years old.
      */
     public static function eligibilityReference(?string $referenceDate = null): Carbon
     {
-        return Carbon::parse($referenceDate ?: self::ELECTION_DATE)->startOfDay();
+        return Carbon::parse($referenceDate && trim($referenceDate) !== '' ? $referenceDate : Carbon::today())->startOfDay();
     }
 
     /**
      * Inclusive birthdate window for an SK official, derived from the reference date.
      *
-     * Both edges are exact anniversaries, so a birthdate is allowed only when the
-     * official is 18-30 years old on the reference date:
+     * A birthdate is allowed only when the official's completed age on the
+     * reference date is between SK_MIN_AGE (18) and SK_MAX_AGE (30) inclusive:
      *
      * - max (youngest allowed) = reference - 18 years; turning 18 exactly on the
-     *   reference date qualifies, one day later does not.
-     * - min (oldest allowed) = reference - 30 years; turning 30 exactly on the
-     *   reference date qualifies, one day earlier is already past the 30-year mark.
+     *   reference date qualifies, one day later (age 17) does not.
+     * - min (oldest allowed) = (reference - 31 years) + 1 day; turning 30 on or
+     *   before the reference date qualifies until the 31st birthday. Anyone born
+     *   on or before reference - 31 years has already turned 31 and does not qualify.
      *
-     * For the 2023-10-30 election this yields 1993-10-30 through 2005-10-30.
+     * For the 2023-10-30 election this yields 1992-10-31 through 2005-10-30.
      *
      * @return array{min: string, max: string}
      */
@@ -50,7 +56,7 @@ final class SkOfficialTermDates
         $reference = self::eligibilityReference($referenceDate);
 
         return [
-            'min' => $reference->copy()->subYears(self::SK_MAX_AGE)->toDateString(),
+            'min' => $reference->copy()->subYears(self::SK_MAX_AGE + 1)->addDay()->toDateString(),
             'max' => $reference->copy()->subYears(self::SK_MIN_AGE)->toDateString(),
         ];
     }
@@ -61,13 +67,19 @@ final class SkOfficialTermDates
      */
     public static function ageAt(CarbonInterface|string $dob, ?string $referenceDate = null): int
     {
-        return (int) Carbon::parse($dob)->startOfDay()
-            ->diffInYears(self::eligibilityReference($referenceDate));
+        $dobDate = Carbon::parse($dob)->startOfDay();
+        $refDate = self::eligibilityReference($referenceDate);
+
+        if ($dobDate->greaterThan($refDate)) {
+            return 0;
+        }
+
+        return (int) $dobDate->diffInYears($refDate);
     }
 
     public static function calculateAgeOnElection(CarbonInterface|string $dob, ?string $electionDate = null): int
     {
-        return self::ageAt($dob, $electionDate);
+        return self::ageAt($dob, $electionDate ?? self::SK_ELECTION_DATE);
     }
 
     public static function calculateCurrentAge(CarbonInterface|string $dob): int
@@ -77,10 +89,9 @@ final class SkOfficialTermDates
 
     public static function isEligibleElectionAge(CarbonInterface|string $dob, ?string $electionDate = null): bool
     {
-        $bounds = self::birthdateBounds($electionDate);
-        $dobString = Carbon::parse($dob)->startOfDay()->toDateString();
+        $age = self::ageAt($dob, $electionDate);
 
-        return $dobString >= $bounds['min'] && $dobString <= $bounds['max'];
+        return $age >= self::SK_MIN_AGE && $age <= self::SK_MAX_AGE;
     }
 
     /**
@@ -90,14 +101,13 @@ final class SkOfficialTermDates
      */
     public static function classifyBirthdate(CarbonInterface|string $dob, ?string $referenceDate = null): string
     {
-        $bounds = self::birthdateBounds($referenceDate);
-        $dobString = Carbon::parse($dob)->startOfDay()->toDateString();
+        $age = self::ageAt($dob, $referenceDate);
 
-        if ($dobString > $bounds['max']) {
+        if ($age < self::SK_MIN_AGE) {
             return 'under';
         }
 
-        if ($dobString < $bounds['min']) {
+        if ($age > self::SK_MAX_AGE) {
             return 'over';
         }
 
@@ -116,9 +126,7 @@ final class SkOfficialTermDates
 
     public static function overMaxAgeMessage(?string $referenceDate = null): string
     {
-        return 'SK Official must not be older than '.self::SK_MAX_AGE.' years old as of '
-            .self::eligibilityReference($referenceDate)->format('F j, Y').'. '
-            .self::birthdateRuleMessage($referenceDate);
+        return self::MSG_OVER_MAX_AGE;
     }
 
     /**
@@ -129,7 +137,7 @@ final class SkOfficialTermDates
     public static function birthdateErrorFor(CarbonInterface|string|null $dob, ?string $referenceDate = null): ?string
     {
         if ($dob === null || (is_string($dob) && trim($dob) === '')) {
-            return null;
+            return self::MSG_DOB_REQUIRED;
         }
 
         try {
@@ -140,7 +148,7 @@ final class SkOfficialTermDates
 
         return match ($classification) {
             'under' => self::MSG_UNDER_MIN_AGE,
-            'over' => self::overMaxAgeMessage($referenceDate),
+            'over' => self::MSG_OVER_MAX_AGE,
             default => null,
         };
     }

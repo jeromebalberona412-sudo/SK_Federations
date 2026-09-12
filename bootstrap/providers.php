@@ -22,6 +22,7 @@ use App\Modules\SK_Federation_Records\Providers\SkFederationRecordsServiceProvid
 use App\Modules\SK_Officials_Records\Providers\SkOfficialsRecordsServiceProvider;
 use App\Modules\Shared\Providers\SharedServiceProvider;
 use App\Modules\Turnover\Providers\TurnoverServiceProvider;
+use App\Modules\Tutorial_Guide\Providers\TutorialGuideServiceProvider;
 use App\Providers\AppServiceProvider;
 use Laravel\Fortify\FortifyServiceProvider;
 
@@ -51,4 +52,5 @@ return [
     NotificationsServiceProvider::class,
     CommunicationsServiceProvider::class,
     TurnoverServiceProvider::class,
+    TutorialGuideServiceProvider::class,
 ];

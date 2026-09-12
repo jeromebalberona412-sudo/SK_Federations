@@ -1,4 +1,4 @@
-// Deleted SK Officials — live data from users archive
+// Deleted SK Officials — Live Data, 3-Dot Action Dropdown, View Modal & Restore Confirmation Modal
 
 function onArchiveReady(fn) {
     if (document.readyState === 'loading') {
@@ -11,6 +11,7 @@ function onArchiveReady(fn) {
 onArchiveReady(initDeletedSkOfficials);
 
 function formatRecordName(record) {
+    if (!record) return '—';
     const composed = [record.lastName, record.firstName, record.middleName, record.suffix]
         .filter((part) => part && String(part).trim() !== '')
         .join(', ');
@@ -55,11 +56,12 @@ function dsoProfileGroup(iconClass, title, fields) {
 }
 
 const DSO_API = {
-    data: '/archived/deleted-sk-officials/data',
-    show: (id) => `/archived/deleted-sk-officials/${encodeURIComponent(id)}`,
-    restore: (id) => `/archived/deleted-sk-officials/${encodeURIComponent(id)}/restore`,
+    data: () => window.DsoConfig?.dataUrl || '/archived/deleted-sk-officials/data',
+    show: (id) => `${(window.DsoConfig?.showUrl || '/archived/deleted-sk-officials').replace(/\/+$/, '')}/${encodeURIComponent(id)}`,
+    restore: (id) => `${(window.DsoConfig?.restoreUrl || '/archived/deleted-sk-officials').replace(/\/+$/, '')}/${encodeURIComponent(id)}/restore`,
 };
 
+let dsoMasterRecords = [];
 let dsoRecords = [];
 let dsoFiltered = [];
 let dsoCurrentPage = 1;
@@ -72,6 +74,7 @@ let dsoYearFilter = 'all';
 let dsoIsLoading = false;
 let dsoIsRestoring = false;
 let dsoNameSortDir = null;
+let dsoSearchTimer = null;
 
 const DSO_POLL_MS = 20000;
 
@@ -83,30 +86,25 @@ function initDeletedSkOfficials() {
         dsoActivePosition = window.__DSO_CURRENT_FILTERS__.position || '';
     }
 
-    if (window.ArchiveRowActions) {
-        window.ArchiveRowActions.initGlobalClose();
-        window.ArchiveRowActions.bindViewModalControls('dso', { bodyClass: 'dso-modal-open' });
-    }
+    // Set initial select values if present
+    syncFilterSelects();
 
     bindDsoFullnameSort();
-    bindDsoGlobalMenuClose();
+    bindDsoGlobalEvents();
     bindDsoSearch();
     bindDsoFilterTabs();
     bindDsoDropdowns();
     bindDsoPagination();
     bindDsoRestoreModal();
     bindDsoViewModal();
-
-    const tbody = document.getElementById('dsoTableBody');
-    if (tbody) {
-        bindDsoTableActions(tbody);
-    }
+    bindDsoTableActions();
 
     if (Array.isArray(window.__INITIAL_DELETED_SK_OFFICIALS__) && window.__INITIAL_DELETED_SK_OFFICIALS__.length > 0) {
-        dsoRecords = window.__INITIAL_DELETED_SK_OFFICIALS__.map(normalizeDsoRecord);
-        dsoFiltered = [...dsoRecords];
+        dsoMasterRecords = window.__INITIAL_DELETED_SK_OFFICIALS__.map(normalizeDsoRecord);
+        dsoRecords = [...dsoMasterRecords];
+        dsoFiltered = applyClientFilters(dsoMasterRecords);
         if (window.__INITIAL_DSO_FILTERS__) {
-            populateDsoDropdowns(window.__INITIAL_DSO_FILTERS__);
+            syncDropdownOptions(window.__INITIAL_DSO_FILTERS__);
         }
         renderDsoTable();
     } else {
@@ -116,27 +114,117 @@ function initDeletedSkOfficials() {
     startDsoRealtimeRefresh();
 }
 
+function syncFilterSelects() {
+    const yearEl = document.getElementById('dsoYearFilter');
+    if (yearEl && dsoYearFilter) yearEl.value = dsoYearFilter;
+
+    const bgEl = document.getElementById('dsoFilterBarangay');
+    if (bgEl && dsoActiveBarangay) bgEl.value = dsoActiveBarangay;
+
+    const posEl = document.getElementById('dsoFilterPosition');
+    if (posEl && dsoActivePosition) posEl.value = dsoActivePosition;
+}
+
 function startDsoRealtimeRefresh() {
-    // Skip background refreshes while a modal or row menu is open so the user's place is preserved.
     const canRefresh = () => !document.hidden
         && !anyDsoModalOpen()
         && !dsoIsRestoring
         && !isDsoActionsMenuOpen();
 
     window.setInterval(() => {
-        if (canRefresh()) loadDsoRecords();
+        if (canRefresh()) loadDsoRecords({ silent: true });
     }, DSO_POLL_MS);
 
     document.addEventListener('visibilitychange', () => {
-        if (canRefresh()) loadDsoRecords();
+        if (canRefresh()) loadDsoRecords({ silent: true });
     });
 }
 
 function getCsrfToken() {
-    return document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+    return window.DsoConfig?.csrf
+        || document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')
+        || document.querySelector('#dsoRestoreForm input[name="_token"]')?.value
+        || '';
 }
 
-async function loadDsoRecords() {
+function applyClientFilters(records) {
+    const search = (document.getElementById('dsoSearch')?.value || '').trim().toLowerCase();
+    const position = (dsoActivePosition || '').trim().toLowerCase();
+    const barangay = (dsoActiveBarangay || '').trim().toLowerCase();
+    const year = (dsoYearFilter || 'all').trim();
+    const tab = dsoActiveFilter || 'all';
+
+    const now = new Date();
+    const todayStr = now.toISOString().slice(0, 10);
+
+    const startOfWeek = new Date(now);
+    const day = now.getDay();
+    const diffToMonday = (day === 0 ? -6 : 1) - day;
+    startOfWeek.setDate(now.getDate() + diffToMonday);
+    startOfWeek.setHours(0, 0, 0, 0);
+
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
+
+    return (records || []).filter((r) => {
+        // Position filter
+        if (position) {
+            const rPos = (r.position || '').toLowerCase();
+            if (position === 'chairperson' || position === 'sk chairperson') {
+                if (rPos !== 'chairperson' && rPos !== 'sk chairperson') return false;
+            } else if (rPos !== position) {
+                return false;
+            }
+        }
+
+        // Barangay filter
+        if (barangay) {
+            const rBrgy = (r.barangay || '').toLowerCase();
+            if (rBrgy !== barangay) return false;
+        }
+
+        // Year filter
+        if (year && year !== 'all') {
+            const delDateStr = r.deletedDate || '';
+            const dt = r._deletedTs || (r.deleted_at ? new Date(r.deleted_at) : null);
+            const rYear = dt ? String(dt.getFullYear()) : (delDateStr.match(/\d{4}/)?.[0] || '');
+            if (rYear !== year) return false;
+        }
+
+        // Tab filter (today / week / month)
+        if (tab === 'today') {
+            const dt = r._deletedTs || (r.deleted_at ? new Date(r.deleted_at) : null);
+            if (!dt) return false;
+            const rDateStr = dt.toISOString().slice(0, 10);
+            if (rDateStr !== todayStr) return false;
+        } else if (tab === 'week') {
+            const dt = r._deletedTs || (r.deleted_at ? new Date(r.deleted_at) : null);
+            if (!dt || dt < startOfWeek) return false;
+        } else if (tab === 'month') {
+            const dt = r._deletedTs || (r.deleted_at ? new Date(r.deleted_at) : null);
+            if (!dt || dt < startOfMonth) return false;
+        }
+
+        // Search text
+        if (search) {
+            const fullName = formatRecordName(r).toLowerCase();
+            const rBrgy = (r.barangay || '').toLowerCase();
+            const rPos = (r.position || '').toLowerCase();
+            const rEmail = (r.email || '').toLowerCase();
+            const rMuni = (r.municipality || '').toLowerCase();
+            if (!fullName.includes(search)
+                && !rBrgy.includes(search)
+                && !rPos.includes(search)
+                && !rEmail.includes(search)
+                && !rMuni.includes(search)) {
+                return false;
+            }
+        }
+
+        return true;
+    });
+}
+
+async function loadDsoRecords(options = {}) {
     if (dsoIsLoading) return;
     dsoIsLoading = true;
 
@@ -149,10 +237,28 @@ async function loadDsoRecords() {
     });
     const cacheKey = 'sk_fed_deleted_sk_officials_v1_' + params.toString();
     const cached = window.SkLocalCache?.get(cacheKey);
+
     const paint = (payload) => {
-        dsoRecords = (payload.data || []).map(normalizeDsoRecord);
-        dsoFiltered = [...dsoRecords];
-        populateDsoDropdowns(payload.filters || {});
+        const incoming = (payload.data || []).map(normalizeDsoRecord);
+        dsoRecords = incoming;
+
+        // Merge incoming into master records so client filtering retains full knowledge
+        incoming.forEach((rec) => {
+            const idx = dsoMasterRecords.findIndex((m) => String(m.id) === String(rec.id));
+            if (idx >= 0) {
+                dsoMasterRecords[idx] = rec;
+            } else {
+                dsoMasterRecords.push(rec);
+            }
+        });
+
+        // If active filters are empty, master is incoming
+        if (dsoActiveFilter === 'all' && dsoYearFilter === 'all' && !dsoActiveBarangay && !dsoActivePosition && !params.get('search')) {
+            dsoMasterRecords = [...incoming];
+        }
+
+        dsoFiltered = incoming;
+        syncDropdownOptions(payload.filters || {});
         const pages = Math.max(1, Math.ceil(dsoFiltered.length / dsoPerPage) || 1);
         if (dsoCurrentPage > pages) dsoCurrentPage = pages;
         renderDsoTable();
@@ -162,7 +268,7 @@ async function loadDsoRecords() {
         paint(cached.payload);
         if (window.SkLocalCache.isFresh(cached, 5 * 60 * 1000)) {
             dsoIsLoading = false;
-            fetch(`${DSO_API.data}?${params.toString()}`, { headers: { Accept: 'application/json' } })
+            fetch(`${DSO_API.data()}?${params.toString()}`, { headers: { Accept: 'application/json' } })
                 .then((response) => response.json().then((payload) => ({ ok: response.ok, payload })))
                 .then(({ ok, payload }) => {
                     if (!ok) return;
@@ -172,12 +278,12 @@ async function loadDsoRecords() {
                 .catch(() => {});
             return;
         }
-    } else {
+    } else if (!options.silent && dsoFiltered.length === 0) {
         renderDsoLoadingState();
     }
 
     try {
-        const response = await fetch(`${DSO_API.data}?${params.toString()}`, {
+        const response = await fetch(`${DSO_API.data()}?${params.toString()}`, {
             headers: { Accept: 'application/json' },
         });
         const payload = await response.json();
@@ -186,7 +292,7 @@ async function loadDsoRecords() {
         window.SkLocalCache?.set(cacheKey, payload);
         paint(payload);
     } catch (error) {
-        if (!cached?.payload) {
+        if (!cached?.payload && dsoFiltered.length === 0) {
             dsoRecords = [];
             dsoFiltered = [];
             renderDsoErrorState(error.message || 'Unable to load deleted SK Officials records.');
@@ -204,7 +310,7 @@ function normalizeDsoRecord(record) {
 }
 
 function dsoRetentionDays() {
-    const configured = Number(window.__DSO_RETENTION_DAYS__);
+    const configured = Number(window.DsoConfig?.retentionDays || window.__DSO_RETENTION_DAYS__);
     return Number.isFinite(configured) && configured > 0 ? configured : 30;
 }
 
@@ -214,11 +320,6 @@ function dsoRetentionTier(daysLeft) {
     return 'green';
 }
 
-/**
- * Recomputed from deleted_at on every render so a cached payload never shows a
- * stale countdown. Falls back to the server-supplied values when the timestamp
- * is missing.
- */
 function dsoRetentionInfo(record) {
     const deletedAt = record._deletedTs;
     const hasTimestamp = deletedAt instanceof Date && !Number.isNaN(deletedAt.getTime());
@@ -261,64 +362,105 @@ function renderDsoErrorState(message) {
     renderDsoPagination(0);
 }
 
-function populateDsoDropdowns(filters) {
-    fillSelectOptions('dsoFilterBarangay', 'All Barangays', filters.barangays || [], dsoActiveBarangay);
-    fillSelectOptions('dsoFilterPosition', 'All Positions', filters.positions || [], dsoActivePosition);
-    fillSelectOptions('dsoYearFilter', 'All Years', (filters.years || []).map(String), dsoYearFilter === 'all' ? '' : dsoYearFilter, true);
+function syncDropdownOptions(filters) {
+    ensureSelectOptions('dsoFilterBarangay', filters.barangays || [], dsoActiveBarangay);
+    ensureSelectOptions('dsoFilterPosition', filters.positions || [], dsoActivePosition);
+    ensureSelectOptions('dsoYearFilter', (filters.years || []).map(String), dsoYearFilter);
 }
 
-function fillSelectOptions(selectId, defaultLabel, values, selectedValue, isYear = false) {
+function ensureSelectOptions(selectId, values, currentVal) {
     const select = document.getElementById(selectId);
-    if (!select) return;
+    if (!select || !Array.isArray(values) || values.length === 0) return;
 
-    const current = selectedValue || (isYear ? dsoYearFilter : '') || '';
-    select.innerHTML = '';
-
-    const defaultOpt = document.createElement('option');
-    defaultOpt.value = isYear ? 'all' : '';
-    defaultOpt.textContent = defaultLabel;
-    if ((isYear && dsoYearFilter === 'all') || (!isYear && !current)) {
-        defaultOpt.selected = true;
-    }
-    select.appendChild(defaultOpt);
+    const existingValues = new Set([...select.options].map((opt) => opt.value));
 
     values.forEach((item) => {
-        const opt = document.createElement('option');
-        if (typeof item === 'object' && item !== null) {
-            opt.value = item.value;
-            opt.textContent = item.label;
-            if (String(current) === String(item.value)) opt.selected = true;
-        } else {
-            opt.value = item;
-            opt.textContent = item;
-            if (String(current) === String(item)) opt.selected = true;
+        const val = typeof item === 'object' && item !== null ? String(item.value) : String(item);
+        const label = typeof item === 'object' && item !== null ? item.label : item;
+        if (!existingValues.has(val)) {
+            const opt = document.createElement('option');
+            opt.value = val;
+            opt.textContent = label;
+            select.appendChild(opt);
+            existingValues.add(val);
         }
-        select.appendChild(opt);
     });
+
+    if (currentVal !== undefined && currentVal !== null) {
+        select.value = currentVal;
+    }
 }
 
 function bindDsoDropdowns() {
-    document.getElementById('dsoFilterBarangay')?.addEventListener('change', function () {
-        dsoActiveBarangay = this.value;
-        dsoCurrentPage = 1;
-        loadDsoRecords();
-    });
-    document.getElementById('dsoFilterPosition')?.addEventListener('change', function () {
-        dsoActivePosition = this.value;
-        dsoCurrentPage = 1;
-        loadDsoRecords();
-    });
+    const bgSelect = document.getElementById('dsoFilterBarangay');
+    if (bgSelect && bgSelect.dataset.dsoBound !== '1') {
+        bgSelect.dataset.dsoBound = '1';
+        bgSelect.addEventListener('change', function () {
+            dsoActiveBarangay = this.value;
+            dsoCurrentPage = 1;
+            dsoFiltered = applyClientFilters(dsoMasterRecords);
+            renderDsoTable();
+            loadDsoRecords();
+        });
+    }
+
+    const posSelect = document.getElementById('dsoFilterPosition');
+    if (posSelect && posSelect.dataset.dsoBound !== '1') {
+        posSelect.dataset.dsoBound = '1';
+        posSelect.addEventListener('change', function () {
+            dsoActivePosition = this.value;
+            dsoCurrentPage = 1;
+            dsoFiltered = applyClientFilters(dsoMasterRecords);
+            renderDsoTable();
+            loadDsoRecords();
+        });
+    }
+
+    const yearSelect = document.getElementById('dsoYearFilter');
+    if (yearSelect && yearSelect.dataset.dsoBound !== '1') {
+        yearSelect.dataset.dsoBound = '1';
+        yearSelect.addEventListener('change', function () {
+            dsoYearFilter = this.value || 'all';
+            dsoCurrentPage = 1;
+            dsoFiltered = applyClientFilters(dsoMasterRecords);
+            renderDsoTable();
+            loadDsoRecords();
+        });
+    }
 }
 
 function bindDsoFilterTabs() {
     document.querySelectorAll('.dso-tab').forEach((btn) => {
+        if (btn.dataset.dsoBound === '1') return;
+        btn.dataset.dsoBound = '1';
+
         btn.addEventListener('click', function () {
             document.querySelectorAll('.dso-tab').forEach((b) => b.classList.remove('active'));
             this.classList.add('active');
             dsoActiveFilter = this.dataset.filter || 'all';
             dsoCurrentPage = 1;
+            dsoFiltered = applyClientFilters(dsoMasterRecords);
+            renderDsoTable();
             loadDsoRecords();
         });
+    });
+}
+
+function bindDsoSearch() {
+    const searchInput = document.getElementById('dsoSearch');
+    if (!searchInput || searchInput.dataset.dsoBound === '1') return;
+    searchInput.dataset.dsoBound = '1';
+
+    searchInput.addEventListener('input', function () {
+        dsoCurrentPage = 1;
+        // Instant client filter
+        dsoFiltered = applyClientFilters(dsoMasterRecords);
+        renderDsoTable();
+
+        clearTimeout(dsoSearchTimer);
+        dsoSearchTimer = setTimeout(() => {
+            loadDsoRecords();
+        }, 280);
     });
 }
 
@@ -332,7 +474,6 @@ function getDsoSortedRecords() {
     return list;
 }
 
-/* ── Full Name A→Z / Z→A sort menu (mirrors the Accounts table behavior) ── */
 function updateDsoSortHeaderState() {
     const th = document.querySelector('.dso-table .ar-th-sortable[data-sort-key="fullname"]');
     if (!th) return;
@@ -386,7 +527,8 @@ function openDsoSortMenu(anchor) {
 
 function bindDsoFullnameSort() {
     const btn = document.getElementById('dsoFullnameSortBtn');
-    if (!btn) return;
+    if (!btn || btn.dataset.dsoBound === '1') return;
+    btn.dataset.dsoBound = '1';
 
     btn.addEventListener('click', (event) => {
         event.stopPropagation();
@@ -399,27 +541,75 @@ function bindDsoFullnameSort() {
     });
 }
 
-/* ── Row actions menu ── */
+/* ── 3-Dot Action Dropdown Menu & Positioning ── */
+
 function isDsoActionsMenuOpen() {
     return Boolean(document.querySelector('.ar-row-actions-menu.is-open'));
 }
 
-function closeAllDsoActionMenus() {
-    if (window.ArchiveRowActions) {
-        window.ArchiveRowActions.closeAll();
-    }
+function closeAllDsoActionMenus(exceptMenu = null) {
+    document.querySelectorAll('.ar-row-actions-menu.is-open').forEach((menu) => {
+        if (exceptMenu && menu === exceptMenu) return;
+        menu.classList.remove('is-open');
+        const trigger = menu.querySelector('.ar-row-actions-trigger');
+        const dropdown = menu.querySelector('.ar-row-actions-dropdown');
+        if (trigger) trigger.setAttribute('aria-expanded', 'false');
+        if (dropdown) {
+            dropdown.hidden = true;
+            dropdown.classList.remove('is-floating');
+            dropdown.style.position = '';
+            dropdown.style.top = '';
+            dropdown.style.right = '';
+            dropdown.style.left = '';
+        }
+    });
 }
 
-function bindDsoGlobalMenuClose() {
-    if (document.body.dataset.dsoMenusBound === '1') return;
-    document.body.dataset.dsoMenusBound = '1';
+function positionDsoDropdown(menu) {
+    const trigger = menu.querySelector('.ar-row-actions-trigger');
+    const dropdown = menu.querySelector('.ar-row-actions-dropdown');
+    if (!trigger || !dropdown) return;
+
+    dropdown.hidden = false;
+    dropdown.classList.add('is-floating');
+    dropdown.style.position = 'fixed';
+    dropdown.style.zIndex = '1400';
+
+    const rect = trigger.getBoundingClientRect();
+    const width = dropdown.offsetWidth || 155;
+    const height = dropdown.offsetHeight || 96;
+
+    let top = rect.bottom + 4;
+    if (top + height > window.innerHeight - 8) {
+        top = Math.max(8, rect.top - height - 4);
+    }
+
+    let right = Math.max(8, window.innerWidth - rect.right);
+    if (right + width > window.innerWidth - 8) {
+        right = 8;
+    }
+
+    dropdown.style.top = `${top}px`;
+    dropdown.style.right = `${right}px`;
+    dropdown.style.left = 'auto';
+}
+
+function bindDsoGlobalEvents() {
+    if (document.body.dataset.dsoGlobalBound === '1') return;
+    document.body.dataset.dsoGlobalBound = '1';
 
     document.addEventListener('click', (event) => {
+        // Close sort menu if click outside
         const sortMenu = document.getElementById('dsoFullnameSortMenu');
         if (sortMenu && !sortMenu.hidden
             && !sortMenu.contains(event.target)
             && !event.target.closest('#dsoFullnameSortBtn')) {
             closeDsoSortMenu();
+        }
+
+        // Close 3-dot row action menus if click outside
+        if (!event.target.closest('.ar-row-actions-menu')) {
+            closeAllDsoActionMenus();
         }
     });
 
@@ -427,16 +617,22 @@ function bindDsoGlobalMenuClose() {
         if (event.key !== 'Escape') return;
         closeAllDsoActionMenus();
         closeDsoSortMenu();
-        if (document.getElementById('dsoViewModal')?.style.display === 'flex') closeDsoViewModal();
-        if (document.getElementById('dsoRestoreModal')?.style.display === 'flex' && !dsoIsRestoring) closeDsoRestoreModal();
+        if (document.getElementById('dsoViewModal')?.style.display === 'flex') {
+            closeDsoViewModal();
+        }
+        if (document.getElementById('dsoRestoreModal')?.style.display === 'flex' && !dsoIsRestoring) {
+            closeDsoRestoreModal();
+        }
     });
 
     window.addEventListener('scroll', () => {
         closeDsoSortMenu();
+        closeAllDsoActionMenus();
     }, true);
 
     window.addEventListener('resize', () => {
         closeDsoSortMenu();
+        closeAllDsoActionMenus();
     });
 }
 
@@ -444,6 +640,8 @@ function renderDsoTable() {
     const tbody = document.getElementById('dsoTableBody');
     const info = document.getElementById('dsoPaginationInfo');
     if (!tbody) return;
+
+    closeAllDsoActionMenus();
 
     const sorted = getDsoSortedRecords();
     const start = (dsoCurrentPage - 1) * dsoPerPage;
@@ -456,8 +654,6 @@ function renderDsoTable() {
         renderDsoPagination(0);
         return;
     }
-
-    closeAllDsoActionMenus();
 
     tbody.innerHTML = page.map((r) => {
         const fullName = formatRecordName(r);
@@ -473,19 +669,46 @@ function renderDsoTable() {
         const deletedTime = r.deletedTime || '—';
         const deletedBy = r.deleted_by || '—';
 
-        const actionsHtml = window.ArchiveRowActions
-            ? window.ArchiveRowActions.renderMenu(r.id, { view: true, restore: true })
-            : `
-                <div class="ar-row-actions-menu">
-                    <button type="button" class="ar-row-actions-trigger" aria-label="More actions" aria-haspopup="menu" aria-expanded="false">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="2"></circle><circle cx="12" cy="12" r="2"></circle><circle cx="19" cy="12" r="2"></circle></svg>
+        const actionsHtml = `
+            <div class="ar-row-actions-menu">
+                <button type="button"
+                        class="ar-row-actions-trigger"
+                        aria-label="More actions for ${escapeDsoHtml(fullName)}"
+                        aria-haspopup="menu"
+                        aria-expanded="false"
+                        title="More actions">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                        <circle cx="5" cy="12" r="2"></circle>
+                        <circle cx="12" cy="12" r="2"></circle>
+                        <circle cx="19" cy="12" r="2"></circle>
+                    </svg>
+                </button>
+                <div class="ar-row-actions-dropdown" role="menu" hidden>
+                    <button type="button"
+                            class="ar-row-actions-item"
+                            data-action="view"
+                            data-ar-action="view"
+                            data-id="${escapeDsoHtml(r.id)}"
+                            role="menuitem"
+                            title="View Details"
+                            aria-label="View details for ${escapeDsoHtml(fullName)}">
+                        <i class="fas fa-eye" aria-hidden="true"></i>
+                        <span>View</span>
                     </button>
-                    <div class="ar-row-actions-dropdown" role="menu" hidden>
-                        <button type="button" class="ar-row-actions-item" data-ar-action="view" data-id="${escapeDsoHtml(r.id)}" role="menuitem"><i class="fas fa-eye" aria-hidden="true"></i><span>View</span></button>
-                        <button type="button" class="ar-row-actions-item" data-ar-action="restore" data-id="${escapeDsoHtml(r.id)}" role="menuitem"><i class="fas fa-rotate-left" aria-hidden="true"></i><span>Restore</span></button>
-                    </div>
+                    <button type="button"
+                            class="ar-row-actions-item"
+                            data-action="restore"
+                            data-ar-action="restore"
+                            data-id="${escapeDsoHtml(r.id)}"
+                            role="menuitem"
+                            title="Restore Account"
+                            aria-label="Restore account for ${escapeDsoHtml(fullName)}">
+                        <i class="fas fa-rotate-left" aria-hidden="true"></i>
+                        <span>Restore</span>
+                    </button>
                 </div>
-            `;
+            </div>
+        `;
 
         return `
         <tr data-record-id="${r.id}">
@@ -504,34 +727,51 @@ function renderDsoTable() {
     if (info) info.textContent = `${dsoFiltered.length} record${dsoFiltered.length === 1 ? '' : 's'}`;
     renderDsoPagination(dsoFiltered.length);
     updateDsoSortHeaderState();
-
-    bindDsoTableActions(tbody);
 }
 
-function bindDsoTableActions(tbody) {
-    if (!tbody) return;
+function bindDsoTableActions() {
+    const tbody = document.getElementById('dsoTableBody');
+    if (!tbody || tbody.dataset.dsoActionsBound === '1') return;
+    tbody.dataset.dsoActionsBound = '1';
 
-    if (window.ArchiveRowActions) {
-        window.ArchiveRowActions.bind(tbody, (action, id) => {
-            if (action === 'view') {
-                openDsoViewModal(id);
-            } else if (action === 'restore') {
-                openDsoRestoreModal(id);
-            }
-        });
-    } else {
-        if (tbody.dataset.dsoActionsFallbackBound === '1') return;
-        tbody.dataset.dsoActionsFallbackBound = '1';
-        tbody.addEventListener('click', (e) => {
-            const actionBtn = e.target.closest('[data-ar-action]');
-            if (!actionBtn) return;
+    tbody.addEventListener('click', (e) => {
+        // 1. Toggle 3-dot trigger
+        const trigger = e.target.closest('.ar-row-actions-trigger');
+        if (trigger) {
             e.preventDefault();
-            const action = actionBtn.getAttribute('data-ar-action');
-            const id = actionBtn.getAttribute('data-id');
-            if (action === 'view') openDsoViewModal(id);
-            if (action === 'restore') openDsoRestoreModal(id);
-        });
-    }
+            e.stopPropagation();
+            const menu = trigger.closest('.ar-row-actions-menu');
+            if (!menu) return;
+
+            const isOpen = menu.classList.contains('is-open');
+            closeAllDsoActionMenus();
+
+            if (!isOpen) {
+                menu.classList.add('is-open');
+                trigger.setAttribute('aria-expanded', 'true');
+                positionDsoDropdown(menu);
+            }
+            return;
+        }
+
+        // 2. Click action item inside dropdown (View / Restore)
+        const actionBtn = e.target.closest('.ar-row-actions-item, [data-action], [data-ar-action]');
+        if (!actionBtn) return;
+
+        const action = actionBtn.getAttribute('data-action') || actionBtn.getAttribute('data-ar-action');
+        const id = actionBtn.getAttribute('data-id') || actionBtn.closest('tr')?.dataset?.recordId;
+        if (!id || !action) return;
+
+        e.preventDefault();
+        e.stopPropagation();
+        closeAllDsoActionMenus();
+
+        if (action === 'view') {
+            openDsoViewModal(id);
+        } else if (action === 'restore') {
+            openDsoRestoreModal(id);
+        }
+    });
 }
 
 function renderDsoPagination(total) {
@@ -576,25 +816,12 @@ function bindDsoPagination() {
     });
 }
 
-function bindDsoSearch() {
-    let timer = null;
-    document.getElementById('dsoSearch')?.addEventListener('input', function () {
-        clearTimeout(timer);
-        timer = setTimeout(() => {
-            dsoCurrentPage = 1;
-            loadDsoRecords();
-        }, 300);
-    });
-    document.getElementById('dsoYearFilter')?.addEventListener('change', function () {
-        dsoYearFilter = this.value || 'all';
-        dsoCurrentPage = 1;
-        loadDsoRecords();
-    });
-}
-
 function findDsoRecord(id) {
-    return dsoRecords.find((record) => String(record.id) === String(id))
-        || dsoFiltered.find((record) => String(record.id) === String(id))
+    if (!id) return null;
+    const strId = String(id);
+    return dsoMasterRecords.find((r) => String(r.id) === strId || String(r.archive_id) === strId || String(r.original_user_id) === strId)
+        || dsoRecords.find((r) => String(r.id) === strId || String(r.archive_id) === strId || String(r.original_user_id) === strId)
+        || dsoFiltered.find((r) => String(r.id) === strId || String(r.archive_id) === strId || String(r.original_user_id) === strId)
         || null;
 }
 
@@ -607,9 +834,27 @@ function syncDsoModalBodyLock() {
     document.body.classList.toggle('dso-modal-open', anyDsoModalOpen());
 }
 
+/* ── View Modal Flow ── */
+
 async function openDsoViewModal(id) {
+    if (!id) return;
+    const modal = document.getElementById('dsoViewModal');
+    const body = document.getElementById('dsoViewBody');
+    if (!modal || !body) return;
+
     let r = findDsoRecord(id);
     if (!r) {
+        body.innerHTML = `
+            <div class="dso-modal-loading">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+                <p>Loading official details...</p>
+            </div>
+        `;
+        modal.style.display = 'flex';
+        syncDsoModalBodyLock();
+
         try {
             const res = await fetch(DSO_API.show(id), {
                 headers: { Accept: 'application/json' },
@@ -617,20 +862,19 @@ async function openDsoViewModal(id) {
             const payload = await res.json().catch(() => ({}));
             if (payload && payload.success && payload.data) {
                 r = normalizeDsoRecord(payload.data);
+                dsoMasterRecords.push(r);
             }
         } catch (_) {}
     }
 
     if (!r) {
+        closeDsoViewModal();
         showDsoToast('This record is no longer available. Refreshing the list...', 'error');
         loadDsoRecords();
         return;
     }
 
-    const body = document.getElementById('dsoViewBody');
-    const modal = document.getElementById('dsoViewModal');
-    if (!body || !modal) return;
-
+    modal.dataset.currentId = String(r.id);
     const retention = dsoRetentionInfo(r);
     const term = (r.term && r.term !== '—')
         ? r.term
@@ -679,7 +923,13 @@ async function openDsoViewModal(id) {
                 ['Original Account ID', r.original_user_id || '—'],
                 ['Archive ID', r.archive_id || r.id],
             ])}
-        </div>`;
+        </div>
+    `;
+
+    const footerRestoreBtn = document.getElementById('dsoViewFooterRestoreBtn');
+    if (footerRestoreBtn) {
+        footerRestoreBtn.setAttribute('data-id', String(r.id));
+    }
 
     modal.style.display = 'flex';
     syncDsoModalBodyLock();
@@ -705,12 +955,24 @@ function closeDsoViewModal() {
 function bindDsoViewModal() {
     const modal = document.getElementById('dsoViewModal');
     const box = document.getElementById('dsoViewModalBox');
+    const closeBtn = document.getElementById('dsoViewClose');
+    const footerCloseBtn = document.getElementById('dsoViewFooterCloseBtn');
+    const footerRestoreBtn = document.getElementById('dsoViewFooterRestoreBtn');
     const maximizeBtn = document.getElementById('dsoViewMaximizeBtn');
     const restoreBtn = document.getElementById('dsoViewRestoreBtn');
 
-    document.getElementById('dsoViewClose')?.addEventListener('click', closeDsoViewModal);
+    closeBtn?.addEventListener('click', closeDsoViewModal);
+    footerCloseBtn?.addEventListener('click', closeDsoViewModal);
+
     modal?.addEventListener('click', (e) => {
         if (e.target === modal) closeDsoViewModal();
+    });
+
+    footerRestoreBtn?.addEventListener('click', () => {
+        const id = footerRestoreBtn.getAttribute('data-id') || modal?.dataset?.currentId;
+        if (id) {
+            openDsoRestoreModal(id);
+        }
     });
 
     maximizeBtn?.addEventListener('click', (e) => {
@@ -730,27 +992,70 @@ function bindDsoViewModal() {
     });
 }
 
-function openDsoRestoreModal(id) {
-    const record = findDsoRecord(id);
+/* ── Restore Confirmation Modal Flow ── */
+
+async function openDsoRestoreModal(id) {
+    if (!id) return;
+    let record = findDsoRecord(id);
+    if (!record) {
+        try {
+            const res = await fetch(DSO_API.show(id), {
+                headers: { Accept: 'application/json' },
+            });
+            const payload = await res.json().catch(() => ({}));
+            if (payload && payload.success && payload.data) {
+                record = normalizeDsoRecord(payload.data);
+                dsoMasterRecords.push(record);
+            }
+        } catch (_) {}
+    }
+
     if (!record) {
         showDsoToast('This record is no longer available. Refreshing the list...', 'error');
         loadDsoRecords();
         return;
     }
 
+    // Close view modal if it was open
+    const viewModal = document.getElementById('dsoViewModal');
+    if (viewModal && viewModal.style.display === 'flex') {
+        closeDsoViewModal();
+    }
+
     dsoPendingId = id;
+
+    const idInput = document.getElementById('dsoRestoreAccountId');
+    if (idInput) idInput.value = String(id);
+
     const nameEl = document.getElementById('dsoRestoreName');
     if (nameEl) nameEl.textContent = formatRecordName(record);
+
+    const posEl = document.getElementById('dsoRestorePosition');
+    if (posEl) posEl.textContent = record.position || 'SK Official';
+
+    const brgyEl = document.getElementById('dsoRestoreBarangay');
+    if (brgyEl) brgyEl.textContent = record.barangay || '—';
+
+    const confirmBtn = document.getElementById('dsoRestoreConfirmBtn');
+    const cancelBtn = document.getElementById('dsoRestoreCancelBtn');
+    const closeBtn = document.getElementById('dsoRestoreCloseBtn');
+    if (confirmBtn) {
+        confirmBtn.disabled = false;
+        confirmBtn.innerHTML = '<i class="fas fa-rotate-left" aria-hidden="true"></i> <span>Restore</span>';
+    }
+    if (cancelBtn) cancelBtn.disabled = false;
+    if (closeBtn) closeBtn.disabled = false;
 
     const modal = document.getElementById('dsoRestoreModal');
     if (modal) {
         modal.style.display = 'flex';
         syncDsoModalBodyLock();
-        document.getElementById('dsoRestoreConfirmBtn')?.focus();
+        confirmBtn?.focus();
     }
 }
 
 function closeDsoRestoreModal() {
+    if (dsoIsRestoring) return;
     dsoPendingId = null;
     const modal = document.getElementById('dsoRestoreModal');
     if (modal) modal.style.display = 'none';
@@ -759,48 +1064,78 @@ function closeDsoRestoreModal() {
 
 function bindDsoRestoreModal() {
     const cancelBtn = document.getElementById('dsoRestoreCancelBtn');
+    const closeBtn = document.getElementById('dsoRestoreCloseBtn');
     const confirmBtn = document.getElementById('dsoRestoreConfirmBtn');
+    const form = document.getElementById('dsoRestoreForm');
     const modal = document.getElementById('dsoRestoreModal');
 
     cancelBtn?.addEventListener('click', closeDsoRestoreModal);
-    modal?.addEventListener('click', (e) => { if (e.target === modal) closeDsoRestoreModal(); });
+    closeBtn?.addEventListener('click', closeDsoRestoreModal);
 
-    confirmBtn?.addEventListener('click', async function () {
-        if (!dsoPendingId || dsoIsRestoring) return;
+    modal?.addEventListener('click', (e) => {
+        if (e.target === modal && !dsoIsRestoring) {
+            closeDsoRestoreModal();
+        }
+    });
+
+    const submitRestore = async (e) => {
+        if (e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+        const restoreId = dsoPendingId || document.getElementById('dsoRestoreAccountId')?.value;
+        if (!restoreId || dsoIsRestoring) return;
+
         dsoIsRestoring = true;
-        const restoreId = dsoPendingId;
-        confirmBtn.disabled = true;
-        confirmBtn.textContent = 'Restoring...';
+        if (confirmBtn) {
+            confirmBtn.disabled = true;
+            confirmBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span> <span>Restoring...</span>';
+        }
         if (cancelBtn) cancelBtn.disabled = true;
+        if (closeBtn) closeBtn.disabled = true;
 
         try {
             const response = await fetch(DSO_API.restore(restoreId), {
                 method: 'POST',
                 headers: {
                     'X-CSRF-TOKEN': getCsrfToken(),
-                    Accept: 'application/json',
+                    'Accept': 'application/json',
+                    'Content-Type': 'application/json',
                 },
+                body: JSON.stringify({
+                    account_id: restoreId,
+                }),
             });
             const data = await response.json().catch(() => ({}));
             if (!response.ok || !data.success) {
                 throw new Error(data.message || 'Failed to restore account.');
             }
+
             closeDsoRestoreModal();
             showDsoToast(data.message || 'SK Official restored successfully.');
             window.SkLocalCache?.clearByPrefix('sk_fed_deleted_sk_officials_v1_');
-            dsoRecords = dsoRecords.filter((r) => String(r.id) !== String(restoreId));
-            dsoFiltered = dsoFiltered.filter((r) => String(r.id) !== String(restoreId));
+
+            const idStr = String(restoreId);
+            dsoMasterRecords = dsoMasterRecords.filter((r) => String(r.id) !== idStr && String(r.archive_id) !== idStr);
+            dsoRecords = dsoRecords.filter((r) => String(r.id) !== idStr && String(r.archive_id) !== idStr);
+            dsoFiltered = dsoFiltered.filter((r) => String(r.id) !== idStr && String(r.archive_id) !== idStr);
             renderDsoTable();
-            await loadDsoRecords();
+
+            await loadDsoRecords({ silent: true });
         } catch (error) {
             showDsoToast(error.message || 'Failed to restore account. Please try again.', 'error');
         } finally {
             dsoIsRestoring = false;
-            confirmBtn.disabled = false;
-            confirmBtn.textContent = 'Restore';
+            if (confirmBtn) {
+                confirmBtn.disabled = false;
+                confirmBtn.innerHTML = '<i class="fas fa-rotate-left" aria-hidden="true"></i> <span>Restore</span>';
+            }
             if (cancelBtn) cancelBtn.disabled = false;
+            if (closeBtn) closeBtn.disabled = false;
         }
-    });
+    };
+
+    form?.addEventListener('submit', submitRestore);
 }
 
 function showDsoToast(message, type = 'success') {

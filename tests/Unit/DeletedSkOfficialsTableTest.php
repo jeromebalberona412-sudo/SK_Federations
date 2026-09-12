@@ -3,7 +3,7 @@
 use Illuminate\Support\Facades\Route;
 use Tests\TestCase;
 
-uses(TestCase::class);
+uses(\Tests\TestCase::class);
 
 it('registers all deleted sk officials routes including show and restore', function () {
     expect(Route::has('archived.deleted-sk-officials'))->toBeTrue()
@@ -42,11 +42,15 @@ it('has the exact 9-column table structure and Actions header in the Blade view'
     expect($bladeContent)->toContain('<h2 class="dso-modal-title">Restore SK Official?</h2>')
         ->and($bladeContent)->toContain('Are you sure you want to restore this SK Official account?');
 
-    // Actions dropdown menu has exactly View and Restore options via ArchiveRowActions structure
-    expect($bladeContent)->toContain('data-ar-action="view"')
-        ->and($bladeContent)->toContain('data-ar-action="restore"')
+    // Action column uses 3-dot dropdown menu containing View and Restore actions
+    expect($bladeContent)->toContain('ar-row-actions-menu')
         ->and($bladeContent)->toContain('ar-row-actions-trigger')
-        ->and($bladeContent)->toContain('archive-row-actions.js');
+        ->and($bladeContent)->toContain('ar-row-actions-dropdown')
+        ->and($bladeContent)->toContain('ar-row-actions-item')
+        ->and($bladeContent)->toContain('data-action="view"')
+        ->and($bladeContent)->toContain('data-action="restore"')
+        ->and($bladeContent)->toContain('<span>View</span>')
+        ->and($bladeContent)->toContain('<span>Restore</span>');
 });
 
 it('renders matching 9 td cells in JavaScript renderDsoTable', function () {
@@ -55,11 +59,54 @@ it('renders matching 9 td cells in JavaScript renderDsoTable', function () {
     // Loading & empty states use colspan 9
     expect($jsContent)->toContain('colspan="9"');
 
-    // 3-dots action menu with view and restore via ArchiveRowActions (like Deleted Posts)
-    expect($jsContent)->toContain('ArchiveRowActions.renderMenu')
-        ->and($jsContent)->toContain('view: true')
-        ->and($jsContent)->toContain('restore: true');
+    // Action column uses 3-dot dropdown menu containing View and Restore actions
+    expect($jsContent)->toContain('ar-row-actions-menu')
+        ->and($jsContent)->toContain('ar-row-actions-trigger')
+        ->and($jsContent)->toContain('ar-row-actions-dropdown')
+        ->and($jsContent)->toContain('ar-row-actions-item')
+        ->and($jsContent)->toContain('data-action="view"')
+        ->and($jsContent)->toContain('data-action="restore"');
 
     // Success restore toast
     expect($jsContent)->toContain('SK Official restored successfully.');
+});
+
+it('can render the deleted sk officials view without vite or template errors', function () {
+    $view = view('Deleted_SK_Officials::deleted-sk-officials', [
+        'deletedOfficials' => collect([
+            new \Illuminate\Support\Fluent([
+                'id' => 1,
+                'archive_id' => 1,
+                'fullName' => 'DELA CRUZ, JUAN',
+                'full_name' => 'DELA CRUZ, JUAN',
+                'firstName' => 'JUAN',
+                'lastName' => 'DELA CRUZ',
+                'middleName' => '',
+                'suffix' => '',
+                'position' => 'SK Chairperson',
+                'barangay' => 'Bagumbayan',
+                'municipality' => 'Santa Cruz',
+                'term' => '2023 — 2026',
+                'termStart' => '2023',
+                'termEnd' => '2026',
+                'termLabel' => '2023-2026',
+                'deletedDate' => 'Sep 12, 2026',
+                'deletedTime' => '10:00 AM',
+                'deleted_by' => 'Admin User',
+            ])
+        ]),
+        'stats' => ['total' => 1, 'today' => 0, 'month' => 0],
+        'filterBarangays' => ['Bagumbayan'],
+        'filterPositions' => ['SK Chairperson'],
+        'filterYears' => ['2026'],
+        'currentFilter' => 'all',
+        'currentYear' => 'all',
+        'currentBarangay' => '',
+        'currentPosition' => '',
+        'currentSearch' => '',
+        'retentionDays' => 30,
+    ])->render();
+
+    expect($view)->toContain('Deleted SK Officials')
+        ->and($view)->toContain('DELA CRUZ, JUAN');
 });

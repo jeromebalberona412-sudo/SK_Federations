@@ -29,39 +29,39 @@
             </div>
         </a>
 
-        <a href="{{ route('dashboard') }}" class="menu-item {{ request()->routeIs('dashboard') ? 'active' : '' }}" data-tooltip="Dashboard" id="sidebar-dashboard-link" data-no-loading>
+        <a href="{{ route('dashboard') }}" class="menu-item {{ request()->routeIs('dashboard') ? 'active' : '' }}" data-tooltip="Dashboard" id="sidebar-dashboard-link" data-tour="dashboard" data-no-loading>
             <i class="fas fa-home"></i><span>Dashboard</span>
         </a>
 
-        <a href="{{ route('profile') }}" class="menu-item {{ request()->routeIs('profile') ? 'active' : '' }}" data-tooltip="Profile" data-no-loading>
+        <a href="{{ route('profile') }}" class="menu-item {{ request()->routeIs('profile') ? 'active' : '' }}" data-tooltip="Profile" data-tour="profile" data-no-loading>
             <i class="fas fa-user"></i><span>Profile</span>
         </a>
 
-        <a href="{{ route('calendar') }}" class="menu-item {{ request()->routeIs('calendar') ? 'active' : '' }}" data-tooltip="Calendar" data-no-loading>
+        <a href="{{ route('calendar') }}" class="menu-item {{ request()->routeIs('calendar') ? 'active' : '' }}" data-tooltip="Calendar" data-tour="calendar" data-no-loading>
             <i class="fas fa-calendar-alt"></i><span>Calendar</span>
         </a>
 
-        <a href="{{ route('community-feed') }}" class="menu-item {{ request()->routeIs('community-feed', 'community-feed.comments', 'sk-fed-profile', 'skfed.barangay-profile', 'skfed.barangay-profile.comments') ? 'active' : '' }}" data-tooltip="SK Community Feed" id="sidebar-community-feed-link" data-no-loading>
+        <a href="{{ route('community-feed') }}" class="menu-item {{ request()->routeIs('community-feed', 'community-feed.comments', 'sk-fed-profile', 'skfed.barangay-profile', 'skfed.barangay-profile.comments') ? 'active' : '' }}" data-tooltip="SK Community Feed" id="sidebar-community-feed-link" data-tour="community-feed" data-no-loading>
             <i class="fas fa-rss"></i><span>SK Community Feed</span>
         </a>
 
-        <a href="{{ route('barangay-monitoring') }}" class="menu-item {{ request()->routeIs('barangay-monitoring*') ? 'active' : '' }}" data-tooltip="Barangay Compliance" data-no-loading>
+        <a href="{{ route('barangay-monitoring') }}" class="menu-item {{ request()->routeIs('barangay-monitoring*') ? 'active' : '' }}" data-tooltip="Barangay Compliance" data-tour="barangay-monitoring" data-no-loading>
             <i class="fas fa-map-marker-alt"></i><span>Barangay Compliance</span>
         </a>
 
-        <a href="{{ route('kabataan-monitoring') }}" class="menu-item {{ request()->routeIs('kabataan-monitoring*') ? 'active' : '' }}" data-tooltip="KK Profiling Records" data-no-loading>
+        <a href="{{ route('kabataan-monitoring') }}" class="menu-item {{ request()->routeIs('kabataan-monitoring*') ? 'active' : '' }}" data-tooltip="KK Profiling Records" data-tour="kabataan-monitoring" data-no-loading>
             <i class="fas fa-users"></i><span>KK Profiling Records</span>
         </a>
 
-        <a href="{{ route('barangay-logos.index') }}" class="menu-item {{ request()->routeIs('barangay-logos*') ? 'active' : '' }}" data-nav-key="barangay-logos" data-tooltip="Barangay Logos" data-no-loading>
+        <a href="{{ route('barangay-logos.index') }}" class="menu-item {{ request()->routeIs('barangay-logos*') ? 'active' : '' }}" data-nav-key="barangay-logos" data-tooltip="Barangay Logos" data-tour="barangay-logos" data-no-loading>
             <i class="fas fa-image"></i><span>Barangay Logos</span>
         </a>
 
-        <a href="{{ route('auditlogs.index') }}" class="menu-item {{ request()->routeIs('auditlogs*') ? 'active' : '' }}" data-tooltip="Audit Logs" data-no-loading>
+        <a href="{{ route('auditlogs.index') }}" class="menu-item {{ request()->routeIs('auditlogs*') ? 'active' : '' }}" data-tooltip="Audit Logs" data-tour="audit-logs" data-no-loading>
             <i class="fas fa-clipboard-list"></i><span>Audit Logs</span>
         </a>
 
-        <button type="button" class="menu-item menu-dropdown-toggle" data-submenu-toggle="accountsSubmenu" data-tooltip="Accounts" aria-expanded="{{ $accountsOpen ? 'true' : 'false' }}" onclick="toggleSubmenuDropdown(this, event)">
+        <button type="button" class="menu-item menu-dropdown-toggle" data-submenu-toggle="accountsSubmenu" data-tooltip="Accounts" data-tour="manage-accounts" aria-expanded="{{ $accountsOpen ? 'true' : 'false' }}" onclick="toggleSubmenuDropdown(this, event)">
             <i class="fas fa-user-cog"></i><span>Manage Accounts</span>
             <i class="fas fa-chevron-down menu-dropdown-chevron {{ $accountsOpen ? 'is-open' : '' }}" id="accountsChevron"></i>
         </button>
@@ -75,7 +75,7 @@
             </a>
         </div>
 
-        <button type="button" class="menu-item menu-dropdown-toggle" data-submenu-toggle="archiveManagementSubmenu" data-tooltip="Archive Management" aria-expanded="{{ $archiveManagementOpen ? 'true' : 'false' }}" onclick="toggleSubmenuDropdown(this, event)">
+        <button type="button" class="menu-item menu-dropdown-toggle" data-submenu-toggle="archiveManagementSubmenu" data-tooltip="Archive Management" data-tour="archive-management" aria-expanded="{{ $archiveManagementOpen ? 'true' : 'false' }}" onclick="toggleSubmenuDropdown(this, event)">
             <i class="fas fa-box-archive"></i><span>Archive Management</span>
             <i class="fas fa-chevron-down menu-dropdown-chevron {{ $archiveManagementOpen ? 'is-open' : '' }}" id="archiveManagementChevron"></i>
         </button>

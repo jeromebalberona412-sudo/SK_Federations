@@ -142,6 +142,10 @@ export default defineConfig({
                 // ── Turnover ───────────────────────────────────────────────
                 'app/Modules/Turnover/assets/css/turnover.css',
                 'app/Modules/Turnover/assets/js/turnover.js',
+
+                // ── Tutorial Guide ──────────────────────────────────────────
+                'app/Modules/Tutorial_Guide/assets/css/tutorial-guide.css',
+                'app/Modules/Tutorial_Guide/assets/js/tutorial-guide.js',
             ],
             refresh: true,
         }),

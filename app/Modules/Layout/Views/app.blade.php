@@ -22,6 +22,7 @@
         $layoutVite = \App\Support\ViteManifest::existing([
             'app/Modules/Dashboard/assets/css/dashboard.css',
             'app/Modules/Layout/assets/css/layout.css',
+            'app/Modules/Tutorial_Guide/assets/css/tutorial-guide.css',
         ]);
     @endphp
     @if ($layoutVite !== [])
@@ -43,6 +44,10 @@
     @include('layout::logout-modal')
     @include('layout::session-timeout-modal')
     @include('layout::chat-modal')
+
+    @auth
+        @include('tutorial_guide::tutorial')
+    @endauth
 
     @auth
         <div
@@ -125,6 +130,14 @@
         @endphp
         @if ($commsVite !== [])
             @vite($commsVite)
+        @endif
+        @php
+            $tutorialJsVite = \App\Support\ViteManifest::existing([
+                'app/Modules/Tutorial_Guide/assets/js/tutorial-guide.js',
+            ]);
+        @endphp
+        @if ($tutorialJsVite !== [])
+            @vite($tutorialJsVite)
         @endif
     @endauth
     @php

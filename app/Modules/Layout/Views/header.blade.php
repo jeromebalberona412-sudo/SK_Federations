@@ -1,6 +1,6 @@
 <nav class="navbar sk-fed-navbar">
     <div class="navbar-left">
-        <button class="menu-toggle" onclick="toggleSidebar()" aria-label="Toggle sidebar">
+        <button class="menu-toggle" onclick="toggleSidebar()" aria-label="Toggle sidebar" data-tour="sidebar-toggle">
             <i class="fas fa-bars toggle-icon-expand"></i>
             <i class="fas fa-ellipsis-v toggle-icon-collapse"></i>
         </button>
@@ -26,6 +26,7 @@
                 type="button"
                 class="comms-header-msg-btn"
                 id="commsMsgBtn"
+                data-tour="messages"
                 onclick="toggleMessagesPopover(event)"
                 aria-label="Messages"
                 title="Messages"
@@ -51,8 +52,10 @@
                 type="button"
                 class="notif-btn"
                 id="notifBtn"
+                data-tour="notifications"
                 onclick="toggleNotifPopover(event)"
                 aria-label="Notifications"
+                title="Notifications"
                 aria-expanded="false"
                 aria-haspopup="true"
             >
@@ -63,7 +66,22 @@
             @include('notifications::dropdown-popover')
         </div>
 
-        <div class="profile-dropdown-wrapper">
+        {{-- Interactive Tutorial Guide Button --}}
+        <div class="notif-menu tutorial-guide-header-menu" id="tutorialGuideHeaderMenu">
+            <button
+                type="button"
+                class="notif-btn tutorial-header-btn"
+                id="tutorialGuideBtn"
+                data-tour="tutorial-guide"
+                onclick="window.startSkFedTutorial && window.startSkFedTutorial(true)"
+                aria-label="Interactive Tutorial"
+                title="Start Interactive Tutorial"
+            >
+                <i class="fas fa-compass" aria-hidden="true"></i>
+            </button>
+        </div>
+
+        <div class="profile-dropdown-wrapper" data-tour="account-menu">
             <button class="profile-btn" onclick="toggleProfileDropdown(event)" aria-label="Profile menu" aria-expanded="false" aria-haspopup="true">
                 <img src="{{ $avatar }}" alt="Profile" class="nav-avatar">
                 <i class="fas fa-chevron-down nav-chevron"></i>
@@ -93,6 +111,13 @@
                     </span>
                     Account Settings
                 </a>
+
+                <button type="button" class="profile-dropdown-item" id="nav-tutorial-guide-btn" onclick="toggleProfileDropdown(event); window.startSkFedTutorial && window.startSkFedTutorial(true);" data-no-loading>
+                    <span class="profile-dropdown-icon profile-dropdown-icon--tutorial">
+                        <i class="fas fa-compass" style="font-size: 1rem; color: #f59e0b;"></i>
+                    </span>
+                    Interactive Tutorial
+                </button>
 
                 <div class="profile-dropdown-divider"></div>
 

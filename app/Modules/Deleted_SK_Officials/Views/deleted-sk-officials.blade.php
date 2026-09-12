@@ -4,9 +4,14 @@
 
 @push('styles')
     <link rel="stylesheet" href="{{ url('/shared/css/archive-row-actions.css') }}?v={{ @filemtime(public_path('shared/css/archive-row-actions.css')) ?: time() }}">
-    @vite([
-        'app/Modules/Deleted_SK_Officials/assets/css/deleted-sk-officials.css',
-    ])
+    @php
+        $dsoCssVite = \App\Support\ViteManifest::existing([
+            'app/Modules/Deleted_SK_Officials/assets/css/deleted-sk-officials.css',
+        ]);
+    @endphp
+    @if ($dsoCssVite !== [])
+        @vite($dsoCssVite)
+    @endif
 @endpush
 
 @section('content')
@@ -112,12 +117,41 @@
                             <td title="{{ $dBy }}">{{ $dBy }}</td>
                             <td class="dso-col-actions col-actions">
                                 <div class="ar-row-actions-menu">
-                                    <button type="button" class="ar-row-actions-trigger" aria-label="More actions" aria-haspopup="menu" aria-expanded="false">
-                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="2"></circle><circle cx="12" cy="12" r="2"></circle><circle cx="19" cy="12" r="2"></circle></svg>
+                                    <button type="button"
+                                            class="ar-row-actions-trigger"
+                                            aria-label="More actions for {{ $name }}"
+                                            aria-haspopup="menu"
+                                            aria-expanded="false"
+                                            title="More actions">
+                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                                            <circle cx="5" cy="12" r="2"></circle>
+                                            <circle cx="12" cy="12" r="2"></circle>
+                                            <circle cx="19" cy="12" r="2"></circle>
+                                        </svg>
                                     </button>
                                     <div class="ar-row-actions-dropdown" role="menu" hidden>
-                                        <button type="button" class="ar-row-actions-item" data-ar-action="view" data-id="{{ $id }}" role="menuitem"><i class="fas fa-eye" aria-hidden="true"></i><span>View</span></button>
-                                        <button type="button" class="ar-row-actions-item" data-ar-action="restore" data-id="{{ $id }}" role="menuitem"><i class="fas fa-rotate-left" aria-hidden="true"></i><span>Restore</span></button>
+                                        <button type="button"
+                                                class="ar-row-actions-item"
+                                                data-action="view"
+                                                data-ar-action="view"
+                                                data-id="{{ $id }}"
+                                                role="menuitem"
+                                                title="View Details"
+                                                aria-label="View details for {{ $name }}">
+                                            <i class="fas fa-eye" aria-hidden="true"></i>
+                                            <span>View</span>
+                                        </button>
+                                        <button type="button"
+                                                class="ar-row-actions-item"
+                                                data-action="restore"
+                                                data-ar-action="restore"
+                                                data-id="{{ $id }}"
+                                                role="menuitem"
+                                                title="Restore Account"
+                                                aria-label="Restore account for {{ $name }}">
+                                            <i class="fas fa-rotate-left" aria-hidden="true"></i>
+                                            <span>Restore</span>
+                                        </button>
                                     </div>
                                 </div>
                             </td>
@@ -157,40 +191,92 @@
 </div>
 
 <!-- Restore Confirmation Modal -->
-<div class="dso-modal-backdrop" id="dsoRestoreModal" style="display:none;">
-    <div class="dso-modal-box">
-        <div class="dso-modal-header">
-            <h2 class="dso-modal-title">Restore SK Official?</h2>
+<div class="dso-modal-backdrop" id="dsoRestoreModal" style="display:none;" role="dialog" aria-modal="true" aria-label="Restore SK Official">
+    <div class="dso-modal-box dso-restore-modal-box" id="dsoRestoreModalBox">
+        <div class="dso-modal-header dso-restore-modal-header">
+            <div class="dso-restore-header-title-wrap">
+                <span class="dso-restore-header-icon" aria-hidden="true">
+                    <i class="fas fa-rotate-left"></i>
+                </span>
+                <h2 class="dso-modal-title">Restore SK Official?</h2>
+            </div>
+            <button type="button" class="dso-modal-close-btn" id="dsoRestoreCloseBtn" title="Close" aria-label="Close">&times;</button>
         </div>
-        <div class="dso-modal-body">
-            <p class="dso-modal-message">Are you sure you want to restore this SK Official account?</p>
-            <p class="dso-modal-name" id="dsoRestoreName"></p>
-        </div>
-        <div class="dso-modal-footer">
-            <button type="button" class="dso-btn-cancel" id="dsoRestoreCancelBtn">Cancel</button>
-            <button type="button" class="dso-btn-confirm" id="dsoRestoreConfirmBtn">Restore</button>
-        </div>
+        <form id="dsoRestoreForm" novalidate>
+            @csrf
+            <input type="hidden" id="dsoRestoreAccountId" name="account_id" value="">
+            <div class="dso-modal-body dso-restore-modal-body">
+                <p class="dso-modal-message">Are you sure you want to restore this SK Official account?</p>
+                <p class="dso-restore-submessage">The account will be reactivated and moved back to Accounts Management.</p>
+
+                <div class="dso-restore-preview-card">
+                    <div class="dso-restore-preview-avatar">
+                        <i class="fas fa-user-shield" aria-hidden="true"></i>
+                    </div>
+                    <div class="dso-restore-preview-info">
+                        <h4 class="dso-restore-preview-name" id="dsoRestoreName">—</h4>
+                        <div class="dso-restore-preview-meta">
+                            <span class="dso-restore-preview-tag dso-tag-position" id="dsoRestorePosition">—</span>
+                            <span class="dso-restore-preview-tag dso-tag-barangay" id="dsoRestoreBarangay">—</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="dso-modal-footer dso-restore-modal-footer">
+                <button type="button" class="dso-btn-cancel" id="dsoRestoreCancelBtn">Cancel</button>
+                <button type="submit" class="dso-btn-confirm" id="dsoRestoreConfirmBtn">
+                    <i class="fas fa-rotate-left" aria-hidden="true"></i>
+                    <span>Restore</span>
+                </button>
+            </div>
+        </form>
     </div>
 </div>
 
 <!-- View Modal -->
-<div class="dso-modal-backdrop" id="dsoViewModal" style="display:none;">
+<div class="dso-modal-backdrop" id="dsoViewModal" style="display:none;" role="dialog" aria-modal="true" aria-label="View Details">
     <div class="dso-modal-box dso-view-modal-box" id="dsoViewModalBox">
         <div class="dso-modal-header dso-view-modal-header">
-            <h2 class="dso-modal-title">View Details</h2>
+            <div class="dso-view-header-title-wrap">
+                <h2 class="dso-modal-title">View Details</h2>
+                <span class="dso-view-subtitle">Archived SK Official Record</span>
+            </div>
             <div class="dso-view-controls modal-window-controls">
-                <button type="button" class="modal-toggle-btn" id="dsoViewMaximizeBtn" aria-label="Fullscreen" title="Fullscreen">□</button>
-                <button type="button" class="modal-toggle-btn" id="dsoViewRestoreBtn" hidden aria-label="Restore down" title="Restore down">⧉</button>
+                <button type="button" class="modal-win-btn modal-win-btn-maximize" id="dsoViewMaximizeBtn" aria-label="Fullscreen" title="Fullscreen">
+                    <svg class="modal-win-icon-max" width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true">
+                        <rect x="2.5" y="2.5" width="11" height="11" rx="0.5"></rect>
+                    </svg>
+                </button>
+                <button type="button" class="modal-win-btn modal-win-btn-restore" id="dsoViewRestoreBtn" hidden aria-label="Restore down" title="Restore down">
+                    <svg class="modal-win-icon-restore" width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true">
+                        <path d="M5 3.5h7.5V11"></path>
+                        <rect x="2.5" y="5.5" width="8" height="8" rx="0.5"></rect>
+                    </svg>
+                </button>
                 <button type="button" class="dso-view-close modal-win-btn modal-win-btn-close" id="dsoViewClose" title="Close" aria-label="Close">&times;</button>
             </div>
         </div>
         <div class="dso-view-body" id="dsoViewBody"></div>
+        <div class="dso-modal-footer dso-view-modal-footer">
+            <button type="button" class="dso-btn-cancel" id="dsoViewFooterCloseBtn">Close</button>
+            <button type="button" class="dso-btn-confirm dso-btn-view-restore" id="dsoViewFooterRestoreBtn" data-id="">
+                <i class="fas fa-rotate-left" aria-hidden="true"></i>
+                <span>Restore Account</span>
+            </button>
+        </div>
     </div>
 </div>
 
 <div id="dsoFullnameSortMenu" class="dso-sort-menu" hidden role="menu" aria-label="Sort full name"></div>
 
 <script>
+    window.DsoConfig = {
+        dataUrl: @json(route('archived.deleted-sk-officials.data')),
+        showUrl: @json(url('/archived/deleted-sk-officials')),
+        restoreUrl: @json(url('/archived/deleted-sk-officials')),
+        csrf: @json(csrf_token()),
+        retentionDays: {{ (int) ($retentionDays ?? 30) }},
+    };
     window.__DSO_RETENTION_DAYS__ = {{ (int) ($retentionDays ?? 30) }};
     window.__INITIAL_DELETED_SK_OFFICIALS__ = {!! json_encode($deletedOfficials) !!};
     window.__INITIAL_DSO_FILTERS__ = {!! json_encode([
@@ -211,7 +297,12 @@
 
 @push('scripts')
     <script src="{{ url('/shared/js/archive-row-actions.js') }}?v={{ @filemtime(public_path('shared/js/archive-row-actions.js')) ?: time() }}"></script>
-    @vite([
-        'app/Modules/Deleted_SK_Officials/assets/js/deleted-sk-officials.js',
-    ])
+    @php
+        $dsoJsVite = \App\Support\ViteManifest::existing([
+            'app/Modules/Deleted_SK_Officials/assets/js/deleted-sk-officials.js',
+        ]);
+    @endphp
+    @if ($dsoJsVite !== [])
+        @vite($dsoJsVite)
+    @endif
 @endpush

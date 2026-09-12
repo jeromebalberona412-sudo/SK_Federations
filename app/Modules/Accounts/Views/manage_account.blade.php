@@ -270,7 +270,6 @@
 @include('accounts::view_account')
 @include('accounts::delete_account_modal')
 @include('accounts::long_name_modal')
-@include('accounts::age_confirm_modal')
 
 <div id="accountToast" role="status" aria-live="polite"><span id="accountToastMsg">Account successfully created!</span></div>
 <div id="accountToastEdit" role="status" aria-live="polite"><span id="accountToastEditMsg">Account updated successfully!</span></div>

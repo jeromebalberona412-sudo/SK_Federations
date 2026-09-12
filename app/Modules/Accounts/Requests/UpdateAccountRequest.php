@@ -130,25 +130,6 @@ class UpdateAccountRequest extends FormRequest
         }
     }
 
-    private function resolveEligibilityReference(): string
-    {
-        $termStart = $this->input('term_start');
-        if (is_string($termStart) && trim($termStart) !== '') {
-            return trim($termStart);
-        }
-
-        $account = $this->route('user');
-        if ($account instanceof User) {
-            $account->loadMissing('officialProfile.latestTerm');
-            $start = $account->officialProfile?->latestTerm?->term_start?->toDateString();
-            if ($start) {
-                return $start;
-            }
-        }
-
-        return SkOfficialTermDates::ELECTION_DATE;
-    }
-
     public function rules(): array
     {
         $userId = $this->route('user')?->id;
@@ -159,8 +140,7 @@ class UpdateAccountRequest extends FormRequest
         ], true);
         $isOfficial = $accountRole === User::ROLE_SK_OFFICIAL;
 
-        $referenceDate = $this->resolveEligibilityReference();
-        $bounds = SkOfficialTermDates::birthdateBounds($referenceDate);
+        $bounds = SkOfficialTermDates::birthdateBounds();
         $keepsExistingBirthdate = $requiresDemographics && $this->birthdateMatchesStored();
 
         $dateOfBirthRules = $requiresDemographics
@@ -251,8 +231,13 @@ class UpdateAccountRequest extends FormRequest
             return;
         }
 
-        $referenceDate = $this->resolveEligibilityReference();
-        $error = SkOfficialTermDates::birthdateErrorFor($this->input('date_of_birth'), $referenceDate);
+        $dob = $this->input('date_of_birth');
+        if ($dob === null || trim((string) $dob) === '') {
+            $validator->errors()->add('date_of_birth', SkOfficialTermDates::MSG_DOB_REQUIRED);
+            return;
+        }
+
+        $error = SkOfficialTermDates::birthdateErrorFor($dob);
         if ($error !== null) {
             $validator->errors()->add('date_of_birth', $error);
         }
@@ -323,8 +308,6 @@ class UpdateAccountRequest extends FormRequest
      */
     public function messages(): array
     {
-        $referenceDate = $this->resolveEligibilityReference();
-
         return [
             'email.unique' => 'This email is already taken.',
             'email.required' => ValidEmailAddress::MSG_REQUIRED,
@@ -332,8 +315,9 @@ class UpdateAccountRequest extends FormRequest
             'first_name.regex' => 'First name must use uppercase letters only; need a letter before each space; no pure spaces.',
             'last_name.regex' => 'Last name must use uppercase letters only; need a letter before each space; no pure spaces.',
             'middle_name.regex' => 'Middle name must use uppercase letters only; need a letter before each space; no pure spaces.',
+            'date_of_birth.required' => SkOfficialTermDates::MSG_DOB_REQUIRED,
             'date_of_birth.before' => 'Birthdate must be before today.',
-            'date_of_birth.after_or_equal' => SkOfficialTermDates::overMaxAgeMessage($referenceDate),
+            'date_of_birth.after_or_equal' => SkOfficialTermDates::MSG_OVER_MAX_AGE,
             'date_of_birth.before_or_equal' => SkOfficialTermDates::MSG_UNDER_MIN_AGE,
             'age.min' => 'Age must be a valid number.',
             'age.max' => 'Age must be a valid number.',
