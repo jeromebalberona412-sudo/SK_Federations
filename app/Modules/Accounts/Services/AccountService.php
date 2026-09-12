@@ -798,6 +798,20 @@ class AccountService
         return $target->fresh(['officialProfile.terms', 'barangay']);
     }
 
+    /**
+     * Permanently remove a soft-deleted account and related official profile/terms.
+     */
+    public function permanentlyDeleteTrashedAccount(User $target): void
+    {
+        if (! $target->trashed()) {
+            throw ValidationException::withMessages([
+                'account' => 'Only deleted archive accounts can be permanently removed.',
+            ]);
+        }
+
+        $this->rollbackCreatedAccount($target);
+    }
+
     public function resetPassword(User $target, string $newPassword, User $admin): void
     {
         $this->assertSameTenant($target->tenant_id, $admin->tenant_id, 'Target account is outside your tenant scope.');

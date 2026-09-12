@@ -1,17 +1,21 @@
 <?php
 
+use App\Http\Middleware\PreventBackHistory;
 use App\Modules\Accounts\Models\Barangay;
 use App\Modules\Accounts\Models\OfficialProfile;
 use App\Modules\Accounts\Models\OfficialTerm;
 use App\Modules\Accounts\Services\AccountService;
+use App\Modules\Archive_Management\Services\DeletedArchiveService;
+use App\Modules\Authentication\Middleware\EnsureSingleSession;
+use App\Modules\Authentication\Middleware\EnsureTrustedDevice;
 use App\Modules\Shared\Models\User;
 use Illuminate\Support\Facades\DB;
 
 beforeEach(function () {
     $this->withoutMiddleware([
-        \App\Modules\Authentication\Middleware\EnsureTrustedDevice::class,
-        \App\Modules\Authentication\Middleware\EnsureSingleSession::class,
-        \App\Http\Middleware\PreventBackHistory::class,
+        EnsureTrustedDevice::class,
+        EnsureSingleSession::class,
+        PreventBackHistory::class,
     ]);
 });
 
@@ -160,6 +164,104 @@ it('moves a deleted official out of accounts data and into the deleted archive',
     $archiveIds = collect($archiveResponse->json('data'))->pluck('id')->map(fn ($id) => (int) $id)->all();
     expect($archiveIds)->toContain($official->id);
 
+    $archivedRow = collect($archiveResponse->json('data'))->firstWhere('id', $official->id);
+    expect($archivedRow['days_remaining'])->toBeGreaterThan(0)
+        ->and($archivedRow['days_remaining'])->toBeLessThanOrEqual(30);
+
     User::withTrashed()->whereKey($official->id)->forceDelete();
+    $admin->forceDelete();
+});
+
+it('redirects delete responses to the deleted sk officials archive', function () {
+    $tenantId = (int) DB::table('tenants')->where('code', config('sk_fed_auth.tenant_code'))->value('id');
+    $barangayId = (int) Barangay::query()->where('tenant_id', $tenantId)->value('id');
+
+    $admin = User::factory()->create([
+        'tenant_id' => $tenantId,
+        'role' => User::ROLE_SK_FED,
+        'email_verified_at' => now(),
+        'status' => User::STATUS_ACTIVE,
+    ]);
+
+    $official = User::factory()->create([
+        'tenant_id' => $tenantId,
+        'barangay_id' => $barangayId,
+        'role' => User::ROLE_SK_OFFICIAL,
+        'email_verified_at' => now(),
+        'status' => User::STATUS_ACTIVE,
+        'email' => 'archive.redirect.'.uniqid().'@example.com',
+    ]);
+
+    OfficialProfile::query()->create([
+        'tenant_id' => $tenantId,
+        'user_id' => $official->id,
+        'first_name' => 'REDIRECT',
+        'last_name' => 'OFFICIAL',
+        'position' => 'Secretary',
+        'municipality' => 'Santa Cruz',
+        'province' => 'Laguna',
+        'region' => 'IV-A CALABARZON',
+    ]);
+
+    $this->actingAs($admin)
+        ->postJson(route('accounts.deactivate', $official))
+        ->assertOk()
+        ->assertJsonPath('success', true)
+        ->assertJsonPath('redirect', route('archived.deleted-sk-officials'));
+
+    User::withTrashed()->whereKey($official->id)->forceDelete();
+    $admin->forceDelete();
+});
+
+it('permanently purges deleted sk officials after 30 days', function () {
+    $tenantId = (int) DB::table('tenants')->where('code', config('sk_fed_auth.tenant_code'))->value('id');
+    $barangayId = (int) Barangay::query()->where('tenant_id', $tenantId)->value('id');
+
+    $admin = User::factory()->create([
+        'tenant_id' => $tenantId,
+        'role' => User::ROLE_SK_FED,
+        'email_verified_at' => now(),
+        'status' => User::STATUS_ACTIVE,
+    ]);
+
+    $official = User::factory()->create([
+        'tenant_id' => $tenantId,
+        'barangay_id' => $barangayId,
+        'role' => User::ROLE_SK_OFFICIAL,
+        'email_verified_at' => now(),
+        'status' => User::STATUS_ACTIVE,
+        'email' => 'archive.purge.'.uniqid().'@example.com',
+    ]);
+
+    $profile = OfficialProfile::query()->create([
+        'tenant_id' => $tenantId,
+        'user_id' => $official->id,
+        'first_name' => 'PURGE',
+        'last_name' => 'OFFICIAL',
+        'position' => 'Treasurer',
+        'municipality' => 'Santa Cruz',
+        'province' => 'Laguna',
+        'region' => 'IV-A CALABARZON',
+    ]);
+
+    OfficialTerm::query()->create([
+        'official_profile_id' => $profile->id,
+        'term_start' => now()->subMonth()->toDateString(),
+        'term_end' => now()->addYears(2)->toDateString(),
+        'status' => OfficialTerm::STATUS_ACTIVE,
+    ]);
+
+    app(AccountService::class)->deactivate($official, $admin);
+
+    User::withTrashed()->whereKey($official->id)->update([
+        'deleted_at' => now()->subDays(31),
+    ]);
+
+    $purged = app(DeletedArchiveService::class)
+        ->purgeExpiredDeletedOfficials($tenantId);
+
+    expect($purged)->toBe(1)
+        ->and(User::withTrashed()->find($official->id))->toBeNull();
+
     $admin->forceDelete();
 });

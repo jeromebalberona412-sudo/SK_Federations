@@ -56,6 +56,17 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Public Application URL
+    |--------------------------------------------------------------------------
+    |
+    | Optional absolute URL used for emails and public share links when APP_URL
+    | is a loopback/LAN address but the portal is reachable on a public host.
+    |
+    */
+    'public_url' => env('APP_PUBLIC_URL'),
+
+    /*
+    |--------------------------------------------------------------------------
     | Application Timezone
     |--------------------------------------------------------------------------
     |

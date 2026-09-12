@@ -43,18 +43,21 @@ class MessageAttachmentController extends Controller
                 (string) $attachment->file_name,
                 $attachment->mime_type
             );
+            $safeName = str_replace(['"', "\r", "\n"], '', $payload['file_name'] ?: 'document');
 
             return response()->streamDownload(function () use ($payload) {
                 echo $payload['contents'];
-            }, $payload['file_name'], [
-                'Content-Type' => $payload['mime_type'],
+            }, $safeName, [
+                'Content-Type' => $payload['mime_type'] ?: 'application/octet-stream',
+                'Content-Disposition' => 'attachment; filename="'.$safeName.'"',
+                'Cache-Control' => 'private, no-store',
             ]);
         }
 
         if ($attachment->storage_provider === 'database') {
             $payload = $this->storage->fetchDatabaseObject($attachment);
             $mime = $payload['mime_type'] ?: 'application/octet-stream';
-            $fileName = $payload['file_name'];
+            $fileName = $payload['file_name'] ?: 'document';
             $contents = $payload['contents'];
             $safeName = str_replace(['"', "\r", "\n"], '', $fileName);
 
@@ -62,6 +65,7 @@ class MessageAttachmentController extends Controller
                 echo $contents;
             }, $safeName, [
                 'Content-Type' => $mime,
+                'Content-Disposition' => 'attachment; filename="'.$safeName.'"',
                 'Cache-Control' => 'private, no-store',
             ]);
         }

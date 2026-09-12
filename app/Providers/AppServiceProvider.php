@@ -46,9 +46,19 @@ class AppServiceProvider extends ServiceProvider
         Gate::define('manage-accounts', fn (User $user) => $user->isFederationAdministrator());
 
         $applicationUrl = trim((string) config('app.url'));
+        $resolvedRoot = \App\Modules\Accounts\Support\PortalAppUrl::selfApp();
 
-        // In local dev, match the browser host (127.0.0.1 vs LAN IP) so Vite/CSS/assets load.
-        if ($this->app->environment('local') && ! $this->app->runningInConsole()) {
+        // Prefer public/non-localhost host for absolute URLs (emails, share links).
+        if ($resolvedRoot !== '' && filter_var($resolvedRoot, FILTER_VALIDATE_URL)) {
+            URL::forceRootUrl($resolvedRoot);
+
+            if (str_starts_with(strtolower($resolvedRoot), 'https://')) {
+                URL::forceScheme('https');
+            } elseif (str_starts_with(strtolower($resolvedRoot), 'http://')) {
+                URL::forceScheme('http');
+            }
+        } elseif ($this->app->environment('local') && ! $this->app->runningInConsole()) {
+            // In local dev, match the browser host (127.0.0.1 vs LAN IP) so Vite/CSS/assets load.
             $requestRoot = request()->getSchemeAndHttpHost();
             if ($requestRoot !== '') {
                 URL::forceRootUrl($requestRoot);

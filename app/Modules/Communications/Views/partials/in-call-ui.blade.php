@@ -2,13 +2,15 @@
     <div class="comms-call-stage">
         <video id="commsRemoteVideo" class="comms-remote-video" autoplay playsinline></video>
         <video id="commsLocalVideo" class="comms-local-video" autoplay playsinline muted></video>
-        <audio id="commsRemoteAudio" autoplay></audio>
+        <audio id="commsRemoteAudio" autoplay playsinline></audio>
 
         <div class="comms-call-center" id="commsCallCenter">
             <div class="comms-call-avatar" id="commsCallPeerAvatar" aria-hidden="true">U</div>
-            <div class="comms-call-peer-name" id="commsCallPeerName"></div>
-            <div class="comms-call-status" id="commsCallStatus">Calling...</div>
-            <div class="comms-call-timer" id="commsCallTimer" hidden>00:00</div>
+            <div class="comms-call-meta">
+                <div class="comms-call-peer-name" id="commsCallPeerName"></div>
+                <div class="comms-call-status" id="commsCallStatus">Calling...</div>
+                <div class="comms-call-timer" id="commsCallTimer" hidden>00:00</div>
+            </div>
         </div>
 
         <div class="comms-call-controls">

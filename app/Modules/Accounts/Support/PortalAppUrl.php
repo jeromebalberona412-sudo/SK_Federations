@@ -76,6 +76,76 @@ final class PortalAppUrl
         return $url;
     }
 
+    public static function kabataan(): string
+    {
+        return self::preferAbsolute([
+            config('services.kabataan_app_url'),
+            config('app.public_url'),
+        ]) ?? '';
+    }
+
+    /**
+     * This Federation app's public base URL (share links, same-app absolute URLs).
+     */
+    public static function selfApp(): string
+    {
+        $candidates = [
+            config('app.public_url'),
+            config('services.sk_fed_app_url'),
+            config('app.url'),
+        ];
+
+        if (! app()->runningInConsole()) {
+            try {
+                $candidates[] = request()->getSchemeAndHttpHost();
+            } catch (\Throwable) {
+                // ignore
+            }
+        }
+
+        return self::preferAbsolute($candidates) ?? rtrim((string) config('app.url'), '/');
+    }
+
+    public static function isLoopback(?string $url): bool
+    {
+        $host = strtolower((string) parse_url((string) $url, PHP_URL_HOST));
+
+        return $host === ''
+            || $host === 'localhost'
+            || $host === '127.0.0.1'
+            || $host === '[::1]'
+            || str_ends_with($host, '.localhost');
+    }
+
+    /**
+     * Prefer a non-localhost absolute URL. Loopback is allowed only in local/testing.
+     *
+     * @param  list<mixed>  $candidates
+     */
+    public static function preferAbsolute(array $candidates): ?string
+    {
+        $normalized = [];
+
+        foreach ($candidates as $candidate) {
+            $url = self::normalize($candidate);
+            if ($url !== null) {
+                $normalized[] = $url;
+            }
+        }
+
+        foreach ($normalized as $url) {
+            if (! self::isLoopback($url)) {
+                return $url;
+            }
+        }
+
+        if (app()->environment('local', 'testing') && $normalized !== []) {
+            return $normalized[0];
+        }
+
+        return $normalized[0] ?? null;
+    }
+
     public static function normalize(mixed $url): ?string
     {
         $value = trim((string) $url);

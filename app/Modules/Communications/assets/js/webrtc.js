@@ -440,6 +440,14 @@
         }
     }
 
+    function hasLiveRemoteVideo() {
+        var stream = els.remoteVideo && els.remoteVideo.srcObject;
+        if (!stream || typeof stream.getVideoTracks !== 'function') return false;
+        return stream.getVideoTracks().some(function (track) {
+            return !!(track && track.readyState === 'live' && track.enabled !== false);
+        });
+    }
+
     function updateCameraUi() {
         if (els.cameraBtn) {
             els.cameraBtn.hidden = false;
@@ -448,10 +456,70 @@
         if (els.localVideo) {
             els.localVideo.hidden = !cameraEnabled;
         }
-        if (els.callCenter) {
-            var showCenter = !cameraEnabled || !callConnected;
-            els.callCenter.hidden = !showCenter && !!(els.remoteVideo && els.remoteVideo.srcObject);
+        var remoteVideoLive = hasLiveRemoteVideo();
+        if (els.inCall) {
+            els.inCall.classList.toggle('is-connected', !!callConnected);
+            els.inCall.classList.toggle('has-remote-video', remoteVideoLive);
+            els.inCall.classList.toggle('is-video-call', !!cameraEnabled || remoteVideoLive);
         }
+        if (els.callCenter) {
+            els.callCenter.hidden = false;
+            els.callCenter.removeAttribute('hidden');
+            els.callCenter.classList.toggle('is-compact', !!callConnected && remoteVideoLive);
+        }
+        syncLocalPipLayout();
+    }
+
+    function syncLocalPipLayout() {
+        if (!els.inCall || !els.localVideo) return;
+        var landscape = false;
+        try {
+            landscape = window.matchMedia('(orientation: landscape)').matches;
+        } catch (e) {
+            landscape = window.innerWidth > window.innerHeight;
+        }
+        var desktop = window.innerWidth >= 1024;
+        els.inCall.classList.toggle('is-landscape', landscape);
+        els.inCall.classList.toggle('is-desktop-call', desktop);
+
+        var camLandscape = landscape;
+        try {
+            var track = localStream && localStream.getVideoTracks && localStream.getVideoTracks()[0];
+            var settings = track && typeof track.getSettings === 'function' ? track.getSettings() : null;
+            if (settings && settings.width && settings.height) {
+                camLandscape = (Number(settings.width) / Number(settings.height)) >= 1.15;
+            }
+        } catch (e2) { /* ignore */ }
+        els.localVideo.classList.toggle('is-cam-landscape', camLandscape);
+        els.localVideo.classList.toggle('is-cam-portrait', !camLandscape);
+    }
+
+    function ensureRemoteAudioPlaying() {
+        if (!els.remoteAudio) return;
+        try {
+            els.remoteAudio.muted = false;
+            els.remoteAudio.volume = 1;
+            var playPromise = els.remoteAudio.play();
+            if (playPromise && typeof playPromise.catch === 'function') {
+                playPromise.catch(function () {});
+            }
+        } catch (e) { /* ignore */ }
+    }
+
+    function bindRemoteMedia(stream) {
+        if (!stream) return;
+        if (els.remoteVideo) {
+            els.remoteVideo.srcObject = stream;
+            try {
+                var vp = els.remoteVideo.play();
+                if (vp && typeof vp.catch === 'function') vp.catch(function () {});
+            } catch (e) { /* ignore */ }
+        }
+        if (els.remoteAudio) {
+            els.remoteAudio.srcObject = stream;
+            ensureRemoteAudioPlaying();
+        }
+        updateCameraUi();
     }
 
     function setCallStatus(text) {
@@ -467,13 +535,14 @@
             return await devices.getUserMedia({
                 audio: {
                     echoCancellation: true,
-                    noiseSuppression: true
+                    noiseSuppression: true,
+                    autoGainControl: true,
+                    channelCount: 1
                 },
                 video: videoEnabled ? {
                     facingMode: 'user',
-                    width: { ideal: 640, max: 1280 },
-                    height: { ideal: 480, max: 720 },
-                    aspectRatio: { ideal: 1.333 }
+                    width: { ideal: 1280, max: 1920 },
+                    height: { ideal: 720, max: 1080 }
                 } : false
             });
         } catch (err) {
@@ -566,8 +635,10 @@
                 ? ev.streams[0]
                 : (ev.track ? new MediaStream([ev.track]) : null);
             if (!stream) return;
-            if (els.remoteVideo) els.remoteVideo.srcObject = stream;
-            if (els.remoteAudio) els.remoteAudio.srcObject = stream;
+            bindRemoteMedia(stream);
+            if (ev.track && ev.track.kind === 'audio') {
+                ensureRemoteAudioPlaying();
+            }
         };
 
         localStream.getTracks().forEach(function (track) {
@@ -648,6 +719,8 @@
         }
         setMuteUi(false);
         updateCameraUi();
+        syncLocalPipLayout();
+        ensureRemoteAudioPlaying();
     }
 
     async function cleanupMediaOnly() {
@@ -678,7 +751,14 @@
         if (els.remoteVideo) els.remoteVideo.srcObject = null;
         if (els.localVideo) els.localVideo.srcObject = null;
         if (els.remoteAudio) els.remoteAudio.srcObject = null;
-        if (els.inCall) els.inCall.hidden = true;
+        if (els.inCall) {
+            els.inCall.hidden = true;
+            els.inCall.classList.remove('is-connected', 'has-remote-video', 'is-video-call');
+        }
+        if (els.callCenter) {
+            els.callCenter.classList.remove('is-compact');
+            els.callCenter.hidden = false;
+        }
         if (els.incoming) els.incoming.hidden = true;
     }
 
@@ -703,29 +783,24 @@
         clearRingTimeout();
         stopRingtone();
 
-        try {
-            if (callSnapshot.id) {
-                await updateCallStatus(callSnapshot.id, status);
-            }
-        } catch (e) { /* ignore */ }
-
-        try {
-            await signalPeer({
-                type: 'hangup',
-                reason: status,
-                call_id: callSnapshot.id,
-                conversation_id: callSnapshot.conversation_id,
-                caller_id: callSnapshot.caller_id,
-                caller_type: callSnapshot.caller_type,
-                receiver_id: callSnapshot.receiver_id,
-                receiver_type: callSnapshot.receiver_type
-            });
-        } catch (e) { /* ignore */ }
-
+        var signalPromise = signalPeer({
+            type: 'hangup',
+            reason: status,
+            call_id: callSnapshot.id,
+            conversation_id: callSnapshot.conversation_id,
+            caller_id: callSnapshot.caller_id,
+            caller_type: callSnapshot.caller_type,
+            receiver_id: callSnapshot.receiver_id,
+            receiver_type: callSnapshot.receiver_type
+        });
         currentCall = null;
         await cleanupMediaOnly();
         showCallEnded(status, peerName, callSnapshot.id);
         refreshCallChat(callSnapshot.conversation_id);
+        Promise.all([
+            signalPromise.catch(function () {}),
+            callSnapshot.id ? updateCallStatus(callSnapshot.id, status).catch(function () {}) : Promise.resolve()
+        ]);
     }
 
     function clearPendingStart() {
@@ -965,24 +1040,24 @@
         var callSnapshot = currentCall;
         rememberCallContext(callSnapshot);
         stopRingtone();
-        try { await updateCallStatus(callSnapshot.id, 'ended'); } catch (e) { /* ignore */ }
-        try {
-            await signalPeer({
-                type: 'hangup',
-                reason: 'ended',
-                call_id: callSnapshot.id,
-                conversation_id: callSnapshot.conversation_id,
-                caller_id: callSnapshot.caller_id,
-                caller_type: callSnapshot.caller_type,
-                receiver_id: callSnapshot.receiver_id,
-                receiver_type: callSnapshot.receiver_type
-            });
-        } catch (e) { /* ignore */ }
-
+        var signalPromise = signalPeer({
+            type: 'hangup',
+            reason: 'ended',
+            call_id: callSnapshot.id,
+            conversation_id: callSnapshot.conversation_id,
+            caller_id: callSnapshot.caller_id,
+            caller_type: callSnapshot.caller_type,
+            receiver_id: callSnapshot.receiver_id,
+            receiver_type: callSnapshot.receiver_type
+        });
         currentCall = null;
         await cleanupMediaOnly();
         showCallEnded('ended', peerName, callSnapshot.id);
         refreshCallChat(callSnapshot.conversation_id);
+        Promise.all([
+            signalPromise.catch(function () {}),
+            updateCallStatus(callSnapshot.id, 'ended').catch(function () {})
+        ]);
     }
 
     async function handleSignal(payload) {
@@ -1026,6 +1101,7 @@
             clearRingTimeout();
             callConnected = true;
             setCallStatus('Connected');
+            updateCameraUi();
             if (els.timer && !callStartedAt) {
                 startTimer();
             }
@@ -1082,6 +1158,7 @@
                 clearRingTimeout();
                 callConnected = true;
                 setCallStatus('Connecting...');
+                updateCameraUi();
             }
             return;
         }
@@ -1170,6 +1247,12 @@
     }
 
     showSecureContextBanner();
+
+    window.addEventListener('orientationchange', syncLocalPipLayout);
+    window.addEventListener('resize', syncLocalPipLayout);
+    if (window.screen && screen.orientation && typeof screen.orientation.addEventListener === 'function') {
+        screen.orientation.addEventListener('change', syncLocalPipLayout);
+    }
 
     window.CommsWebRTC = {
         startCall: startCall,

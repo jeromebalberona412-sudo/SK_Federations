@@ -2227,6 +2227,13 @@ body.bfp-page .feed-filter-bar.bfp-filter-bar {
 .cf-cloud-video-frame video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; background: #000; }
 
 .post-video-grid { margin: 12px 0; width: 100%; }
+.post-hybrid-grid .post-hybrid-image-tile .post-video-tile-inner img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+.post-hybrid-grid .post-hybrid-image-tile { cursor: zoom-in; }
 .post-video-grid-tiles { display: grid; gap: 2px; width: 100%; border-radius: 12px; overflow: hidden; background: #0f172a; }
 .post-video-grid.video-grid-1 .post-video-grid-tiles { grid-template-columns: 1fr; grid-template-rows: minmax(220px, 52vw); }
 .post-video-grid.video-grid-2 .post-video-grid-tiles { grid-template-columns: 1fr 1fr; grid-template-rows: minmax(180px, 36vw); }

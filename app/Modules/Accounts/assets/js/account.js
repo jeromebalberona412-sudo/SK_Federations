@@ -203,6 +203,12 @@ window.AccountsDeleteModal = (function () {
 
                 closeModal();
                 showAccountToast(data.message || 'Accounts deleted successfully!', 'delete');
+                window.SkLocalCache?.clearByPrefix?.('sk_fed_deleted_sk_officials_v1_');
+                if (data.redirect) {
+                    window.setTimeout(function () {
+                        window.location.assign(data.redirect);
+                    }, 900);
+                }
                 return;
             }
 
@@ -221,14 +227,23 @@ window.AccountsDeleteModal = (function () {
             setModalLoading(false);
 
             if (!response.ok || !data.success) {
+                // Stale cache / already purged: drop the row so the table matches the DB.
+                if (data.not_found || response.status === 404 || response.status === 422) {
+                    removeOfficialAccountRowsFromTable(targetId);
+                    clearOfficialsAccountsLocalCache();
+                }
                 const message = data.message
                     || (response.status === 419 ? 'Session expired. Please refresh the page and try again.' : 'Failed to delete account.');
                 alert(message);
+                if (data.not_found || response.status === 404 || response.status === 422) {
+                    closeModal();
+                }
                 return;
             }
 
             removeOfficialAccountRowsFromTable(targetId);
             window.SkLocalCache?.clearByPrefix?.('sk_fed_deleted_sk_officials_v1_');
+            clearOfficialsAccountsLocalCache();
 
             const root = document.getElementById('mainContent');
             const alpine = root?._x_dataStack?.[0];
@@ -238,7 +253,12 @@ window.AccountsDeleteModal = (function () {
             }
 
             closeModal();
-            showAccountToast('Account deleted successfully!', 'delete');
+            showAccountToast(data.message || 'Account deleted successfully!', 'delete');
+            if (data.redirect) {
+                window.setTimeout(function () {
+                    window.location.assign(data.redirect);
+                }, 900);
+            }
         } catch (error) {
             setModalLoading(false);
             alert('An unexpected error occurred. Please try again.');
@@ -4401,6 +4421,7 @@ document.addEventListener('DOMContentLoaded', function () {
     let currentPage = 1;
     let allAccounts = [];
     let filteredAccounts = [];
+    let currentAccountsSort = { key: null, dir: null, type: 'text' };
 
     const prevBtn = document.getElementById('prevBtn');
     const nextBtn = document.getElementById('nextBtn');
@@ -4515,7 +4536,7 @@ document.addEventListener('DOMContentLoaded', function () {
         loadOfficialsAccountsTable();
     }
 
-    // ── Table sorting (Fullname only) ─────────────────────────
+    // ── Table sorting (name / email / barangay) ─────────────────────────
     const sortMenu = document.getElementById('accountsSortMenu');
     let sortMenuAnchor = null;
 
@@ -4549,34 +4570,70 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     }
 
-    function applyAccountsSort(key, dir, type) {
-        if (!tableBody) return;
+    function sortAttrForKey(key) {
         const sortAttrMap = {
             name: 'sortName',
             email: 'sortEmail',
             barangay: 'sortBarangay',
             term: 'sortTerm',
         };
-        const dataAttr = sortAttrMap[key] || 'sortName';
-        filteredAccounts.sort((rowA, rowB) => {
+        return sortAttrMap[key] || 'sortName';
+    }
+
+    function sortAccountRowItems(rows, key, dir, type) {
+        const dataAttr = sortAttrForKey(key);
+        const sorted = rows.slice();
+        sorted.sort((rowA, rowB) => {
             const valA = rowA.element.dataset[dataAttr] || '';
             const valB = rowB.element.dataset[dataAttr] || '';
             const cmp = compareSortValues(valA, valB, type);
             return dir === 'asc' ? cmp : -cmp;
         });
+        return sorted;
+    }
+
+    function applyAccountsSort(key, dir, type) {
+        if (!tableBody || !key || !dir) return;
+        const sortType = type || 'text';
+        currentAccountsSort = { key: key, dir: dir, type: sortType };
+
+        allAccounts = sortAccountRowItems(allAccounts, key, dir, sortType);
+        allAccounts.forEach((item, index) => {
+            item.index = index;
+            tableBody.appendChild(item.element);
+        });
+
+        filteredAccounts = sortAccountRowItems(filteredAccounts, key, dir, sortType);
         filteredAccounts.forEach(item => tableBody.appendChild(item.element));
+
         currentPage = 1;
         updatePagination();
         syncPaginationSelection();
         updateSortHeaderState(key, dir);
     }
 
+    function reapplyAccountsSortIfNeeded() {
+        if (!currentAccountsSort.key || !currentAccountsSort.dir) return;
+        allAccounts = sortAccountRowItems(
+            allAccounts,
+            currentAccountsSort.key,
+            currentAccountsSort.dir,
+            currentAccountsSort.type
+        );
+        filteredAccounts = sortAccountRowItems(
+            filteredAccounts,
+            currentAccountsSort.key,
+            currentAccountsSort.dir,
+            currentAccountsSort.type
+        );
+        filteredAccounts.forEach(item => tableBody.appendChild(item.element));
+        updateSortHeaderState(currentAccountsSort.key, currentAccountsSort.dir);
+    }
+
     function openAccountsSortMenu(anchor, key, type) {
         if (!sortMenu || !anchor) return;
         sortMenuAnchor = anchor;
-        const th = anchor.closest('.accounts-th-sortable');
-        const currentDir = th?.classList.contains('is-sorted-asc') ? 'asc'
-            : th?.classList.contains('is-sorted-desc') ? 'desc' : null;
+        const currentDir = (currentAccountsSort.key === key) ? currentAccountsSort.dir : null;
 
         sortMenu.innerHTML = '';
         [
@@ -4611,6 +4668,12 @@ document.addEventListener('DOMContentLoaded', function () {
             const type = th.dataset.sortType || 'text';
             if (sortMenuAnchor === btn && sortMenu && !sortMenu.hidden) {
                 closeAccountsSortMenu();
+                return;
+            }
+            // Second click on the same sorted column toggles direction immediately.
+            if (currentAccountsSort.key === key && currentAccountsSort.dir && (!sortMenu || sortMenu.hidden)) {
+                const nextDir = currentAccountsSort.dir === 'asc' ? 'desc' : 'asc';
+                applyAccountsSort(key, nextDir, type);
                 return;
             }
             closeAccountsSortMenu();
@@ -4654,6 +4717,8 @@ document.addEventListener('DOMContentLoaded', function () {
             }
             return true;
         });
+
+        reapplyAccountsSortIfNeeded();
 
         currentPage = 1;
         updatePagination();

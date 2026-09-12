@@ -320,13 +320,14 @@ class AdminAccountController extends Controller
 
         $message = $failedCount > 0
             ? "{$deleted} account(s) deleted. {$failedCount} could not be deleted."
-            : "{$deleted} account(s) deleted successfully.";
+            : "{$deleted} account(s) deleted and moved to Deleted SK Officials.";
 
         return response()->json([
             'success' => true,
             'message' => $message,
             'deleted' => $deleted,
             'failed' => $result['failed'],
+            'redirect' => route('archived.deleted-sk-officials'),
         ]);
     }
 
@@ -567,23 +568,69 @@ class AdminAccountController extends Controller
         return response()->json($payload);
     }
 
-    public function deactivate(Request $request, User $user): RedirectResponse|JsonResponse
+    public function deactivate(Request $request, int $user): RedirectResponse|JsonResponse
     {
-        $this->resolveTenantId($request->user());
+        $admin = $request->user();
+        $this->resolveTenantId($admin);
 
-        $this->authorize('deactivate', $user);
+        $target = User::query()
+            ->whereKey($user)
+            ->where('tenant_id', $admin->tenant_id)
+            ->first();
 
-        $this->accountService->deactivate($user, $request->user());
+        // Soft-deleted rows are excluded from default binding — treat as already archived.
+        if (! $target) {
+            $trashed = User::onlyTrashed()
+                ->whereKey($user)
+                ->where('tenant_id', $admin->tenant_id)
+                ->first();
+
+            if ($trashed) {
+                $this->bumpAccountsCache();
+
+                if ($request->expectsJson()) {
+                    return response()->json([
+                        'success' => true,
+                        'already_deleted' => true,
+                        'message' => 'Account was already deleted and is in Deleted SK Officials.',
+                        'redirect' => route('archived.deleted-sk-officials'),
+                    ]);
+                }
+
+                return redirect()
+                    ->route('archived.deleted-sk-officials')
+                    ->with('status', 'Account was already deleted and is in Deleted SK Officials.');
+            }
+
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'success' => false,
+                    'not_found' => true,
+                    'message' => 'Account not found. It may have already been permanently removed.',
+                ], 422);
+            }
+
+            return redirect()
+                ->back()
+                ->withErrors(['account' => 'Account not found. It may have already been permanently removed.']);
+        }
+
+        $this->authorize('deactivate', $target);
+
+        $this->accountService->deactivate($target, $admin);
         $this->bumpAccountsCache();
 
         if ($request->expectsJson()) {
             return response()->json([
                 'success' => true,
-                'message' => 'Account deleted and moved to archive.',
+                'message' => 'Account deleted and moved to Deleted SK Officials.',
+                'redirect' => route('archived.deleted-sk-officials'),
             ]);
         }
 
-        return back()->with('status', 'Account deactivated successfully.');
+        return redirect()
+            ->route('archived.deleted-sk-officials')
+            ->with('status', 'Account deleted and moved to Deleted SK Officials.');
     }
 
     public function resetPassword(Request $request, User $user): RedirectResponse

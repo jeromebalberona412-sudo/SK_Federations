@@ -592,7 +592,7 @@ class CommunityFeedPostController extends Controller
                     SkFederationsNotificationService::CATEGORY_COMMUNITY_FEED,
                     "{$user->name} liked a federation post",
                     $postLabel,
-                    '/community-feed',
+                    $this->notificationService->communityFeedPostActionUrl((int) $post->id),
                 );
             } elseif ((int) $post->user_id !== (int) $user->id) {
                 $this->notificationService->notifyCommunityFeedLike(
@@ -747,7 +747,7 @@ class CommunityFeedPostController extends Controller
                     SkFederationsNotificationService::CATEGORY_COMMUNITY_FEED,
                     "{$user->name} commented on a federation post",
                     Str::limit(trim((string) $request->body), 160) ?: $postLabel,
-                    '/community-feed',
+                    $this->notificationService->communityFeedPostActionUrl((int) $post->id),
                 );
             } else {
                 $this->notificationService->notifyCommunityFeedComment(
@@ -899,6 +899,8 @@ class CommunityFeedPostController extends Controller
             ->map(fn ($img) => [
                 'id' => $img->id,
                 'url' => $this->cloudinary->normalizeUrl($img->image_url),
+                'sort_order' => (int) ($img->sort_order ?? 0),
+                'created_at' => optional($img->created_at)?->toIso8601String(),
             ])
             ->filter(fn ($item) => ! empty($item['url']))
             ->values()
@@ -910,8 +912,11 @@ class CommunityFeedPostController extends Controller
         );
         $legacyDrive = $primaryDrive ?: $this->googleDriveVideoUrl->present($post->link_url);
         $canShare = $post->isShareable();
-        $shareUrl = $canShare
-            ? route('community-feed.public.show', ['token' => $post->share_token])
+        $shareUrl = $canShare && filled($post->share_token)
+            ? \App\Modules\Accounts\Support\PortalAppUrl::join(
+                \App\Modules\Accounts\Support\PortalAppUrl::selfApp(),
+                '/community/post/'.$post->share_token
+            )
             : null;
         $comments = $post->relationLoaded('comments') ? $post->comments : collect();
 
@@ -1249,6 +1254,8 @@ class CommunityFeedPostController extends Controller
                         'mime_type' => $video->mime_type,
                         'bytes' => $video->bytes,
                         'drive_created_at' => optional($video->drive_created_at)?->toIso8601String(),
+                        'sort_order' => (int) ($video->sort_order ?? 0),
+                        'created_at' => optional($video->created_at)?->toIso8601String(),
                         'status' => $video->status ?: 'active',
                         'media_type' => 'google_drive_video',
                         'external_provider' => 'google_drive',
@@ -1269,6 +1276,8 @@ class CommunityFeedPostController extends Controller
                     'mime_type' => $video->mime_type,
                     'bytes' => $video->bytes,
                     'drive_created_at' => null,
+                    'sort_order' => (int) ($video->sort_order ?? 0),
+                    'created_at' => optional($video->created_at)?->toIso8601String(),
                     'status' => $video->status ?: 'active',
                     'media_type' => 'cloudinary_video',
                     'external_provider' => 'cloudinary',

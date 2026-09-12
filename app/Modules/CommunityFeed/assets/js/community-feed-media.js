@@ -310,17 +310,16 @@
         var count = list.length;
         var cacheKey = String(postId || '');
         if (cacheKey) videoAlbumCache.set(cacheKey, list);
-        var visible = Math.min(5, count);
+        var visible = Math.min(4, count);
         var slots = [];
         for (var i = 0; i < visible; i++) {
-            slots.push({ index: i, overlay: (i === visible - 1 && count > 5) ? '+' + (count - 5) : null });
+            slots.push({ index: i, overlay: (i === 3 && count > 4) ? '+' + (count - 4) : null });
         }
         var gridClass = 'post-video-grid';
         if (count === 1) gridClass += ' video-grid-1';
         else if (count === 2) gridClass += ' video-grid-2';
         else if (count === 3) gridClass += ' video-grid-3';
-        else if (count === 4) gridClass += ' video-grid-4';
-        else gridClass += ' video-grid-5';
+        else gridClass += ' video-grid-4';
 
         var tiles = slots.map(function (slot) {
             var video = list[slot.index];
@@ -1056,6 +1055,12 @@
         setComposeBodyError: setComposeBodyError,
         setComposeVideoError: setComposeVideoError,
         stopAllFeedMediaExcept: stopAllFeedMediaExcept,
+        driveThumbnailUrl: driveThumbnailUrl,
+        videoPreviewSrc: videoPreviewSrc,
+        cacheVideoAlbum: function (postId, videos) {
+            if (!postId) return;
+            videoAlbumCache.set(String(postId), Array.isArray(videos) ? videos.filter(Boolean) : []);
+        },
     };
 
     global.openShareModal = openShareModal;

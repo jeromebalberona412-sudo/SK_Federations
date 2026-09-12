@@ -348,11 +348,11 @@
                 (sizeLabel ? '<span class="comms-bubble-file-size">' + Comms.escapeHtml(sizeLabel) + '</span>' : '') +
                 '</span>';
             if (kind.indexOf('is-pdf') !== -1 && href) {
-                return '<a class="comms-bubble-file' + kind + '" href="' + Comms.escapeHtml(href) + '" data-comms-doc-preview="' + Comms.escapeHtml(href) + '" data-comms-doc-title="' + Comms.escapeHtml(name) + '" title="' + Comms.escapeHtml(name) + '">' +
+                return '<a class="comms-bubble-file' + kind + '" href="' + Comms.escapeHtml(href) + '" download="' + Comms.escapeHtml(name) + '" target="_blank" rel="noopener noreferrer" title="' + Comms.escapeHtml(name) + '">' +
                     metaHtml +
                     '</a>';
             }
-            return '<a class="comms-bubble-file' + kind + '" href="' + Comms.escapeHtml(href) + '" target="_blank" rel="noopener noreferrer" title="' + Comms.escapeHtml(name) + '">' +
+            return '<a class="comms-bubble-file' + kind + '" href="' + Comms.escapeHtml(href) + '" download="' + Comms.escapeHtml(name) + '" target="_blank" rel="noopener noreferrer" title="' + Comms.escapeHtml(name) + '">' +
                 metaHtml +
                 '</a>';
         }).join('');
@@ -717,6 +717,24 @@
         });
     }
 
+    function latestMineMessageId(items) {
+        for (var i = items.length - 1; i >= 0; i -= 1) {
+            if (items[i] && items[i].mine && items[i].message_type !== 'call' && items[i].message_type !== 'system') {
+                return String(items[i].id);
+            }
+        }
+        return null;
+    }
+
+    function renderSendStatus(msg, isLatestMine) {
+        if (!msg || !msg.mine || !isLatestMine) return '';
+        var status = msg.send_status || '';
+        if (!status && String(msg.id || '').indexOf('local-') === 0) status = 'sending';
+        if (status !== 'sending' && status !== 'sent' && status !== 'failed') return '';
+        var label = status === 'sending' ? 'Sending...' : (status === 'sent' ? 'Sent' : 'Failed');
+        return '<div class="comms-send-status is-' + status + '" role="status">' + label + '</div>';
+    }
+
     function renderMessages(opts) {
         opts = opts || {};
         var prevScroll = els.messages ? els.messages.scrollTop : 0;
@@ -732,6 +750,7 @@
         var parts = [];
         var prevCreatedAt = null;
         var latestIndex = items.length - 1;
+        var latestMineId = latestMineMessageId(items);
 
         items.forEach(function (m, index) {
             var insertedSep = false;
@@ -818,6 +837,7 @@
                 '</div>' +
                 (showReact ? renderReactionPicker(m.id) : '') +
                 renderReactionChips(m.reactions, m.id) +
+                renderSendStatus(m, latestMineId != null && String(m.id) === latestMineId) +
                 '</div>');
             prevCreatedAt = m.created_at;
         });
@@ -1543,6 +1563,9 @@
         stopLocalTyping();
         els.input.value = '';
         resizeComposer();
+        var previewUrls = (state.pendingPreviewUrls || []).slice();
+        // Keep blob URLs for optimistic bubbles; clearPendingAttachment would revoke them.
+        state.pendingPreviewUrls = [];
         clearPendingAttachment();
         syncComposerEndControls();
 
@@ -1554,6 +1577,7 @@
                 body: text,
                 message_type: 'text',
                 mine: true,
+                send_status: 'sending',
                 created_at: new Date().toISOString(),
                 reactions: [],
                 attachments: []
@@ -1568,14 +1592,16 @@
                 dedupe: false
             }).then(function (data) {
                 if (!data || !data.message) return;
-                var realIdx = state.messages.findIndex(function (m) { return Number(m.id) === Number(data.message.id); });
+                var sent = Object.assign({}, data.message, { send_status: 'sent', mine: true });
+                var realIdx = state.messages.findIndex(function (m) { return Number(m.id) === Number(sent.id); });
                 var tempIdx = state.messages.findIndex(function (m) { return String(m.id) === tempId; });
                 if (realIdx !== -1 && tempIdx !== -1) {
+                    state.messages[realIdx] = Object.assign({}, state.messages[realIdx], { send_status: 'sent', mine: true });
                     state.messages.splice(tempIdx, 1);
                 } else if (tempIdx !== -1) {
-                    state.messages[tempIdx] = data.message;
+                    state.messages[tempIdx] = sent;
                 } else {
-                    appendMessage(data.message);
+                    appendMessage(sent);
                     return;
                 }
                 saveMsgCache(state.activeId, state.messages, state.reactionEmojis);
@@ -1588,6 +1614,31 @@
             if (els.sendBtn) els.sendBtn.disabled = true;
             if (els.attachBtn) els.attachBtn.disabled = true;
             setUploadProgress(20, false);
+            var fileTempId = 'local-att-' + Date.now();
+            appendMessage({
+                id: fileTempId,
+                conversation_id: state.activeId,
+                body: '',
+                message_type: 'file',
+                mine: true,
+                send_status: 'sending',
+                created_at: new Date().toISOString(),
+                reactions: [],
+                attachments: files.map(function (file, i) {
+                    var isImage = isImageFile(file);
+                    var blobUrl = previewUrls[i] || (isImage ? URL.createObjectURL(file) : null);
+                    return {
+                        id: 0,
+                        file_name: file.name,
+                        file_type: isImage ? 'image' : 'file',
+                        mime_type: file.type || null,
+                        file_size: file.size || null,
+                        storage_provider: 'local',
+                        url: blobUrl,
+                        download_url: blobUrl || '#'
+                    };
+                })
+            });
             var form = new FormData();
             files.forEach(function (file, i) {
                 form.append('attachments[' + i + ']', file, file.name);
@@ -1598,13 +1649,40 @@
                 dedupe: false
             }).then(function (data) {
                 setUploadProgress(100, false);
-                if (data && data.message) appendMessage(data.message);
+                if (!data || !data.message) return;
+                var sent = Object.assign({}, data.message, { send_status: 'sent', mine: true });
+                var realIdx = state.messages.findIndex(function (m) { return Number(m.id) === Number(sent.id); });
+                var tempIdx = state.messages.findIndex(function (m) { return String(m.id) === fileTempId; });
+                if (tempIdx !== -1) {
+                    var prevAtt = state.messages[tempIdx].attachments || [];
+                    prevAtt.forEach(function (a) {
+                        if (a && a.url && String(a.url).indexOf('blob:') === 0) {
+                            try { URL.revokeObjectURL(a.url); } catch (e) { /* ignore */ }
+                        }
+                    });
+                }
+                if (realIdx !== -1 && tempIdx !== -1) {
+                    state.messages[realIdx] = Object.assign({}, state.messages[realIdx], { send_status: 'sent', mine: true });
+                    state.messages.splice(tempIdx, 1);
+                } else if (tempIdx !== -1) {
+                    state.messages[tempIdx] = sent;
+                } else {
+                    appendMessage(sent);
+                    return;
+                }
+                saveMsgCache(state.activeId, state.messages, state.reactionEmojis);
+                renderMessages({ stickBottom: true });
             }));
         }
 
         Promise.all(jobs).then(function () {
             return loadConversations();
         }).catch(function (err) {
+            state.messages = state.messages.filter(function (m) {
+                var id = String(m.id);
+                return id !== tempId && id.indexOf('local-att-') !== 0;
+            });
+            renderMessages({ stickBottom: true });
             Comms.showToast(err.message || 'Failed to send message.', 'error');
         }).finally(function () {
             state.sendInFlight = false;

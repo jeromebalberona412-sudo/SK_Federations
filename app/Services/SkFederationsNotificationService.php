@@ -153,6 +153,11 @@ class SkFederationsNotificationService
         }
     }
 
+    public function communityFeedPostActionUrl(int $postId): string
+    {
+        return '/community-feed/comments/'.max(0, $postId);
+    }
+
     public function notifyCommunityFeedLike(int $ownerUserId, string $reactorName, string $postLabel, int $postId): void
     {
         $owner = User::query()->find($ownerUserId);
@@ -165,7 +170,7 @@ class SkFederationsNotificationService
             self::CATEGORY_COMMUNITY_FEED,
             "{$reactorName} liked your post",
             $postLabel,
-            '/community-feed',
+            $this->communityFeedPostActionUrl($postId),
         );
     }
 
@@ -190,7 +195,7 @@ class SkFederationsNotificationService
             self::CATEGORY_COMMUNITY_FEED,
             "{$commenterName} commented on your post",
             $preview,
-            '/community-feed',
+            $this->communityFeedPostActionUrl($postId),
         );
     }
 

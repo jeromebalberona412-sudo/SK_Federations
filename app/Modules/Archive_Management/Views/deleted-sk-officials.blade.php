@@ -16,14 +16,20 @@
     <div class="dso-page-header row">
         <div class="dso-header-left col-md-6">
             <h1 class="dso-page-title">Deleted SK Officials</h1>
-            <p class="dso-page-subtitle">Records removed from the SK Officials list.</p>
+            <p class="dso-page-subtitle">Records removed from the SK Officials list. Unrestored accounts are permanently deleted after 30 days.</p>
         </div>
         <div class="dso-header-right col-md-6">
             <select id="dsoYearFilter" class="dso-year-filter form-select">
                 <option value="all">All Years</option>
+                @foreach(($filterYears ?? []) as $year)
+                    <option value="{{ $year }}">{{ $year }}</option>
+                @endforeach
             </select>
             <select id="dsoFilterTerm" class="dso-term-filter form-select">
                 <option value="">All Terms</option>
+                @foreach(($filterTerms ?? []) as $term)
+                    <option value="{{ $term }}">{{ $term }}</option>
+                @endforeach
             </select>
             <input type="text" id="dsoSearch" class="dso-search-input form-control" placeholder="Search by name or barangay…">
         </div>
@@ -40,9 +46,15 @@
         <div class="dso-filter-dropdowns">
             <select id="dsoFilterPosition" class="dso-filter-select">
                 <option value="">All Positions</option>
+                @foreach(($filterPositions ?? []) as $position)
+                    <option value="{{ $position }}">{{ $position }}</option>
+                @endforeach
             </select>
             <select id="dsoFilterBarangay" class="dso-filter-select">
                 <option value="">All Barangays</option>
+                @foreach(($filterBarangays ?? []) as $barangay)
+                    <option value="{{ $barangay }}">{{ $barangay }}</option>
+                @endforeach
             </select>
         </div>
     </div>
@@ -68,6 +80,7 @@
                         <th>Term</th>
                         <th>Date Deleted</th>
                         <th>Time Deleted</th>
+                        <th>Auto Delete</th>
                         <th class="dso-col-actions">Actions</th>
                     </tr>
                 </thead>

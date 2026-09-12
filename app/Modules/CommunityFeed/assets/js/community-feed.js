@@ -492,24 +492,172 @@ function buildImageGrid(images, postId) {
 }
 
 function bindPostImageClicks(postEl, post) {
-    var grid = postEl.querySelector('.post-media-grid');
-    if (!grid) return;
+    var grids = [];
+    postEl.querySelectorAll('.post-media-grid, [data-hybrid-media]').forEach(function (grid) {
+        grids.push(grid);
+    });
+    if (!grids.length) return;
 
-    var images = [];
-    try {
-        images = JSON.parse(grid.getAttribute('data-all-images') || '[]');
-    } catch (_) {
-        images = [];
-    }
-    if (!images.length) {
-        images = (post.images && post.images.length) ? post.images : (post.image_url ? [post.image_url] : []);
-    }
+    grids.forEach(function (grid) {
+        var images = [];
+        try {
+            images = JSON.parse(grid.getAttribute('data-all-images') || '[]');
+        } catch (_) {
+            images = [];
+        }
+        if (!images.length) {
+            images = (post.images && post.images.length) ? post.images : (post.image_url ? [post.image_url] : []);
+        }
 
-    grid.querySelectorAll('.post-media-tile').forEach(function (tile) {
-        tile.addEventListener('click', function () {
-            openLightbox(images, parseInt(tile.getAttribute('data-index'), 10) || 0);
+        grid.querySelectorAll('.post-media-tile, .post-hybrid-image-tile').forEach(function (tile) {
+            if (tile.dataset.imageBound === '1') return;
+            tile.dataset.imageBound = '1';
+            tile.addEventListener('click', function () {
+                openLightbox(images, parseInt(tile.getAttribute('data-index'), 10) || 0);
+            });
         });
     });
+}
+
+function collectOrderedMediaItems(post) {
+    var items = [];
+    var imageItems = (post && Array.isArray(post.image_items) && post.image_items.length)
+        ? post.image_items
+        : (function () {
+            var urls = [];
+            if (post && post.images && post.images.length) urls = post.images.slice();
+            else if (post && post.image_url) urls = [post.image_url];
+            return urls.filter(Boolean).map(function (url, i) {
+                return { id: i, url: url, sort_order: i, created_at: null };
+            });
+        })();
+
+    imageItems.forEach(function (img, imageIndex) {
+        var url = typeof img === 'string' ? img : (img && img.url ? img.url : '');
+        if (!url) return;
+        items.push({
+            kind: 'image',
+            imageIndex: imageIndex,
+            url: url,
+            id: Number((img && img.id) || imageIndex),
+            sort_order: Number((img && img.sort_order != null) ? img.sort_order : imageIndex),
+            created_at: (img && img.created_at) || '',
+        });
+    });
+
+    var videos = (post && Array.isArray(post.videos)) ? post.videos.filter(Boolean) : [];
+    videos.forEach(function (video, videoIndex) {
+        items.push({
+            kind: 'video',
+            videoIndex: videoIndex,
+            video: video,
+            id: Number(video.id || videoIndex),
+            sort_order: Number(video.sort_order != null ? video.sort_order : videoIndex),
+            created_at: video.created_at || video.drive_created_at || '',
+        });
+    });
+
+    items.sort(function (a, b) {
+        if (a.created_at && b.created_at && a.created_at !== b.created_at) {
+            return a.created_at < b.created_at ? -1 : 1;
+        }
+        if (a.sort_order !== b.sort_order) return a.sort_order - b.sort_order;
+        if (a.kind !== b.kind) return a.kind === 'image' ? -1 : 1;
+        return a.id - b.id;
+    });
+    return items;
+}
+
+function buildHybridMediaHtml(post) {
+    var items = collectOrderedMediaItems(post);
+    if (!items.length) {
+        if (post && post.google_drive_video && window.SkCfMedia) {
+            return window.SkCfMedia.buildPostVideosHtml(post);
+        }
+        return '';
+    }
+
+    var imagesOnly = items.every(function (item) { return item.kind === 'image'; });
+    var videosOnly = items.every(function (item) { return item.kind === 'video'; });
+
+    if (imagesOnly) {
+        return buildImageGrid(items.map(function (item) { return item.url; }), post.id);
+    }
+    if (videosOnly && window.SkCfMedia) {
+        return window.SkCfMedia.buildPostVideosHtml({
+            id: post.id,
+            videos: items.map(function (item) { return item.video; }),
+            google_drive_video: post.google_drive_video,
+        });
+    }
+    if (videosOnly) return '';
+
+    var count = items.length;
+    var visible = Math.min(4, count);
+    var cacheKey = String(post.id || '');
+    var videos = items.filter(function (item) { return item.kind === 'video'; }).map(function (item) { return item.video; });
+    var allImages = items.filter(function (item) { return item.kind === 'image'; }).map(function (item) { return item.url; });
+
+    if (window.SkCfMedia && typeof window.SkCfMedia.cacheVideoAlbum === 'function') {
+        window.SkCfMedia.cacheVideoAlbum(cacheKey, videos);
+    }
+
+    var gridClass = 'post-video-grid post-hybrid-grid';
+    if (visible === 1) gridClass += ' video-grid-1';
+    else if (visible === 2) gridClass += ' video-grid-2';
+    else if (visible === 3) gridClass += ' video-grid-3';
+    else gridClass += ' video-grid-4';
+
+    var tiles = [];
+    for (var i = 0; i < visible; i++) {
+        var item = items[i];
+        var overlay = (i === 3 && count > 4) ? ('+' + (count - 4)) : null;
+        if (item.kind === 'image') {
+            tiles.push(
+                '<button type="button" class="post-video-tile post-hybrid-image-tile' + (overlay ? ' post-media-more-tile' : '') + '"'
+                + ' data-post-id="' + escapeHtml(cacheKey) + '" data-index="' + item.imageIndex + '"'
+                + ' aria-label="' + (overlay ? ('View more media (' + count + ' total)') : ('View photo ' + (item.imageIndex + 1))) + '">'
+                + '<span class="post-video-tile-inner">'
+                + '<img src="' + escapeHtml(item.url) + '" alt="Post image ' + (item.imageIndex + 1) + '" loading="lazy">'
+                + (overlay ? ('<span class="post-media-more">' + escapeHtml(overlay) + '</span>') : '')
+                + '</span></button>'
+            );
+            continue;
+        }
+
+        var video = item.video;
+        var fileId = video.external_id || video.google_drive_file_id || '';
+        var isCloud = video.provider === 'cloudinary' && video.video_url;
+        var thumb = isCloud
+            ? escapeHtml(video.video_url)
+            : escapeHtml((window.SkCfMedia && window.SkCfMedia.driveThumbnailUrl)
+                ? window.SkCfMedia.driveThumbnailUrl(fileId)
+                : '');
+        var preview = escapeHtml((window.SkCfMedia && window.SkCfMedia.videoPreviewSrc)
+            ? window.SkCfMedia.videoPreviewSrc(video)
+            : (video.preview_url || ''));
+        var overlayHtml = overlay
+            ? ('<span class="post-media-more">' + escapeHtml(overlay) + '</span>')
+            : '<span class="post-video-play" aria-hidden="true"></span>';
+        var mediaInner = isCloud
+            ? ('<video src="' + escapeHtml(video.video_url) + '" preload="metadata" muted playsinline></video>')
+            : (thumb
+                ? ('<img src="' + thumb + '" alt="" loading="lazy">')
+                : '<div class="post-video-tile-fallback"></div>');
+
+        tiles.push(
+            '<button type="button" class="post-video-tile' + (overlay ? ' post-media-more-tile' : '') + '"'
+            + ' data-video-album-tile data-post-id="' + escapeHtml(cacheKey) + '" data-index="' + item.videoIndex + '"'
+            + ' data-has-more="' + (overlay ? '1' : '0') + '" data-preview-src="' + preview + '"'
+            + ' data-is-cloud="' + (isCloud ? '1' : '0') + '" data-cloud-src="' + (isCloud ? escapeHtml(video.video_url) : '') + '"'
+            + ' aria-label="' + (overlay ? ('Play more videos (' + count + ' total)') : ('Play video ' + (item.videoIndex + 1))) + '">'
+            + '<span class="post-video-tile-inner">' + mediaInner + overlayHtml + '</span></button>'
+        );
+    }
+
+    return '<div class="' + gridClass + '" data-video-album data-hybrid-media data-post-id="' + escapeHtml(cacheKey)
+        + '" data-video-count="' + videos.length + '" data-all-images=\'' + JSON.stringify(allImages).replace(/'/g, '&#39;') + '\'>'
+        + '<div class="post-video-grid-tiles">' + tiles.join('') + '</div></div>';
 }
 
 function openLightbox(images, startIndex) {
@@ -844,16 +992,9 @@ window.closeLikesModal = closeReactionViewer;
 function buildPost(p) {
     var liked = p.liked || false;
     var avatar = postAvatarUrl(p);
-
-    var images = [];
-    if (p.images && p.images.length) {
-        images = p.images.slice();
-    } else if (p.image_url) {
-        images = [p.image_url];
-    }
-    var mediaHtml = buildImageGrid(images, p.id);
-    var videoHtml = window.SkCfMedia ? window.SkCfMedia.buildPostVideosHtml(p) : '';
-    var linkHtml = (!videoHtml && p.link_url && !p.google_drive_video)
+    var mediaHtml = buildHybridMediaHtml(p);
+    var hasVideoMedia = (p.videos && p.videos.length) || !!p.google_drive_video;
+    var linkHtml = (!hasVideoMedia && p.link_url && !p.google_drive_video)
         ? '<a href="' + escapeHtml(p.link_url) + '" target="_blank" rel="noopener" class="post-link-preview">'
             + '<svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M12.586 4.586a2 2 0 112.828 2.828l-3 3a2 2 0 01-2.828 0 1 1 0 00-1.414 1.414 4 4 0 005.656 0l3-3a4 4 0 00-5.656-5.656l-1.5 1.5a1 1 0 101.414 1.414l1.5-1.5zm-5 5a2 2 0 012.828 0 1 1 0 101.414-1.414 4 4 0 00-5.656 0l-3 3a4 4 0 105.656 5.656l1.5-1.5a1 1 0 10-1.414-1.414l-1.5 1.5a2 2 0 11-2.828-2.828l3-3z" clip-rule="evenodd"/></svg>'
             + escapeHtml(p.link_url) + '</a>'
@@ -892,7 +1033,7 @@ function buildPost(p) {
         + '<div class="post-content">'
         + (p.title ? '<h2 class="post-title">' + escapeHtml(p.title) + '</h2>' : '')
         + '<p class="post-text">' + escapeHtml(p.body || '') + '</p>'
-        + mediaHtml + videoHtml + linkHtml
+        + mediaHtml + linkHtml
         + '</div>'
         + statsHtml
         + '<div class="post-actions">'

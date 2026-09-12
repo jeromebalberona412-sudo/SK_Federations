@@ -82,6 +82,23 @@ class BarangayAbyipService
         $document = $this->findDocument($id);
         $this->assertPending($document);
 
+        $programCount = Abyip::query()
+            ->where('document_id', $document->id)
+            ->where(function ($query): void {
+                $query->where('row_type', 'youth_program')
+                    ->orWhereIn('code', ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J']);
+            })
+            ->count();
+
+        if ($programCount === 0 && ! empty($document->pdf_data)) {
+            throw ValidationException::withMessages([
+                'document' => [
+                    'Cannot approve this ABYIP yet: no youth programs were extracted from the uploaded PDF. '
+                    .'Ask the barangay SK Officials to re-upload a text-based ABYIP PDF (or run abyip:reparse), then try again.',
+                ],
+            ]);
+        }
+
         DB::transaction(function () use ($document, $reviewer) {
             $document->update([
                 'status' => Abyip::STATUS_APPROVED,

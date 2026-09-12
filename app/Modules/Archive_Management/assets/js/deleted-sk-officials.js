@@ -275,7 +275,7 @@ function renderDsoTable() {
     const page = sorted.slice(start, end);
 
     if (dsoFiltered.length === 0) {
-        tbody.innerHTML = '<tr class="dso-empty-row"><td colspan="8">No deleted SK Officials records found.</td></tr>';
+        tbody.innerHTML = '<tr class="dso-empty-row"><td colspan="9">No deleted SK Officials records found.</td></tr>';
         if (info) info.textContent = '0 records';
         renderDsoPagination(0);
         return;
@@ -283,6 +283,12 @@ function renderDsoTable() {
 
     tbody.innerHTML = page.map((r) => {
         const fullName = formatRecordName(r);
+        const daysLeft = Number(r.days_remaining ?? 30);
+        const urgent = daysLeft <= 7 ? ' is-urgent' : '';
+        const autoLabel = r.auto_delete_label
+            || (daysLeft <= 0
+                ? 'Deleting soon'
+                : `Auto delete in ${daysLeft} day${daysLeft === 1 ? '' : 's'}`);
         return `
         <tr>
             <td class="dso-name-cell">${fullName}</td>
@@ -292,6 +298,7 @@ function renderDsoTable() {
             <td>${r.term || '—'}</td>
             <td><span class="dso-deleted-badge">${r.deletedDate}</span></td>
             <td><span class="dso-time-badge">${r.deletedTime}</span></td>
+            <td><span class="dso-auto-delete-badge${urgent}" title="${escapeDsoHtml(autoLabel)}">${escapeDsoHtml(autoLabel)}</span></td>
             <td>
                 ${window.ArchiveRowActions.renderMenu(r.id, { view: true, restore: true })}
             </td>
@@ -395,6 +402,11 @@ function openDsoViewModal(id) {
             ${dsoProfileGroup('fa-calendar-check', 'Term Information', [
                 ['Term Start', r.termStart],
                 ['Term End', r.termEnd],
+            ])}
+            ${dsoProfileGroup('fa-trash-can', 'Deletion', [
+                ['Date Deleted', r.deletedDate],
+                ['Time Deleted', r.deletedTime],
+                ['Auto Delete', r.auto_delete_label || '—'],
             ])}
         </div>`;
 

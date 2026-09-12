@@ -1447,6 +1447,24 @@ function openHeaderDeletePrompt(messageId) {
     });
 }
 
+function headerLatestMineMessageId(items) {
+    for (var i = items.length - 1; i >= 0; i -= 1) {
+        if (items[i] && items[i].mine && items[i].message_type !== 'call' && items[i].message_type !== 'system') {
+            return String(items[i].id);
+        }
+    }
+    return null;
+}
+
+function renderHeaderSendStatus(msg, isLatestMine) {
+    if (!msg || !msg.mine || !isLatestMine) return '';
+    var status = msg.send_status || '';
+    if (!status && String(msg.id || '').indexOf('local-') === 0) status = 'sending';
+    if (status !== 'sending' && status !== 'sent' && status !== 'failed') return '';
+    var label = status === 'sending' ? 'Sending...' : (status === 'sent' ? 'Sent' : 'Failed');
+    return '<div class="comms-send-status is-' + status + '" role="status">' + label + '</div>';
+}
+
 function renderHeaderChatMessages(messages, opts) {
     opts = opts || {};
     var body = document.getElementById('commsChatModalBody');
@@ -1462,6 +1480,7 @@ function renderHeaderChatMessages(messages, opts) {
     var parts = [];
     var prevCreatedAt = null;
     var latestIndex = items.length - 1;
+    var latestMineId = headerLatestMineMessageId(items);
     items.forEach(function (msg, index) {
         var insertedSep = false;
         if (shouldInsertHeaderDateSeparator(prevCreatedAt, msg.created_at)) {
@@ -1538,6 +1557,7 @@ function renderHeaderChatMessages(messages, opts) {
             '</div>' +
             (!editing ? renderHeaderReactionPicker(msg.id) : '') +
             (!editing ? renderHeaderReactionChips(msg.reactions, msg.id) : '') +
+            renderHeaderSendStatus(msg, latestMineId != null && String(msg.id) === latestMineId) +
             '</div>');
         prevCreatedAt = msg.created_at;
     });
@@ -1925,6 +1945,7 @@ function sendHeaderChatMessage(event) {
             body: body,
             message_type: 'text',
             mine: true,
+            send_status: 'sending',
             created_at: new Date().toISOString(),
             reactions: [],
             attachments: []
@@ -1947,14 +1968,16 @@ function sendHeaderChatMessage(event) {
             body: JSON.stringify({ body: body })
         }).then(function (r) { return r.ok ? r.json() : null; }).then(function (data) {
             if (!data || !data.message) return;
-            var realIdx = headerChatState.messages.findIndex(function (m) { return Number(m.id) === Number(data.message.id); });
+            var sent = Object.assign({}, data.message, { send_status: 'sent', mine: true });
+            var realIdx = headerChatState.messages.findIndex(function (m) { return Number(m.id) === Number(sent.id); });
             var tempIdx = headerChatState.messages.findIndex(function (m) { return String(m.id) === tempId; });
             if (realIdx !== -1 && tempIdx !== -1) {
+                headerChatState.messages[realIdx] = Object.assign({}, headerChatState.messages[realIdx], { send_status: 'sent', mine: true });
                 headerChatState.messages.splice(tempIdx, 1);
             } else if (tempIdx !== -1) {
-                headerChatState.messages[tempIdx] = data.message;
+                headerChatState.messages[tempIdx] = sent;
             } else {
-                headerChatState.messages.push(data.message);
+                headerChatState.messages.push(sent);
             }
             renderHeaderChatMessages(headerChatState.messages);
         }));
@@ -1963,6 +1986,30 @@ function sendHeaderChatMessage(event) {
     if (files.length) {
         headerChatState.sending = true;
         if (sendBtn) sendBtn.disabled = true;
+        var fileTempId = 'local-att-' + Date.now();
+        headerChatState.messages.push({
+            id: fileTempId,
+            conversation_id: conversationId,
+            body: '',
+            message_type: 'file',
+            mine: true,
+            send_status: 'sending',
+            created_at: new Date().toISOString(),
+            reactions: [],
+            attachments: files.map(function (f) {
+                return {
+                    id: 0,
+                    file_name: f.name,
+                    file_type: (f.type || '').indexOf('image/') === 0 ? 'image' : 'file',
+                    mime_type: f.type || null,
+                    file_size: f.size || null,
+                    storage_provider: 'local',
+                    url: null,
+                    download_url: '#'
+                };
+            })
+        });
+        renderHeaderChatMessages(headerChatState.messages);
         var fd = new FormData();
         files.forEach(function (f, i) {
             fd.append('attachments[' + i + ']', f, f.name);
@@ -1981,13 +2028,27 @@ function sendHeaderChatMessage(event) {
                     } else if (typeof window.showToast === 'function') {
                         window.showToast(msg, 'error');
                     }
+                    headerChatState.messages = headerChatState.messages.filter(function (m) {
+                        return String(m.id) !== fileTempId;
+                    });
+                    renderHeaderChatMessages(headerChatState.messages);
                     return null;
                 });
             }
             return r.json();
         }).then(function (data) {
             if (!data || !data.message) return;
-            headerChatState.messages.push(data.message);
+            var sent = Object.assign({}, data.message, { send_status: 'sent', mine: true });
+            var realIdx = headerChatState.messages.findIndex(function (m) { return Number(m.id) === Number(sent.id); });
+            var tempIdx = headerChatState.messages.findIndex(function (m) { return String(m.id) === fileTempId; });
+            if (realIdx !== -1 && tempIdx !== -1) {
+                headerChatState.messages[realIdx] = Object.assign({}, headerChatState.messages[realIdx], { send_status: 'sent', mine: true });
+                headerChatState.messages.splice(tempIdx, 1);
+            } else if (tempIdx !== -1) {
+                headerChatState.messages[tempIdx] = sent;
+            } else {
+                headerChatState.messages.push(sent);
+            }
             renderHeaderChatMessages(headerChatState.messages);
         }));
     }

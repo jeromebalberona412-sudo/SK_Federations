@@ -57,6 +57,7 @@ import { createClient } from '@supabase/supabase-js';
     function applyTypingUi(conversationId, visible, meta) {
         var pageCid = window.__COMMS_PAGE_ACTIVE_ID__;
         if (pageCid == null && window.CommsChat && typeof window.CommsChat.getActiveId === 'function') {
+            // Fallback when page has not set the global yet.
             var maybe = window.CommsChat.getActiveId();
             if (maybe != null && window.__COMMS_HEADER_ACTIVE_ID__ == null) pageCid = maybe;
         }
@@ -166,6 +167,7 @@ import { createClient } from '@supabase/supabase-js';
             sendTypingBroadcast(conversationId, 'started');
             lastTypingSent = now;
         } else if (now - lastTypingSent >= 1200) {
+            // Keepalive so peer safety timeout does not clear mid-typing.
             sendTypingBroadcast(conversationId, 'started');
             lastTypingSent = now;
         }
@@ -187,6 +189,60 @@ import { createClient } from '@supabase/supabase-js';
         return 'comms-inbox-' + userType + '-' + userId;
     }
 
+    var inboxReloadTimer = null;
+
+    function scheduleInboxReload() {
+        window.clearTimeout(inboxReloadTimer);
+        inboxReloadTimer = window.setTimeout(function () {
+            if (window.CommsChat && typeof window.CommsChat.reloadConversations === 'function') {
+                window.CommsChat.reloadConversations();
+            }
+            if (typeof window.refreshMessagesPopover === 'function') {
+                window.refreshMessagesPopover();
+            }
+            refreshUnread();
+        }, 350);
+    }
+
+    function normalizeRealtimeMessage(row) {
+        var root = getRoot();
+        var mine = !!(root && Number(row.sender_id) === Number(root.dataset.currentUserId)
+            && row.sender_type === root.dataset.portalUserType);
+        return {
+            id: row.id,
+            conversation_id: row.conversation_id,
+            sender_id: row.sender_id,
+            sender_type: row.sender_type,
+            body: row.body,
+            message_type: row.message_type,
+            mine: mine,
+            created_at: row.created_at,
+            edited: !!row.edited_at,
+            deleted_for_all: !!row.deleted_for_all_at,
+            reactions: [],
+            attachments: []
+        };
+    }
+
+    function deliverRealtimeInsert(row) {
+        var message = normalizeRealtimeMessage(row);
+        if (window.CommsChat && typeof window.CommsChat.appendMessage === 'function') {
+            var isAttachment = row.message_type === 'image' || row.message_type === 'file';
+            if (isAttachment && typeof window.CommsChat.reloadActiveMessages === 'function') {
+                window.CommsChat.reloadActiveMessages();
+            } else {
+                window.CommsChat.appendMessage(message);
+            }
+            if (typeof window.CommsChat.noteInboxActivity === 'function') {
+                window.CommsChat.noteInboxActivity(row);
+            }
+        }
+        if (typeof window.onCommsHeaderMessageInsert === 'function') {
+            window.onCommsHeaderMessageInsert(message);
+        }
+        scheduleInboxReload();
+    }
+
     function updateHeaderBadge(count) {
         var badge = document.getElementById('commsMsgBadge');
         if (!badge) return;
@@ -198,9 +254,7 @@ import { createClient } from '@supabase/supabase-js';
             return;
         }
         badge.style.display = '';
-        badge.textContent = (window.Comms && typeof window.Comms.formatHeaderMsgCount === 'function')
-            ? window.Comms.formatHeaderMsgCount(n)
-            : (n >= 9 ? '9+' : String(n));
+        badge.textContent = n > 99 ? '99+' : String(n);
     }
 
     function refreshUnread() {
@@ -266,59 +320,7 @@ import { createClient } from '@supabase/supabase-js';
                 table: 'messages',
                 filter: 'conversation_id=eq.' + conversationId
             }, function (payload) {
-                var row = payload.new || {};
-                var root = getRoot();
-                var mine = root && Number(row.sender_id) === Number(root.dataset.currentUserId)
-                    && row.sender_type === root.dataset.portalUserType;
-                if (window.CommsChat) {
-                    var isAttachment = row.message_type === 'image' || row.message_type === 'file';
-                    var payloadAttachments = Array.isArray(row.attachments) ? row.attachments : null;
-                    if (isAttachment && payloadAttachments && payloadAttachments.length
-                        && typeof window.CommsChat.appendMessage === 'function') {
-                        window.CommsChat.appendMessage({
-                            id: row.id,
-                            conversation_id: row.conversation_id,
-                            sender_id: row.sender_id,
-                            sender_type: row.sender_type,
-                            body: row.body,
-                            message_type: row.message_type,
-                            mine: !!mine,
-                            created_at: row.created_at,
-                            reactions: [],
-                            attachments: payloadAttachments
-                        });
-                        window.CommsChat.reloadConversations();
-                    } else if (isAttachment && typeof window.CommsChat.reloadActiveMessages === 'function') {
-                        window.CommsChat.reloadActiveMessages();
-                    } else {
-                        window.CommsChat.appendMessage({
-                            id: row.id,
-                            conversation_id: row.conversation_id,
-                            sender_id: row.sender_id,
-                            sender_type: row.sender_type,
-                            body: row.body,
-                            message_type: row.message_type,
-                            mine: !!mine,
-                            created_at: row.created_at,
-                            reactions: [],
-                            attachments: []
-                        });
-                        window.CommsChat.reloadConversations();
-                    }
-                }
-                if (typeof window.onCommsHeaderMessageInsert === 'function') {
-                    window.onCommsHeaderMessageInsert({
-                        id: row.id,
-                        conversation_id: row.conversation_id,
-                        sender_id: row.sender_id,
-                        sender_type: row.sender_type,
-                        body: row.body,
-                        message_type: row.message_type,
-                        created_at: row.created_at,
-                        reactions: []
-                    });
-                }
-                refreshUnread();
+                deliverRealtimeInsert(payload.new || {});
             })
             .on('postgres_changes', {
                 event: 'UPDATE',
@@ -451,53 +453,90 @@ import { createClient } from '@supabase/supabase-js';
     function startPresence() {
         var sb = ensureClient();
         var root = getRoot();
-        if (!sb || !root) return;
+        if (!root) return;
 
         var userId = root.dataset.currentUserId;
-        presenceChannel = sb.channel('comms-presence', {
-            config: { presence: { key: String(userId) } }
-        });
+        var routes = (window.CommsChat && window.CommsChat.routes) || {};
 
-        presenceChannel
-            .on('presence', { event: 'sync' }, function () {
-                var stateMap = presenceChannel.presenceState ? presenceChannel.presenceState() : {};
-                if (window.CommsChat && typeof window.CommsChat.updatePeerOnlineFromPresence === 'function') {
-                    window.CommsChat.updatePeerOnlineFromPresence(stateMap);
-                }
-            })
-            .on('presence', { event: 'join' }, function () {
-                var stateMap = presenceChannel.presenceState ? presenceChannel.presenceState() : {};
-                if (window.CommsChat && typeof window.CommsChat.updatePeerOnlineFromPresence === 'function') {
-                    window.CommsChat.updatePeerOnlineFromPresence(stateMap);
-                }
-            })
-            .on('presence', { event: 'leave' }, function () {
-                var stateMap = presenceChannel.presenceState ? presenceChannel.presenceState() : {};
-                if (window.CommsChat && typeof window.CommsChat.updatePeerOnlineFromPresence === 'function') {
-                    window.CommsChat.updatePeerOnlineFromPresence(stateMap);
-                }
-            })
-            .subscribe(async function (status) {
-                if (status !== 'SUBSCRIBED') return;
-                await presenceChannel.track({
-                    user_id: Number(userId),
-                    portal: root.dataset.portalUserType,
-                    online_at: new Date().toISOString()
-                });
+        function postPresence(online) {
+            if (!routes.presence || !window.Comms || typeof window.Comms.api !== 'function') return;
+            window.Comms.api(routes.presence, {
+                method: 'POST',
+                body: JSON.stringify({ online: !!online }),
+                dedupe: false
+            }).catch(function () { /* ignore */ });
+        }
+
+        if (sb) {
+            presenceChannel = sb.channel('comms-presence', {
+                config: { presence: { key: String(userId) } }
             });
 
-        var routes = (window.CommsChat && window.CommsChat.routes) || {};
-        if (routes.presence && window.Comms) {
-            var beat = function () {
-                window.Comms.api(routes.presence, {
-                    method: 'POST',
-                    body: JSON.stringify({ online: true }),
-                    dedupe: false
-                }).catch(function () { /* ignore */ });
-            };
-            beat();
-            setInterval(beat, 60000);
+            presenceChannel
+                .on('presence', { event: 'sync' }, function () {
+                    var stateMap = presenceChannel.presenceState ? presenceChannel.presenceState() : {};
+                    if (window.CommsChat && typeof window.CommsChat.updatePeerOnlineFromPresence === 'function') {
+                        window.CommsChat.updatePeerOnlineFromPresence(stateMap);
+                    }
+                    if (typeof window.onCommsHeaderPresence === 'function') {
+                        window.onCommsHeaderPresence(stateMap);
+                    }
+                })
+                .on('presence', { event: 'join' }, function () {
+                    var stateMap = presenceChannel.presenceState ? presenceChannel.presenceState() : {};
+                    if (window.CommsChat && typeof window.CommsChat.updatePeerOnlineFromPresence === 'function') {
+                        window.CommsChat.updatePeerOnlineFromPresence(stateMap);
+                    }
+                    if (typeof window.onCommsHeaderPresence === 'function') {
+                        window.onCommsHeaderPresence(stateMap);
+                    }
+                })
+                .on('presence', { event: 'leave' }, function () {
+                    var stateMap = presenceChannel.presenceState ? presenceChannel.presenceState() : {};
+                    if (window.CommsChat && typeof window.CommsChat.updatePeerOnlineFromPresence === 'function') {
+                        window.CommsChat.updatePeerOnlineFromPresence(stateMap);
+                    }
+                    if (typeof window.onCommsHeaderPresence === 'function') {
+                        window.onCommsHeaderPresence(stateMap);
+                    }
+                })
+                .subscribe(async function (status) {
+                    if (status === 'SUBSCRIBED') {
+                        await presenceChannel.track({
+                            user_id: Number(userId),
+                            portal: root.dataset.portalUserType,
+                            online_at: new Date().toISOString()
+                        });
+                    }
+                });
         }
+
+        postPresence(true);
+        setInterval(function () {
+            if (document.visibilityState === 'visible') postPresence(true);
+        }, 45000);
+
+        document.addEventListener('visibilitychange', function () {
+            postPresence(document.visibilityState === 'visible');
+        });
+
+        window.addEventListener('pagehide', function () {
+            try {
+                var token = document.querySelector('meta[name="csrf-token"]');
+                fetch(routes.presence, {
+                    method: 'POST',
+                    headers: {
+                        Accept: 'application/json',
+                        'Content-Type': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'X-CSRF-TOKEN': token ? token.getAttribute('content') : ''
+                    },
+                    credentials: 'same-origin',
+                    keepalive: true,
+                    body: JSON.stringify({ online: false })
+                });
+            } catch (e) { /* ignore */ }
+        });
     }
 
     function startPersonalInbox() {
@@ -528,21 +567,14 @@ import { createClient } from '@supabase/supabase-js';
                 schema: 'public',
                 table: 'messages'
             }, function () {
-                if (window.CommsChat) window.CommsChat.reloadConversations();
-                if (typeof window.refreshMessagesPopover === 'function') {
-                    window.refreshMessagesPopover();
-                }
-                refreshUnread();
+                scheduleInboxReload();
             })
             .on('postgres_changes', {
                 event: 'UPDATE',
                 schema: 'public',
                 table: 'messages'
             }, function () {
-                if (window.CommsChat) window.CommsChat.reloadConversations();
-                if (typeof window.refreshMessagesPopover === 'function') {
-                    window.refreshMessagesPopover();
-                }
+                scheduleInboxReload();
             })
             .on('postgres_changes', {
                 event: '*',
@@ -597,6 +629,9 @@ import { createClient } from '@supabase/supabase-js';
         startPresence();
         startPersonalInbox();
         initGlobalMessageWatch();
+    } else {
+        // Still heartbeat so peers see accurate online/offline without realtime.
+        startPresence();
     }
 
     refreshUnread();

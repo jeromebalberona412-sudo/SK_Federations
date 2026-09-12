@@ -6,25 +6,33 @@ use App\Modules\Archive_Management\Services\DeletedArchiveService;
 use App\Modules\Shared\Controllers\Controller;
 use App\Modules\Shared\Models\Tenant;
 use App\Modules\Shared\Models\User;
+use App\Services\SkFedPageCache;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
 
 class DeletedArchiveController extends Controller
 {
-    public function __construct(private readonly DeletedArchiveService $deletedArchiveService)
-    {
-    }
+    public function __construct(private readonly DeletedArchiveService $deletedArchiveService) {}
 
-    public function officialsIndex(): View
+    public function officialsIndex(Request $request): View
     {
-        return view('archive-management::deleted-sk-officials');
+        $this->deletedArchiveService->purgeExpiredDeletedOfficials();
+        $tenantId = $this->resolveTenantId($request->user());
+        $filters = $this->deletedArchiveService->filterCatalog($tenantId, User::ROLE_SK_OFFICIAL);
+
+        return view('archive-management::deleted-sk-officials', [
+            'filterBarangays' => $filters['barangays'] ?? [],
+            'filterPositions' => $filters['positions'] ?? [],
+            'filterTerms' => $filters['terms'] ?? [],
+            'filterYears' => $filters['years'] ?? [],
+        ]);
     }
 
     public function officialsData(Request $request): JsonResponse
     {
         $tenantId = $this->resolveTenantId($request->user());
-        $pageCache = app(\App\Services\SkFedPageCache::class);
+        $pageCache = app(SkFedPageCache::class);
         $parts = [
             'tenant' => $tenantId,
             'filter' => (string) $request->query('filter', ''),
@@ -57,7 +65,7 @@ class DeletedArchiveController extends Controller
             $admin
         );
 
-        app(\App\Services\SkFedPageCache::class)->bumpMany([
+        app(SkFedPageCache::class)->bumpMany([
             'archive.deleted_sk_officials',
             'accounts.officials',
             'archive.sk_officials_records',
