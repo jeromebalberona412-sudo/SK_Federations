@@ -6,9 +6,9 @@ use App\Modules\Accounts\Models\Barangay;
 use App\Modules\Accounts\Models\OfficialProfile;
 use App\Modules\Accounts\Models\OfficialTerm;
 use App\Modules\Accounts\Support\SkOfficialTermDates;
-use App\Modules\Archive_Management\Services\TermRecordsArchiveService;
 use App\Modules\AuditLog\Contracts\AuditLogInterface;
 use App\Modules\Authentication\Services\BootstrapSkFedAdminService;
+use App\Modules\SK_Officials_Records\Services\SkOfficialsRecordsService;
 use App\Modules\Shared\Models\User;
 use Carbon\Carbon;
 use Illuminate\Database\QueryException;
@@ -21,7 +21,7 @@ class AccountService
 {
     public function __construct(
         private readonly AuditLogInterface $auditLog,
-        private readonly TermRecordsArchiveService $termRecordsArchiveService,
+        private readonly SkOfficialsRecordsService $termRecordsArchiveService,
         private readonly ChairpersonFederationSyncService $chairpersonFederationSyncService,
         private readonly FederationRosterService $federationRosterService,
         private readonly SkOfficialRosterLimitsService $skOfficialRosterLimitsService,
@@ -761,7 +761,7 @@ class AccountService
 
             // Archive snapshot MUST succeed before removing from the active list.
             if ($target->role === User::ROLE_SK_OFFICIAL) {
-                app(\App\Modules\Archive_Management\Services\DeletedArchiveService::class)
+                app(\App\Modules\Deleted_SK_Officials\Services\DeletedSkOfficialsService::class)
                     ->archiveOfficial($target, $admin);
             }
 
@@ -803,7 +803,7 @@ class AccountService
             ])->save();
 
             if ($target->role === User::ROLE_SK_OFFICIAL) {
-                \App\Modules\Archive_Management\Models\DeletedSkOfficial::query()
+                \App\Modules\Deleted_SK_Officials\Models\DeletedSkOfficial::query()
                     ->where('original_user_id', $target->id)
                     ->whereNull('restored_at')
                     ->update(['restored_at' => now()]);

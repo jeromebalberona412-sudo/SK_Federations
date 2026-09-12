@@ -5,7 +5,7 @@ use App\Modules\Accounts\Models\Barangay;
 use App\Modules\Accounts\Models\OfficialProfile;
 use App\Modules\Accounts\Models\OfficialTerm;
 use App\Modules\Accounts\Services\AccountService;
-use App\Modules\Archive_Management\Services\DeletedArchiveService;
+use App\Modules\Deleted_SK_Officials\Services\DeletedSkOfficialsService;
 use App\Modules\Authentication\Middleware\EnsureSingleSession;
 use App\Modules\Authentication\Middleware\EnsureTrustedDevice;
 use App\Modules\Shared\Models\User;
@@ -276,7 +276,7 @@ it('does not permanently purge archived sk officials after 30 days', function ()
             'archived_at' => now()->subDays(31),
         ]);
 
-    $purged = app(DeletedArchiveService::class)
+    $purged = app(DeletedSkOfficialsService::class)
         ->purgeExpiredDeletedOfficials($tenantId);
 
     expect($purged)->toBe(0)

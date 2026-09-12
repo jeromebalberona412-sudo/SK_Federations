@@ -3,7 +3,7 @@
 namespace App\Modules\CommunityFeed\Controllers;
 
 use App\Modules\Accounts\Models\OfficialProfile;
-use App\Modules\Archive_Management\Services\FederationPostArchiveService;
+use App\Modules\Deleted_Posts\Services\DeletedPostsService;
 use App\Modules\CommunityFeed\Services\CloudinaryService;
 use App\Modules\CommunityFeed\Services\CommunityFeedPostBodyValidator;
 use App\Modules\CommunityFeed\Services\FederationCommunityFeedBroadcastService;
@@ -498,7 +498,7 @@ class CommunityFeedPostController extends Controller
             ->whereRaw('"is_federation_wide" = true')
             ->firstOrFail();
 
-        app(FederationPostArchiveService::class)
+        app(DeletedPostsService::class)
             ->archive($post, Auth::user());
 
         app(SkFedPageCache::class)->bump('community.feed');

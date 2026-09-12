@@ -1067,6 +1067,87 @@ select.form-input-light option {
     color: #475569;
 }
 
+/* ── Date input with calendar button ───────────────────────── */
+.date-input-container {
+    position: relative;
+    display: flex;
+    align-items: center;
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+}
+
+.date-input-container .form-input-light {
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+    padding-right: 2.6rem;
+    cursor: pointer;
+}
+
+.date-calendar-btn-light {
+    position: absolute;
+    right: 0.55rem;
+    top: 50%;
+    transform: translateY(-50%);
+    background: transparent;
+    border: none;
+    color: #1e3a6e;
+    cursor: pointer;
+    padding: 0.35rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 6px;
+    transition: color 0.15s ease, background-color 0.15s ease, transform 0.1s ease;
+    z-index: 2;
+    pointer-events: auto;
+    box-sizing: border-box;
+}
+
+/* Guard: any validation error or stray element must not render inside the date-input-container */
+.date-input-container > .validation-error,
+.date-input-container > .form-error-light,
+.date-input-container > .form-error {
+    display: none !important;
+}
+
+.date-calendar-btn-light svg {
+    display: block;
+    pointer-events: none;
+}
+
+.date-calendar-btn-light:hover {
+    color: #0284c7;
+    background-color: #f1f5f9;
+}
+
+.date-calendar-btn-light:active {
+    transform: translateY(-50%) scale(0.92);
+}
+
+.date-input-container .form-input-light.is-term-locked ~ .date-calendar-btn-light,
+.date-input-container .form-input-light[readonly] ~ .date-calendar-btn-light,
+.date-input-container .form-input-light:disabled ~ .date-calendar-btn-light {
+    color: #94a3b8;
+    cursor: not-allowed;
+    background: transparent;
+    pointer-events: none;
+}
+
+.date-input-container.has-calendar-btn input[type="date"]::-webkit-calendar-picker-indicator {
+    position: absolute;
+    right: 0;
+    top: 0;
+    width: 2.6rem;
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    opacity: 0;
+    cursor: pointer;
+    z-index: 3;
+}
+
 /* ── Status badge ──────────────────────────────────────────── */
 .status-badge {
     display: inline-flex;
@@ -2756,6 +2837,21 @@ body.sidebar-collapsed .accounts-page-footer {
     color: #64748b;
 }
 
+:root.dark .date-calendar-btn-light {
+    color: #60a5fa;
+}
+
+:root.dark .date-calendar-btn-light:hover {
+    color: #93c5fd;
+    background-color: rgba(96, 165, 250, 0.15);
+}
+
+:root.dark .date-input-container .form-input-light.is-term-locked ~ .date-calendar-btn-light,
+:root.dark .date-input-container .form-input-light[readonly] ~ .date-calendar-btn-light,
+:root.dark .date-input-container .form-input-light:disabled ~ .date-calendar-btn-light {
+    color: #475569;
+}
+
 :root.dark .form-input-light::placeholder {
     color: #475569;
 }
@@ -4352,7 +4448,8 @@ body.sidebar-collapsed .accounts-page-footer {
     }
 }
 /* Longer legal name confirmation modal */
-.accounts-long-name-overlay {
+.accounts-long-name-overlay,
+.accounts-age-confirm-overlay {
     position: fixed;
     inset: 0;
     z-index: 12000;
@@ -4361,15 +4458,18 @@ body.sidebar-collapsed .accounts-page-footer {
     justify-content: center;
     padding: 0.75rem;
 }
-.accounts-long-name-overlay[hidden] {
+.accounts-long-name-overlay[hidden],
+.accounts-age-confirm-overlay[hidden] {
     display: none !important;
 }
-.accounts-long-name-backdrop {
+.accounts-long-name-backdrop,
+.accounts-age-confirm-backdrop {
     position: absolute;
     inset: 0;
     background: rgba(15, 23, 42, 0.55);
 }
-.accounts-long-name-card {
+.accounts-long-name-card,
+.accounts-age-confirm-card {
     position: relative;
     z-index: 1;
     width: min(440px, 100%);
@@ -4381,7 +4481,8 @@ body.sidebar-collapsed .accounts-page-footer {
     box-shadow: 0 18px 48px rgba(15, 23, 42, 0.35);
     overflow: hidden;
 }
-.accounts-long-name-header {
+.accounts-long-name-header,
+.accounts-age-confirm-header {
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -4389,13 +4490,15 @@ body.sidebar-collapsed .accounts-page-footer {
     padding: 1rem 1.1rem;
     border-bottom: 1px solid #e5e7eb;
 }
-.accounts-long-name-title {
+.accounts-long-name-title,
+.accounts-age-confirm-title {
     margin: 0;
     font-size: 1.05rem;
     font-weight: 700;
     color: #111827;
 }
-.accounts-long-name-close {
+.accounts-long-name-close,
+.accounts-age-confirm-close {
     border: 0;
     background: transparent;
     font-size: 1.5rem;
@@ -4405,19 +4508,41 @@ body.sidebar-collapsed .accounts-page-footer {
     padding: 0.15rem 0.4rem;
 }
 .accounts-long-name-close:hover,
-.accounts-long-name-close:focus-visible {
+.accounts-long-name-close:focus-visible,
+.accounts-age-confirm-close:hover,
+.accounts-age-confirm-close:focus-visible {
     color: #111827;
 }
-.accounts-long-name-body {
+.accounts-long-name-body,
+.accounts-age-confirm-body {
     padding: 1rem 1.1rem;
     display: grid;
     gap: 0.85rem;
 }
-.accounts-long-name-lead {
+.accounts-long-name-lead,
+.accounts-age-confirm-message {
     margin: 0;
     color: #374151;
     font-size: 0.95rem;
     line-height: 1.5;
+}
+.accounts-age-confirm-message {
+    font-weight: 600;
+    color: #b45309;
+}
+.accounts-age-confirm-range,
+.accounts-age-confirm-note {
+    margin: 0;
+    font-size: 0.88rem;
+    line-height: 1.5;
+    color: #4b5563;
+}
+.accounts-age-confirm-note {
+    padding: 0.6rem 0.7rem;
+    border-radius: 8px;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    color: #64748b;
 }
 .accounts-long-name-confirm-box {
     display: grid;
@@ -4453,12 +4578,14 @@ body.sidebar-collapsed .accounts-page-footer {
     color: #b91c1c;
     font-size: 0.85rem;
 }
-.accounts-long-name-footer {
+.accounts-long-name-footer,
+.accounts-age-confirm-footer {
     padding: 0.85rem 1.1rem 1.1rem;
     display: flex;
     justify-content: flex-end;
     gap: 0.5rem;
     border-top: 1px solid #e5e7eb;
+    flex-wrap: wrap;
 }
 
 /* Create-account loading overlay (global showLoading is a no-op in this app) */

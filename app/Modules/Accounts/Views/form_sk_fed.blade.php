@@ -86,13 +86,23 @@
                             <span class="form-error-light"></span>
                         </div>
                         <div class="form-group-light">
-                            <label class="form-label-light required">Birthdate</label>
-                            <input type="date" id="date_of_birth" name="date_of_birth" class="form-input-light" required>
+                            <label class="form-label-light required">Birthdate (MM/DD/YYYY)</label>
+                            <div class="date-input-container has-calendar-btn">
+                                <input type="date" id="date_of_birth" name="date_of_birth" class="form-input-light" min="{{ $skDobBounds['min'] ?? '' }}" max="{{ $skDobBounds['max'] ?? '' }}" required>
+                                <button type="button" class="date-calendar-btn-light" tabindex="-1" title="Open calendar" aria-label="Open calendar">
+                                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                        <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+                                        <line x1="16" y1="2" x2="16" y2="6"/>
+                                        <line x1="8" y1="2" x2="8" y2="6"/>
+                                        <line x1="3" y1="10" x2="21" y2="10"/>
+                                    </svg>
+                                </button>
+                            </div>
                             <span class="form-error-light"></span>
                         </div>
                         <div class="form-group-light">
                             <label class="form-label-light required">Age</label>
-                            <input type="number" id="age" name="age" class="form-input-light" min="18" max="24" readonly>
+                            <input type="number" id="age" name="age" class="form-input-light" min="18" max="120" readonly>
                             <span class="form-error-light"></span>
                         </div>
                         <div class="form-group-light">
@@ -172,12 +182,32 @@
                     <div class="form-grid">
                         <div class="form-group-light">
                             <label class="form-label-light required">Term Start</label>
-                            <input type="date" id="term_start" name="term_start" class="form-input-light" required>
+                            <div class="date-input-container has-calendar-btn">
+                                <input type="date" id="term_start" name="term_start" class="form-input-light" required>
+                                <button type="button" class="date-calendar-btn-light" tabindex="-1" title="Open calendar" aria-label="Open calendar">
+                                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                        <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+                                        <line x1="16" y1="2" x2="16" y2="6"/>
+                                        <line x1="8" y1="2" x2="8" y2="6"/>
+                                        <line x1="3" y1="10" x2="21" y2="10"/>
+                                    </svg>
+                                </button>
+                            </div>
                             <span class="form-error-light"></span>
                         </div>
                         <div class="form-group-light">
                             <label class="form-label-light required">Term End</label>
-                            <input type="date" id="term_end" name="term_end" class="form-input-light" required>
+                            <div class="date-input-container has-calendar-btn">
+                                <input type="date" id="term_end" name="term_end" class="form-input-light" required>
+                                <button type="button" class="date-calendar-btn-light" tabindex="-1" title="Open calendar" aria-label="Open calendar">
+                                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                        <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+                                        <line x1="16" y1="2" x2="16" y2="6"/>
+                                        <line x1="8" y1="2" x2="8" y2="6"/>
+                                        <line x1="3" y1="10" x2="21" y2="10"/>
+                                    </svg>
+                                </button>
+                            </div>
                             <span class="form-error-light"></span>
                         </div>
                     </div>
@@ -298,13 +328,23 @@
                             <span class="form-error-light"></span>
                         </div>
                         <div class="form-group-light">
-                            <label for="edit_date_of_birth" class="form-label-light required">Date of Birth</label>
-                            <input type="date" id="edit_date_of_birth" name="date_of_birth" class="form-input-light" required>
+                            <label for="edit_date_of_birth" class="form-label-light required">Birthdate (MM/DD/YYYY)</label>
+                            <div class="date-input-container has-calendar-btn">
+                                <input type="date" id="edit_date_of_birth" name="date_of_birth" class="form-input-light" min="{{ $skDobBounds['min'] ?? '' }}" max="{{ $skDobBounds['max'] ?? '' }}" required>
+                                <button type="button" class="date-calendar-btn-light" tabindex="-1" title="Open calendar" aria-label="Open calendar">
+                                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                        <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+                                        <line x1="16" y1="2" x2="16" y2="6"/>
+                                        <line x1="8" y1="2" x2="8" y2="6"/>
+                                        <line x1="3" y1="10" x2="21" y2="10"/>
+                                    </svg>
+                                </button>
+                            </div>
                             <span class="form-error-light"></span>
                         </div>
                         <div class="form-group-light">
                             <label for="edit_age" class="form-label-light required">Age</label>
-                            <input type="number" id="edit_age" name="age" class="form-input-light" min="18" max="24" readonly>
+                            <input type="number" id="edit_age" name="age" class="form-input-light" min="18" max="120" readonly>
                             <span class="form-error-light"></span>
                         </div>
                     </div>
@@ -365,12 +405,32 @@
                         </div>
                         <div class="form-group-light">
                             <label for="edit_term_start" class="form-label-light required">Term Start</label>
-                            <input type="date" id="edit_term_start" name="term_start" class="form-input-light" required>
+                            <div class="date-input-container has-calendar-btn">
+                                <input type="date" id="edit_term_start" name="term_start" class="form-input-light" required>
+                                <button type="button" class="date-calendar-btn-light" tabindex="-1" title="Open calendar" aria-label="Open calendar">
+                                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                        <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+                                        <line x1="16" y1="2" x2="16" y2="6"/>
+                                        <line x1="8" y1="2" x2="8" y2="6"/>
+                                        <line x1="3" y1="10" x2="21" y2="10"/>
+                                    </svg>
+                                </button>
+                            </div>
                             <span class="form-error-light"></span>
                         </div>
                         <div class="form-group-light">
                             <label for="edit_term_end" class="form-label-light required">Term End</label>
-                            <input type="date" id="edit_term_end" name="term_end" class="form-input-light" required>
+                            <div class="date-input-container has-calendar-btn">
+                                <input type="date" id="edit_term_end" name="term_end" class="form-input-light" required>
+                                <button type="button" class="date-calendar-btn-light" tabindex="-1" title="Open calendar" aria-label="Open calendar">
+                                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                        <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+                                        <line x1="16" y1="2" x2="16" y2="6"/>
+                                        <line x1="8" y1="2" x2="8" y2="6"/>
+                                        <line x1="3" y1="10" x2="21" y2="10"/>
+                                    </svg>
+                                </button>
+                            </div>
                             <span class="form-error-light"></span>
                         </div>
                     </div>

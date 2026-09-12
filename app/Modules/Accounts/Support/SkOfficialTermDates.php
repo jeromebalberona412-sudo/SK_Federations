@@ -11,6 +11,140 @@ final class SkOfficialTermDates
 {
     public const FIRST_START = '2023-01-01';
 
+    /** SK Barangay Election Date under RA 11935 / RA 10742 / RA 11768 */
+    public const ELECTION_DATE = '2023-10-30';
+
+    public const SK_MIN_AGE = 18;
+
+    public const SK_MAX_AGE = 30;
+
+    public const MSG_UNDER_MIN_AGE = 'SK Official must be at least '.self::SK_MIN_AGE.' years old.';
+
+    /**
+     * Single reference date for SK age eligibility. The SK Reform Act
+     * (RA 10742 / RA 11768) measures eligibility on election day, so the
+     * configured election date — not the current date — drives the age window.
+     */
+    public static function eligibilityReference(?string $referenceDate = null): Carbon
+    {
+        return Carbon::parse($referenceDate ?: self::ELECTION_DATE)->startOfDay();
+    }
+
+    /**
+     * Inclusive birthdate window for an SK official, derived from the reference date.
+     *
+     * Both edges are exact anniversaries, so a birthdate is allowed only when the
+     * official is 18-30 years old on the reference date:
+     *
+     * - max (youngest allowed) = reference - 18 years; turning 18 exactly on the
+     *   reference date qualifies, one day later does not.
+     * - min (oldest allowed) = reference - 30 years; turning 30 exactly on the
+     *   reference date qualifies, one day earlier is already past the 30-year mark.
+     *
+     * For the 2023-10-30 election this yields 1993-10-30 through 2005-10-30.
+     *
+     * @return array{min: string, max: string}
+     */
+    public static function birthdateBounds(?string $referenceDate = null): array
+    {
+        $reference = self::eligibilityReference($referenceDate);
+
+        return [
+            'min' => $reference->copy()->subYears(self::SK_MAX_AGE)->toDateString(),
+            'max' => $reference->copy()->subYears(self::SK_MIN_AGE)->toDateString(),
+        ];
+    }
+
+    /**
+     * Birthday-aware age in completed years. Carbon counts whole years, so a
+     * birthdate falling exactly on the reference date returns the full age.
+     */
+    public static function ageAt(CarbonInterface|string $dob, ?string $referenceDate = null): int
+    {
+        return (int) Carbon::parse($dob)->startOfDay()
+            ->diffInYears(self::eligibilityReference($referenceDate));
+    }
+
+    public static function calculateAgeOnElection(CarbonInterface|string $dob, ?string $electionDate = null): int
+    {
+        return self::ageAt($dob, $electionDate);
+    }
+
+    public static function calculateCurrentAge(CarbonInterface|string $dob): int
+    {
+        return (int) Carbon::parse($dob)->startOfDay()->age;
+    }
+
+    public static function isEligibleElectionAge(CarbonInterface|string $dob, ?string $electionDate = null): bool
+    {
+        $bounds = self::birthdateBounds($electionDate);
+        $dobString = Carbon::parse($dob)->startOfDay()->toDateString();
+
+        return $dobString >= $bounds['min'] && $dobString <= $bounds['max'];
+    }
+
+    /**
+     * Classify a birthdate against the allowed window.
+     *
+     * @return string one of 'ok', 'under', 'over'
+     */
+    public static function classifyBirthdate(CarbonInterface|string $dob, ?string $referenceDate = null): string
+    {
+        $bounds = self::birthdateBounds($referenceDate);
+        $dobString = Carbon::parse($dob)->startOfDay()->toDateString();
+
+        if ($dobString > $bounds['max']) {
+            return 'under';
+        }
+
+        if ($dobString < $bounds['min']) {
+            return 'over';
+        }
+
+        return 'ok';
+    }
+
+    public static function birthdateRuleMessage(?string $referenceDate = null): string
+    {
+        $bounds = self::birthdateBounds($referenceDate);
+
+        return 'Birthdate must correspond to age '.self::SK_MIN_AGE.'–'.self::SK_MAX_AGE
+            .' as of '.self::eligibilityReference($referenceDate)->format('F j, Y')
+            .' (born between '.Carbon::parse($bounds['min'])->format('M j, Y')
+            .' and '.Carbon::parse($bounds['max'])->format('M j, Y').').';
+    }
+
+    public static function overMaxAgeMessage(?string $referenceDate = null): string
+    {
+        return 'SK Official must not be older than '.self::SK_MAX_AGE.' years old as of '
+            .self::eligibilityReference($referenceDate)->format('F j, Y').'. '
+            .self::birthdateRuleMessage($referenceDate);
+    }
+
+    /**
+     * Resolve the eligibility error for a birthdate, or null when it is allowed.
+     * Shared by the create, update, and batch-import validators so the age rule
+     * has a single implementation.
+     */
+    public static function birthdateErrorFor(CarbonInterface|string|null $dob, ?string $referenceDate = null): ?string
+    {
+        if ($dob === null || (is_string($dob) && trim($dob) === '')) {
+            return null;
+        }
+
+        try {
+            $classification = self::classifyBirthdate($dob, $referenceDate);
+        } catch (\Throwable) {
+            return null;
+        }
+
+        return match ($classification) {
+            'under' => self::MSG_UNDER_MIN_AGE,
+            'over' => self::overMaxAgeMessage($referenceDate),
+            default => null,
+        };
+    }
+
     /** Default / maximum term length in years. */
     public const TERM_YEARS = 5;
 

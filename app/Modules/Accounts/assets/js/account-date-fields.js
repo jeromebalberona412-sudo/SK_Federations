@@ -53,6 +53,8 @@
         return /^\d{2}\/\d{2}\/\d{4}$/.test(String(value || '').trim());
     }
 
+    const SK_ELECTION_DATE = '2023-10-30';
+
     function calculateAge(dateOfBirthValue) {
         if (!dateOfBirthValue) return '';
         const dob = parseLocalDateString(dateOfBirthValue);
@@ -62,6 +64,49 @@
         const m = today.getMonth() - dob.getMonth();
         if (m < 0 || (m === 0 && today.getDate() < dob.getDate())) age--;
         return age >= 0 ? String(age) : '';
+    }
+
+    function calculateAgeAtDate(dateOfBirthValue, asOfDateStr) {
+        if (!dateOfBirthValue) return null;
+        const dob = parseLocalDateString(dateOfBirthValue);
+        if (!dob) return null;
+        const ref = parseLocalDateString(asOfDateStr || SK_ELECTION_DATE);
+        if (!ref) return null;
+        let age = ref.getFullYear() - dob.getFullYear();
+        const m = ref.getMonth() - dob.getMonth();
+        if (m < 0 || (m === 0 && ref.getDate() < dob.getDate())) age--;
+        return age >= 0 ? age : null;
+    }
+
+    const SK_AGE_MIN = 18;
+    const SK_AGE_MAX = 30;
+
+    /**
+     * Inclusive birthdate window for an SK official, derived from the reference date.
+     * Both edges are exact anniversaries so the official is SK_AGE_MIN-SK_AGE_MAX
+     * years old on that date. Mirrors SkOfficialTermDates::birthdateBounds().
+     */
+    function getSkElectionBounds(referenceDateStr) {
+        const ref = parseLocalDateString(referenceDateStr || SK_ELECTION_DATE) || new Date(2023, 9, 30);
+        const maxDob = new Date(ref.getFullYear() - SK_AGE_MIN, ref.getMonth(), ref.getDate());
+        const minDob = new Date(ref.getFullYear() - SK_AGE_MAX, ref.getMonth(), ref.getDate());
+        return {
+            min: formatLocalDate(minDob),
+            max: formatLocalDate(maxDob),
+        };
+    }
+
+    function isSkElectionEligible(dateOfBirthValue, referenceDateStr) {
+        const iso = normalizeDateInputValue(dateOfBirthValue);
+        if (!iso) return false;
+        const bounds = getSkElectionBounds(referenceDateStr);
+        return iso >= bounds.min && iso <= bounds.max;
+    }
+
+    function formatReadableDate(isoValue) {
+        const parsed = parseLocalDateString(isoValue);
+        if (!parsed) return '';
+        return parsed.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
     }
 
     function applyUsDateTextInput(input) {
@@ -94,6 +139,13 @@
         formatDateForTextInput,
         isStrictUsDateFormat,
         calculateAge,
+        calculateAgeAtDate,
+        getSkElectionBounds,
+        isSkElectionEligible,
+        formatReadableDate,
         applyUsDateTextInput,
+        SK_ELECTION_DATE,
+        SK_AGE_MIN,
+        SK_AGE_MAX,
     };
 })();

@@ -349,15 +349,18 @@ class BatchAccountImportService
                 if ($dob->isFuture() || $dob->greaterThanOrEqualTo(Carbon::today())) {
                     $errors[] = 'Birthdate must be before today.';
                 } else {
-                    $ageFromDob = $dob->age;
-                    if ($ageFromDob < 18 || $ageFromDob > 24) {
-                        $errors[] = 'Birthdate must correspond to age 18–24 only.';
+                    $referenceDate = ! empty($data['term_start']) ? (string) $data['term_start'] : null;
+                    $birthdateError = SkOfficialTermDates::birthdateErrorFor($dob, $referenceDate);
+                    if ($birthdateError !== null) {
+                        $errors[] = $birthdateError;
                     }
                 }
             }
 
-            if ($data['age'] === null || (int) $data['age'] < 18 || (int) $data['age'] > 24) {
-                $errors[] = 'Age must be between 18 and 24.';
+            // Eligibility comes from the birthdate above; age is only sanity-checked.
+            $currentAge = isset($dob) ? $dob->age : ($data['age'] !== null ? (int) $data['age'] : null);
+            if ($currentAge === null || $currentAge < 1 || $currentAge > 150) {
+                $errors[] = 'Age must be a valid number.';
             }
 
             if ($data['contact_number'] === '') {

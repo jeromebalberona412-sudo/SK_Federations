@@ -58,6 +58,71 @@ it('normalizes valid officials batch rows with strict template validation', func
         ->and($row['status'])->toBe(User::STATUS_ACTIVE);
 });
 
+it('accepts official who was 24 on October 30 2023 election and is currently older than 24', function () {
+    $tenantId = (int) DB::table('tenants')->where('code', config('sk_fed_auth.tenant_code'))->value('id');
+    $service = new BatchAccountImportService($tenantId);
+
+    // Born on 1999-05-15: 24 on election day (2023-10-30), 27 in 2026
+    $row = $service->normalizeAccountRow([
+        'first_name' => 'PEDRO',
+        'middle_name' => '',
+        'last_name' => 'SANTOS',
+        'suffix' => 'None',
+        'sex' => 'Male',
+        'date_of_birth' => '1999-05-15',
+        'contact_number' => '09181234567',
+        'email' => 'pedro.batch.'.uniqid().'@gmail.com',
+        'barangay' => 'San Roque',
+        'position' => 'Councilor',
+        'term_start' => '2023-11-30',
+        'term_end' => '2028-11-30',
+    ], User::ROLE_SK_OFFICIAL, true);
+
+    expect($row['date_of_birth'])->toBe('1999-05-15')
+        ->and($row['age'])->toBeGreaterThanOrEqual(24);
+});
+
+it('rejects batch rows with birthdates ineligible on October 30 2023 election date', function () {
+    $tenantId = (int) DB::table('tenants')->where('code', config('sk_fed_auth.tenant_code'))->value('id');
+    $service = new BatchAccountImportService($tenantId);
+
+    // Born 1998-10-30: already 25 on election day (Oct 30, 2023)
+    $errorsTooOld = $service->validateRows([
+        [
+            'first_name' => 'MARIA',
+            'last_name' => 'CLARA',
+            'email' => 'maria.old.'.uniqid().'@gmail.com',
+            'barangay' => 'San Roque',
+            'position' => 'Councilor',
+            'sex' => 'Female',
+            'date_of_birth' => '1998-10-30',
+            'contact_number' => '09171234567',
+            'term_start' => '2023-11-30',
+            'term_end' => '2028-11-30',
+        ],
+    ], User::ROLE_SK_OFFICIAL);
+
+    expect($errorsTooOld)->not->toBeEmpty();
+
+    // Born 2005-10-31: only 17 on election day (Oct 30, 2023)
+    $errorsTooYoung = $service->validateRows([
+        [
+            'first_name' => 'MARIA',
+            'last_name' => 'CLARA',
+            'email' => 'maria.young.'.uniqid().'@gmail.com',
+            'barangay' => 'San Roque',
+            'position' => 'Councilor',
+            'sex' => 'Female',
+            'date_of_birth' => '2005-10-31',
+            'contact_number' => '09171234567',
+            'term_start' => '2023-11-30',
+            'term_end' => '2028-11-30',
+        ],
+    ], User::ROLE_SK_OFFICIAL);
+
+    expect($errorsTooYoung)->not->toBeEmpty();
+});
+
 it('syncs federation access for chairperson officials only', function () {
     if (! Schema::hasColumn('users', 'has_federation_access')) {
         $this->markTestSkipped('has_federation_access column is not migrated yet.');

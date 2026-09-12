@@ -13,6 +13,8 @@
     $tableColspan = $isOfficials ? 8 : 6;
     $batchTemplateType = $isOfficials ? 'officials' : 'federation';
     $batchRole = $isOfficials ? 'sk_official' : 'sk_fed';
+    $skDobBounds = \App\Modules\Accounts\Support\SkOfficialTermDates::birthdateBounds();
+    $skDobReference = \App\Modules\Accounts\Support\SkOfficialTermDates::eligibilityReference()->toDateString();
 @endphp
 
 @push('styles')
@@ -26,10 +28,15 @@
      data-account-type="{{ $accountType ?? 'sk_federation' }}"
      data-batch-role="{{ $batchRole }}"
      data-batch-template-type="{{ $batchTemplateType }}"
+     data-sk-dob-min="{{ $skDobBounds['min'] }}"
+     data-sk-dob-max="{{ $skDobBounds['max'] }}"
+     data-sk-dob-reference="{{ $skDobReference }}"
+     data-sk-age-min="{{ \App\Modules\Accounts\Support\SkOfficialTermDates::SK_MIN_AGE }}"
+     data-sk-age-max="{{ \App\Modules\Accounts\Support\SkOfficialTermDates::SK_MAX_AGE }}"
+     data-default-term-start="{{ $defaultTermStart ?? $skDobReference }}"
+     data-default-term-end="{{ $defaultTermEnd ?? '' }}"
      @if($isOfficials)
      data-accounts-data-url="{{ $accountsDataUrl ?? url('/accounts/officials/data') }}"
-     data-default-term-start="{{ $defaultTermStart ?? '' }}"
-     data-default-term-end="{{ $defaultTermEnd ?? '' }}"
      data-president-term-locked="{{ !empty($termLockedToPresident) ? '1' : '0' }}"
      @endif
      @unless($isOfficials)
@@ -263,6 +270,7 @@
 @include('accounts::view_account')
 @include('accounts::delete_account_modal')
 @include('accounts::long_name_modal')
+@include('accounts::age_confirm_modal')
 
 <div id="accountToast" role="status" aria-live="polite"><span id="accountToastMsg">Account successfully created!</span></div>
 <div id="accountToastEdit" role="status" aria-live="polite"><span id="accountToastEditMsg">Account updated successfully!</span></div>

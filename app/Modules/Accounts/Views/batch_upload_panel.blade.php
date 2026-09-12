@@ -63,7 +63,11 @@
                 Empty <strong>Suffix</strong> defaults to <strong>None</strong>.
                 Region, Province, and Municipality are already filled
                 (IV-A CALABARZON, Laguna, Santa Cruz).
-                Birthdate must be for ages <strong>18–24</strong> only.
+                @php $batchDobBounds = \App\Modules\Accounts\Support\SkOfficialTermDates::birthdateBounds(); @endphp
+                Birthdate must correspond to ages <strong>{{ \App\Modules\Accounts\Support\SkOfficialTermDates::SK_MIN_AGE }}–{{ \App\Modules\Accounts\Support\SkOfficialTermDates::SK_MAX_AGE }}</strong>
+                as of {{ \App\Modules\Accounts\Support\SkOfficialTermDates::eligibilityReference()->format('F j, Y') }}
+                ({{ \Carbon\Carbon::parse($batchDobBounds['min'])->format('m/d/Y') }}
+                to {{ \Carbon\Carbon::parse($batchDobBounds['max'])->format('m/d/Y') }}).
                 Use <strong>MM/DD/YYYY</strong> for Birthdate and Term dates.
                 @if ($isOfficialsTemplate)
                     For SK Officials, term dates follow the SK Federation President when a President is set (locked in preview). Otherwise Term Start may be from 01/01/2023, and Term End must be 3 to 5 years after Term Start. Empty term dates default to the current leadership term.
@@ -98,7 +102,7 @@
                 </span>
                 <div>
                     <strong>Birthdate</strong>
-                    <span>Age 18–24 years old only</span>
+                    <span>Age {{ \App\Modules\Accounts\Support\SkOfficialTermDates::SK_MIN_AGE }}–{{ \App\Modules\Accounts\Support\SkOfficialTermDates::SK_MAX_AGE }} as of {{ \App\Modules\Accounts\Support\SkOfficialTermDates::eligibilityReference()->format('M j, Y') }}</span>
                 </div>
             </div>
 

@@ -87,12 +87,22 @@
                             </div>
                             <div class="form-group-light">
                                 <label class="form-label-light required">Birthdate (MM/DD/YYYY)</label>
-                                <input type="date" name="date_of_birth" id="official_date_of_birth" class="form-input-light" required>
+                                <div class="date-input-container has-calendar-btn">
+                                    <input type="date" name="date_of_birth" id="official_date_of_birth" class="form-input-light" min="{{ $skDobBounds['min'] ?? '' }}" max="{{ $skDobBounds['max'] ?? '' }}" required>
+                                    <button type="button" class="date-calendar-btn-light" tabindex="-1" title="Open calendar" aria-label="Open calendar">
+                                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                            <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+                                            <line x1="16" y1="2" x2="16" y2="6"/>
+                                            <line x1="8" y1="2" x2="8" y2="6"/>
+                                            <line x1="3" y1="10" x2="21" y2="10"/>
+                                        </svg>
+                                    </button>
+                                </div>
                                 <span class="form-error-light"></span>
                             </div>
                             <div class="form-group-light">
                                 <label class="form-label-light required">Age</label>
-                                <input type="number" name="age" id="official_age" class="form-input-light" min="18" max="24" inputmode="numeric" required readonly tabindex="-1">
+                                <input type="number" name="age" id="official_age" class="form-input-light" min="18" max="120" inputmode="numeric" required readonly tabindex="-1">
                                 <span class="form-error-light"></span>
                             </div>
                             <div class="form-group-light">
@@ -172,13 +182,33 @@
                         <div class="form-grid">
                             <div class="form-group-light">
                                 <label class="form-label-light required">Term Start Date (MM/DD/YYYY)</label>
-                                <input type="date" name="term_start" id="official_term_start" class="form-input-light" required>
+                                <div class="date-input-container has-calendar-btn">
+                                    <input type="date" name="term_start" id="official_term_start" class="form-input-light" required>
+                                    <button type="button" class="date-calendar-btn-light" tabindex="-1" title="Open calendar" aria-label="Open calendar">
+                                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                            <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+                                            <line x1="16" y1="2" x2="16" y2="6"/>
+                                            <line x1="8" y1="2" x2="8" y2="6"/>
+                                            <line x1="3" y1="10" x2="21" y2="10"/>
+                                        </svg>
+                                    </button>
+                                </div>
                                 <p class="form-hint-light" id="official_term_start_hint">Earliest start is 01/01/2023. Defaults to the current SK Federation President term start.</p>
                                 <span class="form-error-light"></span>
                             </div>
                             <div class="form-group-light">
                                 <label class="form-label-light required">Term End Date (MM/DD/YYYY)</label>
-                                <input type="date" name="term_end" id="official_term_end" class="form-input-light" required>
+                                <div class="date-input-container has-calendar-btn">
+                                    <input type="date" name="term_end" id="official_term_end" class="form-input-light" required>
+                                    <button type="button" class="date-calendar-btn-light" tabindex="-1" title="Open calendar" aria-label="Open calendar">
+                                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                            <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+                                            <line x1="16" y1="2" x2="16" y2="6"/>
+                                            <line x1="8" y1="2" x2="8" y2="6"/>
+                                            <line x1="3" y1="10" x2="21" y2="10"/>
+                                        </svg>
+                                    </button>
+                                </div>
                                 <p class="form-hint-light" id="official_term_end_hint">Must be 3 to 5 years after term start. Locked to the SK Federation President term when a President is set.</p>
                                 <span class="form-error-light"></span>
                             </div>
@@ -303,12 +333,22 @@
                         </div>
                         <div class="form-group-light">
                             <label for="edit_sk_officials_date_of_birth" class="form-label-light required">Birthdate (MM/DD/YYYY)</label>
-                            <input type="text" id="edit_sk_officials_date_of_birth" name="date_of_birth" class="form-input-light" placeholder="MM/DD/YYYY" inputmode="numeric" autocomplete="off" required>
+                            <div class="date-input-container has-calendar-btn">
+                                <input type="date" id="edit_sk_officials_date_of_birth" name="date_of_birth" class="form-input-light" min="{{ $skDobBounds['min'] ?? '' }}" max="{{ $skDobBounds['max'] ?? '' }}" required>
+                                <button type="button" class="date-calendar-btn-light" tabindex="-1" title="Open calendar" aria-label="Open calendar">
+                                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                        <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+                                        <line x1="16" y1="2" x2="16" y2="6"/>
+                                        <line x1="8" y1="2" x2="8" y2="6"/>
+                                        <line x1="3" y1="10" x2="21" y2="10"/>
+                                    </svg>
+                                </button>
+                            </div>
                             <span class="form-error-light"></span>
                         </div>
                         <div class="form-group-light">
                             <label for="edit_sk_officials_age" class="form-label-light required">Age</label>
-                            <input type="number" id="edit_sk_officials_age" name="age" class="form-input-light" min="18" max="24" inputmode="numeric" required readonly tabindex="-1">
+                            <input type="number" id="edit_sk_officials_age" name="age" class="form-input-light" min="18" max="120" inputmode="numeric" required readonly tabindex="-1">
                             <span class="form-error-light"></span>
                         </div>
                     </div>
@@ -349,13 +389,33 @@
                     <div class="form-grid">
                         <div class="form-group-light">
                             <label for="edit_sk_officials_term_start" class="form-label-light required">Term Start Date (MM/DD/YYYY)</label>
-                            <input type="text" id="edit_sk_officials_term_start" name="term_start" class="form-input-light" placeholder="MM/DD/YYYY" inputmode="numeric" autocomplete="off" required>
+                            <div class="date-input-container has-calendar-btn">
+                                <input type="date" id="edit_sk_officials_term_start" name="term_start" class="form-input-light" required>
+                                <button type="button" class="date-calendar-btn-light" tabindex="-1" title="Open calendar" aria-label="Open calendar">
+                                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                        <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+                                        <line x1="16" y1="2" x2="16" y2="6"/>
+                                        <line x1="8" y1="2" x2="8" y2="6"/>
+                                        <line x1="3" y1="10" x2="21" y2="10"/>
+                                    </svg>
+                                </button>
+                            </div>
                             <p class="form-hint-light" id="edit_sk_officials_term_start_hint">Earliest start is 01/01/2023. Locked to the SK Federation President term when a President is set (President can still edit).</p>
                             <span class="form-error-light"></span>
                         </div>
                         <div class="form-group-light">
                             <label for="edit_sk_officials_term_end" class="form-label-light required">Term End Date (MM/DD/YYYY)</label>
-                            <input type="text" id="edit_sk_officials_term_end" name="term_end" class="form-input-light" placeholder="MM/DD/YYYY" inputmode="numeric" autocomplete="off" required>
+                            <div class="date-input-container has-calendar-btn">
+                                <input type="date" id="edit_sk_officials_term_end" name="term_end" class="form-input-light" required>
+                                <button type="button" class="date-calendar-btn-light" tabindex="-1" title="Open calendar" aria-label="Open calendar">
+                                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                        <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+                                        <line x1="16" y1="2" x2="16" y2="6"/>
+                                        <line x1="8" y1="2" x2="8" y2="6"/>
+                                        <line x1="3" y1="10" x2="21" y2="10"/>
+                                    </svg>
+                                </button>
+                            </div>
                             <p class="form-hint-light" id="edit_sk_officials_term_end_hint">Must be 3 to 5 years after the term start date. Saving the President’s dates also updates all SK Officials.</p>
                             <span class="form-error-light"></span>
                         </div>

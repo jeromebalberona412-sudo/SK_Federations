@@ -17,7 +17,7 @@ use App\Modules\Accounts\Services\AccountSetupService;
 use App\Modules\Accounts\Services\BatchAccountImportService;
 use App\Modules\Accounts\Services\FederationRosterService;
 use App\Modules\Accounts\Support\SkOfficialTermDates;
-use App\Modules\Archive_Management\Services\ExpiredTermProcessorService;
+use App\Modules\SK_Officials_Records\Services\ExpiredTermProcessorService;
 use App\Modules\Shared\Controllers\Controller;
 use App\Modules\Shared\Models\Tenant;
 use App\Modules\Shared\Models\User;
@@ -77,7 +77,19 @@ class AdminAccountController extends Controller
         $barangays = $payload['barangays'];
         $takenFederationPositions = $payload['takenFederationPositions'];
 
-        return view('accounts::manage_account', compact('accounts', 'accountType', 'barangays', 'positionOptions', 'takenFederationPositions'));
+        $leadershipTermDefaults = SkOfficialTermDates::leadershipDefaults($tenantId);
+        $defaultTermStart = $leadershipTermDefaults['term_start'];
+        $defaultTermEnd = $leadershipTermDefaults['term_end'];
+
+        return view('accounts::manage_account', compact(
+            'accounts',
+            'accountType',
+            'barangays',
+            'positionOptions',
+            'takenFederationPositions',
+            'defaultTermStart',
+            'defaultTermEnd'
+        ));
     }
 
     public function indexOfficials(Request $request): View

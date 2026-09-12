@@ -9,4 +9,5 @@ Artisan::command('inspire', function () {
 })->purpose('Display an inspiring quote');
 
 Schedule::command('sk-fed:auth:prune')->dailyAt('01:30');
+Schedule::command('deleted-sk-officials:purge')->dailyAt('02:00');
 Schedule::command('disposable:update')->weekly();

@@ -55,8 +55,13 @@ it('redirects guests away from community feed comment preview', function () {
 it('registers archive management routes in sk federation', function () {
     expect(Route::has('archived.deleted-sk-federation'))->toBeFalse();
     expect(Route::has('archived.deleted-sk-officials'))->toBeTrue();
+    expect(Route::has('deleted-sk-officials'))->toBeTrue();
+    expect(Route::has('archived.deleted-posts'))->toBeTrue();
+    expect(Route::has('deleted-posts'))->toBeTrue();
     expect(Route::has('archived.sk-federation-records'))->toBeTrue();
+    expect(Route::has('sk-federation-records'))->toBeTrue();
     expect(Route::has('archived.sk-officials-records'))->toBeTrue();
+    expect(Route::has('sk-officials-records'))->toBeTrue();
     expect(Route::has('archive'))->toBeFalse();
 });
 

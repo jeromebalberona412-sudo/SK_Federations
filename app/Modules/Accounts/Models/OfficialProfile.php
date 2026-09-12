@@ -2,6 +2,7 @@
 
 namespace App\Modules\Accounts\Models;
 
+use App\Modules\Accounts\Support\SkOfficialTermDates;
 use App\Modules\Shared\Models\Tenant;
 use App\Modules\Shared\Models\User;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -108,6 +109,30 @@ class OfficialProfile extends Model
         'date_of_birth' => 'date',
         'age' => 'integer',
     ];
+
+    /**
+     * Resolve the current real-time age dynamically from date of birth.
+     */
+    public function getAgeAttribute(?int $value): ?int
+    {
+        if ($this->date_of_birth !== null) {
+            return (int) $this->date_of_birth->age;
+        }
+
+        return $value;
+    }
+
+    /**
+     * Compute the official's age as of the October 30, 2023 election date.
+     */
+    public function ageOnElection(?string $electionDate = null): ?int
+    {
+        if ($this->date_of_birth === null) {
+            return null;
+        }
+
+        return SkOfficialTermDates::calculateAgeOnElection($this->date_of_birth, $electionDate);
+    }
 
     public function user(): BelongsTo
     {

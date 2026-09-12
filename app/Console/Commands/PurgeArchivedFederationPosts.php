@@ -2,7 +2,7 @@
 
 namespace App\Console\Commands;
 
-use App\Modules\Archive_Management\Services\FederationPostArchiveService;
+use App\Modules\Deleted_Posts\Services\DeletedPostsService;
 use App\Modules\Shared\Models\Announcement;
 use Illuminate\Console\Command;
 
@@ -12,9 +12,9 @@ class PurgeArchivedFederationPosts extends Command
 
     protected $description = 'Permanently delete federation archived posts older than 30 days';
 
-    public function handle(FederationPostArchiveService $archiveService): int
+    public function handle(DeletedPostsService $archiveService): int
     {
-        $cutoff = now()->subDays(FederationPostArchiveService::RETENTION_DAYS);
+        $cutoff = now()->subDays(DeletedPostsService::RETENTION_DAYS);
 
         $posts = Announcement::query()
             ->archived()

@@ -97,6 +97,58 @@ class UpdateAccountRequest extends FormRequest
         }
     }
 
+    /**
+     * True when the submitted birthdate is byte-identical to the stored one.
+     *
+     * Officials saved before the age window was corrected can now fall outside
+     * 18-30. Exempting only an untouched birthdate keeps those accounts editable
+     * without opening a path to save a new out-of-range birthdate.
+     */
+    private function birthdateMatchesStored(): bool
+    {
+        $account = $this->route('user');
+        if (! $account instanceof User) {
+            return false;
+        }
+
+        $account->loadMissing('officialProfile');
+        $stored = $account->officialProfile?->date_of_birth;
+        if ($stored === null) {
+            return false;
+        }
+
+        $submitted = $this->input('date_of_birth');
+        if (! is_string($submitted) || trim($submitted) === '') {
+            return false;
+        }
+
+        try {
+            return Carbon::parse($submitted)->startOfDay()->toDateString()
+                === Carbon::parse($stored)->startOfDay()->toDateString();
+        } catch (\Throwable) {
+            return false;
+        }
+    }
+
+    private function resolveEligibilityReference(): string
+    {
+        $termStart = $this->input('term_start');
+        if (is_string($termStart) && trim($termStart) !== '') {
+            return trim($termStart);
+        }
+
+        $account = $this->route('user');
+        if ($account instanceof User) {
+            $account->loadMissing('officialProfile.latestTerm');
+            $start = $account->officialProfile?->latestTerm?->term_start?->toDateString();
+            if ($start) {
+                return $start;
+            }
+        }
+
+        return SkOfficialTermDates::ELECTION_DATE;
+    }
+
     public function rules(): array
     {
         $userId = $this->route('user')?->id;
@@ -105,15 +157,24 @@ class UpdateAccountRequest extends FormRequest
             User::ROLE_SK_FED,
             User::ROLE_SK_OFFICIAL,
         ], true);
-        $ageMin = 18;
-        $ageMax = 24;
         $isOfficial = $accountRole === User::ROLE_SK_OFFICIAL;
-        // Update must allow existing officials who aged past 24; create still enforces 18–24.
+
+        $referenceDate = $this->resolveEligibilityReference();
+        $bounds = SkOfficialTermDates::birthdateBounds($referenceDate);
+        $keepsExistingBirthdate = $requiresDemographics && $this->birthdateMatchesStored();
+
         $dateOfBirthRules = $requiresDemographics
             ? ['required', 'date', 'before:today']
             : ['nullable', 'date', 'before:today'];
+        if ($requiresDemographics && ! $keepsExistingBirthdate) {
+            $dateOfBirthRules[] = 'after_or_equal:'.$bounds['min'];
+            $dateOfBirthRules[] = 'before_or_equal:'.$bounds['max'];
+        }
+
+        // Age is recomputed from date_of_birth in prepareForValidation, so the
+        // birthdate rules above are the only age gate.
         $ageRules = $requiresDemographics
-            ? ['required', 'integer', 'min:1', 'max:120']
+            ? ['required', 'integer', 'min:1', 'max:150']
             : ['nullable', 'integer', 'min:0', 'max:150'];
 
         $nameMin = $isOfficial ? 2 : 3;
@@ -171,9 +232,37 @@ class UpdateAccountRequest extends FormRequest
         ];
     }
 
+    /**
+     * Re-derive eligibility from the submitted birthdate. The age input is never
+     * trusted: prepareForValidation overwrites it from date_of_birth.
+     */
+    private function validateSkAgeEligibility(Validator $validator): void
+    {
+        $accountRole = (string) ($this->route('user')?->role ?? '');
+        $requiresAgeCheck = in_array($accountRole, [
+            User::ROLE_SK_FED,
+            User::ROLE_SK_OFFICIAL,
+        ], true);
+
+        if (! $requiresAgeCheck
+            || $validator->errors()->has('date_of_birth')
+            || $this->birthdateMatchesStored()
+        ) {
+            return;
+        }
+
+        $referenceDate = $this->resolveEligibilityReference();
+        $error = SkOfficialTermDates::birthdateErrorFor($this->input('date_of_birth'), $referenceDate);
+        if ($error !== null) {
+            $validator->errors()->add('date_of_birth', $error);
+        }
+    }
+
     public function withValidator(Validator $validator): void
     {
         $validator->after(function (Validator $validator): void {
+            $this->validateSkAgeEligibility($validator);
+
             $accountRole = (string) ($this->route('user')?->role ?? '');
             if ($accountRole === User::ROLE_SK_OFFICIAL) {
                 $suffix = $this->input('suffix');
@@ -234,6 +323,8 @@ class UpdateAccountRequest extends FormRequest
      */
     public function messages(): array
     {
+        $referenceDate = $this->resolveEligibilityReference();
+
         return [
             'email.unique' => 'This email is already taken.',
             'email.required' => ValidEmailAddress::MSG_REQUIRED,
@@ -242,6 +333,8 @@ class UpdateAccountRequest extends FormRequest
             'last_name.regex' => 'Last name must use uppercase letters only; need a letter before each space; no pure spaces.',
             'middle_name.regex' => 'Middle name must use uppercase letters only; need a letter before each space; no pure spaces.',
             'date_of_birth.before' => 'Birthdate must be before today.',
+            'date_of_birth.after_or_equal' => SkOfficialTermDates::overMaxAgeMessage($referenceDate),
+            'date_of_birth.before_or_equal' => SkOfficialTermDates::MSG_UNDER_MIN_AGE,
             'age.min' => 'Age must be a valid number.',
             'age.max' => 'Age must be a valid number.',
             'contact_number.required' => PhoneNumberService::MSG_REQUIRED,

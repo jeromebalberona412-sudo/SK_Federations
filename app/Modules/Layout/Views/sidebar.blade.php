@@ -1,5 +1,5 @@
 @php
-    $archiveManagementOpen = request()->routeIs('archived.*', 'deleted-calendar-notes');
+    $archiveManagementOpen = request()->routeIs('archived.*', 'deleted-calendar-notes*', 'deleted-posts*', 'deleted-sk-officials*', 'sk-officials-records*', 'sk-federation-records*');
     $accountsOpen = request()->routeIs('accounts.*');
     $isFederationAccountsActive = request()->routeIs('accounts.federation.index') || (request()->routeIs('accounts.manage') && (request('account_type', 'sk_federation') === 'sk_federation'));
     $isOfficialsAccountsActive = request()->routeIs('accounts.officials.index');

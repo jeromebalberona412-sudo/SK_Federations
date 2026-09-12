@@ -110,23 +110,27 @@ class StoreAccountRequest extends FormRequest
         $isFederation = $this->input('role') === User::ROLE_SK_FED;
         $termStartMin = SkOfficialTermDates::FIRST_START;
         $termStartMax = SkOfficialTermDates::maxStart();
-        $ageMin = 18;
-        $ageMax = 24;
+
+        $termStart = $this->input('term_start');
+        $referenceDate = is_string($termStart) && trim($termStart) !== '' ? trim($termStart) : SkOfficialTermDates::ELECTION_DATE;
+
+        $bounds = SkOfficialTermDates::birthdateBounds($referenceDate);
+        $dobMin = $bounds['min'];
+        $dobMax = $bounds['max'];
 
         $nameMin = $isOfficial ? 2 : 3;
         $nameMax = $isOfficial ? 150 : 100;
         $nameRules = ['required', 'string', 'min:'.$nameMin, 'max:'.$nameMax, 'regex:/^(?!\s)[A-Z.\-\']+(?: [A-Z.\-\']+)*$/u'];
         $middleNameRules = ['nullable', 'string', 'min:'.$nameMin, 'max:'.$nameMax, 'regex:/^(?!\s)[A-Z.\-\']+(?: [A-Z.\-\']+)*$/u'];
 
-        $dobMax = Carbon::today()->subYears($ageMin)->toDateString();
-        $dobMin = Carbon::today()->subYears($ageMax)->toDateString();
-
         $dateOfBirthRules = ($isOfficial || $isFederation)
             ? ['required', 'date', 'before:today', 'after_or_equal:'.$dobMin, 'before_or_equal:'.$dobMax]
             : [$requiresDemographics ? 'required' : 'nullable', 'date', 'before:today'];
 
+        // The age input is always recomputed from date_of_birth in prepareForValidation,
+        // so eligibility is enforced on the birthdate alone and this stays a sanity check.
         $ageRules = ($isOfficial || $isFederation)
-            ? ['required', 'integer', 'min:'.$ageMin, 'max:'.$ageMax]
+            ? ['required', 'integer', 'min:1', 'max:150']
             : ['nullable', 'integer', 'min:0', 'max:150'];
 
         $emailRules = [
@@ -178,9 +182,34 @@ class StoreAccountRequest extends FormRequest
         ];
     }
 
+    /**
+     * Re-derive eligibility from the submitted birthdate. The age input is never
+     * trusted: prepareForValidation overwrites it from date_of_birth.
+     */
+    private function validateSkAgeEligibility(Validator $validator): void
+    {
+        $requiresAgeCheck = in_array($this->input('role'), [
+            User::ROLE_SK_FED,
+            User::ROLE_SK_OFFICIAL,
+        ], true);
+
+        if (! $requiresAgeCheck || $validator->errors()->has('date_of_birth')) {
+            return;
+        }
+
+        $termStart = $this->input('term_start');
+        $referenceDate = is_string($termStart) && trim($termStart) !== '' ? trim($termStart) : SkOfficialTermDates::ELECTION_DATE;
+        $error = SkOfficialTermDates::birthdateErrorFor($this->input('date_of_birth'), $referenceDate);
+        if ($error !== null) {
+            $validator->errors()->add('date_of_birth', $error);
+        }
+    }
+
     public function withValidator(Validator $validator): void
     {
         $validator->after(function (Validator $validator): void {
+            $this->validateSkAgeEligibility($validator);
+
             if ($this->input('role') === User::ROLE_SK_OFFICIAL) {
                 $suffix = $this->input('suffix');
                 $allowedSuffixes = ['Jr.', 'Sr.', 'II', 'III', 'IV', 'V'];
@@ -238,6 +267,9 @@ class StoreAccountRequest extends FormRequest
      */
     public function messages(): array
     {
+        $termStart = $this->input('term_start');
+        $referenceDate = is_string($termStart) && trim($termStart) !== '' ? trim($termStart) : SkOfficialTermDates::ELECTION_DATE;
+
         return [
             'email.unique' => 'This email is already taken.',
             'email.required' => ValidEmailAddress::MSG_REQUIRED,
@@ -252,10 +284,10 @@ class StoreAccountRequest extends FormRequest
             'middle_name.min' => 'Middle name must be at least 2 characters when provided.',
             'middle_name.max' => 'Middle name must not exceed 150 characters.',
             'date_of_birth.before' => 'Birthdate must be before today.',
-            'date_of_birth.after_or_equal' => 'Birthdate must correspond to age 18–24 only.',
-            'date_of_birth.before_or_equal' => 'Birthdate must correspond to age 18–24 only.',
-            'age.min' => 'Age must be at least 18.',
-            'age.max' => 'Age must not exceed 24.',
+            'date_of_birth.after_or_equal' => SkOfficialTermDates::overMaxAgeMessage($referenceDate),
+            'date_of_birth.before_or_equal' => SkOfficialTermDates::MSG_UNDER_MIN_AGE,
+            'age.min' => 'Age must be a valid number.',
+            'age.max' => 'Age must be a valid number.',
             'suffix_other.regex' => 'Other suffix must not contain spaces.',
             'suffix_other.min' => 'Other suffix must be at least 1 character.',
             'suffix_other.max' => 'Other suffix must not exceed 5 characters.',
