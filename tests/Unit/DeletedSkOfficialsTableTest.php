@@ -3,7 +3,7 @@
 use Illuminate\Support\Facades\Route;
 use Tests\TestCase;
 
-uses(\Tests\TestCase::class);
+uses(TestCase::class);
 
 it('registers all deleted sk officials routes including show and restore', function () {
     expect(Route::has('archived.deleted-sk-officials'))->toBeTrue()
@@ -16,59 +16,52 @@ it('registers all deleted sk officials routes including show and restore', funct
         ->and(Route::has('deleted-sk-officials.restore'))->toBeTrue();
 });
 
-it('has the exact 9-column table structure and Actions header in the Blade view', function () {
+it('has separate term start/end columns and three-dot archive actions', function () {
     $bladeContent = file_get_contents(base_path('app/Modules/Deleted_SK_Officials/Views/deleted-sk-officials.blade.php'));
 
-    // Check table headers: Full Name, Position, Barangay, Municipality, Term, Date Deleted, Time Deleted, Deleted By, Actions
     expect($bladeContent)->toContain('Full Name')
         ->and($bladeContent)->toContain('LN, FN, MN, Suffix')
         ->and($bladeContent)->toContain('<th>Position</th>')
         ->and($bladeContent)->toContain('<th>Barangay</th>')
         ->and($bladeContent)->toContain('<th>Municipality</th>')
-        ->and($bladeContent)->toContain('<th>Term</th>')
+        ->and($bladeContent)->toContain('<th>Term Start</th>')
+        ->and($bladeContent)->toContain('<th>Term End</th>')
+        ->and($bladeContent)->not->toContain('<th>Term</th>')
         ->and($bladeContent)->toContain('<th>Date Deleted</th>')
         ->and($bladeContent)->toContain('<th>Time Deleted</th>')
         ->and($bladeContent)->toContain('<th>Deleted By</th>')
         ->and($bladeContent)->toContain('<th class="dso-col-actions">Actions</th>');
 
-    // Confirm Email Address and Auto-Delete In are not table column headers
     expect($bladeContent)->not->toContain('<th>Email Address</th>')
         ->and($bladeContent)->not->toContain('<th>Auto-Delete In</th>');
 
-    // Colspan for empty rows must be 9
-    expect($bladeContent)->toContain('colspan="9"');
+    expect($bladeContent)->toContain('colspan="10"');
 
-    // Confirmation modal title and message
     expect($bladeContent)->toContain('<h2 class="dso-modal-title">Restore SK Official?</h2>')
-        ->and($bladeContent)->toContain('Are you sure you want to restore this SK Official account?');
+        ->and($bladeContent)->toContain('Are you sure you want to restore this SK Official account?')
+        ->and($bladeContent)->toContain('id="dsoViewModal"')
+        ->and($bladeContent)->toContain('id="dsoRestoreModal"')
+        ->and($bladeContent)->toContain('id="dsoClearFiltersBtn"')
+        ->and($bladeContent)->toContain('/shared/js/archive-row-actions.js');
 
-    // Action column uses 3-dot dropdown menu containing View and Restore actions
     expect($bladeContent)->toContain('ar-row-actions-menu')
         ->and($bladeContent)->toContain('ar-row-actions-trigger')
-        ->and($bladeContent)->toContain('ar-row-actions-dropdown')
-        ->and($bladeContent)->toContain('ar-row-actions-item')
-        ->and($bladeContent)->toContain('data-action="view"')
-        ->and($bladeContent)->toContain('data-action="restore"')
-        ->and($bladeContent)->toContain('<span>View</span>')
-        ->and($bladeContent)->toContain('<span>Restore</span>');
+        ->and($bladeContent)->toContain('data-ar-action="view"')
+        ->and($bladeContent)->toContain('data-ar-action="restore"');
 });
 
-it('renders matching 9 td cells in JavaScript renderDsoTable', function () {
+it('renders matching term start/end cells and archive row actions in JavaScript', function () {
     $jsContent = file_get_contents(base_path('app/Modules/Deleted_SK_Officials/assets/js/deleted-sk-officials.js'));
 
-    // Loading & empty states use colspan 9
-    expect($jsContent)->toContain('colspan="9"');
-
-    // Action column uses 3-dot dropdown menu containing View and Restore actions
-    expect($jsContent)->toContain('ar-row-actions-menu')
-        ->and($jsContent)->toContain('ar-row-actions-trigger')
-        ->and($jsContent)->toContain('ar-row-actions-dropdown')
-        ->and($jsContent)->toContain('ar-row-actions-item')
-        ->and($jsContent)->toContain('data-action="view"')
-        ->and($jsContent)->toContain('data-action="restore"');
-
-    // Success restore toast
-    expect($jsContent)->toContain('SK Official restored successfully.');
+    expect($jsContent)->toContain('colspan="10"')
+        ->and($jsContent)->toContain('resolveDsoTermParts')
+        ->and($jsContent)->toContain('ArchiveRowActions')
+        ->and($jsContent)->toContain('openDsoViewModal')
+        ->and($jsContent)->toContain('openDsoRestoreModal')
+        ->and($jsContent)->toContain('closeDsoRestoreModal(true)')
+        ->and($jsContent)->toContain('SK Official restored successfully.')
+        ->and($jsContent)->toContain('dsoClearFiltersBtn')
+        ->and($jsContent)->toContain('DSO_CACHE_PREFIX');
 });
 
 it('can render the deleted sk officials view without vite or template errors', function () {
@@ -86,10 +79,10 @@ it('can render the deleted sk officials view without vite or template errors', f
                 'position' => 'SK Chairperson',
                 'barangay' => 'Bagumbayan',
                 'municipality' => 'Santa Cruz',
-                'term' => '2023 — 2026',
-                'termStart' => '2023',
-                'termEnd' => '2026',
-                'termLabel' => '2023-2026',
+                'term' => 'Jan 1, 2023 — Dec 31, 2025',
+                'termStart' => 'Jan 1, 2023',
+                'termEnd' => 'Dec 31, 2025',
+                'termLabel' => '2023-2025',
                 'deletedDate' => 'Sep 12, 2026',
                 'deletedTime' => '10:00 AM',
                 'deleted_by' => 'Admin User',
@@ -98,15 +91,25 @@ it('can render the deleted sk officials view without vite or template errors', f
         'stats' => ['total' => 1, 'today' => 0, 'month' => 0],
         'filterBarangays' => ['Bagumbayan'],
         'filterPositions' => ['SK Chairperson'],
-        'filterYears' => ['2026'],
+        'filterYears' => [2026],
+        'filterTerms' => [],
         'currentFilter' => 'all',
         'currentYear' => 'all',
         'currentBarangay' => '',
         'currentPosition' => '',
         'currentSearch' => '',
         'retentionDays' => 30,
-    ])->render();
+    ]);
 
-    expect($view)->toContain('Deleted SK Officials')
-        ->and($view)->toContain('DELA CRUZ, JUAN');
+    $html = $view->render();
+
+    expect($html)->toContain('Deleted SK Officials')
+        ->and($html)->toContain('DELA CRUZ, JUAN')
+        ->and($html)->toContain('Term Start')
+        ->and($html)->toContain('Term End')
+        ->and($html)->toContain('Jan 1, 2023')
+        ->and($html)->toContain('Dec 31, 2025')
+        ->and($html)->toContain('ar-row-actions-menu')
+        ->and($html)->toContain('data-ar-action="view"')
+        ->and($html)->toContain('data-ar-action="restore"');
 });

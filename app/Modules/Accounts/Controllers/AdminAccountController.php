@@ -54,28 +54,21 @@ class AdminAccountController extends Controller
         $this->scheduleExpiredTermProcessing($tenantId, $request->user());
         $this->federationRosterService->syncFederationRosterAccess($tenantId);
 
-        $pageCache = app(SkFedPageCache::class);
-        $payload = $pageCache->remember('accounts.federation', function () use ($tenantId) {
-            $query = $this->federationRosterService->federationRosterQuery($tenantId);
+        // Live DB read — do not cache roster rows (stale cache showed data ≠ users table).
+        $query = $this->federationRosterService->federationRosterQuery($tenantId);
 
-            $accounts = $query->get()
-                ->sortBy(fn (User $account) => Str::lower($account->barangay?->name ?? 'zzzz'))
-                ->values();
-            $barangays = Barangay::query()
-                ->where('tenant_id', $tenantId)
-                ->orderBy('name')
-                ->get();
+        $accounts = $query->get()
+            ->sortBy(fn (User $account) => Str::lower($account->barangay?->name ?? 'zzzz'))
+            ->values();
+        $barangays = Barangay::query()
+            ->where('tenant_id', $tenantId)
+            ->orderBy('name')
+            ->get();
 
-            $takenFederationPositions = $this->federationRosterService->takenFederationPositions($tenantId);
-
-            return compact('accounts', 'barangays', 'takenFederationPositions');
-        }, ['tenant' => $tenantId]);
+        $takenFederationPositions = $this->federationRosterService->takenFederationPositions($tenantId);
 
         $accountType = 'sk_federation';
         $positionOptions = OfficialProfile::federationPositionOptions();
-        $accounts = $payload['accounts'];
-        $barangays = $payload['barangays'];
-        $takenFederationPositions = $payload['takenFederationPositions'];
 
         $leadershipTermDefaults = SkOfficialTermDates::leadershipDefaults($tenantId);
         $defaultTermStart = $leadershipTermDefaults['term_start'];
@@ -732,13 +725,8 @@ class AdminAccountController extends Controller
                 $roleQuery->where('role', User::ROLE_SK_OFFICIAL)
                     ->orWhereRaw('LOWER(TRIM(role)) = ?', ['sk_official']);
             })
-            ->where(function ($tenantQuery) use ($tenantId): void {
-                $tenantQuery->where('tenant_id', $tenantId);
-                if ($tenantId > 0) {
-                    $tenantQuery->orWhereNull('tenant_id');
-                }
-            })
-            ->whereNull('deleted_at')
+            // Strict tenant match so Manage SK Officials mirrors the live users table for this federation.
+            ->where('tenant_id', $tenantId)
             ->orderByDesc('id')
             ->get();
     }

@@ -3402,6 +3402,10 @@ body.sidebar-collapsed .accounts-page-footer {
     color: #64748b;
 }
 
+.form-hint-light.is-warning {
+    color: #b45309;
+}
+
 /* ── Account actions meatballs menu ─────────────────────────── */
 .account-actions-menu {
     position: relative;

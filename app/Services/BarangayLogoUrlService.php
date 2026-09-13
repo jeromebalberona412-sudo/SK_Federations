@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 class BarangayLogoUrlService
 {
@@ -33,7 +34,7 @@ class BarangayLogoUrlService
             $out[$id] = null;
         }
 
-        if ($ids === []) {
+        if ($ids === [] || ! Schema::hasTable('barangay_logos')) {
             return $out;
         }
 

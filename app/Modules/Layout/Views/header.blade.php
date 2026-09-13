@@ -74,10 +74,10 @@
                 id="tutorialGuideBtn"
                 data-tour="tutorial-guide"
                 onclick="window.startSkFedTutorial && window.startSkFedTutorial(true)"
-                aria-label="Interactive Tutorial"
-                title="Start Interactive Tutorial"
+                aria-label="Tutorial Guide"
+                title="Tutorial Guide"
             >
-                <i class="fas fa-compass" aria-hidden="true"></i>
+                <i class="fas fa-question-circle" aria-hidden="true"></i>
             </button>
         </div>
 
@@ -114,9 +114,9 @@
 
                 <button type="button" class="profile-dropdown-item" id="nav-tutorial-guide-btn" onclick="toggleProfileDropdown(event); window.startSkFedTutorial && window.startSkFedTutorial(true);" data-no-loading>
                     <span class="profile-dropdown-icon profile-dropdown-icon--tutorial">
-                        <i class="fas fa-compass" style="font-size: 1rem; color: #f59e0b;"></i>
+                        <i class="fas fa-question-circle" style="font-size: 1rem; color: #f59e0b;"></i>
                     </span>
-                    Interactive Tutorial
+                    Tutorial Guide
                 </button>
 
                 <div class="profile-dropdown-divider"></div>

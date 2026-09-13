@@ -8,37 +8,32 @@ return new class extends Migration
 {
     public function up(): void
     {
-        if (! Schema::hasTable('announcements')) {
+        // Legacy announcements table was renamed to community_feeds.
+        $tableName = Schema::hasTable('community_feeds')
+            ? 'community_feeds'
+            : (Schema::hasTable('announcements') ? 'announcements' : null);
+
+        if ($tableName === null) {
             return;
         }
 
-        Schema::table('announcements', function (Blueprint $table) {
-            if (! Schema::hasColumn('announcements', 'is_archived')) {
-                $table->boolean('is_archived')->default(false)->after('is_federation_wide');
+        Schema::table($tableName, function (Blueprint $table) use ($tableName) {
+            if (! Schema::hasColumn($tableName, 'is_archived')) {
+                $table->boolean('is_archived')->default(false);
             }
 
-            if (! Schema::hasColumn('announcements', 'archived_at')) {
-                $table->timestamp('archived_at')->nullable()->after('is_archived');
+            if (! Schema::hasColumn($tableName, 'archived_at')) {
+                $table->timestamp('archived_at')->nullable();
             }
 
-            if (! Schema::hasColumn('announcements', 'deleted_at')) {
-                $table->timestamp('deleted_at')->nullable()->after('archived_at');
+            if (! Schema::hasColumn($tableName, 'deleted_at')) {
+                $table->timestamp('deleted_at')->nullable();
             }
         });
     }
 
     public function down(): void
     {
-        if (! Schema::hasTable('announcements')) {
-            return;
-        }
-
-        Schema::table('announcements', function (Blueprint $table) {
-            foreach (['deleted_at', 'archived_at', 'is_archived'] as $column) {
-                if (Schema::hasColumn('announcements', $column)) {
-                    $table->dropColumn($column);
-                }
-            }
-        });
+        // No-op: archive columns are required by Community Feed / Deleted Posts.
     }
 };

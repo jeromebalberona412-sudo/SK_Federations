@@ -112,6 +112,19 @@
     background: #f1f5f9;
 }
 
+/* First-run mandatory: no close / skip chrome */
+.sk-tour-root.sk-tour-mandatory .sk-tour-close-btn,
+.sk-tour-root.sk-tour-mandatory .sk-tour-btn--skip,
+.sk-tour-root.sk-tour-mandatory .sk-tour-btn--back {
+    display: none !important;
+}
+
+.sk-tour-btn--finish:disabled,
+.sk-tour-btn--next:disabled {
+    opacity: 0.72;
+    cursor: wait;
+}
+
 /* ── Card Body & Typography ───────────────────────────────────────── */
 .sk-tour-card-body {
     display: flex;

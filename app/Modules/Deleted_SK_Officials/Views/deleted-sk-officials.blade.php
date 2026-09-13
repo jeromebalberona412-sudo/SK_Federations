@@ -43,18 +43,21 @@
             <button class="dso-tab {{ ($currentFilter ?? '') === 'month' ? 'active' : '' }}" data-filter="month">This Month</button>
         </div>
         <div class="dso-filter-dropdowns">
-            <select id="dsoFilterPosition" class="dso-filter-select">
+            <select id="dsoFilterPosition" class="dso-filter-select" aria-label="Filter by position">
                 <option value="">All Positions</option>
                 @foreach(($filterPositions ?? []) as $position)
                     <option value="{{ $position }}" {{ ($currentPosition ?? '') === $position ? 'selected' : '' }}>{{ $position }}</option>
                 @endforeach
             </select>
-            <select id="dsoFilterBarangay" class="dso-filter-select">
+            <select id="dsoFilterBarangay" class="dso-filter-select" aria-label="Filter by barangay">
                 <option value="">All Barangays</option>
                 @foreach(($filterBarangays ?? []) as $barangay)
                     <option value="{{ $barangay }}" {{ ($currentBarangay ?? '') === $barangay ? 'selected' : '' }}>{{ $barangay }}</option>
                 @endforeach
             </select>
+            <button type="button" class="dso-clear-filters-btn" id="dsoClearFiltersBtn" title="Clear filters">
+                Clear
+            </button>
         </div>
     </div>
 
@@ -76,7 +79,8 @@
                         <th>Position</th>
                         <th>Barangay</th>
                         <th>Municipality</th>
-                        <th>Term</th>
+                        <th>Term Start</th>
+                        <th>Term End</th>
                         <th>Date Deleted</th>
                         <th>Time Deleted</th>
                         <th>Deleted By</th>
@@ -91,15 +95,12 @@
                             $pos = $o->position ?? '—';
                             $brgy = $o->barangay ?? '—';
                             $muni = $o->municipality ?? 'Santa Cruz';
-                            $term = $o->term ?? '—';
-                            if ($term === '—') {
-                                $tStart = $o->termStart ?? null;
-                                $tEnd = $o->termEnd ?? null;
-                                if ($tStart && $tEnd && $tStart !== '—' && $tEnd !== '—') {
-                                    $term = $tStart . ' — ' . $tEnd;
-                                } elseif (!empty($o->term_label)) {
-                                    $term = $o->term_label;
-                                }
+                            $termStart = $o->termStart ?? '—';
+                            $termEnd = $o->termEnd ?? '—';
+                            if (($termStart === '—' || $termStart === '') && ! empty($o->term_label) && str_contains((string) $o->term_label, '-')) {
+                                [$sYear, $eYear] = array_pad(explode('-', (string) $o->term_label, 2), 2, null);
+                                $termStart = trim((string) $sYear) ?: '—';
+                                $termEnd = trim((string) $eYear) ?: '—';
                             }
                             $dDate = $o->deletedDate ?? '—';
                             $dTime = $o->deletedTime ?? '—';
@@ -111,7 +112,8 @@
                             <td title="{{ $pos }}">{{ $pos }}</td>
                             <td title="{{ $brgy }}">{{ $brgy }}</td>
                             <td title="{{ $muni }}">{{ $muni }}</td>
-                            <td title="{{ $term }}">{{ $term }}</td>
+                            <td title="{{ $termStart }}"><span class="dso-term-badge">{{ $termStart }}</span></td>
+                            <td title="{{ $termEnd }}"><span class="dso-term-badge">{{ $termEnd }}</span></td>
                             <td title="{{ $dDate }}"><span class="dso-deleted-badge">{{ $dDate }}</span></td>
                             <td title="{{ $dTime }}"><span class="dso-time-badge">{{ $dTime }}</span></td>
                             <td title="{{ $dBy }}">{{ $dBy }}</td>
@@ -121,36 +123,15 @@
                                             class="ar-row-actions-trigger"
                                             aria-label="More actions for {{ $name }}"
                                             aria-haspopup="menu"
-                                            aria-expanded="false"
-                                            title="More actions">
-                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                                            <circle cx="5" cy="12" r="2"></circle>
-                                            <circle cx="12" cy="12" r="2"></circle>
-                                            <circle cx="19" cy="12" r="2"></circle>
-                                        </svg>
+                                            aria-expanded="false">
+                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="2"></circle><circle cx="12" cy="12" r="2"></circle><circle cx="19" cy="12" r="2"></circle></svg>
                                     </button>
                                     <div class="ar-row-actions-dropdown" role="menu" hidden>
-                                        <button type="button"
-                                                class="ar-row-actions-item"
-                                                data-action="view"
-                                                data-ar-action="view"
-                                                data-id="{{ $id }}"
-                                                role="menuitem"
-                                                title="View Details"
-                                                aria-label="View details for {{ $name }}">
-                                            <i class="fas fa-eye" aria-hidden="true"></i>
-                                            <span>View</span>
+                                        <button type="button" class="ar-row-actions-item" data-ar-action="view" data-id="{{ $id }}" role="menuitem">
+                                            <i class="fas fa-eye" aria-hidden="true"></i><span>View</span>
                                         </button>
-                                        <button type="button"
-                                                class="ar-row-actions-item"
-                                                data-action="restore"
-                                                data-ar-action="restore"
-                                                data-id="{{ $id }}"
-                                                role="menuitem"
-                                                title="Restore Account"
-                                                aria-label="Restore account for {{ $name }}">
-                                            <i class="fas fa-rotate-left" aria-hidden="true"></i>
-                                            <span>Restore</span>
+                                        <button type="button" class="ar-row-actions-item" data-ar-action="restore" data-id="{{ $id }}" role="menuitem">
+                                            <i class="fas fa-rotate-left" aria-hidden="true"></i><span>Restore</span>
                                         </button>
                                     </div>
                                 </div>
@@ -158,7 +139,7 @@
                         </tr>
                     @empty
                         <tr class="dso-empty-row">
-                            <td colspan="9">No deleted SK Officials found.</td>
+                            <td colspan="10">No deleted SK Officials found.</td>
                         </tr>
                     @endforelse
                 </tbody>

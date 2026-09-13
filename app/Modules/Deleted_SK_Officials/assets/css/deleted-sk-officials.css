@@ -245,6 +245,7 @@ body.sidebar-collapsed .main-content:has(.deleted-sk-off-page) {
 
 .dso-table-wrapper {
     overflow-x: auto;
+    overflow-y: visible;
     -webkit-overflow-scrolling: touch;
     width: 100%;
     max-width: 100%;
@@ -311,41 +312,41 @@ body.sidebar-collapsed .main-content:has(.deleted-sk-off-page) {
     max-width: none;
 }
 
-/* Column widths — 9 columns: Full Name, Position, Barangay, Municipality, Term, Date Deleted, Time Deleted, Deleted By, Actions */
+/* Column widths — 10 columns: Full Name, Position, Barangay, Municipality, Term Start, Term End, Date Deleted, Time Deleted, Deleted By, Actions */
 .dso-table th:nth-child(1),
 .dso-table td:nth-child(1) {
-    width: 18%;
-    min-width: 190px;
+    width: 15%;
+    min-width: 170px;
 }
 
 .dso-table th:nth-child(2),
 .dso-table td:nth-child(2) {
-    width: 11%;
-    min-width: 130px;
+    width: 9%;
+    min-width: 110px;
 }
 
 .dso-table th:nth-child(3),
 .dso-table td:nth-child(3) {
-    width: 11%;
-    min-width: 130px;
+    width: 9%;
+    min-width: 110px;
 }
 
 .dso-table th:nth-child(4),
 .dso-table td:nth-child(4) {
-    width: 10%;
-    min-width: 120px;
+    width: 9%;
+    min-width: 100px;
 }
 
 .dso-table th:nth-child(5),
 .dso-table td:nth-child(5) {
-    width: 13%;
-    min-width: 150px;
+    width: 9%;
+    min-width: 110px;
 }
 
 .dso-table th:nth-child(6),
 .dso-table td:nth-child(6) {
-    width: 10%;
-    min-width: 120px;
+    width: 9%;
+    min-width: 110px;
 }
 
 .dso-table th:nth-child(7),
@@ -356,15 +357,21 @@ body.sidebar-collapsed .main-content:has(.deleted-sk-off-page) {
 
 .dso-table th:nth-child(8),
 .dso-table td:nth-child(8) {
-    width: 11%;
-    min-width: 130px;
+    width: 8%;
+    min-width: 100px;
 }
 
 .dso-table th:nth-child(9),
-.dso-table td:nth-child(9),
+.dso-table td:nth-child(9) {
+    width: 9%;
+    min-width: 120px;
+}
+
+.dso-table th:nth-child(10),
+.dso-table td:nth-child(10),
 .dso-col-actions {
-    width: 13%;
-    min-width: 160px;
+    width: 14%;
+    min-width: 180px;
     white-space: nowrap;
 }
 
@@ -479,142 +486,69 @@ body.sidebar-collapsed .main-content:has(.deleted-sk-off-page) {
     white-space: normal;
 }
 
-/* ── Actions Column & 3-Dot Dropdown Menu ── */
+/* ── Actions Column — visible View / Restore buttons ── */
 .dso-table th.dso-col-actions,
 .dso-table td.dso-col-actions {
     text-align: center;
     vertical-align: middle;
     white-space: nowrap;
-    width: 68px;
-    min-width: 68px;
+    width: 72px;
+    min-width: 72px;
+    max-width: 90px;
     padding: 8px 10px;
+    overflow: visible;
 }
 
-.ar-row-actions-menu {
-    position: relative;
-    display: inline-flex;
-    justify-content: center;
-    align-items: center;
-    width: 100%;
-}
-
-.ar-row-actions-trigger {
+.dso-clear-filters-btn {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 32px;
-    height: 32px;
-    padding: 0;
-    border: 1px solid #e2e8f0;
+    height: 38px;
+    padding: 0 14px;
     border-radius: 8px;
-    background: #ffffff;
-    color: #64748b;
-    cursor: pointer;
-    transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
-    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
-}
-
-.ar-row-actions-trigger svg {
-    width: 16px;
-    height: 16px;
-    display: block;
-}
-
-.ar-row-actions-trigger:hover,
-.ar-row-actions-menu.is-open .ar-row-actions-trigger {
-    background: #f1f5f9;
-    border-color: #cbd5e1;
-    color: #0f172a;
-    box-shadow: 0 2px 4px rgba(15, 23, 42, 0.08);
-}
-
-.ar-row-actions-trigger:focus-visible {
-    outline: 2px solid #2563eb;
-    outline-offset: 2px;
-}
-
-.ar-row-actions-dropdown {
-    display: none;
-    position: absolute;
-    top: calc(100% + 4px);
-    right: 0;
-    z-index: 1050;
-    min-width: 155px;
-    padding: 6px;
-    background: #ffffff;
-    border: 1px solid #e2e8f0;
-    border-radius: 10px;
-    box-shadow: 0 10px 25px -5px rgba(15, 23, 42, 0.18), 0 8px 10px -6px rgba(15, 23, 42, 0.1);
-    flex-direction: column;
-    gap: 3px;
-}
-
-.ar-row-actions-menu.is-open .ar-row-actions-dropdown {
-    display: flex;
-}
-
-.ar-row-actions-dropdown.is-floating {
-    position: fixed;
-    z-index: 1400;
-}
-
-.ar-row-actions-item {
-    display: flex;
-    align-items: center;
-    gap: 9px;
-    width: 100%;
-    padding: 8px 12px;
-    border: none;
-    border-radius: 7px;
-    background: transparent;
+    border: 1px solid #cbd5e1;
+    background: #fff;
     color: #334155;
     font-size: 13px;
     font-weight: 600;
-    text-align: left;
-    white-space: nowrap;
     cursor: pointer;
-    text-decoration: none;
-    transition: background 0.12s ease, color 0.12s ease;
 }
 
-.ar-row-actions-item i {
-    width: 16px;
-    text-align: center;
-    font-size: 13px;
-    color: #64748b;
-    transition: color 0.12s ease;
-}
-
-.ar-row-actions-item:hover {
-    background: #f1f5f9;
+.dso-clear-filters-btn:hover,
+.dso-clear-filters-btn:focus-visible {
+    background: #f8fafc;
+    border-color: #94a3b8;
     color: #0f172a;
 }
 
-.ar-row-actions-item[data-action="view"]:hover,
-.ar-row-actions-item[data-ar-action="view"]:hover {
-    background: #eff6ff;
-    color: #1d4ed8;
+.dso-action-btns {
+    display: none;
 }
 
-.ar-row-actions-item[data-action="view"]:hover i,
-.ar-row-actions-item[data-ar-action="view"]:hover i {
-    color: #1d4ed8;
+.dso-btn-view,
+.dso-btn-restore {
+    display: none;
 }
 
-.ar-row-actions-item[data-action="restore"]:hover,
-.ar-row-actions-item[data-ar-action="restore"]:hover {
-    background: #ecfdf5;
-    color: #059669;
+.dso-term-badge {
+    display: inline-block;
+    font-size: 12px;
+    font-weight: 600;
+    color: #334155;
+    white-space: nowrap;
 }
 
-.ar-row-actions-item[data-action="restore"]:hover i,
-.ar-row-actions-item[data-ar-action="restore"]:hover i {
-    color: #059669;
-}
+@media (max-width: 768px) {
+    .dso-btn-view span,
+    .dso-btn-restore span {
+        display: none;
+    }
 
-.ar-row-actions-item:focus-visible {
-    outline: 2px solid #2563eb;
-    outline-offset: -1px;
+    .dso-btn-view,
+    .dso-btn-restore {
+        min-width: 36px;
+        padding: 7px 9px;
+    }
 }
 
 /* ── Full Name Sort Menu ── */

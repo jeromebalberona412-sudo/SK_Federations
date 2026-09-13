@@ -8,6 +8,7 @@ use App\Modules\Tutorial_Guide\Models\SkFederationTutorial;
 use App\Modules\Tutorial_Guide\Services\TutorialGuideService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\ValidationException;
 use Throwable;
 
 class TutorialGuideController extends Controller
@@ -113,7 +114,7 @@ class TutorialGuideController extends Controller
     }
 
     /**
-     * Skip the tutorial.
+     * Skip / dismiss the tutorial (only after first-run completion).
      */
     public function skip(Request $request): JsonResponse
     {
@@ -126,9 +127,14 @@ class TutorialGuideController extends Controller
 
             return response()->json([
                 'success' => true,
-                'message' => 'Tutorial skipped.',
+                'message' => 'Tutorial closed.',
                 'tutorial' => $this->tutorialService->formatTutorialPayload($tutorial),
             ]);
+        } catch (ValidationException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => collect($e->errors())->flatten()->first() ?: 'Please finish the tutorial first.',
+            ], 422);
         } catch (Throwable $e) {
             return response()->json([
                 'success' => false,

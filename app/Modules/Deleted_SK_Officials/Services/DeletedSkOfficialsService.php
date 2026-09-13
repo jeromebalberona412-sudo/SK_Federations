@@ -161,11 +161,22 @@ class DeletedSkOfficialsService
         }
 
         if ($barangay = trim((string) $request->input('barangay', ''))) {
-            $query->where('barangay_name', $barangay);
+            $query->where(function ($builder) use ($barangay) {
+                $builder->where('barangay_name', $barangay)
+                    ->orWhere('barangay_name', 'ilike', $barangay);
+            });
         }
 
         if ($position = trim((string) $request->input('position', ''))) {
-            $query->where('position', $position);
+            $normalized = strtolower(trim((string) preg_replace('/^sk\s+/i', '', $position)));
+            $query->where(function ($builder) use ($position, $normalized) {
+                $builder->where('position', $position)
+                    ->orWhere('position', 'ilike', $position)
+                    ->orWhereRaw(
+                        "LOWER(TRIM(BOTH FROM REGEXP_REPLACE(COALESCE(position, ''), '^\\s*SK\\s+', '', 'i'))) = ?",
+                        [$normalized]
+                    );
+            });
         }
 
         if ($term = trim((string) $request->input('term', ''))) {

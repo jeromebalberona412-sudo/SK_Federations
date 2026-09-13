@@ -105,12 +105,24 @@ class DeletedSkOfficialsController extends Controller
     {
         $admin = $request->user();
         $this->resolveTenantId($admin);
+        $admin->refresh();
 
-        $user = $this->deletedArchiveService->restoreAccount(
-            $account,
-            User::ROLE_SK_OFFICIAL,
-            $admin
-        );
+        try {
+            $user = $this->deletedArchiveService->restoreAccount(
+                $account,
+                User::ROLE_SK_OFFICIAL,
+                $admin
+            );
+        } catch (\Illuminate\Validation\ValidationException $exception) {
+            $message = collect($exception->errors())->flatten()->first()
+                ?: 'Unable to restore this SK Official account.';
+
+            return response()->json([
+                'success' => false,
+                'message' => $message,
+                'errors' => $exception->errors(),
+            ], 422);
+        }
 
         app(SkFedPageCache::class)->bumpMany([
             'archive.deleted_sk_officials',

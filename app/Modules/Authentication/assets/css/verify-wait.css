@@ -66,3 +66,34 @@
     transform: rotate(45deg);
     margin-left: 6px; margin-bottom: 6px;
 }
+
+.success-modal h2 {
+    color: #213F99;
+    font-size: 1.35rem;
+    font-weight: 700;
+    margin: 0 0 0.5rem;
+}
+
+.success-modal p {
+    color: #64748b;
+    font-size: 0.95rem;
+    margin: 0 0 1.25rem;
+    line-height: 1.5;
+}
+
+.success-modal .return-login-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 44px;
+    padding: 0.7rem 1.35rem;
+    border-radius: 10px;
+    background: linear-gradient(90deg, #213F99 0%, #1E6ED8 100%);
+    color: #fff;
+    text-decoration: none;
+    font-weight: 600;
+}
+
+.success-modal .return-login-btn[hidden] {
+    display: none !important;
+}

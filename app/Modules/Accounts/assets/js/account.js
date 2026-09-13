@@ -195,6 +195,7 @@ window.AccountsDeleteModal = (function () {
 
                 removeOfficialAccountRowsFromTable(bulkIds);
                 window.SkLocalCache?.clearByPrefix?.('sk_fed_deleted_sk_officials_v1_');
+                window.SkLocalCache?.clearByPrefix?.('sk_fed_deleted_sk_officials_v2_');
                 clearOfficialsAccountsLocalCache();
                 closeAccountDetailPanelsAfterDelete();
 
@@ -242,6 +243,7 @@ window.AccountsDeleteModal = (function () {
 
             removeOfficialAccountRowsFromTable(targetId);
             window.SkLocalCache?.clearByPrefix?.('sk_fed_deleted_sk_officials_v1_');
+            window.SkLocalCache?.clearByPrefix?.('sk_fed_deleted_sk_officials_v2_');
             clearOfficialsAccountsLocalCache();
             closeAccountDetailPanelsAfterDelete();
 
@@ -757,6 +759,7 @@ function prependOfficialAccountRow(account) {
     }
 
     tableBody.insertAdjacentHTML('afterbegin', buildOfficialAccountRowHtml(account));
+    upsertSkOfficialsRosterCacheEntry(account);
     clearOfficialsAccountsLocalCache();
     initAlpineOnAccountsTableBody();
 
@@ -782,6 +785,7 @@ function replaceOfficialAccountRow(account) {
     }
 
     existing.outerHTML = buildOfficialAccountRowHtml(account);
+    upsertSkOfficialsRosterCacheEntry(account);
     clearOfficialsAccountsLocalCache();
 
     if (typeof window.refreshAccountsPagination === 'function') {
@@ -795,12 +799,13 @@ function replaceOfficialAccountRow(account) {
     return true;
 }
 
-const ACCOUNTS_OFFICIALS_CACHE_PREFIX = 'sk_fed_accounts_officials_v2';
+// v3: network-first — stale v1/v2 localStorage rows caused UI ≠ users table.
+const ACCOUNTS_OFFICIALS_CACHE_PREFIX = 'sk_fed_accounts_officials_v3';
 let officialsTableLoadInFlight = null;
 let officialsTableLoadGeneration = 0;
 
 function clearOfficialsAccountsLocalCache() {
-    window.SkLocalCache?.clearByPrefix?.(ACCOUNTS_OFFICIALS_CACHE_PREFIX);
+    window.SkLocalCache?.clearByPrefix?.('sk_fed_accounts_officials_');
 }
 
 function removeOfficialAccountsFromLocalCache(accountIds) {
@@ -822,7 +827,7 @@ function removeOfficialAccountsFromLocalCache(accountIds) {
 
     const idSet = new Set(ids);
     window.SkLocalCache?.set?.(ACCOUNTS_OFFICIALS_CACHE_PREFIX, {
-        ...cached.payload,
+        success: true,
         data: rows.filter((account) => !idSet.has(Number(account?.id))),
     });
 }
@@ -836,6 +841,7 @@ function removeOfficialAccountRowsFromTable(accountIds) {
         document.querySelector(`tr[data-account-id="${id}"]`)?.remove();
     });
 
+    skOfficialsRosterCache = skOfficialsRosterCache.filter((row) => !ids.includes(row.id));
     removeOfficialAccountsFromLocalCache(ids);
     // Invalidate any in-flight list response so it cannot re-paint deleted rows.
     officialsTableLoadGeneration += 1;
@@ -896,6 +902,7 @@ function paintOfficialsAccountsTable(accounts) {
     if (!tableBody) return;
 
     const rows = Array.isArray(accounts) ? accounts : [];
+    setSkOfficialsRosterCache(rows);
     if (rows.length === 0) {
         renderOfficialsEmptyState();
     } else {
@@ -910,6 +917,8 @@ function paintOfficialsAccountsTable(accounts) {
     const root = document.getElementById('mainContent');
     root?._x_dataStack?.[0]?.clearSelection?.();
     root?._x_dataStack?.[0]?.syncSelectAllState?.();
+
+    refreshOpenSkOfficialPositionBarangayAvailability();
 }
 
 async function loadOfficialsAccountsTable({ force = false } = {}) {
@@ -935,50 +944,25 @@ async function loadOfficialsAccountsTable({ force = false } = {}) {
 
     const loadGeneration = officialsTableLoadGeneration;
     const cacheKey = ACCOUNTS_OFFICIALS_CACHE_PREFIX;
-    const cached = !force ? window.SkLocalCache?.get?.(cacheKey) : null;
+    // Offline fallback only — never paint localStorage before the live DB response.
+    const cached = window.SkLocalCache?.get?.(cacheKey);
     const paint = (payload) => {
         if (loadGeneration !== officialsTableLoadGeneration) {
             return;
         }
-        paintOfficialsAccountsTable(payload?.data || []);
+        paintOfficialsAccountsTable(Array.isArray(payload?.data) ? payload.data : []);
     };
 
-    const cachedRows = Array.isArray(cached?.payload?.data) ? cached.payload.data : [];
-    const cacheUsable = cachedRows.length > 0;
-
-    if (cacheUsable) {
-        paint(cached.payload);
-        if (window.SkLocalCache?.isFresh?.(cached, 30 * 1000) && !force) {
-            officialsTableLoadInFlight = fetch(dataUrl, {
-                headers: { Accept: 'application/json' },
-                credentials: 'same-origin',
-                cache: 'no-store',
-            })
-                .then((response) => response.json().then((payload) => ({ ok: response.ok, payload })))
-                .then(({ ok, payload }) => {
-                    if (loadGeneration !== officialsTableLoadGeneration) {
-                        return;
-                    }
-                    if (!ok || !payload?.success) return;
-                    window.SkLocalCache?.set?.(cacheKey, payload);
-                    paint(payload);
-                })
-                .catch(() => {})
-                .finally(() => {
-                    if (loadGeneration === officialsTableLoadGeneration) {
-                        officialsTableLoadInFlight = null;
-                    }
-                });
-            return officialsTableLoadInFlight;
-        }
-    } else {
-        renderOfficialsLoadingState();
-    }
+    renderOfficialsLoadingState();
 
     officialsTableLoadInFlight = (async () => {
         try {
             const response = await fetch(dataUrl, {
-                headers: { Accept: 'application/json' },
+                headers: {
+                    Accept: 'application/json',
+                    'Cache-Control': 'no-cache',
+                    Pragma: 'no-cache',
+                },
                 credentials: 'same-origin',
                 cache: 'no-store',
             });
@@ -995,9 +979,11 @@ async function loadOfficialsAccountsTable({ force = false } = {}) {
             if (loadGeneration !== officialsTableLoadGeneration) {
                 return;
             }
-            if (!cached?.payload) {
-                renderOfficialsErrorState(error?.message || 'Unable to load SK Officials accounts.');
+            if (Array.isArray(cached?.payload?.data)) {
+                paint(cached.payload);
+                return;
             }
+            renderOfficialsErrorState(error?.message || 'Unable to load SK Officials accounts.');
         } finally {
             if (loadGeneration === officialsTableLoadGeneration) {
                 officialsTableLoadInFlight = null;
@@ -2177,10 +2163,28 @@ function validateSkOfficialsManualForm(form) {
         if (!select.value || select.selectedIndex <= 0) {
             _showErr(select, 'Please select an option');
             valid = false;
+        } else if (select.selectedOptions?.[0]?.disabled) {
+            _showErr(select, 'This option is no longer available');
+            valid = false;
         } else {
             _markValid(select);
         }
     });
+
+    const positionSelect = form.querySelector('[name="position"]');
+    const barangaySelect = form.querySelector('[name="barangay_id"]');
+    if (positionSelect?.value && barangaySelect?.value) {
+        applySkOfficialPositionBarangayAvailability(form);
+        const roster = collectSkOfficialRoster(form.dataset.accountId || null);
+        if (isBarangayRosterFull(roster, barangaySelect.value)) {
+            _showErr(barangaySelect, `This barangay already has the maximum of ${SK_OFFICIAL_MAX_PER_BARANGAY} SK Officials.`);
+            valid = false;
+        } else if (isPositionTakenInBarangay(roster, barangaySelect.value, positionSelect.value)) {
+            const kind = normalizeOfficialPositionKind(positionSelect.value);
+            _showErr(positionSelect, `This barangay already has ${positionKindLabel(kind)}.`);
+            valid = false;
+        }
+    }
 
     return valid;
 }
@@ -2789,6 +2793,284 @@ function wireCreateAccountForm(form) {
     }
 }
 
+// ── SK Official Position ↔ Barangay availability (frontend) ───
+const SK_OFFICIAL_MAX_PER_BARANGAY = 10;
+const SK_OFFICIAL_MAX_KAGAWAD = 7;
+let skOfficialsRosterCache = [];
+
+function todayYmdLocal() {
+    const now = new Date();
+    const y = now.getFullYear();
+    const m = String(now.getMonth() + 1).padStart(2, '0');
+    const d = String(now.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+}
+
+function normalizeOfficialPositionKind(position) {
+    const value = String(position || '').toLowerCase().trim();
+    if (!value) return '';
+    if (value.includes('kagawad')) return 'kagawad';
+    if (value.includes('secretary')) return 'secretary';
+    if (value.includes('treasurer')) return 'treasurer';
+    if (value.includes('chair')) return 'chairperson';
+    return value;
+}
+
+function positionKindLimit(kind) {
+    if (kind === 'kagawad') return SK_OFFICIAL_MAX_KAGAWAD;
+    if (kind === 'chairperson' || kind === 'secretary' || kind === 'treasurer') return 1;
+    return null;
+}
+
+function positionKindLabel(kind) {
+    if (kind === 'chairperson') return 'an SK Chairperson';
+    if (kind === 'secretary') return 'an SK Secretary';
+    if (kind === 'treasurer') return 'an SK Treasurer';
+    if (kind === 'kagawad') return `the maximum of ${SK_OFFICIAL_MAX_KAGAWAD} SK Kagawad`;
+    return 'this position';
+}
+
+function isRosterTermActive(termEnd, termStatus) {
+    const status = String(termStatus || 'ACTIVE').trim().toUpperCase();
+    if (status && status !== 'ACTIVE') {
+        return false;
+    }
+    const end = String(termEnd || '').trim().slice(0, 10);
+    if (!end) {
+        return true;
+    }
+    return end >= todayYmdLocal();
+}
+
+function setSkOfficialsRosterCache(accounts) {
+    skOfficialsRosterCache = (Array.isArray(accounts) ? accounts : [])
+        .map((account) => ({
+            id: Number(account.id || 0),
+            barangayId: String(account.barangay_id ?? ''),
+            position: String(account.position || account.filter_position || ''),
+            termEnd: String(account.term_end || ''),
+            termStatus: String(account.term_status || 'ACTIVE'),
+        }))
+        .filter((row) => row.id > 0 && row.barangayId && row.position);
+}
+
+function upsertSkOfficialsRosterCacheEntry(account) {
+    if (!account?.id) return;
+    const entry = {
+        id: Number(account.id || 0),
+        barangayId: String(account.barangay_id ?? ''),
+        position: String(account.position || account.filter_position || ''),
+        termEnd: String(account.term_end || ''),
+        termStatus: String(account.term_status || 'ACTIVE'),
+    };
+    if (!entry.id || !entry.barangayId || !entry.position) {
+        skOfficialsRosterCache = skOfficialsRosterCache.filter((row) => row.id !== entry.id);
+        return;
+    }
+    const index = skOfficialsRosterCache.findIndex((row) => row.id === entry.id);
+    if (index >= 0) {
+        skOfficialsRosterCache[index] = entry;
+    } else {
+        skOfficialsRosterCache.push(entry);
+    }
+}
+
+function collectSkOfficialRoster(ignoreUserId = null) {
+    const ignoreId = ignoreUserId ? Number(ignoreUserId) : null;
+    const fromCache = skOfficialsRosterCache
+        .filter((row) => {
+            if (ignoreId && row.id === ignoreId) return false;
+            return isRosterTermActive(row.termEnd, row.termStatus);
+        })
+        .map((row) => ({
+            id: row.id,
+            barangayId: row.barangayId,
+            position: row.position,
+            kind: normalizeOfficialPositionKind(row.position),
+        }));
+
+    if (fromCache.length > 0 || skOfficialsRosterCache.length > 0) {
+        return fromCache;
+    }
+
+    const rows = [];
+    document.querySelectorAll('#accountsTableBody tr[data-account-id]').forEach((tr) => {
+        const id = Number(tr.dataset.accountId || 0);
+        if (!id || (ignoreId && id === ignoreId)) return;
+        const barangayId = String(tr.dataset.barangayId || '');
+        const detail = tr.querySelector('[data-position][data-barangay-id]') || tr.querySelector('[data-position]');
+        const position = String(
+            detail?.dataset?.position
+            || tr.dataset.filterPosition
+            || ''
+        ).trim();
+        const termEnd = String(detail?.dataset?.termEnd || tr.dataset.sortTerm || '');
+        const termStatus = String(detail?.dataset?.termStatus || 'ACTIVE');
+        if (!barangayId || !position || !isRosterTermActive(termEnd, termStatus)) return;
+        rows.push({
+            id,
+            barangayId,
+            position,
+            kind: normalizeOfficialPositionKind(position),
+        });
+    });
+    return rows;
+}
+
+function countRosterInBarangay(roster, barangayId, kind = null) {
+    return roster.filter((row) => {
+        if (String(row.barangayId) !== String(barangayId)) return false;
+        if (!kind) return true;
+        return row.kind === kind;
+    }).length;
+}
+
+function isBarangayRosterFull(roster, barangayId) {
+    return countRosterInBarangay(roster, barangayId) >= SK_OFFICIAL_MAX_PER_BARANGAY;
+}
+
+function isPositionTakenInBarangay(roster, barangayId, position) {
+    const kind = normalizeOfficialPositionKind(position);
+    const limit = positionKindLimit(kind);
+    if (!kind || limit === null) return false;
+    return countRosterInBarangay(roster, barangayId, kind) >= limit;
+}
+
+function setSelectOptionAvailability(option, disabled, title) {
+    if (!option || !option.value) return;
+    option.disabled = !!disabled;
+    if (disabled) {
+        option.title = title || 'Not available';
+        option.setAttribute('aria-disabled', 'true');
+    } else {
+        option.title = '';
+        option.removeAttribute('aria-disabled');
+    }
+}
+
+function clearSelectIfDisabled(select) {
+    if (!select || !select.value) return false;
+    const selected = select.selectedOptions?.[0];
+    if (selected && selected.disabled) {
+        select.value = '';
+        return true;
+    }
+    return false;
+}
+
+function updatePositionBarangayHint(form, message) {
+    const hint = form?.querySelector('#official_position_barangay_hint, #edit_sk_officials_position_barangay_hint');
+    if (!hint) return;
+    const defaultText = 'Taken positions per barangay are disabled automatically (1 Chairperson / Secretary / Treasurer, up to 7 Kagawad, max 10 officials).';
+    hint.textContent = message || defaultText;
+    hint.classList.toggle('is-warning', !!message);
+}
+
+function applySkOfficialPositionBarangayAvailability(form, { allowRecurse = true } = {}) {
+    if (!form || !isSkOfficialsForm(form)) return;
+
+    const positionSelect = form.querySelector('[name="position"]');
+    const barangaySelect = form.querySelector('[name="barangay_id"]');
+    if (!positionSelect || !barangaySelect) return;
+
+    const roster = collectSkOfficialRoster(form.dataset.accountId || null);
+    const selectedPosition = String(positionSelect.value || '');
+    const selectedBarangay = String(barangaySelect.value || '');
+    const selectedKind = normalizeOfficialPositionKind(selectedPosition);
+
+    [...barangaySelect.options].forEach((opt) => setSelectOptionAvailability(opt, false, ''));
+    [...positionSelect.options].forEach((opt) => setSelectOptionAvailability(opt, false, ''));
+
+    let hintMessage = '';
+
+    if (selectedPosition) {
+        [...barangaySelect.options].forEach((opt) => {
+            if (!opt.value) return;
+            const full = isBarangayRosterFull(roster, opt.value);
+            const taken = isPositionTakenInBarangay(roster, opt.value, selectedPosition);
+            if (!full && !taken) return;
+            const title = full
+                ? `This barangay already has the maximum of ${SK_OFFICIAL_MAX_PER_BARANGAY} SK Officials.`
+                : `This barangay already has ${positionKindLabel(selectedKind)}.`;
+            setSelectOptionAvailability(opt, true, title);
+        });
+    }
+
+    if (selectedBarangay) {
+        const full = isBarangayRosterFull(roster, selectedBarangay);
+        [...positionSelect.options].forEach((opt) => {
+            if (!opt.value) return;
+            const taken = isPositionTakenInBarangay(roster, selectedBarangay, opt.value);
+            if (!full && !taken) return;
+            const kind = normalizeOfficialPositionKind(opt.value);
+            const title = full
+                ? `This barangay already has the maximum of ${SK_OFFICIAL_MAX_PER_BARANGAY} SK Officials.`
+                : `This barangay already has ${positionKindLabel(kind)}.`;
+            setSelectOptionAvailability(opt, true, title);
+        });
+    }
+
+    const clearedBarangay = clearSelectIfDisabled(barangaySelect);
+    const clearedPosition = clearSelectIfDisabled(positionSelect);
+    if ((clearedBarangay || clearedPosition) && allowRecurse) {
+        applySkOfficialPositionBarangayAvailability(form, { allowRecurse: false });
+        updatePositionBarangayHint(
+            form,
+            'Your previous selection is no longer available for that barangay/position combination.'
+        );
+        return;
+    }
+
+    if (selectedPosition && selectedBarangay && !clearedBarangay && !clearedPosition) {
+        const full = isBarangayRosterFull(roster, selectedBarangay);
+        const taken = isPositionTakenInBarangay(roster, selectedBarangay, selectedPosition);
+        if (full) {
+            hintMessage = `This barangay already has the maximum of ${SK_OFFICIAL_MAX_PER_BARANGAY} SK Officials.`;
+        } else if (taken) {
+            hintMessage = `This barangay already has ${positionKindLabel(selectedKind)}.`;
+        }
+    } else if (selectedPosition) {
+        const blocked = [...barangaySelect.options].filter((opt) => opt.value && opt.disabled).length;
+        if (blocked > 0) {
+            hintMessage = `${blocked} barangay${blocked === 1 ? '' : 's'} disabled — already filled for the selected position.`;
+        }
+    } else if (selectedBarangay) {
+        const blocked = [...positionSelect.options].filter((opt) => opt.value && opt.disabled).length;
+        if (blocked > 0) {
+            hintMessage = `${blocked} position${blocked === 1 ? '' : 's'} disabled — already taken in the selected barangay.`;
+        }
+    }
+
+    updatePositionBarangayHint(form, hintMessage);
+    syncFormRequiredSelectPlaceholders(form);
+}
+
+function refreshOpenSkOfficialPositionBarangayAvailability() {
+    [
+        document.getElementById('addSkOfficialsForm'),
+        document.getElementById('editSkOfficialsForm'),
+    ].forEach((form) => {
+        if (!form) return;
+        const modal = form.closest('.modal-overlay, .modal, [id$="Modal"]');
+        const isOpen = modal
+            ? !modal.hasAttribute('hidden') && modal.style.display !== 'none' && !modal.classList.contains('d-none')
+            : true;
+        if (isOpen) {
+            applySkOfficialPositionBarangayAvailability(form);
+        }
+    });
+}
+
+function wireSkOfficialPositionBarangayAvailability(form) {
+    if (!form || form.dataset.positionBarangayWired === '1' || !isSkOfficialsForm(form)) return;
+    form.dataset.positionBarangayWired = '1';
+    const positionSelect = form.querySelector('[name="position"]');
+    const barangaySelect = form.querySelector('[name="barangay_id"]');
+    const onChange = () => applySkOfficialPositionBarangayAvailability(form);
+    positionSelect?.addEventListener('change', onChange);
+    barangaySelect?.addEventListener('change', onChange);
+}
+
 // ── Add SK Officials modal ────────────────────────────────────
 let addOfficialsIsMaximized = false;
 
@@ -2806,6 +3088,7 @@ window.openAddSkOfficialsModal = function () {
     const form = document.getElementById('addSkOfficialsForm');
     if (form) {
         form.dataset.editingPresident = '0';
+        form.dataset.accountId = '';
         form.querySelectorAll('.is-invalid,.is-valid').forEach(el => el.classList.remove('is-invalid', 'is-valid'));
         form.querySelectorAll('.validation-error').forEach(el => el.remove());
         form.querySelectorAll('.form-error-light').forEach(el => { el.textContent = ''; });
@@ -2814,6 +3097,7 @@ window.openAddSkOfficialsModal = function () {
     initCreateAccountFormDefaults(form);
     applyOfficialTermLock(form, { isPresident: false });
     resetLongNameGate(form);
+    applySkOfficialPositionBarangayAvailability(form);
 };
 
 window.closeAddSkOfficialsModal = function () {
@@ -4879,6 +5163,7 @@ document.addEventListener('DOMContentLoaded', function () {
     const officialsForm = document.getElementById('addSkOfficialsForm');
     if (officialsForm) {
         wireCreateAccountForm(officialsForm);
+        wireSkOfficialPositionBarangayAvailability(officialsForm);
 
         officialsForm.addEventListener('submit', async function (e) {
             e.preventDefault();
@@ -5176,6 +5461,7 @@ document.addEventListener('DOMContentLoaded', function () {
     if (officialsEditForm) {
         wireCreateAccountForm(officialsEditForm);
         applyTermDateConstraints(officialsEditForm);
+        wireSkOfficialPositionBarangayAvailability(officialsEditForm);
     }
     attachEditSubmit(fedEditForm);
     attachEditSubmit(officialsEditForm);
@@ -5238,6 +5524,7 @@ document.addEventListener('DOMContentLoaded', function () {
         });
         syncFormRequiredSelectPlaceholders(form);
         clearAllErrors(form);
+        applySkOfficialPositionBarangayAvailability(form);
     }
 
     function _camel(s) {

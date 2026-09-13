@@ -127,27 +127,36 @@ document.addEventListener('DOMContentLoaded', () => {
         timerInterval = setInterval(refreshButton, 1000);
     }
 
-    // ── Redirect to dashboard ─────────────────────────────────────────────────
+    // ── Verified success (no auto dashboard redirect) ─────────────────────────
 
-    function goToDashboard(url) {
+    function showVerifiedSuccess(url) {
         if (redirectStarted) return;
         redirectStarted = true;
         verificationDone = true;
 
         if (stateEl) {
             stateEl.className = 'alert alert-success';
-            stateEl.textContent = 'Email verified! Redirecting to dashboard...';
+            stateEl.textContent = 'Verified successfully. You can now sign in.';
         }
 
         const modal = document.getElementById('success-modal');
-        if (modal) modal.classList.add('show');
-
-        if (typeof LoadingScreen !== 'undefined') {
-            LoadingScreen.show('Redirecting', 'Taking you to dashboard...');
+        if (modal) {
+            const title = modal.querySelector('h2');
+            const copy = modal.querySelector('p');
+            const action = modal.querySelector('[data-success-login]');
+            if (title) title.textContent = 'Verified Successfully!';
+            if (copy) copy.textContent = 'Your email has been verified. Sign in to continue.';
+            if (action) {
+                action.hidden = false;
+                action.removeAttribute('hidden');
+                action.setAttribute('href', url || '/login');
+            }
+            modal.classList.add('show');
         }
 
         clearCooldown();
-        window.location.replace(url || dashboardUrl);
+        if (typeof window.hideLoading === 'function') window.hideLoading();
+        // Do not auto-redirect to dashboard.
     }
 
     // ── Resend (button click only) ────────────────────────────────────────────
@@ -183,7 +192,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const data = await res.json().catch(() => ({}));
 
             if (data.state === 'verified' && data.redirect) {
-                goToDashboard(data.redirect);
+                showVerifiedSuccess(data.redirect);
                 return;
             }
 
@@ -221,7 +230,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const data = await res.json().catch(() => ({}));
 
             if (data.state === 'verified' && data.redirect) {
-                goToDashboard(data.redirect);
+                showVerifiedSuccess(data.redirect);
                 return;
             }
 

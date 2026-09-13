@@ -141,14 +141,17 @@
             </div>
         </div>
 
-        {{-- Success overlay shown briefly before dashboard redirect --}}
+        {{-- Success overlay: verified only — user taps Go to Login (no auto dashboard) --}}
         <div class="success-modal-overlay" id="success-modal">
             <div class="success-modal">
                 <div class="check-wrap" aria-hidden="true">
                     <span class="checkmark"></span>
                 </div>
                 <h2>Verified Successfully!</h2>
-                <p>Redirecting to dashboard...</p>
+                <p>Your email has been verified. Sign in to continue.</p>
+                <a href="{{ route('login', [], false) }}" class="return-login-btn" data-success-login hidden>
+                    Go to Login
+                </a>
             </div>
         </div>
     </div>

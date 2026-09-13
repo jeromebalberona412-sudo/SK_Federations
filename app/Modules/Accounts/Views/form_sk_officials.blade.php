@@ -132,7 +132,20 @@
                                 </select>
                                 <span class="form-error-light"></span>
                             </div>
+                            <div class="form-group-light">
+                                <label class="form-label-light required">Barangay</label>
+                                <select name="barangay_id" id="official_barangay_id" class="form-input-light" required>
+                                    <option value="" disabled selected>Select Barangay</option>
+                                    @foreach($barangays as $barangay)
+                                        <option value="{{ $barangay->id }}">{{ $barangay->name }}</option>
+                                    @endforeach
+                                </select>
+                                <span class="form-error-light"></span>
+                            </div>
                         </div>
+                        <p class="form-hint-light" id="official_position_barangay_hint">
+                            Taken positions per barangay are disabled automatically (1 Chairperson / Secretary / Treasurer, up to 7 Kagawad, max 10 officials).
+                        </p>
                     </div>
 
                     <div class="form-section-light">
@@ -155,16 +168,6 @@
                             <div class="form-group-light">
                                 <label class="form-label-light required">Municipality</label>
                                 <input type="text" name="municipality" id="official_municipality" class="form-input-light" value="Santa Cruz" readonly required>
-                            </div>
-                            <div class="form-group-light">
-                                <label class="form-label-light required">Barangay</label>
-                                <select name="barangay_id" id="official_barangay_id" class="form-input-light" required>
-                                    <option value="" disabled selected>Select Barangay</option>
-                                    @foreach($barangays as $barangay)
-                                        <option value="{{ $barangay->id }}">{{ $barangay->name }}</option>
-                                    @endforeach
-                                </select>
-                                <span class="form-error-light"></span>
                             </div>
                         </div>
                     </div>
@@ -382,6 +385,9 @@
                             <input type="text" id="edit_sk_officials_municipality" class="form-input-light" value="Santa Cruz" readonly>
                         </div>
                     </div>
+                    <p class="form-hint-light" id="edit_sk_officials_position_barangay_hint">
+                        Taken positions per barangay are disabled automatically (1 Chairperson / Secretary / Treasurer, up to 7 Kagawad, max 10 officials).
+                    </p>
                 </div>
 
                 <div class="form-section-light">

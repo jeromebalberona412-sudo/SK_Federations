@@ -1,6 +1,6 @@
 /**
  * SK Federations — Set New Password
- * Realtime password rules + confirm-password match feedback.
+ * Realtime password rules + confirm-password match feedback + loading state.
  */
 (function () {
     'use strict';
@@ -11,6 +11,10 @@
     var newPasswordError = document.getElementById('new-password-error');
     var confirmPasswordError = document.getElementById('confirm-password-error');
     var passwordRules = document.getElementById('passwordRules');
+    var submitBtn = document.getElementById('resetSubmitBtn');
+    var submitLabel = document.getElementById('resetSubmitLabel');
+    var submitSpinner = document.getElementById('resetSubmitSpinner');
+    var submitting = false;
 
     if (!form || !newPasswordInput || !confirmPasswordInput) {
         return;
@@ -34,6 +38,22 @@
         form.querySelectorAll('[data-server-error="true"]').forEach(function (el) {
             el.style.display = 'none';
         });
+    }
+
+    function setSubmitting(isSubmitting) {
+        submitting = isSubmitting;
+        if (submitBtn) {
+            submitBtn.disabled = isSubmitting;
+            submitBtn.classList.toggle('loading', isSubmitting);
+            submitBtn.classList.toggle('is-loading', isSubmitting);
+            submitBtn.setAttribute('aria-busy', isSubmitting ? 'true' : 'false');
+        }
+        if (submitSpinner) {
+            submitSpinner.hidden = !isSubmitting;
+        }
+        if (submitLabel) {
+            submitLabel.textContent = isSubmitting ? 'Setting password...' : 'Set New Password';
+        }
     }
 
     function validatePasswordStrength(password) {
@@ -107,6 +127,11 @@
     });
 
     form.addEventListener('submit', function (e) {
+        if (submitting) {
+            e.preventDefault();
+            return;
+        }
+
         var maxLength = Number.parseInt(form.dataset.passwordMaxLength || '64', 10);
         var strength = validatePasswordStrength(newPasswordInput.value);
         var isValid = true;
@@ -134,8 +159,14 @@
             isValid = false;
         }
 
-        if (isValid && window.LoadingScreen) {
-            window.LoadingScreen.show('Resetting Password', 'Please wait...');
+        if (!isValid) {
+            return;
+        }
+
+        setSubmitting(true);
+
+        if (window.LoadingScreen) {
+            window.LoadingScreen.show('Setting password...', 'Please wait while we update your account.');
         }
     });
 
@@ -172,4 +203,7 @@
             }, 300);
         });
     }
+
+    // If the page reloads with validation errors, restore the idle button.
+    setSubmitting(false);
 }());

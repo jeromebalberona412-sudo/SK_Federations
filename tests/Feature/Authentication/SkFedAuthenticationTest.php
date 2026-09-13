@@ -96,7 +96,7 @@ it('requires email verification again when login device is not trusted', functio
     Notification::assertSentTo($user, VerifyEmail::class);
 });
 
-it('redirects to dashboard from wait-status once an unverified user verifies email', function () {
+it('returns verified success redirect from wait-status once an unverified user verifies email', function () {
     Notification::fake();
     FeatureFlag::query()->where('flag_key', 'features.device_verification')->update(['enabled' => false]);
 
@@ -126,9 +126,9 @@ it('redirects to dashboard from wait-status once an unverified user verifies ema
     $response->assertOk()
         ->assertJson([
             'state' => 'verified',
-            'redirect' => route('dashboard'),
+            'redirect' => route('skfed.verification.success'),
         ]);
-    assertAuthenticatedAs($user);
+    assertGuest();
 });
 
 it('redirects authenticated unverified users away from fortify verify notice', function () {
@@ -225,12 +225,12 @@ it('keeps wait-status pending for fresh verification until email_verified_at cha
         ->assertOk()
         ->assertJson([
             'state' => 'verified',
-            'redirect' => route('dashboard'),
+            'redirect' => route('skfed.verification.success'),
         ]);
-    assertAuthenticatedAs($user);
+    assertGuest();
 });
 
-it('logs in and redirects to dashboard when verify link is opened on the same device', function () {
+it('shows success page when verify link is opened on the same device', function () {
     FeatureFlag::query()->where('flag_key', 'features.device_verification')->update(['enabled' => false]);
 
     $tenantId = (int) DB::table('tenants')->where('code', config('sk_fed_auth.tenant_code'))->value('id');
@@ -260,9 +260,9 @@ it('logs in and redirects to dashboard when verify link is opened on the same de
 
     $this->withSession(['sk_fed_email_verification_pending' => $pending])
         ->get($url)
-        ->assertRedirect(route('dashboard'));
+        ->assertRedirect(route('skfed.verification.success'));
 
-    assertAuthenticatedAs($user);
+    assertGuest();
     expect($user->fresh()->hasVerifiedEmail())->toBeTrue();
 });
 

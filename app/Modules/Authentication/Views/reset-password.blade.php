@@ -166,7 +166,8 @@
                         </div>
 
                         <button type="submit" class="login-btn btn btn-primary w-100" id="resetSubmitBtn">
-                            Set New Password
+                            <span class="btn-resend-spinner" id="resetSubmitSpinner" hidden aria-hidden="true"></span>
+                            <span id="resetSubmitLabel">Set New Password</span>
                         </button>
                     </form>
 

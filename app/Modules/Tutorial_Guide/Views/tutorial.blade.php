@@ -9,14 +9,14 @@
     <div class="sk-tour-card" id="skTourCard" role="alertdialog">
         <div class="sk-tour-card-header">
             <span class="sk-tour-badge" id="skTourBadge">Step 1 of 15</span>
-            <button type="button" class="sk-tour-close-btn" id="skTourCloseBtn" title="Close tutorial" aria-label="Close tutorial">
+            <button type="button" class="sk-tour-close-btn" id="skTourCloseBtn" title="Close tutorial" aria-label="Close tutorial" hidden style="display: none;">
                 <i class="fas fa-times"></i>
             </button>
         </div>
 
         <div class="sk-tour-card-body">
             <div class="sk-tour-icon-wrap" id="skTourIconWrap">
-                <i class="fas fa-compass" id="skTourStepIcon"></i>
+                <i class="fas fa-question-circle" id="skTourStepIcon"></i>
             </div>
             <div class="sk-tour-text-wrap">
                 <h3 class="sk-tour-title" id="skTourTitle">Dashboard</h3>
@@ -27,11 +27,11 @@
         </div>
 
         <div class="sk-tour-card-footer">
-            <button type="button" class="sk-tour-btn sk-tour-btn--skip" id="skTourSkipBtn">
+            <button type="button" class="sk-tour-btn sk-tour-btn--skip" id="skTourSkipBtn" hidden style="display: none;">
                 Skip Tutorial
             </button>
             <div class="sk-tour-actions-right">
-                <button type="button" class="sk-tour-btn sk-tour-btn--back" id="skTourBackBtn">
+                <button type="button" class="sk-tour-btn sk-tour-btn--back" id="skTourBackBtn" style="display: none;">
                     <i class="fas fa-arrow-left"></i> <span>Back</span>
                 </button>
                 <button type="button" class="sk-tour-btn sk-tour-btn--next" id="skTourNextBtn">
@@ -48,7 +48,7 @@
                 <i class="fas fa-compass"></i>
             </div>
             <h4>Skip tutorial?</h4>
-            <p>You can restart this interactive tour anytime using the <strong>Tutorial</strong> button in the header or in your Account menu.</p>
+            <p>You can restart this interactive tour anytime using the <strong>question mark (?)</strong> button in the header or in your Account menu.</p>
             <div class="sk-tour-confirm-actions">
                 <button type="button" class="sk-tour-confirm-btn sk-tour-confirm-btn--cancel" id="skTourConfirmCancelBtn">
                     Continue Tutorial

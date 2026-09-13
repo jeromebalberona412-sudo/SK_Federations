@@ -117,9 +117,10 @@ class BootstrapSkFedAdminService
 
         if ($exists) {
             DB::table('official_profiles')->where('user_id', $user->getKey())->update([
-                'first_name' => 'Admin',
-                'middle_name' => 'Admin',
-                'position' => 'Admin',
+                'first_name' => 'SK Federation',
+                'middle_name' => null,
+                'last_name' => 'Administrator',
+                'position' => 'President',
                 'updated_at' => $now,
             ]);
 
@@ -128,10 +129,10 @@ class BootstrapSkFedAdminService
 
         DB::table('official_profiles')->insert([
             'user_id' => $user->getKey(),
-            'first_name' => 'Admin',
-            'middle_name' => 'Admin',
+            'first_name' => 'SK Federation',
+            'middle_name' => null,
             'last_name' => 'Administrator',
-            'position' => 'Admin',
+            'position' => 'President',
             'municipality' => 'Santa Cruz',
             'province' => 'Laguna',
             'region' => 'IV-A CALABARZON',

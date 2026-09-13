@@ -165,15 +165,17 @@ class PasswordResetService
             $this->throwInvalidResetLink();
         }
 
-        if (! $this->broker()->tokenExists($user, $token)) {
+            if (! $this->broker()->tokenExists($user, $token)) {
+            $reason = $this->resolveInvalidTokenReason($normalizedEmail);
+
             $this->logResetFailure(
                 request: $request,
                 user: $user,
                 normalizedEmail: $normalizedEmail,
-                reason: $this->resolveInvalidTokenReason($normalizedEmail),
+                reason: $reason,
             );
 
-            $this->throwInvalidResetLink();
+            $this->throwInvalidResetLink($reason);
         }
 
         if (Hash::check($password, (string) $user->password)) {
@@ -415,10 +417,32 @@ class PasswordResetService
         );
     }
 
-    protected function throwInvalidResetLink(): never
+    public function isValidResetToken(string $email, string $token): bool
+    {
+        $normalizedEmail = Str::lower(trim($email));
+        $user = $this->findUserByEmail($normalizedEmail);
+
+        if ($user === null || ! $this->isResettableUser($user)) {
+            return false;
+        }
+
+        return $this->broker()->tokenExists($user, $token);
+    }
+
+    public function resetLinkFailureMessage(?string $reason = null): string
+    {
+        if ($reason === 'expired_token') {
+            return 'This password reset link has expired. Please request a new one.';
+        }
+
+        return 'This password reset link is invalid or has expired. Please request a new one.';
+    }
+
+    protected function throwInvalidResetLink(?string $reason = null): never
     {
         throw ValidationException::withMessages([
-            'email' => 'This password reset link is invalid or has expired.',
+            'email' => $this->resetLinkFailureMessage($reason),
+            'reset' => $this->resetLinkFailureMessage($reason),
         ]);
     }
 }

@@ -62,10 +62,23 @@ class SkFederationTutorial extends Model
         return strtoupper((string) $this->status) === self::STATUS_IN_PROGRESS;
     }
 
-    public function shouldAutoStart(): bool
+    /**
+     * True after the user has finished or skipped the mandatory first-run once.
+     * Used so replay from the header can allow Skip/Close without auto-starting again.
+     */
+    public function hasFinishedMandatoryOnce(): bool
     {
+        if ($this->completed_at !== null || $this->skipped_at !== null) {
+            return true;
+        }
+
         $status = strtoupper((string) $this->status);
 
-        return $status !== self::STATUS_COMPLETED && $status !== self::STATUS_SKIPPED;
+        return $status === self::STATUS_COMPLETED || $status === self::STATUS_SKIPPED;
+    }
+
+    public function shouldAutoStart(): bool
+    {
+        return ! $this->hasFinishedMandatoryOnce();
     }
 }

@@ -19,6 +19,7 @@ class AuditLogServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
+        $this->loadMigrationsFrom(__DIR__.'/../Database/Migrations');
         $this->loadViewsFrom(__DIR__.'/../Views', 'auditlogs');
 
         $this->publishes([

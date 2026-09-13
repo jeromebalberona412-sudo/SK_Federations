@@ -11,6 +11,7 @@ class DeletedPostsServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
+        $this->loadMigrationsFrom(__DIR__.'/../Database/Migrations');
         $this->loadViewsFrom(__DIR__.'/../Views', 'Deleted_Posts');
 
         $this->publishes([

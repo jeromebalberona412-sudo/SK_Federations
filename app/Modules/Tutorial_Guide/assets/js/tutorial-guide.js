@@ -1,6 +1,9 @@
 /**
  * SK OnePortal - SK Federations Interactive Guided Tour Engine
  * Zero dependencies, pure vanilla JS + CSS spotlight highlight engine.
+ *
+ * First login: mandatory — Next/Finish only (no Skip / X).
+ * After COMPLETED once: auto-start stops; header ? can relaunch with Skip/X allowed.
  */
 
 (function () {
@@ -128,9 +131,9 @@
         {
             key: 'tutorial-guide',
             target: '[data-tour="tutorial-guide"]',
-            icon: 'fa-compass',
+            icon: 'fa-question-circle',
             title: 'Tutorial Guide',
-            description: 'Click this compass button anytime you wish to restart or review this interactive guided tour.',
+            description: 'Click this question mark anytime you wish to restart or review this interactive guided tour.',
             placement: 'bottom',
             isSidebar: false
         },
@@ -148,7 +151,7 @@
             target: null,
             icon: 'fa-check-circle',
             title: "You're all set!",
-            description: 'You now know where the main SK Federations features and navigation controls are located. You can relaunch this tutorial anytime using the compass button in the header.',
+            description: 'You now know where the main SK Federations features and navigation controls are located. You can relaunch this tutorial anytime using the question mark button in the header.',
             placement: 'center',
             isSidebar: false
         }
@@ -157,6 +160,9 @@
     // ── Engine State ─────────────────────────────────────────────────────────
     let currentStepIndex = 0;
     let isActive = false;
+    let canSkip = false;
+    let isMandatory = true;
+    let finishInFlight = false;
     let autoOpenedMobileSidebar = false;
     let currentHighlightedEl = null;
     let windowResizeDebounce = null;
@@ -213,25 +219,75 @@
         return true;
     }
 
+    function applyTutorialPayload(tutorial) {
+        if (!tutorial || typeof tutorial !== 'object') return;
+        canSkip = tutorial.can_skip === true;
+        isMandatory = tutorial.is_mandatory !== false && !canSkip;
+        applyDismissControls();
+    }
+
+    function applyDismissControls() {
+        const allowDismiss = canSkip && !isMandatory;
+
+        if (skipBtn) {
+            skipBtn.hidden = !allowDismiss;
+            skipBtn.style.display = allowDismiss ? 'inline-flex' : 'none';
+            skipBtn.setAttribute('aria-hidden', allowDismiss ? 'false' : 'true');
+        }
+
+        if (closeBtn) {
+            closeBtn.hidden = !allowDismiss;
+            closeBtn.style.display = allowDismiss ? 'inline-flex' : 'none';
+            closeBtn.setAttribute('aria-hidden', allowDismiss ? 'false' : 'true');
+        }
+
+        if (rootEl) {
+            rootEl.classList.toggle('sk-tour-mandatory', !allowDismiss);
+        }
+
+        if (backBtn && isActive) {
+            // First-run: Next/Finish only. Replay: Back allowed.
+            const showBack = allowDismiss && currentStepIndex > 0;
+            backBtn.style.display = showBack ? 'inline-flex' : 'none';
+        }
+    }
+
     // ── API Communications ───────────────────────────────────────────────────
-    async function apiRequest(endpoint, data = null) {
+    async function apiRequest(endpoint, data = null, forcePost = false) {
         try {
+            const usePost = forcePost || data !== null;
             const options = {
-                method: data ? 'POST' : 'GET',
+                method: usePost ? 'POST' : 'GET',
                 headers: {
                     'Content-Type': 'application/json',
                     'Accept': 'application/json',
                     'X-CSRF-TOKEN': getCsrfToken(),
                     'X-Requested-With': 'XMLHttpRequest'
-                }
+                },
+                credentials: 'same-origin',
+                cache: 'no-store'
             };
-            if (data) {
-                options.body = JSON.stringify(data);
+            if (usePost) {
+                options.body = JSON.stringify(data && typeof data === 'object' ? data : {});
             }
 
             const response = await fetch('/api/tutorial-guide/' + endpoint, options);
-            if (!response.ok) return null;
-            return await response.json();
+            let payload = null;
+            try {
+                payload = await response.json();
+            } catch (_) {
+                payload = null;
+            }
+
+            if (payload?.tutorial) {
+                applyTutorialPayload(payload.tutorial);
+            }
+
+            if (!response.ok) {
+                return { success: false, message: payload?.message || 'Request failed.', status: response.status };
+            }
+
+            return payload;
         } catch (err) {
             console.warn('Tutorial guide API call failed:', err);
             return null;
@@ -241,9 +297,8 @@
     // ── Step Resolution ──────────────────────────────────────────────────────
     function getValidSteps() {
         return TOUR_STEPS.filter(step => {
-            if (!step.target) return true; // Center final step is always valid
-            const el = document.querySelector(step.target);
-            return el !== null;
+            if (!step.target) return true;
+            return document.querySelector(step.target) !== null;
         });
     }
 
@@ -256,11 +311,18 @@
             if (idx < 0 || idx >= stepCount) return -1;
 
             const step = TOUR_STEPS[idx];
-            if (!step.target) return idx; // Center step
+            if (!step.target) return idx;
 
-            const el = document.querySelector(step.target);
-            if (el) return idx;
+            if (document.querySelector(step.target)) return idx;
         }
+    }
+
+    function isFinalStep() {
+        const step = TOUR_STEPS[currentStepIndex];
+        if (!step) return false;
+        const validSteps = getValidSteps();
+        const stepNumber = validSteps.findIndex(s => s.key === step.key) + 1;
+        return currentStepIndex === TOUR_STEPS.length - 1 || stepNumber === validSteps.length;
     }
 
     // ── Position Spotlight & Card ────────────────────────────────────────────
@@ -270,14 +332,12 @@
         const step = TOUR_STEPS[currentStepIndex];
         if (!step) return;
 
-        // Clear previous highlight
         if (currentHighlightedEl) {
             currentHighlightedEl.classList.remove('sk-tour-highlighted-element');
             currentHighlightedEl = null;
         }
 
         if (!step.target) {
-            // Center position (Final Step)
             spotlightEl.style.opacity = '0';
             spotlightEl.style.width = '0px';
             spotlightEl.style.height = '0px';
@@ -296,12 +356,10 @@
 
         const targetEl = document.querySelector(step.target);
         if (!targetEl) {
-            // Skip target if missing
             goToNextStep();
             return;
         }
 
-        // Handle mobile sidebar auto-opening
         if (step.isSidebar && isMobileViewport()) {
             if (!document.body.classList.contains('sidebar-open') && typeof window.toggleSidebar === 'function') {
                 window.toggleSidebar();
@@ -309,10 +367,7 @@
             }
         }
 
-        // Scroll element into view smoothly
         targetEl.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
-
-        // Highlight element
         targetEl.classList.add('sk-tour-highlighted-element');
         currentHighlightedEl = targetEl;
 
@@ -329,7 +384,6 @@
         spotlightEl.style.width = `${spotWidth}px`;
         spotlightEl.style.height = `${spotHeight}px`;
 
-        // Determine Card Placement
         const cardWidth = cardEl.offsetWidth || 380;
         const cardHeight = cardEl.offsetHeight || 220;
         const margin = 14;
@@ -338,7 +392,6 @@
         let top = 0;
         let placement = step.placement || 'right';
 
-        // Responsive fallback: on small screens, sidebar steps flip to bottom or top
         if (isMobileViewport() && placement === 'right') {
             placement = 'bottom';
         }
@@ -347,7 +400,6 @@
             left = spotLeft + spotWidth + margin;
             top = spotTop + (spotHeight - cardHeight) / 2;
 
-            // Check viewport overflow on the right
             if (left + cardWidth > window.innerWidth - 16) {
                 left = spotLeft - cardWidth - margin;
                 if (left < 16) {
@@ -360,13 +412,11 @@
             top = spotTop + spotHeight + margin;
             left = spotLeft + (spotWidth - cardWidth) / 2;
 
-            // Check viewport overflow on the bottom
             if (top + cardHeight > window.innerHeight - 16) {
                 top = spotTop - cardHeight - margin;
             }
         }
 
-        // Clamp inside screen bounds
         left = Math.max(16, Math.min(window.innerWidth - cardWidth - 16, left));
         top = Math.max(16, Math.min(window.innerHeight - cardHeight - 16, top));
 
@@ -386,47 +436,57 @@
         badgeEl.textContent = `Step ${stepNumber} of ${totalSteps}`;
         titleEl.textContent = step.title;
         descEl.textContent = step.description;
+        iconEl.className = `fas ${step.icon || 'fa-question-circle'}`;
 
-        // Icon
-        iconEl.className = `fas ${step.icon || 'fa-compass'}`;
+        applyDismissControls();
 
-        // Back button visibility
-        if (currentStepIndex === 0) {
-            backBtn.style.display = 'none';
-        } else {
-            backBtn.style.display = 'inline-flex';
-        }
-
-        // Next vs Finish button
-        const isFinal = (currentStepIndex === TOUR_STEPS.length - 1) || (stepNumber === totalSteps);
-        if (isFinal) {
+        if (isFinalStep()) {
             nextLabel.textContent = 'Finish';
             nextIcon.className = 'fas fa-check';
             nextBtn.classList.add('sk-tour-btn--finish');
+            nextBtn.disabled = false;
         } else {
             nextLabel.textContent = 'Next';
             nextIcon.className = 'fas fa-arrow-right';
             nextBtn.classList.remove('sk-tour-btn--finish');
+            nextBtn.disabled = false;
         }
 
-        // Reposition
         window.requestAnimationFrame(() => {
             updatePosition();
         });
 
-        // Save server progress in background
         apiRequest('progress', { step: currentStepIndex + 1 });
+    }
+
+    function setFinishLoading(loading) {
+        if (!nextBtn || !nextLabel) return;
+        nextBtn.disabled = !!loading;
+        nextBtn.setAttribute('aria-busy', loading ? 'true' : 'false');
+        if (loading) {
+            nextLabel.textContent = 'Saving...';
+            nextIcon.className = 'fas fa-spinner fa-spin';
+        } else if (isFinalStep()) {
+            nextLabel.textContent = 'Finish';
+            nextIcon.className = 'fas fa-check';
+        }
     }
 
     // ── Navigation Handlers ──────────────────────────────────────────────────
     function goToNextStep() {
+        if (finishInFlight) return;
+
+        if (isFinalStep()) {
+            finishTutorial();
+            return;
+        }
+
         const nextIdx = findNextValidIndex(currentStepIndex, true);
         if (nextIdx === -1) {
             finishTutorial();
             return;
         }
 
-        // If leaving sidebar and moving to header/finish, restore mobile sidebar
         if (TOUR_STEPS[currentStepIndex].isSidebar && !TOUR_STEPS[nextIdx].isSidebar) {
             if (autoOpenedMobileSidebar && document.body.classList.contains('sidebar-open') && typeof window.toggleSidebar === 'function') {
                 window.toggleSidebar();
@@ -439,6 +499,8 @@
     }
 
     function goToPrevStep() {
+        if (!canSkip || isMandatory || finishInFlight) return;
+
         const prevIdx = findNextValidIndex(currentStepIndex, false);
         if (prevIdx === -1) return;
 
@@ -447,6 +509,7 @@
     }
 
     function showSkipConfirmation() {
+        if (!canSkip || isMandatory) return;
         if (confirmOverlay) {
             confirmOverlay.style.display = 'flex';
         }
@@ -459,38 +522,65 @@
     }
 
     async function skipTutorial() {
+        if (!canSkip || isMandatory) {
+            hideSkipConfirmation();
+            return;
+        }
+
         hideSkipConfirmation();
-        await apiRequest('skip');
+        await apiRequest('skip', {}, true);
         endTour();
     }
 
     async function finishTutorial() {
-        await apiRequest('complete');
-        endTour();
+        if (finishInFlight) return;
+        finishInFlight = true;
+        setFinishLoading(true);
+
+        try {
+            const res = await apiRequest('complete', {}, true);
+            if (!res || res.success !== true) {
+                setFinishLoading(false);
+                finishInFlight = false;
+                if (nextLabel) {
+                    nextLabel.textContent = 'Retry Finish';
+                }
+                if (nextIcon) {
+                    nextIcon.className = 'fas fa-check';
+                }
+                return;
+            }
+
+            canSkip = true;
+            isMandatory = false;
+            applyDismissControls();
+            endTour();
+        } finally {
+            finishInFlight = false;
+        }
     }
 
     function endTour() {
         isActive = false;
+        finishInFlight = false;
 
-        // Cleanup highlight
         if (currentHighlightedEl) {
             currentHighlightedEl.classList.remove('sk-tour-highlighted-element');
             currentHighlightedEl = null;
         }
 
-        // Restore mobile sidebar if we opened it
         if (autoOpenedMobileSidebar && document.body.classList.contains('sidebar-open') && typeof window.toggleSidebar === 'function') {
             window.toggleSidebar();
             autoOpenedMobileSidebar = false;
         }
 
-        // Hide root
         if (rootEl) {
             rootEl.style.display = 'none';
             rootEl.setAttribute('aria-hidden', 'true');
+            rootEl.classList.remove('sk-tour-mandatory');
         }
 
-        // Remove keyboard navigation
+        hideSkipConfirmation();
         document.removeEventListener('keydown', handleKeydown);
     }
 
@@ -502,22 +592,33 @@
             goToNextStep();
         } else if (e.key === 'ArrowLeft') {
             e.preventDefault();
-            goToPrevStep();
+            if (canSkip && !isMandatory) {
+                goToPrevStep();
+            }
         } else if (e.key === 'Escape') {
             e.preventDefault();
-            showSkipConfirmation();
+            if (canSkip && !isMandatory) {
+                showSkipConfirmation();
+            }
         }
     }
 
     // ── Launching Tour ───────────────────────────────────────────────────────
     async function startTour(fromScratch = false, initialStep = 1) {
         if (!cacheDom()) return;
+        if (isActive) return;
 
         if (fromScratch) {
-            await apiRequest('reset');
+            const resetRes = await apiRequest('reset', {}, true);
+            if (resetRes?.tutorial) {
+                applyTutorialPayload(resetRes.tutorial);
+            }
             currentStepIndex = 0;
         } else {
-            await apiRequest('start');
+            const startRes = await apiRequest('start', {}, true);
+            if (startRes?.tutorial) {
+                applyTutorialPayload(startRes.tutorial);
+            }
             currentStepIndex = Math.max(0, initialStep - 1);
             if (currentStepIndex >= TOUR_STEPS.length) {
                 currentStepIndex = 0;
@@ -527,9 +628,9 @@
         isActive = true;
         rootEl.style.display = 'block';
         rootEl.setAttribute('aria-hidden', 'false');
+        applyDismissControls();
 
         document.addEventListener('keydown', handleKeydown);
-
         renderStep();
     }
 
@@ -567,7 +668,6 @@
             skipTutorial();
         });
 
-        // Window resize repositioning
         window.addEventListener('resize', () => {
             if (!isActive) return;
             window.clearTimeout(windowResizeDebounce);
@@ -580,9 +680,10 @@
         const res = await apiRequest('status');
         if (!res || !res.success || !res.tutorial) return;
 
+        applyTutorialPayload(res.tutorial);
+
         if (res.tutorial.should_auto_start) {
             const stepToStart = res.tutorial.current_step || 1;
-            // Small timeout to allow DOM layout to stabilize
             window.setTimeout(() => {
                 startTour(false, stepToStart);
             }, 600);

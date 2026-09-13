@@ -112,6 +112,13 @@
                             </div>
                         @enderror
 
+                        @error('verification')
+                            <div class="alert alert-warning access-denied-alert" role="alert">
+                                <strong>Verification Required</strong>
+                                <p style="margin:0.35rem 0 0;">{{ $message }}</p>
+                            </div>
+                        @enderror
+
                         @error('auth')
                             <div class="alert alert-danger access-denied-alert" role="alert">
                                 <strong>Login Not Available</strong>
