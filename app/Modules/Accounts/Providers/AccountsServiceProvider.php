@@ -29,6 +29,7 @@ class AccountsServiceProvider extends ServiceProvider
     public function boot(): void
     {
         $this->loadViewsFrom(__DIR__.'/../Views', 'accounts');
+        $this->loadMigrationsFrom(__DIR__.'/../Database/Migrations');
 
         $this->publishes([
             __DIR__.'/../assets' => public_path('modules/accounts'),

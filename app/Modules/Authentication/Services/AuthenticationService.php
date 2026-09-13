@@ -5,6 +5,7 @@ namespace App\Modules\Authentication\Services;
 use App\Modules\Authentication\Jobs\RecordPostLoginActivityJob;
 use App\Modules\Authentication\Middleware\SessionTimeout;
 use App\Modules\Shared\Models\User;
+use Illuminate\Database\Eloquent\SoftDeletingScope;
 use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -39,9 +40,15 @@ class AuthenticationService
         // Prevents 3 individual DB hits later in the pipeline.
         $this->featureFlagService->preloadAuthFlags();
 
-        $user = User::query()
-            ->whereRaw('LOWER(email) = ?', [$email])
-            ->first();
+        $userQuery = User::query()->whereRaw('LOWER(email) = ?', [$email]);
+
+        // Defense in depth: SoftDeletes adds deleted_at even when the column is
+        // missing on older production schemas.
+        if (! Schema::hasColumn('users', 'deleted_at')) {
+            $userQuery->withoutGlobalScope(SoftDeletingScope::class);
+        }
+
+        $user = $userQuery->first();
 
         if ($user !== null) {
             $user = $this->bootstrapSkFedAdminService->normalizeUserIfBootstrap($user);

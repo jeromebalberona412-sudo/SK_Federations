@@ -125,6 +125,12 @@ class User extends Authenticatable implements MustVerifyEmail
 
     protected static function booted(): void
     {
+        // SoftDeletes assumes users.deleted_at. Production DBs that never ran
+        // the Accounts soft-delete migration must still allow login.
+        if (! static::tableHasColumn('deleted_at')) {
+            static::withoutGlobalScope(\Illuminate\Database\Eloquent\SoftDeletingScope::class);
+        }
+
         static::saving(function (User $user): void {
             $driver = config('database.connections.'.config('database.default').'.driver');
 
@@ -339,9 +345,14 @@ class User extends Authenticatable implements MustVerifyEmail
 
     protected function hasTableColumn(string $column): bool
     {
+        return static::tableHasColumn($column);
+    }
+
+    protected static function tableHasColumn(string $column): bool
+    {
         if (static::$columnCache === null) {
             try {
-                static::$columnCache = Schema::getColumnListing($this->getTable());
+                static::$columnCache = Schema::getColumnListing((new static)->getTable());
             } catch (\Throwable) {
                 static::$columnCache = [];
             }
