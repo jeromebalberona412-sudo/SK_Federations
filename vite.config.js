@@ -56,6 +56,7 @@ export default defineConfig({
                 // ── Authentication — Email Verify Wait ────────────────────
                 'app/Modules/Authentication/assets/css/verify-wait.css',
                 'app/Modules/Authentication/assets/js/verify-wait.js',
+                'app/Modules/Authentication/assets/css/verify-success.css',
 
                 // ── Barangay Logos ───────────────────────────────────────────
                 'app/Modules/BarangayLogos/assets/css/barangay-logos.css',
