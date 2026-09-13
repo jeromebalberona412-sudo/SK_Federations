@@ -8,18 +8,34 @@ return new class extends Migration
 {
     public function up(): void
     {
-        if (! Schema::hasTable('announcement_images')) {
+        if (Schema::hasTable('announcement_images')) {
+            return;
+        }
+
+        // Production DBs may not have announcements yet; do not hard-fail migrate.
+        if (! Schema::hasTable('announcements')) {
             Schema::create('announcement_images', function (Blueprint $table) {
                 $table->id();
-                $table->foreignId('announcement_id')->constrained('announcements')->cascadeOnDelete();
+                $table->unsignedBigInteger('announcement_id')->index();
                 $table->text('image_url');
                 $table->string('public_id', 255)->nullable();
                 $table->unsignedSmallInteger('sort_order')->default(0);
                 $table->timestamp('created_at')->nullable();
-
                 $table->index(['announcement_id', 'sort_order']);
             });
+
+            return;
         }
+
+        Schema::create('announcement_images', function (Blueprint $table) {
+            $table->id();
+            $table->foreignId('announcement_id')->constrained('announcements')->cascadeOnDelete();
+            $table->text('image_url');
+            $table->string('public_id', 255)->nullable();
+            $table->unsignedSmallInteger('sort_order')->default(0);
+            $table->timestamp('created_at')->nullable();
+            $table->index(['announcement_id', 'sort_order']);
+        });
     }
 
     public function down(): void

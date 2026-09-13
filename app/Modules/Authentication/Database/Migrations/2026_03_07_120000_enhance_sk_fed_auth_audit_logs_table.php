@@ -32,14 +32,11 @@ return new class extends Migration
             if (! Schema::hasColumn('sk_fed_auth_audit_logs', 'resource_id')) {
                 $table->string('resource_id', 120)->nullable()->after('resource_type');
             }
-
         });
 
-        Schema::table('sk_fed_auth_audit_logs', function (Blueprint $table) {
-            $table->index(['tenant_id', 'created_at'], 'sk_fed_auth_audit_tenant_idx');
-            $table->index(['outcome', 'created_at'], 'sk_fed_auth_audit_outcome_idx');
-            $table->index(['resource_type', 'resource_id'], 'sk_fed_auth_resource_idx');
-        });
+        $this->ensureIndex('sk_fed_auth_audit_logs', 'sk_fed_auth_audit_tenant_idx', ['tenant_id', 'created_at']);
+        $this->ensureIndex('sk_fed_auth_audit_logs', 'sk_fed_auth_audit_outcome_idx', ['outcome', 'created_at']);
+        $this->ensureIndex('sk_fed_auth_audit_logs', 'sk_fed_auth_resource_idx', ['resource_type', 'resource_id']);
     }
 
     public function down(): void
@@ -49,21 +46,46 @@ return new class extends Migration
         }
 
         Schema::table('sk_fed_auth_audit_logs', function (Blueprint $table) {
-            $table->dropIndex('sk_fed_auth_audit_tenant_idx');
-            $table->dropIndex('sk_fed_auth_audit_outcome_idx');
-            $table->dropIndex('sk_fed_auth_resource_idx');
-
-            if (Schema::hasColumn('sk_fed_auth_audit_logs', 'tenant_id')) {
-                $table->dropForeign(['tenant_id']);
+            foreach ([
+                'sk_fed_auth_audit_tenant_idx',
+                'sk_fed_auth_audit_outcome_idx',
+                'sk_fed_auth_resource_idx',
+            ] as $index) {
+                try {
+                    $table->dropIndex($index);
+                } catch (\Throwable) {
+                }
             }
 
-            $table->dropColumn([
-                'tenant_id',
-                'actor_email',
-                'outcome',
-                'resource_type',
-                'resource_id',
-            ]);
+            if (Schema::hasColumn('sk_fed_auth_audit_logs', 'tenant_id')) {
+                try {
+                    $table->dropForeign(['tenant_id']);
+                } catch (\Throwable) {
+                }
+            }
+
+            $columns = array_values(array_filter([
+                Schema::hasColumn('sk_fed_auth_audit_logs', 'tenant_id') ? 'tenant_id' : null,
+                Schema::hasColumn('sk_fed_auth_audit_logs', 'actor_email') ? 'actor_email' : null,
+                Schema::hasColumn('sk_fed_auth_audit_logs', 'outcome') ? 'outcome' : null,
+                Schema::hasColumn('sk_fed_auth_audit_logs', 'resource_type') ? 'resource_type' : null,
+                Schema::hasColumn('sk_fed_auth_audit_logs', 'resource_id') ? 'resource_id' : null,
+            ]));
+
+            if ($columns !== []) {
+                $table->dropColumn($columns);
+            }
         });
+    }
+
+    private function ensureIndex(string $table, string $index, array $columns): void
+    {
+        try {
+            Schema::table($table, function (Blueprint $blueprint) use ($index, $columns) {
+                $blueprint->index($columns, $index);
+            });
+        } catch (\Throwable) {
+            // Index may already exist from ensure_sk_fed_auth_tables.
+        }
     }
 };

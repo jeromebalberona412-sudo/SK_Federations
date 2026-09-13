@@ -9,6 +9,10 @@ return new class extends Migration
 {
     public function up(): void
     {
+        if (Schema::hasTable('sk_fed_feature_flags')) {
+            return;
+        }
+
         Schema::create('sk_fed_feature_flags', function (Blueprint $table) {
             $table->id();
             $table->string('flag_key', 190)->unique();

@@ -9,11 +9,17 @@ return new class extends Migration
     public function up(): void
     {
         if (! Schema::hasTable('community_feed_videos')) {
+            // SK Federations uses announcements; SK Officials uses community_feeds.
+            // Only attach the FK when the parent table exists.
             Schema::create('community_feed_videos', function (Blueprint $table) {
                 $table->id();
-                $table->foreignId('community_feed_id')
-                    ->constrained('community_feeds')
-                    ->cascadeOnDelete();
+                if (Schema::hasTable('community_feeds')) {
+                    $table->foreignId('community_feed_id')
+                        ->constrained('community_feeds')
+                        ->cascadeOnDelete();
+                } else {
+                    $table->unsignedBigInteger('community_feed_id')->index();
+                }
                 $table->string('provider', 32);
                 $table->text('video_url');
                 $table->string('public_id', 512)->nullable();
@@ -41,7 +47,10 @@ return new class extends Migration
         Schema::table('community_feed_videos', function (Blueprint $table) {
             if (! Schema::hasColumn('community_feed_videos', 'google_drive_folder_id')) {
                 $table->string('google_drive_folder_id', 128)->nullable()->after('google_drive_file_id');
-                $table->index('google_drive_folder_id', 'cf_videos_drive_folder_idx');
+                try {
+                    $table->index('google_drive_folder_id', 'cf_videos_drive_folder_idx');
+                } catch (\Throwable) {
+                }
             }
             if (! Schema::hasColumn('community_feed_videos', 'name')) {
                 $table->string('name', 512)->nullable()->after('google_drive_folder_id');
@@ -54,7 +63,10 @@ return new class extends Migration
             }
             if (! Schema::hasColumn('community_feed_videos', 'status')) {
                 $table->string('status', 32)->default('active')->after('web_view_link');
-                $table->index(['google_drive_folder_id', 'status'], 'cf_videos_drive_folder_status_idx');
+                try {
+                    $table->index(['google_drive_folder_id', 'status'], 'cf_videos_drive_folder_status_idx');
+                } catch (\Throwable) {
+                }
             }
         });
     }

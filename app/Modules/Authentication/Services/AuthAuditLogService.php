@@ -31,19 +31,28 @@ class AuthAuditLogService
     ): void {
         $resolvedOutcome = $this->resolveOutcome($event, $outcome);
 
-        AuthAuditLog::query()->create([
-            'tenant_id' => $user?->tenant_id ?? $this->tenantContextService->tenantId(),
-            'user_id' => $user?->getKey(),
-            'actor_email' => $user?->email,
-            'event' => $event,
-            'outcome' => $resolvedOutcome,
-            'resource_type' => $resourceType,
-            'resource_id' => $resourceId === null ? null : (string) $resourceId,
-            'ip_address' => $request->ip(),
-            'user_agent' => $request->userAgent(),
-            'metadata' => $metadata,
-            'created_at' => now(),
-        ]);
+        try {
+            if (Schema::hasTable('sk_fed_auth_audit_logs')) {
+                AuthAuditLog::query()->create([
+                    'tenant_id' => $user?->tenant_id ?? $this->tenantContextService->tenantId(),
+                    'user_id' => $user?->getKey(),
+                    'actor_email' => $user?->email,
+                    'event' => $event,
+                    'outcome' => $resolvedOutcome,
+                    'resource_type' => $resourceType,
+                    'resource_id' => $resourceId === null ? null : (string) $resourceId,
+                    'ip_address' => $request->ip(),
+                    'user_agent' => $request->userAgent(),
+                    'metadata' => $metadata,
+                    'created_at' => now(),
+                ]);
+            }
+        } catch (\Throwable $e) {
+            Log::warning('Unable to write sk_fed_auth_audit_logs entry.', [
+                'event' => $event,
+                'error' => $e->getMessage(),
+            ]);
+        }
 
         if (Schema::hasTable('admin_activity_logs')) {
             $this->writeCentralAuditLog(

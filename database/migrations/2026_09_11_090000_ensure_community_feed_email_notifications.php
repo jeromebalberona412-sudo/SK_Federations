@@ -17,7 +17,11 @@ return new class extends Migration
         if (! Schema::hasTable('community_feed_email_sends')) {
             Schema::create('community_feed_email_sends', function (Blueprint $table) {
                 $table->id();
-                $table->foreignId('community_feed_id')->constrained('community_feeds')->cascadeOnDelete();
+                if (Schema::hasTable('community_feeds')) {
+                    $table->foreignId('community_feed_id')->constrained('community_feeds')->cascadeOnDelete();
+                } else {
+                    $table->unsignedBigInteger('community_feed_id')->index();
+                }
                 $table->string('recipient_email');
                 $table->unsignedBigInteger('kabataan_registration_id')->nullable();
                 $table->unsignedBigInteger('user_id')->nullable();

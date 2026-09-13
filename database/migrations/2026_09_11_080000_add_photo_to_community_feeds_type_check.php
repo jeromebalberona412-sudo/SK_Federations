@@ -2,11 +2,16 @@
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
     public function up(): void
     {
+        if (! Schema::hasTable('community_feeds')) {
+            return;
+        }
+
         DB::statement('ALTER TABLE community_feeds DROP CONSTRAINT IF EXISTS announcements_type_check');
         DB::statement('ALTER TABLE community_feeds DROP CONSTRAINT IF EXISTS community_feeds_type_check');
 
@@ -22,6 +27,10 @@ return new class extends Migration
 
     public function down(): void
     {
+        if (! Schema::hasTable('community_feeds')) {
+            return;
+        }
+
         DB::statement('ALTER TABLE community_feeds DROP CONSTRAINT IF EXISTS community_feeds_type_check');
 
         DB::table('community_feeds')
