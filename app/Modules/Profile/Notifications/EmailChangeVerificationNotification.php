@@ -24,10 +24,10 @@ class EmailChangeVerificationNotification extends Notification
 
     public function toMail(object $notifiable): MailMessage
     {
-        $url = url(route('change-email.confirm', [
+        $url = \App\Modules\Accounts\Support\PortalAppUrl::absoluteRoute('change-email.confirm', [
             'id' => $this->user->id,
             'token' => $this->plainToken,
-        ], false));
+        ]);
 
         return (new MailMessage)
             ->subject('Confirm Your New SK OnePortal Email')

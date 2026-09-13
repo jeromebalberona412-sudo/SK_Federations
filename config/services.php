@@ -92,7 +92,7 @@ return [
     */
     'sk_officials_app_url' => env('SK_OFFICIALS_APP_URL'),
     'sk_fed_app_url' => env('SK_FED_APP_URL', env('APP_URL')),
-    'kabataan_app_url' => env('KABATAAN_APP_URL', 'http://localhost:8002'),
+    'kabataan_app_url' => env('KABATAAN_APP_URL'),
     'account_activation_expire_minutes' => (int) env('ACCOUNT_ACTIVATION_EXPIRES_MINUTES', 60 * 24),
 
 ];

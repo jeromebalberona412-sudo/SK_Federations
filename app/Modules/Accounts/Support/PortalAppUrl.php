@@ -103,7 +103,10 @@ final class PortalAppUrl
             }
         }
 
-        return self::preferAbsolute($candidates) ?? rtrim((string) config('app.url'), '/');
+        return self::preferAbsolute($candidates)
+            ?? (app()->environment('local', 'testing')
+                ? rtrim((string) config('app.url'), '/')
+                : rtrim((string) (config('app.public_url') ?: config('app.url')), '/'));
     }
 
     public static function isLoopback(?string $url): bool
@@ -115,6 +118,16 @@ final class PortalAppUrl
             || $host === '127.0.0.1'
             || $host === '[::1]'
             || str_ends_with($host, '.localhost');
+    }
+
+    /**
+     * Build an absolute route URL from this app's canonical public base.
+     */
+    public static function absoluteRoute(string $name, array $parameters = []): string
+    {
+        $path = route($name, $parameters, absolute: false);
+
+        return self::join(self::selfApp(), $path);
     }
 
     /**
@@ -139,11 +152,12 @@ final class PortalAppUrl
             }
         }
 
+        // Never leak localhost/127.0.0.1 into production emails or share links.
         if (app()->environment('local', 'testing') && $normalized !== []) {
             return $normalized[0];
         }
 
-        return $normalized[0] ?? null;
+        return null;
     }
 
     public static function normalize(mixed $url): ?string

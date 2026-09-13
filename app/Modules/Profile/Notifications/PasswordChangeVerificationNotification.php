@@ -22,10 +22,10 @@ class PasswordChangeVerificationNotification extends Notification
 
     public function toMail(object $notifiable): MailMessage
     {
-        $url = url(route('change-password.confirm', [
+        $url = \App\Modules\Accounts\Support\PortalAppUrl::absoluteRoute('change-password.confirm', [
             'id' => $notifiable->id,
             'token' => $this->plainToken,
-        ], false));
+        ]);
 
         return (new MailMessage)
             ->subject('Confirm Your SK OnePortal Password Change')

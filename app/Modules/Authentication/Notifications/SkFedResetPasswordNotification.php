@@ -9,10 +9,10 @@ class SkFedResetPasswordNotification extends ResetPassword
 {
     public function toMail($notifiable): MailMessage
     {
-        $resetUrl = url(route('password.reset', [
+        $resetUrl = \App\Modules\Accounts\Support\PortalAppUrl::absoluteRoute('password.reset', [
             'token' => $this->token,
             'email' => $notifiable->getEmailForPasswordReset(),
-        ], false));
+        ]);
 
         \Illuminate\Support\Facades\Log::info('Building password reset email', [
             'user_id' => method_exists($notifiable, 'getKey') ? $notifiable->getKey() : null,

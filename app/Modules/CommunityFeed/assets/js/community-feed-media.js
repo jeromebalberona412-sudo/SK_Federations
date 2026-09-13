@@ -728,7 +728,12 @@
             appendUploadedVideosToFormData(fd, ready);
             fetch('/api/community-feed/' + job.postId, {
                 method: 'POST',
-                headers: { 'X-CSRF-TOKEN': csrfToken(), Accept: 'application/json' },
+                headers: {
+                    'X-CSRF-TOKEN': csrfToken(),
+                    Accept: 'application/json',
+                    'X-HTTP-Method-Override': 'PUT',
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
                 body: fd,
             }).then(function (res) { return res.json().then(function (updated) { return { ok: res.ok, updated: updated }; }); })
                 .then(function (result) {

@@ -503,18 +503,20 @@ class FederationCommunityFeedBroadcastService
 
     private function buildKabataanPostUrl(int $postId): string
     {
-        $base = \App\Modules\Accounts\Support\PortalAppUrl::kabataan();
+        $base = \App\Modules\Accounts\Support\PortalAppUrl::preferAbsolute([
+            config('services.kabataan_app_url'),
+            config('app.public_url'),
+        ]) ?? '';
 
-        if ($base === '' || \App\Modules\Accounts\Support\PortalAppUrl::isLoopback($base)) {
-            Log::warning('KABATAAN_APP_URL is missing or localhost; Federation→Kabataan email links may be wrong in production.', [
-                'resolved' => $base,
-            ]);
+        if ($base === '') {
+            Log::warning('KABATAAN_APP_URL is missing or localhost; Federation→Kabataan email links may be wrong in production.');
+
+            $fallback = \App\Modules\Accounts\Support\PortalAppUrl::selfApp();
+
+            return \App\Modules\Accounts\Support\PortalAppUrl::join($fallback, '/dashboard/comments/'.$postId);
         }
 
-        return \App\Modules\Accounts\Support\PortalAppUrl::join(
-            $base !== '' ? $base : (string) config('services.kabataan_app_url'),
-            '/dashboard/comments/'.$postId
-        );
+        return \App\Modules\Accounts\Support\PortalAppUrl::join($base, '/dashboard/comments/'.$postId);
     }
 
     private function buildOfficialsPostUrl(int $postId): string
@@ -524,14 +526,13 @@ class FederationCommunityFeedBroadcastService
         ]) ?? '';
         $path = '/community-feed/comments/'.$postId;
 
-        if ($base === '' || \App\Modules\Accounts\Support\PortalAppUrl::isLoopback($base)) {
-            Log::warning('SK_OFFICIALS_APP_URL is empty or localhost; Federation→Officials email links may open the wrong app.', [
-                'resolved' => $base,
-            ]);
+        if ($base === '') {
+            Log::warning('SK_OFFICIALS_APP_URL is empty or localhost; Federation→Officials email links may open the wrong app.');
 
-            return $base !== ''
-                ? \App\Modules\Accounts\Support\PortalAppUrl::join($base, $path)
-                : $path;
+            return \App\Modules\Accounts\Support\PortalAppUrl::join(
+                \App\Modules\Accounts\Support\PortalAppUrl::selfApp(),
+                $path
+            );
         }
 
         return \App\Modules\Accounts\Support\PortalAppUrl::join($base, $path);

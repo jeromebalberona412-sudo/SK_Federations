@@ -4,6 +4,7 @@
 let currentFilter = 'all';
 let feedSearch = '';
 let editingPostId = null;
+let composeSubmitInFlight = false;
 let pendingFiles = [];
 let existingImages = [];
 let removedImageIds = [];
@@ -2050,7 +2051,17 @@ function setComposeLinkError(message) {
     if (el) el.textContent = message || '';
 }
 
+function resolveEditingPostId() {
+    var fromState = editingPostId != null && editingPostId !== '' ? Number(editingPostId) : 0;
+    if (fromState > 0) return fromState;
+    var hidden = document.getElementById('edit-post-id');
+    var fromHidden = hidden && hidden.value !== '' ? Number(hidden.value) : 0;
+    return fromHidden > 0 ? fromHidden : null;
+}
+
 function submitPost() {
+    if (composeSubmitInFlight) return;
+
     var bodyEl = document.getElementById('compose-content');
     var media = window.SkCfMedia;
     var body = media ? media.normalizePostBody(bodyEl ? bodyEl.value : '') : String(bodyEl && bodyEl.value || '').trim();
@@ -2114,6 +2125,7 @@ function submitPost() {
     var linkKind = linkPayload.linkKind || '';
     var readyVideos = media ? media.readyUploadedVideos() : [];
     var uploadingIds = media ? media.getPendingUploadIds() : [];
+    var editId = resolveEditingPostId();
 
     var fd = new FormData();
     fd.append('type', type);
@@ -2126,9 +2138,9 @@ function submitPost() {
     removedImageIds.forEach(function (imageId) { fd.append('removed_image_ids[]', imageId); });
     if (media) {
         media.appendUploadedVideosToFormData(fd, readyVideos);
-        if (editingPostId !== null) media.appendRemovedVideoIds(fd);
+        if (editId !== null) media.appendRemovedVideoIds(fd);
     }
-    if (editingPostId === null) {
+    if (editId === null) {
         var emailNotify = document.getElementById('compose-email-notify');
         fd.append('email_notifications_enabled', emailNotify && emailNotify.checked ? '1' : '0');
     }
@@ -2142,21 +2154,29 @@ function submitPost() {
     });
     fd.append('visibility', targets.indexOf('public') >= 0 ? 'public' : 'federation');
 
-    savePostForm(fd, uploadingIds);
+    savePostForm(fd, uploadingIds, editId);
 }
 
-function savePostForm(formData, uploadingIds) {
-    var isEdit = editingPostId !== null;
+function savePostForm(formData, uploadingIds, editId) {
+    var isEdit = editId !== null && Number(editId) > 0;
     uploadingIds = uploadingIds || [];
-    var url = isEdit ? '/api/community-feed/' + editingPostId : '/api/community-feed';
-    var method = isEdit ? 'POST' : 'POST';
-    if (isEdit) formData.append('_method', 'PUT');
+    var url = isEdit ? '/api/community-feed/' + editId : '/api/community-feed';
+    var headers = {
+        'X-CSRF-TOKEN': csrfToken(),
+        'Accept': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest',
+    };
+    if (isEdit) {
+        formData.append('_method', 'PUT');
+        headers['X-HTTP-Method-Override'] = 'PUT';
+    }
 
+    composeSubmitInFlight = true;
     setComposePostLoading(true, isEdit ? 'Saving...' : 'Posting...');
 
     fetch(url, {
-        method: method,
-        headers: { 'X-CSRF-TOKEN': csrfToken(), 'Accept': 'application/json' },
+        method: 'POST',
+        headers: headers,
         credentials: 'same-origin',
         body: formData,
     })
@@ -2179,6 +2199,9 @@ function savePostForm(formData, uploadingIds) {
         })
         .then(function(saved) {
             if (!saved || !saved.id) throw new Error('Invalid response from server.');
+            if (isEdit && Number(saved.id) !== Number(editId)) {
+                throw new Error('Edit did not update the original post. Please try again.');
+            }
             if (window.SkLocalCache) window.SkLocalCache.clearByPrefix('sk_fed_community_feed_v1_');
             closeComposeModal();
             if (uploadingIds.length && window.SkCfMedia) {
@@ -2189,7 +2212,11 @@ function savePostForm(formData, uploadingIds) {
             } else {
                 notifyFeed(isEdit ? 'Post updated successfully.' : (saved.message || 'Post created successfully.'));
             }
-            renderPosts(true);
+            if (isEdit) {
+                replacePostCard(saved);
+            } else {
+                renderPosts(true);
+            }
         })
         .catch(function(err) {
             notifyFeed(
@@ -2200,6 +2227,7 @@ function savePostForm(formData, uploadingIds) {
             );
         })
         .finally(function () {
+            composeSubmitInFlight = false;
             setComposePostLoading(false);
         });
 }
