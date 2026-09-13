@@ -36,7 +36,9 @@
      data-default-term-start="{{ $defaultTermStart ?? $skDobReference }}"
      data-default-term-end="{{ $defaultTermEnd ?? '' }}"
      @if($isOfficials)
-     data-accounts-data-url="{{ $accountsDataUrl ?? url('/accounts/officials/data') }}"
+     data-accounts-data-url="{{ $accountsDataUrl ?? '/accounts/officials/data' }}"
+     data-accounts-cache-version="{{ (int) ($accountsCacheVersion ?? 1) }}"
+     data-tenant-id="{{ (int) ($tenantId ?? 0) }}"
      data-president-term-locked="{{ !empty($termLockedToPresident) ? '1' : '0' }}"
      @endif
      @unless($isOfficials)

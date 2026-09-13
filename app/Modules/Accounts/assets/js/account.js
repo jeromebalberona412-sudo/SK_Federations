@@ -799,10 +799,18 @@ function replaceOfficialAccountRow(account) {
     return true;
 }
 
-// v3: network-first — stale v1/v2 localStorage rows caused UI ≠ users table.
-const ACCOUNTS_OFFICIALS_CACHE_PREFIX = 'sk_fed_accounts_officials_v3';
+// v4: relative URL + offline-only localStorage fallback (Hostinger stale UI fix).
+const ACCOUNTS_OFFICIALS_CACHE_PREFIX = 'sk_fed_accounts_officials_v4';
 let officialsTableLoadInFlight = null;
 let officialsTableLoadGeneration = 0;
+let officialsLocalCacheClearedOnce = false;
+
+function officialsAccountsCacheKey() {
+    const main = document.getElementById('mainContent');
+    const tenantId = String(main?.dataset?.tenantId || '0');
+    const version = String(main?.dataset?.accountsCacheVersion || '1');
+    return `${ACCOUNTS_OFFICIALS_CACHE_PREFIX}_${tenantId}_v${version}`;
+}
 
 function clearOfficialsAccountsLocalCache() {
     window.SkLocalCache?.clearByPrefix?.('sk_fed_accounts_officials_');
@@ -818,7 +826,8 @@ function removeOfficialAccountsFromLocalCache(accountIds) {
         return;
     }
 
-    const cached = window.SkLocalCache?.get?.(ACCOUNTS_OFFICIALS_CACHE_PREFIX);
+    const cacheKey = officialsAccountsCacheKey();
+    const cached = window.SkLocalCache?.get?.(cacheKey);
     const rows = cached?.payload?.data;
     if (!Array.isArray(rows)) {
         clearOfficialsAccountsLocalCache();
@@ -826,9 +835,10 @@ function removeOfficialAccountsFromLocalCache(accountIds) {
     }
 
     const idSet = new Set(ids);
-    window.SkLocalCache?.set?.(ACCOUNTS_OFFICIALS_CACHE_PREFIX, {
+    window.SkLocalCache?.set?.(cacheKey, {
         success: true,
         data: rows.filter((account) => !idSet.has(Number(account?.id))),
+        meta: cached?.payload?.meta || {},
     });
 }
 
@@ -921,15 +931,51 @@ function paintOfficialsAccountsTable(accounts) {
     refreshOpenSkOfficialPositionBarangayAvailability();
 }
 
+function resolveOfficialsAccountsDataUrl(rawUrl) {
+    const fallback = '/accounts/officials/data';
+    let path = String(rawUrl || fallback).trim() || fallback;
+
+    // If an absolute localhost/127 URL leaked from APP_URL, force same-origin path.
+    try {
+        if (/^https?:\/\//i.test(path)) {
+            const parsed = new URL(path);
+            const host = parsed.hostname.toLowerCase();
+            const isLoopback = host === 'localhost' || host === '127.0.0.1' || host === '[::1]';
+            if (isLoopback && window.location.hostname !== host) {
+                path = parsed.pathname + parsed.search;
+            } else if (parsed.origin === window.location.origin) {
+                path = parsed.pathname + parsed.search;
+            }
+        }
+    } catch (_) {
+        path = fallback;
+    }
+
+    if (!path.startsWith('/')) {
+        path = fallback;
+    }
+
+    const main = document.getElementById('mainContent');
+    const version = encodeURIComponent(String(main?.dataset?.accountsCacheVersion || '1'));
+    const separator = path.includes('?') ? '&' : '?';
+    return `${path}${separator}_cv=${version}&_ts=${Date.now()}`;
+}
+
 async function loadOfficialsAccountsTable({ force = false } = {}) {
     const main = document.getElementById('mainContent');
     if (!main || main.dataset.accountType !== 'sk_officials') {
         return;
     }
 
-    const dataUrl = main.dataset.accountsDataUrl;
+    const dataUrl = resolveOfficialsAccountsDataUrl(main.dataset.accountsDataUrl);
     if (!dataUrl) {
         return;
+    }
+
+    if (!officialsLocalCacheClearedOnce) {
+        // Drop v1–v3 keys that previously painted before the live response.
+        clearOfficialsAccountsLocalCache();
+        officialsLocalCacheClearedOnce = true;
     }
 
     if (force) {
@@ -943,7 +989,7 @@ async function loadOfficialsAccountsTable({ force = false } = {}) {
     }
 
     const loadGeneration = officialsTableLoadGeneration;
-    const cacheKey = ACCOUNTS_OFFICIALS_CACHE_PREFIX;
+    const cacheKey = officialsAccountsCacheKey();
     // Offline fallback only — never paint localStorage before the live DB response.
     const cached = window.SkLocalCache?.get?.(cacheKey);
     const paint = (payload) => {
@@ -973,14 +1019,23 @@ async function loadOfficialsAccountsTable({ force = false } = {}) {
             if (!response.ok || !payload?.success) {
                 throw new Error(payload?.message || 'Failed to load SK Officials accounts.');
             }
-            window.SkLocalCache?.set?.(cacheKey, payload);
+            if (payload?.meta?.cache_version != null) {
+                main.dataset.accountsCacheVersion = String(payload.meta.cache_version);
+            }
+            window.SkLocalCache?.set?.(officialsAccountsCacheKey(), payload);
             paint(payload);
         } catch (error) {
             if (loadGeneration !== officialsTableLoadGeneration) {
                 return;
             }
-            if (Array.isArray(cached?.payload?.data)) {
+            // Only reuse local cache when the browser is offline. Online failures must
+            // not silently re-show obsolete production rows.
+            const offline = typeof navigator !== 'undefined' && navigator.onLine === false;
+            if (offline && Array.isArray(cached?.payload?.data)) {
                 paint(cached.payload);
+                if (typeof showAccountToast === 'function') {
+                    showAccountToast('Showing offline cache. Reconnect to refresh live accounts.', 'error');
+                }
                 return;
             }
             renderOfficialsErrorState(error?.message || 'Unable to load SK Officials accounts.');
@@ -4896,9 +4951,9 @@ document.addEventListener('DOMContentLoaded', function () {
         applyAccountsTableFilters();
     };
 
-    // SK Officials table: fetch DB rows via AJAX (no loading spinner).
+    // SK Officials table: always force a live DB fetch on page open (no stale paint).
     if (typeof loadOfficialsAccountsTable === 'function') {
-        loadOfficialsAccountsTable();
+        loadOfficialsAccountsTable({ force: true });
     }
 
     // ── Table sorting (name / email / barangay) ─────────────────────────

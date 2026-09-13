@@ -32,6 +32,11 @@ class SkFedPageCache
         Cache::forever($versionKey, ((int) Cache::get($versionKey, 1)) + 1);
     }
 
+    public function version(string $bucket): int
+    {
+        return (int) Cache::get($this->versionKey($bucket), 1);
+    }
+
     /**
      * @param  list<string>  $buckets
      */

@@ -96,7 +96,12 @@ it('does not list soft-deleted officials in the accounts officials data endpoint
         ->getJson(route('accounts.officials.data'));
 
     $response->assertOk()
-        ->assertJsonPath('success', true);
+        ->assertJsonPath('success', true)
+        ->assertJsonPath('meta.tenant_id', $tenantId);
+
+    expect($response->json('meta.count'))->toBe(count($response->json('data')));
+    expect($response->json('meta.cache_version'))->toBeInt();
+    expect(strtolower((string) $response->headers->get('Cache-Control')))->toContain('no-store');
 
     $ids = collect($response->json('data'))->pluck('id')->map(fn ($id) => (int) $id)->all();
 

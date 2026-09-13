@@ -109,9 +109,12 @@ class AdminAccountController extends Controller
         $leadershipTermDefaults = $presidentTerms ?? SkOfficialTermDates::leadershipDefaults($tenantId);
         $defaultTermStart = $leadershipTermDefaults['term_start'];
         $defaultTermEnd = $leadershipTermDefaults['term_end'];
+        // Relative path only — absolute route() can point at localhost APP_URL on Hostinger
+        // and the browser then falls back to stale localStorage rows.
         $accountsDataUrl = Route::has('accounts.officials.data')
-            ? route('accounts.officials.data')
-            : url('/accounts/officials/data');
+            ? route('accounts.officials.data', absolute: false)
+            : '/accounts/officials/data';
+        $accountsCacheVersion = app(SkFedPageCache::class)->version('accounts.officials');
 
         return view('accounts::manage_account', compact(
             'accounts',
@@ -121,7 +124,9 @@ class AdminAccountController extends Controller
             'defaultTermStart',
             'defaultTermEnd',
             'termLockedToPresident',
-            'accountsDataUrl'
+            'accountsDataUrl',
+            'accountsCacheVersion',
+            'tenantId'
         ));
     }
 
@@ -130,6 +135,7 @@ class AdminAccountController extends Controller
         $this->authorize('viewAny', User::class);
 
         $tenantId = $this->resolveTenantId($request->user());
+        $cacheVersion = app(SkFedPageCache::class)->version('accounts.officials');
 
         try {
             $accounts = $this->queryOfficialAccounts($tenantId);
@@ -147,7 +153,13 @@ class AdminAccountController extends Controller
             return response()->json([
                 'success' => true,
                 'data' => $data,
-            ])->header('Cache-Control', 'private, no-store');
+                'meta' => [
+                    'tenant_id' => $tenantId,
+                    'count' => count($data),
+                    'cache_version' => $cacheVersion,
+                    'generated_at' => now()->toIso8601String(),
+                ],
+            ])->withHeaders($this->accountsDataNoStoreHeaders());
         } catch (Throwable $e) {
             report($e);
 
@@ -155,8 +167,27 @@ class AdminAccountController extends Controller
                 'success' => false,
                 'message' => 'Unable to load SK Officials accounts. Please refresh and try again.',
                 'data' => [],
-            ], 500)->header('Cache-Control', 'private, no-store');
+                'meta' => [
+                    'tenant_id' => $tenantId,
+                    'count' => 0,
+                    'cache_version' => $cacheVersion,
+                    'generated_at' => now()->toIso8601String(),
+                ],
+            ], 500)->withHeaders($this->accountsDataNoStoreHeaders());
         }
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function accountsDataNoStoreHeaders(): array
+    {
+        return [
+            'Cache-Control' => 'private, no-store, no-cache, must-revalidate, max-age=0',
+            'Pragma' => 'no-cache',
+            'Expires' => '0',
+            'Vary' => 'Cookie, Authorization',
+        ];
     }
 
     public function create(): View
