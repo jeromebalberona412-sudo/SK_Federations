@@ -3,6 +3,10 @@
 namespace App\Modules\Authentication\Services;
 
 use App\Modules\Authentication\Models\FeatureFlag;
+use Illuminate\Database\QueryException;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
+use Throwable;
 
 class FeatureFlagService
 {
@@ -16,6 +20,8 @@ class FeatureFlagService
      */
     private array $cache = [];
 
+    private ?bool $tableAvailable = null;
+
     public function enabled(string $key): bool
     {
         if (array_key_exists($key, $this->cache)) {
@@ -24,9 +30,19 @@ class FeatureFlagService
 
         $default = (bool) data_get(config('sk_fed_auth.feature_flags'), $key, false);
 
-        $flag = FeatureFlag::query()->where('flag_key', $key)->first();
+        if (! $this->tableExists()) {
+            $this->cache[$key] = $default;
 
-        $resolved = $flag === null ? $default : (bool) $flag->enabled;
+            return $default;
+        }
+
+        try {
+            $flag = FeatureFlag::query()->where('flag_key', $key)->first();
+            $resolved = $flag === null ? $default : (bool) $flag->enabled;
+        } catch (QueryException $e) {
+            $this->rememberMissingTable($e);
+            $resolved = $default;
+        }
 
         $this->cache[$key] = $resolved;
 
@@ -59,11 +75,53 @@ class FeatureFlagService
             }
         }
 
-        // Single query for all flag rows — override defaults with DB values
-        $rows = FeatureFlag::query()->whereIn('flag_key', $authKeys)->get(['flag_key', 'enabled']);
+        if (! $this->tableExists()) {
+            return;
+        }
 
-        foreach ($rows as $row) {
-            $this->cache[(string) $row->flag_key] = (bool) $row->enabled;
+        try {
+            // Single query for all flag rows — override defaults with DB values
+            $rows = FeatureFlag::query()->whereIn('flag_key', $authKeys)->get(['flag_key', 'enabled']);
+
+            foreach ($rows as $row) {
+                $this->cache[(string) $row->flag_key] = (bool) $row->enabled;
+            }
+        } catch (QueryException $e) {
+            $this->rememberMissingTable($e);
+        }
+    }
+
+    private function tableExists(): bool
+    {
+        if ($this->tableAvailable !== null) {
+            return $this->tableAvailable;
+        }
+
+        try {
+            $this->tableAvailable = Schema::hasTable('sk_fed_feature_flags');
+        } catch (Throwable $e) {
+            report($e);
+            $this->tableAvailable = false;
+        }
+
+        if ($this->tableAvailable === false) {
+            Log::warning('sk_fed_feature_flags table is missing; using config feature flag defaults.');
+        }
+
+        return $this->tableAvailable;
+    }
+
+    private function rememberMissingTable(QueryException $e): void
+    {
+        $message = $e->getMessage();
+
+        if (str_contains($message, 'sk_fed_feature_flags') || str_contains($message, '42P01')) {
+            $this->tableAvailable = false;
+            Log::warning('sk_fed_feature_flags query failed; using config feature flag defaults.', [
+                'error' => $message,
+            ]);
+        } else {
+            throw $e;
         }
     }
 }
