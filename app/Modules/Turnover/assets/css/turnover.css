@@ -1,9 +1,16 @@
 /* Federation Turnover — Global Modal Overlay */
 
 body.turnover-portal-locked .sidebar,
-body.turnover-portal-locked .main-content,
 body.turnover-portal-locked .top-header,
 body.turnover-portal-locked .sidebar-overlay {
+    display: none !important;
+    pointer-events: none !important;
+}
+
+body.turnover-portal-locked .main-content {
+    margin-left: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
     pointer-events: none;
     user-select: none;
     filter: grayscale(0.15);
@@ -12,6 +19,35 @@ body.turnover-portal-locked .sidebar-overlay {
 
 body.turnover-portal-locked #federationTurnoverOverlay {
     pointer-events: auto;
+}
+
+.turnover-lock-banner {
+    display: flex;
+    gap: 14px;
+    align-items: flex-start;
+    margin: 0 0 18px;
+    padding: 14px 16px;
+    border-radius: 10px;
+    border: 1px solid #fecaca;
+    background: #fef2f2;
+    color: #7f1d1d;
+}
+
+.turnover-lock-banner i {
+    margin-top: 2px;
+    color: #dc2626;
+}
+
+.turnover-lock-banner strong {
+    display: block;
+    margin-bottom: 4px;
+    font-size: 15px;
+}
+
+.turnover-lock-banner p {
+    margin: 0;
+    font-size: 13px;
+    line-height: 1.45;
 }
 
 .to-overlay {
@@ -614,6 +650,21 @@ body.turnover-portal-locked #federationTurnoverOverlay {
 
 .to-progress {
     margin-bottom: 18px;
+}
+
+.to-mandatory-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    align-items: center;
+    justify-content: center;
+    margin-top: 16px;
+}
+
+.to-mandatory-actions--footer {
+    margin-top: 20px;
+    padding-top: 12px;
+    border-top: 1px solid rgba(15, 23, 42, 0.08);
 }
 
 .to-complete-section {

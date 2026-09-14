@@ -1037,8 +1037,41 @@ function openCommentPreview(nextPost, { skipUrl } = {}) {
     renderPost();
     renderComments();
     document.getElementById('cpScroll')?.scrollTo({ top: 0 });
-    if (!skipUrl) syncCommentsUrl(nextPost.id);
+    if (!skipUrl) syncCommentsUrl(post.id);
     startCommentPolling();
+    applyNotifDeepLinkAfterOpen();
+}
+
+function applyNotifDeepLinkAfterOpen() {
+    let open = '';
+    try {
+        open = String(new URLSearchParams(window.location.search).get('open') || '').toLowerCase();
+    } catch (_) {
+        open = '';
+    }
+    if (!open || !post?.id) return;
+
+    // Strip query so refresh/back stays on the clean comments URL.
+    try {
+        const clean = commentsPath(post.id);
+        if (pathOf(window.location.href) + window.location.search !== pathOf(clean)) {
+            history.replaceState({ commentPreview: post.id }, '', clean);
+        }
+    } catch (_) { /* ignore */ }
+
+    if (open === 'reactions') {
+        window.setTimeout(() => {
+            openViewer('post');
+        }, 180);
+        return;
+    }
+
+    if (open === 'comments') {
+        window.setTimeout(() => {
+            document.getElementById('cpCommentInput')?.focus({ preventScroll: true });
+            document.getElementById('cpScroll')?.scrollTo({ top: 0, behavior: 'smooth' });
+        }, 180);
+    }
 }
 
 function closeCommentPreview({ skipUrl } = {}) {

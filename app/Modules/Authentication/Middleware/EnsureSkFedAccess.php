@@ -4,10 +4,14 @@ namespace App\Modules\Authentication\Middleware;
 
 use App\Modules\Authentication\Services\TenantContextService;
 use App\Modules\Shared\Models\User;
+use App\Modules\Turnover\Services\FederationTermDetectionService;
 use Closure;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Symfony\Component\HttpFoundation\Response;
 
 class EnsureSkFedAccess
@@ -43,6 +47,17 @@ class EnsureSkFedAccess
             ]);
         }
 
+        if ($this->mustLogoutEndedTermOfficer($user)) {
+            Auth::guard('web')->logout();
+            $request->session()->invalidate();
+            $request->session()->regenerateToken();
+
+            return redirect()->route('login')->with('access_denied', [
+                'title' => 'Term Ended',
+                'message' => 'Your SK Official term has ended. This account can no longer access the portal. Your completed term was moved to the historical archive (SK Officials Records / SK Federation Records).',
+            ]);
+        }
+
         $tenantId = $this->tenantContextService->tenantId();
         $tenantMismatch = $tenantId !== null
             && (int) ($user->tenant_id ?? 0) !== $tenantId
@@ -63,5 +78,50 @@ class EnsureSkFedAccess
         }
 
         return $next($request);
+    }
+
+    private function mustLogoutEndedTermOfficer(User $user): bool
+    {
+        if ($user->isSkFed()) {
+            return false;
+        }
+
+        try {
+            if (app(FederationTermDetectionService::class)->canLoginDespiteEndedTerm($user)) {
+                return false;
+            }
+        } catch (\Throwable $e) {
+            report($e);
+        }
+
+        return $this->hasEndedTerm($user);
+    }
+
+    private function hasEndedTerm(User $user): bool
+    {
+        if (! Schema::hasTable('official_terms') || ! Schema::hasTable('official_profiles')) {
+            return false;
+        }
+
+        $termEnd = DB::table('official_terms')
+            ->join('official_profiles', 'official_profiles.id', '=', 'official_terms.official_profile_id')
+            ->where('official_profiles.user_id', $user->getKey())
+            ->where('official_terms.status', 'ACTIVE')
+            ->orderByDesc('official_terms.term_end')
+            ->value('official_terms.term_end');
+
+        if ($termEnd === null) {
+            $termEnd = DB::table('official_terms')
+                ->join('official_profiles', 'official_profiles.id', '=', 'official_terms.official_profile_id')
+                ->where('official_profiles.user_id', $user->getKey())
+                ->orderByDesc('official_terms.term_end')
+                ->value('official_terms.term_end');
+        }
+
+        if ($termEnd === null) {
+            return false;
+        }
+
+        return Carbon::parse((string) $termEnd)->startOfDay()->lt(now()->startOfDay());
     }
 }

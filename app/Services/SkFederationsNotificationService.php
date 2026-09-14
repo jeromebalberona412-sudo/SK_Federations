@@ -121,6 +121,65 @@ class SkFederationsNotificationService
         ]);
     }
 
+    /**
+     * One unread Community Feed notification per post per user.
+     * Later reactions/comments/replies on the same post replace the existing
+     * unread row (and remove any duplicate unread rows for that post).
+     */
+    public function notifyCommunityFeedPostActivity(
+        User $recipient,
+        int $postId,
+        string $title,
+        string $body,
+        ?string $open = null,
+    ): SkFederationsNotification {
+        $actionUrl = $this->communityFeedPostActionUrl($postId, $open);
+        $postId = max(0, $postId);
+
+        $matching = SkFederationsNotification::query()
+            ->where('user_id', $recipient->id)
+            ->where('category', self::CATEGORY_COMMUNITY_FEED)
+            ->whereNull('read_at')
+            ->where(function (Builder $query) use ($postId): void {
+                $query->where('action_url', $this->communityFeedPostActionUrl($postId))
+                    ->orWhere('action_url', 'like', '%/community-feed/comments/'.$postId.'%');
+            })
+            ->orderByDesc('id')
+            ->get();
+
+        /** @var SkFederationsNotification|null $existing */
+        $existing = $matching->first();
+
+        if ($matching->count() > 1) {
+            $duplicateIds = $matching->slice(1)->pluck('id')->all();
+            if ($duplicateIds !== []) {
+                SkFederationsNotification::query()
+                    ->whereIn('id', $duplicateIds)
+                    ->delete();
+            }
+        }
+
+        if ($existing) {
+            $existing->forceFill([
+                'title' => $title,
+                'body' => $body,
+                'action_url' => $actionUrl,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ])->save();
+
+            return $existing->fresh() ?? $existing;
+        }
+
+        return $this->notifyUser(
+            $recipient,
+            self::CATEGORY_COMMUNITY_FEED,
+            $title,
+            $body,
+            $actionUrl,
+        );
+    }
+
     public function notifyAllFedUsers(
         string $category,
         string $title,
@@ -153,9 +212,37 @@ class SkFederationsNotificationService
         }
     }
 
-    public function communityFeedPostActionUrl(int $postId): string
+    /**
+     * @param  list<int>  $excludeUserIds
+     */
+    public function notifyFederationPortalUsersCommunityFeedActivity(
+        array $excludeUserIds,
+        int $postId,
+        string $title,
+        string $body,
+        ?string $open = null,
+    ): void {
+        $exclude = array_fill_keys(array_map('intval', $excludeUserIds), true);
+
+        foreach ($this->federationPortalUsers() as $user) {
+            if (isset($exclude[(int) $user->id])) {
+                continue;
+            }
+
+            $this->notifyCommunityFeedPostActivity($user, $postId, $title, $body, $open);
+        }
+    }
+
+    public function communityFeedPostActionUrl(int $postId, ?string $open = null): string
     {
-        return '/community-feed/comments/'.max(0, $postId);
+        $url = '/community-feed/comments/'.max(0, $postId);
+        $open = strtolower(trim((string) $open));
+
+        if (in_array($open, ['reactions', 'comments'], true)) {
+            $url .= '?open='.$open;
+        }
+
+        return $url;
     }
 
     public function notifyCommunityFeedLike(int $ownerUserId, string $reactorName, string $postLabel, int $postId): void
@@ -165,12 +252,12 @@ class SkFederationsNotificationService
             return;
         }
 
-        $this->notifyUser(
+        $this->notifyCommunityFeedPostActivity(
             $owner,
-            self::CATEGORY_COMMUNITY_FEED,
+            $postId,
             "{$reactorName} liked your post",
             $postLabel,
-            $this->communityFeedPostActionUrl($postId),
+            'reactions',
         );
     }
 
@@ -180,6 +267,7 @@ class SkFederationsNotificationService
         string $postLabel,
         int $postId,
         ?string $commentBody = null,
+        bool $isReply = false,
     ): void {
         $owner = User::query()->find($ownerUserId);
         if (! $owner) {
@@ -190,12 +278,16 @@ class SkFederationsNotificationService
             ? Str::limit(trim((string) $commentBody), 160)
             : $postLabel;
 
-        $this->notifyUser(
+        $title = $isReply
+            ? "{$commenterName} replied on your post"
+            : "{$commenterName} commented on your post";
+
+        $this->notifyCommunityFeedPostActivity(
             $owner,
-            self::CATEGORY_COMMUNITY_FEED,
-            "{$commenterName} commented on your post",
+            $postId,
+            $title,
             $preview,
-            $this->communityFeedPostActionUrl($postId),
+            'comments',
         );
     }
 

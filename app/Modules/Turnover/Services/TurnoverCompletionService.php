@@ -6,6 +6,8 @@ use App\Modules\Accounts\Models\OfficialTerm;
 use App\Modules\Accounts\Services\ChairpersonFederationSyncService;
 use App\Modules\AuditLog\Contracts\AuditLogInterface;
 use App\Modules\Shared\Models\User;
+use App\Modules\SK_Federation_Records\Services\SkFederationRecordsService;
+use App\Modules\SK_Officials_Records\Services\SkOfficialsRecordsService;
 use App\Modules\Turnover\Models\FederationTurnover;
 use App\Modules\Turnover\Models\FederationTurnoverRegistration;
 use App\Modules\Turnover\Notifications\TurnoverCompletedNotification;
@@ -23,8 +25,7 @@ class TurnoverCompletionService
         private readonly ChairpersonFederationSyncService $chairpersonFederationSyncService,
         private readonly AuditLogInterface $auditLog,
         private readonly SkFederationsNotificationService $notificationService,
-    ) {
-    }
+    ) {}
 
     public function completeTurnover(FederationTurnover $turnover, User $admin, Request $request): FederationTurnover
     {
@@ -87,6 +88,25 @@ class TurnoverCompletionService
 
         $user->loadMissing('officialProfile.terms');
 
+        $profile = $user->officialProfile;
+        $activeTerms = $profile
+            ? $profile->terms()->where('status', OfficialTerm::STATUS_ACTIVE)->get()
+            : collect();
+
+        foreach ($activeTerms as $term) {
+            try {
+                app(SkOfficialsRecordsService::class)->archiveCompletedTerm($term, null);
+            } catch (\Throwable $e) {
+                report($e);
+            }
+
+            try {
+                app(SkFederationRecordsService::class)->archiveCompletedTerm($term, null);
+            } catch (\Throwable $e) {
+                report($e);
+            }
+        }
+
         $user->forceFill([
             'status' => User::STATUS_INACTIVE,
             'account_status' => 'archived',
@@ -94,8 +114,6 @@ class TurnoverCompletionService
             'has_federation_access' => false,
             'active_session_id' => null,
         ])->save();
-
-        $profile = $user->officialProfile;
 
         if ($profile) {
             $profile->forceFill(['federation_position' => null])->save();

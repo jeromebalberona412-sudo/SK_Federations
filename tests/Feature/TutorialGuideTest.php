@@ -3,6 +3,8 @@
 use App\Modules\Shared\Models\User;
 use App\Modules\Tutorial_Guide\Models\SkFederationTutorial;
 use App\Modules\Tutorial_Guide\Services\TutorialGuideService;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Route;
 use Illuminate\Validation\ValidationException;
 
 test('tutorial model constants and status helpers work correctly', function () {
@@ -50,7 +52,7 @@ test('tutorial model constants and status helpers work correctly', function () {
 });
 
 test('tutorial service formats payload with mandatory skip flags', function () {
-    $service = new TutorialGuideService();
+    $service = new TutorialGuideService;
 
     $tutorial = new SkFederationTutorial([
         'tutorial_key' => 'sk_federations_main_tutorial',
@@ -93,17 +95,17 @@ test('tutorial model casts attributes properly', function () {
     ]);
 
     expect($tutorial->current_step)->toBe(4)
-        ->and($tutorial->started_at)->toBeInstanceOf(\Illuminate\Support\Carbon::class)
-        ->and($tutorial->completed_at)->toBeInstanceOf(\Illuminate\Support\Carbon::class);
+        ->and($tutorial->started_at)->toBeInstanceOf(Carbon::class)
+        ->and($tutorial->completed_at)->toBeInstanceOf(Carbon::class);
 });
 
 test('tutorial routes are properly registered', function () {
-    expect(\Illuminate\Support\Facades\Route::has('api.tutorial-guide.status'))->toBeTrue()
-        ->and(\Illuminate\Support\Facades\Route::has('api.tutorial-guide.start'))->toBeTrue()
-        ->and(\Illuminate\Support\Facades\Route::has('api.tutorial-guide.progress'))->toBeTrue()
-        ->and(\Illuminate\Support\Facades\Route::has('api.tutorial-guide.complete'))->toBeTrue()
-        ->and(\Illuminate\Support\Facades\Route::has('api.tutorial-guide.skip'))->toBeTrue()
-        ->and(\Illuminate\Support\Facades\Route::has('api.tutorial-guide.reset'))->toBeTrue();
+    expect(Route::has('api.tutorial-guide.status'))->toBeTrue()
+        ->and(Route::has('api.tutorial-guide.start'))->toBeTrue()
+        ->and(Route::has('api.tutorial-guide.progress'))->toBeTrue()
+        ->and(Route::has('api.tutorial-guide.complete'))->toBeTrue()
+        ->and(Route::has('api.tutorial-guide.skip'))->toBeTrue()
+        ->and(Route::has('api.tutorial-guide.reset'))->toBeTrue();
 });
 
 test('sidebar and header have data-tour attributes and question-mark tutorial button', function () {
@@ -129,13 +131,25 @@ test('sidebar and header have data-tour attributes and question-mark tutorial bu
         ->and($headerBlade)->toContain('data-tour="account-menu"')
         ->and($headerBlade)->toContain('tutorial-header-btn')
         ->and($headerBlade)->toContain('fa-question-circle')
-        ->and($headerBlade)->toContain('window.startSkFedTutorial');
+        ->and($headerBlade)->toContain('window.startSkFedTutorial')
+        ->and($headerBlade)->not->toContain('nav-tutorial-guide-btn')
+        ->and($headerBlade)->not->toContain('Tutorial Guide</button>');
+
+    $tutorialBtnPos = strpos($headerBlade, 'id="tutorialGuideBtn"');
+    $messagesBtnPos = strpos($headerBlade, 'id="commsMsgBtn"');
+    expect($tutorialBtnPos)->not->toBeFalse()
+        ->and($messagesBtnPos)->not->toBeFalse()
+        ->and($tutorialBtnPos)->toBeLessThan($messagesBtnPos);
+
+    $jsContent = file_get_contents(base_path('app/Modules/Tutorial_Guide/assets/js/tutorial-guide.js'));
+    expect($jsContent)->toContain('Open the modal immediately')
+        ->and($jsContent)->toContain('requestAnimationFrame');
 
     expect($appBlade)->toContain('tutorial_guide::tutorial');
 });
 
 test('skip is rejected until mandatory tutorial is finished once', function () {
-    $service = new TutorialGuideService();
+    $service = new TutorialGuideService;
 
     $user = User::factory()->create([
         'role' => User::ROLE_SK_FED,

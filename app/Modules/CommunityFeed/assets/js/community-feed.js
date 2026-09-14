@@ -1940,14 +1940,7 @@ function confirmArchivePost() {
             var el = document.querySelector('[data-post-id="' + id + '"]');
             if (el) el.remove();
             closeArchiveModal();
-            var dest = window.CommunityFeedConfig?.deletedPostsUrl || '/archived/deleted-posts';
-            try {
-                sessionStorage.setItem('sk_cf_toast', JSON.stringify({
-                    message: 'Post moved to Deleted Posts.',
-                    type: 'success',
-                }));
-            } catch (_) { /* ignore */ }
-            window.location.href = dest;
+            notifyFeed('Post moved to Deleted Posts.', 'success');
         })
         .catch(function () {
             notifyFeed('Unable to delete the post. Please try again.', 'error');

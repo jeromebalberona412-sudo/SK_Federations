@@ -2,10 +2,12 @@
 
 namespace App\Modules\SK_Federation_Records\Controllers;
 
-use App\Modules\SK_Federation_Records\Services\SkFederationRecordsService;
 use App\Modules\Shared\Controllers\Controller;
 use App\Modules\Shared\Models\Tenant;
 use App\Modules\Shared\Models\User;
+use App\Modules\SK_Federation_Records\Services\SkFederationRecordsService;
+use App\Modules\SK_Officials_Records\Services\ArchivedTermRecordsBackfillService;
+use App\Modules\SK_Officials_Records\Services\ExpiredTermProcessorService;
 use App\Services\SkFedPageCache;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -15,31 +17,52 @@ class SkFederationRecordsController extends Controller
 {
     public function __construct(
         private readonly SkFederationRecordsService $skFederationRecordsService,
-    ) {
-    }
+    ) {}
 
-    public function index(): View
+    public function index(Request $request): View
     {
-        return view('SK_Federation_Records::SK_Federation_Records');
+        $tenantId = $this->resolveTenantId($request->user());
+        $this->syncArchiveTables($tenantId, $request->user());
+
+        $payload = $this->skFederationRecordsService->listRecords($tenantId, $request);
+
+        return view('SK_Federation_Records::SK_Federation_Records', [
+            'initialRecords' => $payload['data'] ?? [],
+            'initialFilters' => $payload['filters'] ?? [],
+            'initialStats' => $payload['stats'] ?? ['total' => 0],
+        ]);
     }
 
     public function data(Request $request): JsonResponse
     {
         $tenantId = $this->resolveTenantId($request->user());
-        $pageCache = app(SkFedPageCache::class);
-        $parts = [
-            'tenant' => $tenantId,
-            'search' => (string) $request->query('search', ''),
-            'year' => (string) $request->query('year', ''),
-            'term' => (string) $request->query('term', ''),
-            'position' => (string) $request->query('position', ''),
-        ];
+        $this->syncArchiveTables($tenantId, $request->user());
 
-        return response()->json(
-            $pageCache->remember('archive.sk_federation_records', function () use ($tenantId, $request) {
-                return $this->skFederationRecordsService->listRecords($tenantId, $request);
-            }, $parts)
-        )->header('Cache-Control', 'private, max-age=60');
+        $payload = $this->skFederationRecordsService->listRecords($tenantId, $request);
+
+        return response()->json($payload)->header('Cache-Control', 'private, no-store, max-age=0');
+    }
+
+    private function syncArchiveTables(int $tenantId, User $actor): void
+    {
+        $pageCache = app(SkFedPageCache::class);
+
+        try {
+            $processed = app(ExpiredTermProcessorService::class)
+                ->processForTenant($tenantId, $actor);
+            $backfill = app(ArchivedTermRecordsBackfillService::class)->backfill($tenantId);
+
+            if ($processed > 0 || ($backfill['officials_inserted'] + $backfill['federation_inserted']) > 0) {
+                $pageCache->bumpMany([
+                    'archive.sk_officials_records',
+                    'archive.sk_federation_records',
+                    'accounts.officials',
+                    'accounts.federation',
+                ]);
+            }
+        } catch (\Throwable $e) {
+            report($e);
+        }
     }
 
     public function restore(Request $request, int $record): JsonResponse
@@ -61,10 +84,8 @@ class SkFederationRecordsController extends Controller
 
     private function resolveTenantId(User $user): int
     {
-        if ($user->tenant_id) {
-            return (int) $user->tenant_id;
-        }
-
-        return (int) Tenant::query()->where('code', 'santa_cruz')->value('id');
+        return (int) ($user->tenant_id
+            ?: Tenant::query()->where('code', config('sk_fed_auth.tenant_code'))->value('id')
+            ?: 0);
     }
 }

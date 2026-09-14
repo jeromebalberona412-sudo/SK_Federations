@@ -1,21 +1,5 @@
 // Archived SK Federation Records Module
 
-function onArchiveReady(fn) {
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', fn);
-    } else {
-        fn();
-    }
-}
-
-onArchiveReady(function () {
-    if (!window.ArchiveRowActions || !window.ArchiveFullnameSort) {
-        console.error('Archive helpers are not available.');
-        return;
-    }
-    initArchivedSkFederation();
-});
-
 function formatRecordName(record) {
     return [record.lastName, record.firstName, record.middleName, record.suffix]
         .filter((part) => part && String(part).trim() !== '')
@@ -23,139 +7,119 @@ function formatRecordName(record) {
 }
 
 const ARFED_API = {
-    data: '/manage-archive/sk-federation-records/data',
-    restore: (id) => `/manage-archive/sk-federation-records/${id}/restore`,
+    data: window.__SK_FEDERATION_RECORDS_CONFIG__?.dataUrl || '/manage-archive/sk-federation-records/data',
 };
+
+const ARFED_POSITION_ORDER = [
+    'President',
+    'Vice President',
+    'Secretary',
+    'Treasurer',
+    'PIO',
+    'Sergeant at Arms',
+];
 
 let arfedRecords = [];
 let arfedFiltered = [];
-let arfedIsLoading = false;
+let arfedRequestSeq = 0;
 let arfedCurrentPage = 1;
 let arfedPerPage = 10;
 let arfedSearchQ = '';
-let arfedYearFilter = 'all';
 let arfedTermFilter = 'all';
+let arfedBarangayFilter = 'all';
+let arfedPositionFilter = 'all';
 let arfedNameSortDir = null;
-
-// ── Init ──────────────────────────────────────────────────────────────────────
-const ARFED_POLL_MS = 20000;
+let arfedCatalog = window.__INITIAL_SK_FEDERATION_FILTERS__ || {};
 
 function initArchivedSkFederation() {
-    window.ArchiveRowActions.initGlobalClose();
-    window.ArchiveFullnameSort.init({
-        onSort: (dir) => {
-            arfedNameSortDir = dir;
-            arfedCurrentPage = 1;
-            renderArfedTable();
-        },
-        getCurrentDir: () => arfedNameSortDir,
-    });
     bindArfedSearch();
     bindArfedPagination();
     bindArfedViewModal();
+    populateArfedFilters(arfedCatalog);
+
+    if (Array.isArray(window.__INITIAL_SK_FEDERATION_RECORDS__)) {
+        arfedRecords = window.__INITIAL_SK_FEDERATION_RECORDS__;
+        applyArfedFilters();
+    }
+
+    if (window.ArchiveRowActions?.initGlobalClose) {
+        window.ArchiveRowActions.initGlobalClose();
+    }
+
+    if (window.ArchiveFullnameSort?.init) {
+        window.ArchiveFullnameSort.init({
+            onSort: (dir) => {
+                arfedNameSortDir = dir;
+                arfedCurrentPage = 1;
+                renderArfedTable();
+            },
+            getCurrentDir: () => arfedNameSortDir,
+        });
+    }
+
     loadArfedRecords();
-    startArfedRealtimeRefresh();
-}
-
-function startArfedRealtimeRefresh() {
-    window.setInterval(() => {
-        if (!document.hidden) {
-            loadArfedRecords();
-        }
-    }, ARFED_POLL_MS);
-
-    document.addEventListener('visibilitychange', () => {
-        if (!document.hidden) {
-            loadArfedRecords();
-        }
-    });
 }
 
 async function loadArfedRecords() {
-    if (arfedIsLoading) return;
-    arfedIsLoading = true;
-
-    const params = new URLSearchParams({
-        search: arfedSearchQ,
-        year: arfedYearFilter,
-        term: arfedTermFilter,
-    });
-    const cacheKey = 'sk_fed_sk_federation_records_v1_' + params.toString();
-    const cached = window.SkLocalCache?.get(cacheKey);
-    const paint = (payload) => {
-        arfedRecords = payload.data || [];
-        arfedFiltered = [...arfedRecords];
-        populateArfedFilters(payload.filters || {});
-        const pages = Math.max(1, Math.ceil(arfedFiltered.length / arfedPerPage) || 1);
-        if (arfedCurrentPage > pages) arfedCurrentPage = pages;
-        renderArfedTable();
-    };
-
-    if (cached?.payload) {
-        paint(cached.payload);
-        if (window.SkLocalCache.isFresh(cached, 5 * 60 * 1000)) {
-            arfedIsLoading = false;
-            fetch(`${ARFED_API.data}?${params.toString()}`, { headers: { Accept: 'application/json' } })
-                .then((response) => response.json().then((payload) => ({ ok: response.ok, payload })))
-                .then(({ ok, payload }) => {
-                    if (!ok) return;
-                    window.SkLocalCache?.set(cacheKey, payload);
-                    paint(payload);
-                })
-                .catch(() => {});
-            return;
-        }
-    }
+    const requestId = ++arfedRequestSeq;
 
     try {
-        const response = await fetch(`${ARFED_API.data}?${params.toString()}`, {
+        const response = await fetch(`${ARFED_API.data}?search=&term=all&barangay_id=all&position=all`, {
             headers: { Accept: 'application/json' },
+            credentials: 'same-origin',
+            cache: 'no-store',
         });
         const payload = await response.json();
         if (!response.ok) throw new Error('Failed to load archived records.');
+        if (requestId !== arfedRequestSeq) return;
 
-        window.SkLocalCache?.set(cacheKey, payload);
-        paint(payload);
-    } catch (error) {
-        if (!cached?.payload) {
-            arfedRecords = [];
+        const rows = Array.isArray(payload?.data) ? payload.data : [];
+        arfedRecords = rows;
+        if (payload?.filters) {
+            arfedCatalog = payload.filters;
+            populateArfedFilters(arfedCatalog);
+        }
+        applyArfedFilters();
+    } catch (_error) {
+        if (requestId === arfedRequestSeq && arfedRecords.length === 0) {
             arfedFiltered = [];
             renderArfedTable();
         }
-    } finally {
-        arfedIsLoading = false;
     }
 }
 
+function optionValue(item) {
+    if (item && typeof item === 'object') return String(item.value ?? '');
+    return String(item ?? '');
+}
+
+function optionLabel(item) {
+    if (item && typeof item === 'object') return String(item.label ?? item.value ?? '');
+    return String(item ?? '');
+}
+
 function populateArfedFilters(filters) {
-    const yearSelect = document.getElementById('arfedYearFilter');
-    const termSelect = document.getElementById('arfedTermFilter');
-
-    if (yearSelect && Array.isArray(filters.years)) {
-        const currentYear = yearSelect.value;
-        const yearOptions = ['<option value="all">All Years</option>']
-            .concat(filters.years.map((year) => `<option value="${year}">${year}</option>`));
-        yearSelect.innerHTML = yearOptions.join('');
-        if ([...yearSelect.options].some((option) => option.value === currentYear)) {
-            yearSelect.value = currentYear;
+    const fill = (selectId, allLabel, items, current) => {
+        const select = document.getElementById(selectId);
+        if (!select || !Array.isArray(items)) return;
+        const html = [`<option value="all">${allLabel}</option>`]
+            .concat(items.map((item) => {
+                const value = escapeArfedHtml(optionValue(item));
+                const label = escapeArfedHtml(optionLabel(item));
+                return `<option value="${value}">${label}</option>`;
+            }))
+            .join('');
+        select.innerHTML = html;
+        if ([...select.options].some((option) => option.value === current)) {
+            select.value = current;
+        } else {
+            select.value = 'all';
         }
-    }
+    };
 
-    if (!termSelect || !Array.isArray(filters.terms)) {
-        return;
-    }
-
-    const current = termSelect.value;
-    const options = ['<option value="all">All Terms</option>']
-        .concat(filters.terms.map((term) => {
-            const value = typeof term === 'string' ? term : term.value;
-            const label = typeof term === 'string' ? term.replace('-', ' - ') : term.label;
-            return `<option value="${value}">${label}</option>`;
-        }));
-    termSelect.innerHTML = options.join('');
-    if ([...termSelect.options].some((option) => option.value === current)) {
-        termSelect.value = current;
-    }
+    fill('arfedBarangayFilter', 'All Barangays', filters.barangays || [], arfedBarangayFilter);
+    fill('arfedPositionFilter', 'All Positions', filters.positions || [], arfedPositionFilter);
+    fill('arfedTermFilter', 'All Terms', filters.terms || [], arfedTermFilter);
 }
 
 function escapeArfedHtml(value) {
@@ -166,17 +130,17 @@ function escapeArfedHtml(value) {
         .replace(/"/g, '&quot;');
 }
 
+function displayValue(value) {
+    const text = String(value ?? '').trim();
+    return text !== '' ? text : '—';
+}
+
 function arfedProfileGroup(iconClass, title, fields) {
-    const cells = fields.map(([label, value, fieldType]) => {
-        if (fieldType === 'fullname' && window.ArchiveRowActions) {
-            return window.ArchiveRowActions.fullNameFieldHtml(label, value);
-        }
-        return `
+    const cells = fields.map(([label, value]) => `
         <div class="account-profile-field">
             <label>${escapeArfedHtml(label)}</label>
-            <p>${escapeArfedHtml(value || '-')}</p>
-        </div>`;
-    }).join('');
+            <div class="arfed-view-value">${escapeArfedHtml(displayValue(value))}</div>
+        </div>`).join('');
 
     return `
         <div class="account-profile-group">
@@ -184,17 +148,84 @@ function arfedProfileGroup(iconClass, title, fields) {
                 <i class="fa-solid ${iconClass}"></i> ${escapeArfedHtml(title)}
             </div>
             <div class="account-profile-row">${cells}</div>
-        </div>
-    `;
+        </div>`;
 }
 
-// ── Render Table ──────────────────────────────────────────────────────────────
+function federationPositionRank(position) {
+    const index = ARFED_POSITION_ORDER.indexOf(String(position || '').trim());
+    return index === -1 ? 999 : index;
+}
+
+function matchesArfedTerm(record, termValue) {
+    if (!termValue || termValue === 'all') return true;
+    if (!termValue.includes('|')) return true;
+    const [left, right] = termValue.split('|', 2);
+    if (!left || !right) return true;
+    if (/^\d{4}-\d{2}-\d{2}$/.test(left) && /^\d{4}-\d{2}-\d{2}$/.test(right)) {
+        return String(record.termStartRaw || '') === left && String(record.termEndRaw || '') === right;
+    }
+    if (/^\d{4}$/.test(left) && /^\d{4}$/.test(right)) {
+        return String(record.termStartRaw || '').startsWith(left)
+            && String(record.termEndRaw || '').startsWith(right);
+    }
+    return true;
+}
+
+function applyArfedFilters() {
+    const query = arfedSearchQ.toLowerCase();
+    arfedFiltered = arfedRecords.filter((record) => {
+        if (query) {
+            const haystack = [
+                record.firstName,
+                record.lastName,
+                record.middleName,
+                record.suffix,
+                record.federationPosition,
+                record.position,
+                record.barangay,
+                record.email,
+                formatRecordName(record),
+            ].join(' ').toLowerCase();
+            if (!haystack.includes(query)) return false;
+        }
+
+        if (arfedBarangayFilter !== 'all') {
+            if (String(record.barangayId ?? '') !== String(arfedBarangayFilter)
+                && String(record.barangay || '') !== String(arfedBarangayFilter)) {
+                return false;
+            }
+        }
+
+        if (arfedPositionFilter !== 'all') {
+            const position = String(record.federationPosition || record.position || '');
+            if (position !== String(arfedPositionFilter)) return false;
+        }
+
+        if (!matchesArfedTerm(record, arfedTermFilter)) return false;
+
+        return true;
+    });
+
+    const pages = Math.max(1, Math.ceil(arfedFiltered.length / arfedPerPage) || 1);
+    if (arfedCurrentPage > pages) arfedCurrentPage = pages;
+    renderArfedTable();
+}
+
 function getArfedSortedRecords() {
     const list = [...arfedFiltered];
-    if (!arfedNameSortDir) return list;
+    if (arfedNameSortDir) {
+        list.sort((a, b) => {
+            const cmp = formatRecordName(a).localeCompare(formatRecordName(b), undefined, { sensitivity: 'base' });
+            return arfedNameSortDir === 'asc' ? cmp : -cmp;
+        });
+        return list;
+    }
+
     list.sort((a, b) => {
-        const cmp = formatRecordName(a).localeCompare(formatRecordName(b), undefined, { sensitivity: 'base' });
-        return arfedNameSortDir === 'asc' ? cmp : -cmp;
+        const rankDiff = federationPositionRank(a.federationPosition || a.position)
+            - federationPositionRank(b.federationPosition || b.position);
+        if (rankDiff !== 0) return rankDiff;
+        return formatRecordName(a).localeCompare(formatRecordName(b), undefined, { sensitivity: 'base' });
     });
     return list;
 }
@@ -206,39 +237,35 @@ function renderArfedTable() {
 
     const sorted = getArfedSortedRecords();
     const start = (arfedCurrentPage - 1) * arfedPerPage;
-    const end = start + arfedPerPage;
-    const page = sorted.slice(start, end);
+    const page = sorted.slice(start, start + arfedPerPage);
 
     if (arfedFiltered.length === 0) {
-        tbody.innerHTML = `<tr class="arfed-empty-row"><td colspan="5">No archived SK Federation records found.</td></tr>`;
+        tbody.innerHTML = `<tr class="arfed-empty-row"><td colspan="7">No previous-term records found.</td></tr>`;
         if (info) info.textContent = '0 records';
         renderArfedPagination(0);
         return;
     }
 
-    tbody.innerHTML = page.map(r => {
-        const fullName = formatRecordName(r);
-        const term = `${r.termStart} – ${r.termEnd}`;
+    tbody.innerHTML = page.map((r) => {
+        const id = escapeArfedHtml(r.id);
         return `
         <tr>
-            <td class="arfed-name-cell">${fullName}</td>
-            <td style="text-align:center;">${r.position || '—'}</td>
-            <td style="text-align:center;"><span class="arfed-term-badge">${term}</span></td>
-            <td style="text-align:center;"><span class="arfed-completed-badge">Completed Term</span></td>
-            <td>
-                ${window.ArchiveRowActions.renderMenu(r.id, { view: true, restore: true })}
+            <td class="arfed-name-cell">${escapeArfedHtml(formatRecordName(r))}</td>
+            <td style="text-align:center;">${escapeArfedHtml(r.federationPosition || r.position || '—')}</td>
+            <td style="text-align:center;">${escapeArfedHtml(r.termStart || '—')}</td>
+            <td style="text-align:center;">${escapeArfedHtml(r.termEnd || '—')}</td>
+            <td style="text-align:center;"><span class="arfed-completed-badge">${escapeArfedHtml(r.status || r.termStatus || 'EXPIRED')}</span></td>
+            <td style="text-align:center;">${escapeArfedHtml(r.archivedAt || '—')}</td>
+            <td class="arfed-col-actions">
+                <div class="arfed-action-btns">
+                    <button type="button" class="arfed-btn-view" data-arfed-view="${id}" aria-label="View record">View</button>
+                </div>
             </td>
         </tr>`;
     }).join('');
 
     if (info) info.textContent = `${arfedFiltered.length} record${arfedFiltered.length === 1 ? '' : 's'}`;
-
     renderArfedPagination(arfedFiltered.length);
-
-    window.ArchiveRowActions.bind(tbody, (action, id) => {
-        if (action === 'view') openArfedViewModal(id);
-        if (action === 'restore') restoreArfedRecord(id);
-    });
 }
 
 function renderArfedPagination(total) {
@@ -283,42 +310,52 @@ function bindArfedPagination() {
     });
 }
 
-// ── Search ────────────────────────────────────────────────────────────────────
+function resetArfedFilters() {
+    arfedSearchQ = '';
+    arfedBarangayFilter = 'all';
+    arfedPositionFilter = 'all';
+    arfedTermFilter = 'all';
+    arfedCurrentPage = 1;
+
+    const search = document.getElementById('arfedSearch');
+    if (search) search.value = '';
+    populateArfedFilters(arfedCatalog);
+    applyArfedFilters();
+}
+
 function bindArfedSearch() {
     const input = document.getElementById('arfedSearch');
-    const yearSelect = document.getElementById('arfedYearFilter');
-    const termSelect = document.getElementById('arfedTermFilter');
-    let searchTimer = null;
-
     if (input) {
         input.addEventListener('input', function () {
             arfedSearchQ = this.value.trim();
-            window.clearTimeout(searchTimer);
-            searchTimer = window.setTimeout(() => {
-                arfedCurrentPage = 1;
-                loadArfedRecords();
-            }, 300);
+            arfedCurrentPage = 1;
+            applyArfedFilters();
         });
     }
 
-    if (yearSelect) {
-        yearSelect.addEventListener('change', function () {
-            arfedYearFilter = this.value;
+    const bindSelect = (id, setter) => {
+        const select = document.getElementById(id);
+        if (!select || select.dataset.bound === '1') return;
+        select.dataset.bound = '1';
+        select.addEventListener('change', function () {
+            setter(this.value);
             arfedCurrentPage = 1;
-            loadArfedRecords();
+            applyArfedFilters();
         });
-    }
+    };
 
-    if (termSelect) {
-        termSelect.addEventListener('change', function () {
-            arfedTermFilter = this.value;
-            arfedCurrentPage = 1;
-            loadArfedRecords();
-        });
-    }
+    bindSelect('arfedBarangayFilter', (value) => { arfedBarangayFilter = value; });
+    bindSelect('arfedPositionFilter', (value) => { arfedPositionFilter = value; });
+    bindSelect('arfedTermFilter', (value) => { arfedTermFilter = value; });
+
+    document.getElementById('arfedClearFiltersBtn')?.addEventListener('click', resetArfedFilters);
 }
 
-// ── View Modal ────────────────────────────────────────────────────────────────
+function closeArfedViewModal() {
+    const modal = document.getElementById('arfedViewModal');
+    if (modal) modal.style.display = 'none';
+}
+
 function openArfedViewModal(id) {
     const r = arfedRecords.find((x) => String(x.id) === String(id));
     if (!r) return;
@@ -326,18 +363,21 @@ function openArfedViewModal(id) {
     const body = document.getElementById('arfedViewBody');
     if (body) {
         body.innerHTML = `
-            <div class="account-modal-card">
+            <div class="arfed-view-form account-modal-card">
                 ${arfedProfileGroup('fa-user', 'Personal Information', [
-                    ['Full Name', formatRecordName(r), 'fullname'],
-                    ['Sex', r.sex || '-'],
+                    ['First Name', r.firstName],
+                    ['Last Name', r.lastName],
+                    ['Middle Name', r.middleName],
+                    ['Suffix', r.suffix],
+                    ['Sex', r.sex],
                     ['Date of Birth', r.dateOfBirth],
                     ['Age', r.age],
                     ['Contact Number', r.contactNumber],
                 ])}
-                ${arfedProfileGroup('fa-briefcase', 'Position & Account', [
-                    ['Position', r.position],
+                ${arfedProfileGroup('fa-briefcase', 'Federation Position & Account', [
+                    ['Federation Position', r.federationPosition || r.position],
                     ['Email Address', r.email],
-                    ['Email Verification', r.emailVerification || r.emailVerifiedAt || 'Not Verified'],
+                    ['Status', r.status || r.termStatus || 'EXPIRED'],
                 ])}
                 ${arfedProfileGroup('fa-location-dot', 'Address', [
                     ['Region', r.region || 'IV-A CALABARZON'],
@@ -348,8 +388,13 @@ function openArfedViewModal(id) {
                 ${arfedProfileGroup('fa-calendar-check', 'Term Information', [
                     ['Term Start', r.termStart],
                     ['Term End', r.termEnd],
+                    ['Archived Date', r.archivedAt],
                 ])}
+            </div>
+            <div class="arfed-modal-footer">
+                <button type="button" class="arfed-btn-view" id="arfedViewFooterClose">Close</button>
             </div>`;
+        document.getElementById('arfedViewFooterClose')?.addEventListener('click', closeArfedViewModal);
     }
 
     const modal = document.getElementById('arfedViewModal');
@@ -357,27 +402,32 @@ function openArfedViewModal(id) {
 }
 
 function bindArfedViewModal() {
-    window.ArchiveRowActions.bindViewModalControls('arfed');
-}
-
-async function restoreArfedRecord(id) {
-    const record = arfedRecords.find((r) => String(r.id) === String(id));
-    if (!record) return;
-    if (!confirm(`Restore archived record for ${formatRecordName(record)}?`)) return;
-
-    try {
-        const response = await fetch(ARFED_API.restore(id), {
-            method: 'POST',
-            headers: {
-                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
-                Accept: 'application/json',
-            },
+    const tbody = document.getElementById('arfedTableBody');
+    if (tbody && tbody.dataset.arfedViewBound !== '1') {
+        tbody.dataset.arfedViewBound = '1';
+        tbody.addEventListener('click', (event) => {
+            const button = event.target.closest('[data-arfed-view]');
+            if (!button) return;
+            openArfedViewModal(button.getAttribute('data-arfed-view'));
         });
-        const data = await response.json();
-        if (!response.ok) throw new Error(data.message || 'Failed to restore record.');
-        alert(data.message || 'Record restored successfully.');
-        await loadArfedRecords();
-    } catch (error) {
-        alert(error.message || 'Failed to restore record.');
+    }
+
+    document.getElementById('arfedViewClose')?.addEventListener('click', closeArfedViewModal);
+    document.getElementById('arfedViewModal')?.addEventListener('click', (event) => {
+        if (event.target.id === 'arfedViewModal') closeArfedViewModal();
+    });
+
+    if (window.ArchiveRowActions?.bindViewModalControls) {
+        window.ArchiveRowActions.bindViewModalControls('arfed');
     }
 }
+
+function onArchiveReady(fn) {
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', fn);
+    } else {
+        fn();
+    }
+}
+
+onArchiveReady(initArchivedSkFederation);

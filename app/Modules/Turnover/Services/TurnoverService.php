@@ -8,6 +8,7 @@ use App\Modules\Turnover\Models\FederationTurnover;
 use App\Services\SkFederationsNotificationService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\ValidationException;
 
 class TurnoverService
@@ -16,8 +17,7 @@ class TurnoverService
         private readonly FederationTermDetectionService $termDetectionService,
         private readonly AuditLogInterface $auditLog,
         private readonly SkFederationsNotificationService $notificationService,
-    ) {
-    }
+    ) {}
 
     public function dashboardContext(User $user): array
     {
@@ -94,11 +94,26 @@ class TurnoverService
 
     public function remindLater(User $user): void
     {
-        $hours = max(1, (int) config('turnover.remind_later_hours', 24));
+        if ($this->termDetectionService->mustLockPortalForTurnover($user)) {
+            throw ValidationException::withMessages([
+                'turnover' => 'Turnover is mandatory. This reminder cannot be dismissed.',
+            ]);
+        }
 
-        $user->forceFill([
-            'turnover_notice_dismissed_until' => now()->addHours($hours),
-        ])->save();
+        // Session-only dismiss so the reminder returns on the next login.
+        session()->put('turnover_reminder_dismissed', true);
+
+        if (Schema::hasColumn('users', 'turnover_notice_dismissed_until')) {
+            $hours = max(1, (int) config('turnover.remind_later_hours', 24));
+            $user->forceFill([
+                'turnover_notice_dismissed_until' => now()->addHours($hours),
+            ])->save();
+        }
+    }
+
+    public function clearReminderDismissal(): void
+    {
+        session()->forget('turnover_reminder_dismissed');
     }
 
     /**

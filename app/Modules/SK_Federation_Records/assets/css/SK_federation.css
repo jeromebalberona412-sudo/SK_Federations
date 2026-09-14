@@ -44,6 +44,106 @@
     justify-content: flex-end;
 }
 
+.arfed-filters {
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: end;
+    gap: 8px;
+    margin-bottom: 16px;
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 2px;
+}
+
+.arfed-filter-field {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+    flex: 1 1 0;
+}
+
+.arfed-filter-field--search {
+    flex: 1.4 1 0;
+    min-width: 140px;
+}
+
+.arfed-filter-field--actions {
+    flex: 0 0 auto;
+}
+
+.arfed-filter-field label {
+    font-size: 11px;
+    font-weight: 700;
+    color: #475569;
+    white-space: nowrap;
+}
+
+.arfed-filter-field .arfed-year-filter,
+.arfed-filter-field .arfed-term-filter,
+.arfed-filter-field .arfed-search-input,
+.arfed-filter-field .arfed-clear-filters-btn {
+    width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+}
+
+.arfed-clear-filters-btn {
+    height: 36px;
+    padding: 0 12px;
+    border-radius: 8px;
+    border: 1px solid #cbd5e1;
+    background: #fff;
+    color: #334155;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.arfed-clear-filters-btn:hover {
+    background: #f8fafc;
+    border-color: #94a3b8;
+}
+
+@media (max-width: 1024px) {
+    .arfed-filters {
+        gap: 6px;
+    }
+
+    .arfed-filter-field label {
+        font-size: 10px;
+    }
+}
+
+@media (max-width: 640px) {
+    .arfed-filters {
+        gap: 5px;
+    }
+
+    .arfed-filter-field--search {
+        min-width: 110px;
+    }
+
+    .arfed-year-filter,
+    .arfed-term-filter,
+    .arfed-search-input,
+    .arfed-clear-filters-btn {
+        width: 100%;
+        min-width: 0;
+        height: 34px;
+        padding: 6px 8px;
+        font-size: 12px;
+        border-radius: 8px;
+    }
+
+    .arfed-clear-filters-btn {
+        padding: 0 8px;
+        font-size: 11px;
+    }
+}
+
 .archive-goto-btn {
     display: inline-flex;
     align-items: center;
@@ -69,13 +169,14 @@
 }
 
 .arfed-year-filter {
-    padding: 10px 14px;
-    border-radius: 10px;
+    padding: 8px 10px;
+    border-radius: 8px;
     border: 1px solid #d1d5db;
-    font-size: 14px;
+    font-size: 13px;
     color: #111827;
     background: #fff;
-    min-width: 140px;
+    min-width: 0;
+    height: 36px;
     transition: border-color 0.2s, box-shadow 0.2s;
     font-family: inherit;
     cursor: pointer;
@@ -88,13 +189,14 @@
 }
 
 .arfed-term-filter {
-    padding: 10px 14px;
-    border-radius: 10px;
+    padding: 8px 10px;
+    border-radius: 8px;
     border: 1px solid #d1d5db;
-    font-size: 14px;
+    font-size: 13px;
     color: #111827;
     background: #fff;
-    min-width: 160px;
+    min-width: 0;
+    height: 36px;
     transition: border-color 0.2s, box-shadow 0.2s;
     font-family: inherit;
     cursor: pointer;
@@ -107,13 +209,14 @@
 }
 
 .arfed-search-input {
-    padding: 10px 14px;
-    border-radius: 10px;
+    padding: 8px 10px;
+    border-radius: 8px;
     border: 1px solid #d1d5db;
-    font-size: 14px;
+    font-size: 13px;
     color: #111827;
     background: #fff;
-    min-width: 220px;
+    min-width: 0;
+    height: 36px;
     transition: border-color 0.2s, box-shadow 0.2s;
 }
 
@@ -581,9 +684,9 @@
     }
 
     .arfed-search-input {
-        min-width: 130px;
-        max-width: 160px;
-        font-size: 13px;
+        min-width: 0;
+        max-width: none;
+        font-size: 12px;
     }
 
     .arfed-stats-row {
@@ -614,8 +717,8 @@
     }
 
     .arfed-search-input {
-        min-width: 110px;
-        max-width: 130px;
+        min-width: 0;
+        max-width: none;
     }
 
     .arfed-btn-view {
@@ -800,4 +903,95 @@
     text-transform: none;
     letter-spacing: 0.02em;
     margin-top: 2px;
+}
+
+/* View modal form layout */
+.arfed-view-form.account-modal-card,
+.account-modal-card {
+    background: #ffffff;
+    border: 1px solid #e1e5e9;
+    border-radius: 12px;
+    padding: 1.1rem 1.2rem;
+}
+
+.account-profile-group {
+    margin-bottom: 1.25rem;
+    padding-bottom: 1.1rem;
+    border-bottom: 1px solid #f1f3f5;
+}
+
+.account-profile-group:last-child {
+    margin-bottom: 0;
+    padding-bottom: 0;
+    border-bottom: none;
+}
+
+.account-profile-group-label {
+    font-size: 13px;
+    font-weight: 800;
+    color: #111827;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin-bottom: 0.85rem;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.account-profile-group-label i {
+    color: #1A365D;
+    font-size: 13px;
+}
+
+.account-profile-row {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px;
+}
+
+.account-profile-field label {
+    display: block;
+    font-size: 11px;
+    font-weight: 700;
+    color: #6b7280;
+    margin-bottom: 6px;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+}
+
+.arfed-view-input,
+.arfed-view-value {
+    width: 100%;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    background: #f3f4f6;
+    color: #111827;
+    font-size: 14px;
+    font-weight: 600;
+    padding: 10px 12px;
+    box-shadow: none;
+    cursor: default;
+    pointer-events: none;
+    user-select: text;
+}
+
+.arfed-view-input:hover,
+.arfed-view-input:focus,
+.arfed-view-value:hover,
+.arfed-view-value:focus {
+    border-color: #e5e7eb;
+    background: #f3f4f6;
+    box-shadow: none;
+    outline: none;
+}
+
+@media (max-width: 768px) {
+    .account-profile-row {
+        grid-template-columns: 1fr;
+    }
+
+    .arfed-view-modal-box {
+        max-width: calc(100vw - 24px);
+        max-height: 90vh;
+    }
 }

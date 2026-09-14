@@ -3,6 +3,7 @@
 namespace App\Modules\Authentication\Http\Responses;
 
 use App\Modules\Authentication\Middleware\SessionTimeout;
+use App\Modules\Turnover\Services\FederationTermDetectionService;
 use Illuminate\Http\JsonResponse;
 use Laravel\Fortify\Contracts\LoginResponse as LoginResponseContract;
 use Symfony\Component\HttpFoundation\Response;
@@ -13,15 +14,24 @@ class LoginResponse implements LoginResponseContract
     {
         $request->session()->put(SessionTimeout::SESSION_KEY, now()->getTimestamp());
 
-        $dashboard = route('dashboard');
+        $redirect = route('dashboard');
+
+        try {
+            $user = $request->user();
+            if ($user !== null && app(FederationTermDetectionService::class)->mustLockPortalForTurnover($user)) {
+                $redirect = route('turnover.index');
+            }
+        } catch (\Throwable $e) {
+            report($e);
+        }
 
         if ($request->wantsJson()) {
             return new JsonResponse([
                 'two_factor' => false,
-                'redirect' => $dashboard,
+                'redirect' => $redirect,
             ], 200);
         }
 
-        return redirect()->to($dashboard);
+        return redirect()->to($redirect);
     }
 }

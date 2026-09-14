@@ -5,6 +5,8 @@
     let currentPage = 1;
     let archiveRows = [];
     let pendingRestoreId = null;
+    let pendingDeleteId = null;
+    let loadSeq = 0;
 
     function escapeHtml(v) {
         return String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -61,7 +63,10 @@
         }
 
         const modal = document.getElementById('archiveViewModal');
-        if (modal) modal.style.display = 'flex';
+        if (modal) {
+            modal.style.display = 'flex';
+            syncBodyLock();
+        }
     }
 
     function openRestoreModal(id) {
@@ -77,7 +82,7 @@
         const modal = document.getElementById('apRestoreModal');
         if (modal) {
             modal.style.display = 'flex';
-            document.body.classList.add('ap-modal-open');
+            syncBodyLock();
         }
     }
 
@@ -85,13 +90,82 @@
         pendingRestoreId = null;
         const modal = document.getElementById('apRestoreModal');
         if (modal) modal.style.display = 'none';
-        document.body.classList.remove('ap-modal-open');
 
         const confirmBtn = document.getElementById('apRestoreConfirmBtn');
         if (confirmBtn) {
             confirmBtn.disabled = false;
             confirmBtn.textContent = 'Restore';
         }
+
+        syncBodyLock();
+    }
+
+    function syncBodyLock() {
+        const viewOpen = document.getElementById('archiveViewModal')?.style.display === 'flex';
+        const restoreOpen = document.getElementById('apRestoreModal')?.style.display === 'flex';
+        const deleteOpen = document.getElementById('apPermanentDeleteModal')?.style.display === 'flex';
+        document.body.classList.toggle('ap-modal-open', Boolean(viewOpen || restoreOpen || deleteOpen));
+    }
+
+    function syncDeleteConfirmState() {
+        const input = document.getElementById('apPermanentDeleteInput');
+        const confirmBtn = document.getElementById('apPermanentDeleteConfirm');
+        const error = document.getElementById('apPermanentDeleteError');
+        if (!input || !confirmBtn) return;
+
+        const value = String(input.value || '').trim().toUpperCase();
+        const matched = value === 'DELETE';
+        confirmBtn.disabled = !matched;
+        confirmBtn.classList.toggle('is-enabled', matched);
+        confirmBtn.classList.toggle('is-disabled', !matched);
+        if (error) {
+            error.style.display = value.length > 0 && !matched ? 'block' : 'none';
+        }
+    }
+
+    function openPermanentDeleteModal(id) {
+        const row = archiveRows.find((item) => String(item.id) === String(id));
+        if (!row) return;
+
+        pendingDeleteId = id;
+        const message = document.getElementById('apPermanentDeleteMessage');
+        if (message) {
+            const label = row.title || row.type_label || 'this archived post';
+            message.textContent = `Permanently delete “${label}”?`;
+        }
+
+        const input = document.getElementById('apPermanentDeleteInput');
+        if (input) {
+            input.value = '';
+            input.focus();
+        }
+        syncDeleteConfirmState();
+
+        const modal = document.getElementById('apPermanentDeleteModal');
+        if (modal) {
+            modal.style.display = 'flex';
+            syncBodyLock();
+        }
+    }
+
+    function closePermanentDeleteModal() {
+        pendingDeleteId = null;
+        const modal = document.getElementById('apPermanentDeleteModal');
+        if (modal) modal.style.display = 'none';
+
+        const input = document.getElementById('apPermanentDeleteInput');
+        if (input) input.value = '';
+        syncDeleteConfirmState();
+
+        const confirmBtn = document.getElementById('apPermanentDeleteConfirm');
+        if (confirmBtn) {
+            confirmBtn.disabled = true;
+            confirmBtn.textContent = 'Delete Permanently';
+            confirmBtn.classList.add('is-disabled');
+            confirmBtn.classList.remove('is-enabled');
+        }
+
+        syncBodyLock();
     }
 
     function bindRestoreModal() {
@@ -123,7 +197,59 @@
         });
     }
 
+    function bindPermanentDeleteModal() {
+        const cancelBtn = document.getElementById('apPermanentDeleteCancel');
+        const confirmBtn = document.getElementById('apPermanentDeleteConfirm');
+        const modal = document.getElementById('apPermanentDeleteModal');
+        const input = document.getElementById('apPermanentDeleteInput');
+
+        cancelBtn?.addEventListener('click', closePermanentDeleteModal);
+        modal?.addEventListener('click', function (e) {
+            if (e.target === modal) closePermanentDeleteModal();
+        });
+
+        input?.addEventListener('input', function (e) {
+            e.target.value = String(e.target.value || '')
+                .replace(/[^a-zA-Z]/g, '')
+                .toUpperCase()
+                .slice(0, 6);
+            syncDeleteConfirmState();
+        });
+
+        input?.addEventListener('keydown', function (e) {
+            if (e.key === 'Enter' && !confirmBtn?.disabled) {
+                e.preventDefault();
+                confirmBtn?.click();
+            }
+        });
+
+        confirmBtn?.addEventListener('click', async function () {
+            if (!pendingDeleteId || confirmBtn.disabled) return;
+
+            const typed = String(input?.value || '').trim().toUpperCase();
+            if (typed !== 'DELETE') {
+                syncDeleteConfirmState();
+                return;
+            }
+
+            confirmBtn.disabled = true;
+            confirmBtn.textContent = 'Deleting...';
+
+            try {
+                await api(cfg.restoreUrl + '/' + pendingDeleteId, { method: 'DELETE' });
+                window.SkLocalCache?.clearByPrefix('sk_fed_deleted_posts_v1_');
+                closePermanentDeleteModal();
+                await loadArchive(currentPage);
+            } catch (err) {
+                showError(err);
+                confirmBtn.textContent = 'Delete Permanently';
+                syncDeleteConfirmState();
+            }
+        });
+    }
+
     async function loadArchive(page) {
+        const seq = ++loadSeq;
         currentPage = page || 1;
         const search = document.getElementById('archiveSearch')?.value.trim() || '';
         const params = new URLSearchParams({ page: String(currentPage) });
@@ -132,11 +258,13 @@
         const tbody = document.getElementById('archiveTableBody');
         const cacheKey = 'sk_fed_deleted_posts_v1_' + params.toString();
         const cached = window.SkLocalCache?.get(cacheKey);
+
         const paintRows = function (rows, meta) {
+            if (seq !== loadSeq) return;
             archiveRows = rows || [];
             if (!tbody) return;
             if (!archiveRows.length) {
-                tbody.innerHTML = '<tr><td colspan="6">No archived posts found.</td></tr>';
+                tbody.innerHTML = '<tr class="ap-empty-row"><td colspan="6"><span class="ap-empty-message">No archived posts found.</span></td></tr>';
                 renderPagination(meta || { current_page: 1, last_page: 1 });
                 return;
             }
@@ -165,13 +293,7 @@
                     return;
                 }
                 if (action === 'delete') {
-                    if (!confirm('Permanently delete this archived post? This cannot be undone.')) return;
-                    api(cfg.restoreUrl + '/' + id, { method: 'DELETE' })
-                        .then(function () {
-                            window.SkLocalCache?.clearByPrefix('sk_fed_deleted_posts_v1_');
-                            loadArchive(currentPage).catch(showError);
-                        })
-                        .catch(showError);
+                    openPermanentDeleteModal(id);
                 }
             });
         };
@@ -179,18 +301,18 @@
         function renderPagination(meta) {
             const pag = document.getElementById('archivePagination');
             if (!pag) return;
-            const page = Number(meta.current_page || 1);
+            const pageNum = Number(meta.current_page || 1);
             const last = Number(meta.last_page || 1);
-            currentPage = page;
+            currentPage = pageNum;
             if (last <= 1) {
                 pag.innerHTML = '';
                 return;
             }
             pag.innerHTML =
                 '<div class="archive-pagination-bar">' +
-                    '<button type="button" class="archive-page-btn" data-archive-page="' + Math.max(1, page - 1) + '" ' + (page <= 1 ? 'disabled' : '') + '>Prev</button>' +
-                    '<span class="archive-page-label">Page ' + page + ' of ' + last + '</span>' +
-                    '<button type="button" class="archive-page-btn" data-archive-page="' + Math.min(last, page + 1) + '" ' + (page >= last ? 'disabled' : '') + '>Next</button>' +
+                    '<button type="button" class="archive-page-btn" data-archive-page="' + Math.max(1, pageNum - 1) + '" ' + (pageNum <= 1 ? 'disabled' : '') + '>Prev</button>' +
+                    '<span class="archive-page-label">Page ' + pageNum + ' of ' + last + '</span>' +
+                    '<button type="button" class="archive-page-btn" data-archive-page="' + Math.min(last, pageNum + 1) + '" ' + (pageNum >= last ? 'disabled' : '') + '>Next</button>' +
                 '</div>';
             pag.querySelectorAll('[data-archive-page]').forEach(function (btn) {
                 btn.addEventListener('click', function () {
@@ -209,6 +331,7 @@
             if (window.SkLocalCache.isFresh(cached, 5 * 60 * 1000)) {
                 api(cfg.dataUrl + '?' + params.toString())
                     .then(function (data) {
+                        if (seq !== loadSeq) return;
                         window.SkLocalCache?.set(cacheKey, data);
                         paintRows(data.data || [], {
                             current_page: data.current_page,
@@ -218,11 +341,10 @@
                     .catch(function () {});
                 return;
             }
-        } else if (tbody) {
-            tbody.innerHTML = '<tr><td colspan="6">Loading archived posts…</td></tr>';
         }
 
         const data = await api(cfg.dataUrl + '?' + params.toString());
+        if (seq !== loadSeq) return;
         window.SkLocalCache?.set(cacheKey, data);
         paintRows(data.data || [], {
             current_page: data.current_page,
@@ -248,8 +370,9 @@
             return;
         }
         window.ArchiveRowActions.initGlobalClose();
-        window.ArchiveRowActions.bindViewModalControls('archive');
+        window.ArchiveRowActions.bindViewModalControls('archive', { bodyClass: 'ap-modal-open' });
         bindRestoreModal();
+        bindPermanentDeleteModal();
 
         loadArchive(1).catch(showError);
 
@@ -257,7 +380,18 @@
             clearTimeout(window._fedArchiveSearchTimer);
             window._fedArchiveSearchTimer = setTimeout(function () {
                 loadArchive(1).catch(showError);
-            }, 250);
+            }, 150);
+        });
+
+        document.addEventListener('keydown', function (e) {
+            if (e.key !== 'Escape') return;
+            if (document.getElementById('apPermanentDeleteModal')?.style.display === 'flex') {
+                closePermanentDeleteModal();
+                return;
+            }
+            if (document.getElementById('apRestoreModal')?.style.display === 'flex') {
+                closeRestoreModal();
+            }
         });
     });
 })();

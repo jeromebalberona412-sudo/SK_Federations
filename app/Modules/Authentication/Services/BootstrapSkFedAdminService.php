@@ -123,51 +123,25 @@ class BootstrapSkFedAdminService
                 'position' => 'President',
                 'updated_at' => $now,
             ]);
-
-            return;
+        } else {
+            DB::table('official_profiles')->insert([
+                'user_id' => $user->getKey(),
+                'first_name' => 'SK Federation',
+                'middle_name' => null,
+                'last_name' => 'Administrator',
+                'position' => 'President',
+                'municipality' => 'Santa Cruz',
+                'province' => 'Laguna',
+                'region' => 'IV-A CALABARZON',
+                'tenant_id' => $tenantId,
+                'created_at' => $now,
+                'updated_at' => $now,
+            ]);
         }
 
-        DB::table('official_profiles')->insert([
-            'user_id' => $user->getKey(),
-            'first_name' => 'SK Federation',
-            'middle_name' => null,
-            'last_name' => 'Administrator',
-            'position' => 'President',
-            'municipality' => 'Santa Cruz',
-            'province' => 'Laguna',
-            'region' => 'IV-A CALABARZON',
-            'tenant_id' => $tenantId,
-            'created_at' => $now,
-            'updated_at' => $now,
-        ]);
-
-        if (! Schema::hasTable('official_terms')) {
-            return;
-        }
-
-        $profileId = DB::table('official_profiles')->where('user_id', $user->getKey())->value('id');
-
-        if ($profileId === null) {
-            return;
-        }
-
-        $termExists = DB::table('official_terms')->where('official_profile_id', $profileId)->exists();
-
-        if ($termExists) {
-            return;
-        }
-
-        $termStart = now()->startOfYear()->toDateString();
-        $termEnd = now()->startOfYear()->addYears(3)->subDay()->toDateString();
-
-        DB::table('official_terms')->insert([
-            'official_profile_id' => $profileId,
-            'term_start' => $termStart,
-            'term_end' => $termEnd,
-            'status' => 'ACTIVE',
-            'created_at' => $now,
-            'updated_at' => $now,
-        ]);
+        // Portal administrator is not an elected SK Official and has no term lifecycle.
+        // Do not create official_terms for the bootstrap admin.
+        // Never delete archive history here — admin is simply excluded from future term archives.
     }
 
     protected function usersTableHasColumn(string $column): bool

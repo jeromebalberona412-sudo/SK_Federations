@@ -2063,6 +2063,7 @@ body.comms-chat-modal-open {
     z-index: 2;
     min-width: 16px;
     height: 16px;
+    max-width: 28px;
     padding: 0 4px;
     background: #ef4444;
     color: #fff;
@@ -2077,6 +2078,18 @@ body.comms-chat-modal-open {
     pointer-events: none;
     box-sizing: border-box;
     white-space: nowrap;
+    overflow: hidden;
+    text-overflow: clip;
+}
+
+.notif-badge::before,
+.notif-badge::after {
+    content: none !important;
+    display: none !important;
+}
+
+.notif-btn .notif-badge ~ .notif-badge {
+    display: none !important;
 }
 
 /* Notification Popover */
@@ -5600,7 +5613,7 @@ button.activity-item--clickable:active {
     }
 
     .dash-row--top-split {
-        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+        grid-template-columns: 1fr;
     }
 
     .dash-row--kk-abyip {
@@ -5611,8 +5624,12 @@ button.activity-item--clickable:active {
         max-height: none;
     }
 
-    .dash-quick-actions-card {
-        grid-column: 1 / -1;
+    .dash-row--top-split > .dash-quick-actions-card {
+        width: 100%;
+        max-width: 100%;
+        min-width: 0;
+        justify-self: stretch;
+        grid-column: auto;
     }
 
     .dash-header-tools {
@@ -5787,12 +5804,14 @@ button.activity-item--clickable:active {
     margin-bottom: 20px;
 }
 
+/* Purok chart takes remaining width; Quick Actions is a fixed right rail */
 .dash-row--top-split {
     display: grid;
-    grid-template-columns: minmax(0, 1.65fr) minmax(240px, 0.85fr);
+    grid-template-columns: minmax(0, 1fr) 280px;
     gap: 12px;
     align-items: stretch;
     margin-bottom: 20px;
+    width: 100%;
 }
 
 .dash-row--top-split > .content-card,
@@ -5801,6 +5820,17 @@ button.activity-item--clickable:active {
     display: flex;
     flex-direction: column;
     overflow: visible;
+}
+
+.dash-row--top-split > #purok-distribution-section {
+    width: 100%;
+}
+
+.dash-row--top-split > .dash-quick-actions-card {
+    width: 280px;
+    max-width: 280px;
+    min-width: 260px;
+    justify-self: end;
 }
 
 .dash-row--top-split > .content-card > .card-header,
@@ -6310,6 +6340,10 @@ button.activity-item--clickable:active {
 
     .dash-quick-actions-card {
         grid-column: auto;
+        width: 100%;
+        max-width: 100%;
+        min-width: 0;
+        justify-self: stretch;
     }
 
     .kk-chart-subtitle--center {

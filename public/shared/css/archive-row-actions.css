@@ -55,6 +55,11 @@
 .ar-row-actions-dropdown.is-floating {
     position: fixed;
     z-index: 1400;
+    display: flex;
+}
+
+.ar-row-actions-dropdown.is-floating[hidden] {
+    display: none !important;
 }
 
 .ar-row-actions-item {
@@ -81,6 +86,32 @@
 
 .ar-row-actions-item:hover {
     background: #f8fafc;
+}
+
+.ar-row-actions-item[data-ar-action="view"] {
+    color: #1d4ed8;
+}
+
+.ar-row-actions-item[data-ar-action="view"] i {
+    color: #2563eb;
+}
+
+.ar-row-actions-item[data-ar-action="view"]:hover {
+    background: #eff6ff;
+    color: #1e40af;
+}
+
+.ar-row-actions-item[data-ar-action="restore"] {
+    color: #15803d;
+}
+
+.ar-row-actions-item[data-ar-action="restore"] i {
+    color: #16a34a;
+}
+
+.ar-row-actions-item[data-ar-action="restore"]:hover {
+    background: #f0fdf4;
+    color: #166534;
 }
 
 .ar-row-actions-item.is-danger {

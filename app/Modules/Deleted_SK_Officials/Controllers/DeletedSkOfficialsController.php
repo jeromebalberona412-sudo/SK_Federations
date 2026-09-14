@@ -9,6 +9,8 @@ use App\Modules\Shared\Models\User;
 use App\Services\SkFedPageCache;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Fluent;
+use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 
 class DeletedSkOfficialsController extends Controller
@@ -27,7 +29,7 @@ class DeletedSkOfficialsController extends Controller
         );
 
         $deletedOfficials = collect($result['data'] ?? [])
-            ->map(fn (array $item) => new \Illuminate\Support\Fluent($item));
+            ->map(fn (array $item) => new Fluent($item));
 
         $filters = $result['filters'] ?? $this->deletedArchiveService->filterCatalog($tenantId, User::ROLE_SK_OFFICIAL);
         $stats = $result['stats'] ?? [
@@ -105,7 +107,6 @@ class DeletedSkOfficialsController extends Controller
     {
         $admin = $request->user();
         $this->resolveTenantId($admin);
-        $admin->refresh();
 
         try {
             $user = $this->deletedArchiveService->restoreAccount(
@@ -113,9 +114,9 @@ class DeletedSkOfficialsController extends Controller
                 User::ROLE_SK_OFFICIAL,
                 $admin
             );
-        } catch (\Illuminate\Validation\ValidationException $exception) {
-            $message = collect($exception->errors())->flatten()->first()
-                ?: 'Unable to restore this SK Official account.';
+        } catch (ValidationException $exception) {
+            $message = (string) (collect($exception->errors())->flatten()->first()
+                ?? 'Unable to restore SK Official account.');
 
             return response()->json([
                 'success' => false,

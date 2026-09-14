@@ -4,6 +4,7 @@ namespace App\Modules\Shared\Models;
 
 use App\Modules\Accounts\Models\Barangay;
 use App\Modules\Accounts\Models\OfficialProfile;
+use App\Modules\Accounts\Support\PortalAppUrl;
 use App\Modules\Authentication\Notifications\SkFedResetPasswordNotification;
 use Database\Factories\UserFactory;
 use Illuminate\Auth\Notifications\VerifyEmail;
@@ -13,6 +14,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Database\Eloquent\SoftDeletingScope;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notifiable;
@@ -20,7 +22,6 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
-use Illuminate\Support\Facades\URL;
 
 class User extends Authenticatable implements MustVerifyEmail
 {
@@ -128,7 +129,7 @@ class User extends Authenticatable implements MustVerifyEmail
         // SoftDeletes assumes users.deleted_at. Production DBs that never ran
         // the Accounts soft-delete migration must still allow login.
         if (! static::tableHasColumn('deleted_at')) {
-            static::withoutGlobalScope(\Illuminate\Database\Eloquent\SoftDeletingScope::class);
+            static::withoutGlobalScope(SoftDeletingScope::class);
         }
 
         static::saving(function (User $user): void {
@@ -316,7 +317,7 @@ class User extends Authenticatable implements MustVerifyEmail
     {
         $notification = new VerifyEmail;
         $notification->createUrlUsing(function ($notifiable) {
-            return URL::temporarySignedRoute(
+            return PortalAppUrl::temporarySignedRoute(
                 'skfed.verification.verify',
                 Carbon::now()->addMinutes(Config::get('auth.verification.expire', 10)),
                 [

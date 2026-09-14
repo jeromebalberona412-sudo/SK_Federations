@@ -10,15 +10,20 @@ use Symfony\Component\HttpFoundation\Response;
 class EnsureTurnoverTermLock
 {
     /**
+     * Routes allowed while mandatory turnover is active.
+     * Only Account Turnover + logout/session keep-alive.
+     *
      * @var list<string>
      */
     private array $allowedRouteNames = [
-        'dashboard',
+        'turnover.index',
         'turnover.start',
         'turnover.register',
         'turnover.complete',
         'turnover.status',
         'turnover.waiting',
+        'turnover.remind-later',
+        'turnover.batch-template',
         'logout',
         'logout.fallback',
         'skfed.heartbeat',
@@ -26,13 +31,26 @@ class EnsureTurnoverTermLock
     ];
 
     /**
+     * Exact paths allowed while mandatory turnover is active.
+     *
+     * @var list<string>
+     */
+    private array $allowedExactPaths = [
+        'logout',
+    ];
+
+    /**
+     * Static asset path prefixes that must remain reachable under lock.
+     *
      * @var list<string>
      */
     private array $allowedPathPrefixes = [
+        'turnover',
         'modules/turnover/',
         'modules/layout/',
-        'modules/dashboard/',
         'shared/',
+        'build/',
+        'storage/',
     ];
 
     public function __construct(
@@ -59,30 +77,44 @@ class EnsureTurnoverTermLock
             return $next($request);
         }
 
-        if ($request->isMethod('GET')) {
+        if ($this->isAllowedDuringMandatoryTurnover($request)) {
             return $next($request);
         }
 
-        $routeName = $request->route()?->getName();
-
-        if ($routeName !== null && in_array($routeName, $this->allowedRouteNames, true)) {
-            return $next($request);
-        }
-
-        foreach ($this->allowedPathPrefixes as $prefix) {
-            if (str_starts_with($request->path(), $prefix)) {
-                return $next($request);
-            }
-        }
-
-        if ($request->expectsJson()) {
+        if ($request->expectsJson() || $request->ajax()) {
             return response()->json([
-                'message' => 'Your federation term has ended. Please complete the turnover process first.',
+                'message' => 'Your federation term has ended. Please complete Account Turnover first. Other pages are locked until turnover is finished.',
+                'turnover_required' => true,
+                'redirect' => route('turnover.index'),
             ], 423);
         }
 
-        return redirect()->route('dashboard')->withErrors([
-            'turnover' => 'Your federation term has ended. Please complete the turnover process.',
+        return redirect()->route('turnover.index')->with('turnover_lock_notice', [
+            'title' => 'Account Turnover Required',
+            'message' => 'Your SK Federation term has ended. You can only access Account Turnover (or log out) until the turnover process is completed.',
         ]);
+    }
+
+    private function isAllowedDuringMandatoryTurnover(Request $request): bool
+    {
+        $routeName = $request->route()?->getName();
+
+        if ($routeName !== null && in_array($routeName, $this->allowedRouteNames, true)) {
+            return true;
+        }
+
+        $path = trim($request->path(), '/');
+
+        if (in_array($path, $this->allowedExactPaths, true)) {
+            return true;
+        }
+
+        foreach ($this->allowedPathPrefixes as $prefix) {
+            if ($path === rtrim($prefix, '/') || str_starts_with($path, $prefix)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 }

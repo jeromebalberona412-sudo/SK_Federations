@@ -4,6 +4,7 @@
 
 @push('styles')
     <link rel="stylesheet" href="{{ url('/shared/css/archive-row-actions.css') }}?v={{ @filemtime(public_path('shared/css/archive-row-actions.css')) ?: time() }}">
+    <link rel="stylesheet" href="{{ url('/shared/css/sk-type-confirm.css') }}?v={{ @filemtime(public_path('shared/css/sk-type-confirm.css')) ?: time() }}">
     @vite([
         'app/Modules/Deleted_Posts/assets/css/deleted-posts.css',
     ])
@@ -37,7 +38,7 @@
                         </tr>
                     </thead>
                     <tbody id="archiveTableBody">
-                        <tr><td colspan="6">Loading archived posts…</td></tr>
+                        <tr class="ap-empty-row"><td colspan="6"><span class="ap-empty-message">No archived posts found.</span></td></tr>
                     </tbody>
                 </table>
             </div>
@@ -46,6 +47,7 @@
     </section>
 </div>
 
+{{-- View Modal --}}
 <div class="archive-view-backdrop" id="archiveViewModal" style="display:none;" role="dialog" aria-modal="true" aria-labelledby="archiveViewModalTitle">
     <div class="archive-view-box" id="archiveViewModalBox">
         <div class="archive-view-header">
@@ -60,18 +62,49 @@
     </div>
 </div>
 
-<div class="dso-modal-backdrop" id="apRestoreModal" style="display:none;">
-    <div class="dso-modal-box">
-        <div class="dso-modal-header">
-            <h2 class="dso-modal-title">Restore Post</h2>
+{{-- Restore Modal --}}
+<div class="ap-modal-backdrop" id="apRestoreModal" style="display:none;" role="dialog" aria-modal="true" aria-labelledby="apRestoreModalTitle">
+    <div class="ap-modal-box ap-modal-box--restore">
+        <div class="ap-modal-header ap-modal-header--restore">
+            <h2 class="ap-modal-title" id="apRestoreModalTitle">Restore Post</h2>
         </div>
-        <div class="dso-modal-body">
-            <p class="dso-modal-message">Restore this post back to the SK Community Feed?</p>
-            <p class="dso-modal-name" id="apRestoreTitle"></p>
+        <div class="ap-modal-body">
+            <p class="ap-modal-message">Restore this post back to the SK Community Feed?</p>
+            <p class="ap-modal-name" id="apRestoreTitle"></p>
         </div>
-        <div class="dso-modal-footer">
-            <button type="button" class="dso-btn-cancel" id="apRestoreCancelBtn">Cancel</button>
-            <button type="button" class="dso-btn-confirm" id="apRestoreConfirmBtn">Restore</button>
+        <div class="ap-modal-footer">
+            <button type="button" class="ap-btn-cancel" id="apRestoreCancelBtn">Cancel</button>
+            <button type="button" class="ap-btn-restore" id="apRestoreConfirmBtn">Restore</button>
+        </div>
+    </div>
+</div>
+
+{{-- Delete Permanently Modal --}}
+<div class="sk-type-confirm-backdrop" id="apPermanentDeleteModal" style="display:none;" role="dialog" aria-modal="true" aria-labelledby="apPermanentDeleteTitle">
+    <div class="sk-type-confirm-modal">
+        <div class="sk-type-confirm-header">
+            <h3 id="apPermanentDeleteTitle">Delete Permanently</h3>
+        </div>
+        <div class="sk-type-confirm-body">
+            <p class="sk-type-confirm-message" id="apPermanentDeleteMessage">Permanently delete this archived post?</p>
+            <p class="sk-type-confirm-desc">This action cannot be undone.</p>
+            <label class="sk-type-confirm-label" for="apPermanentDeleteInput">Type DELETE to confirm</label>
+            <input
+                type="text"
+                id="apPermanentDeleteInput"
+                class="sk-type-confirm-input"
+                placeholder="DELETE"
+                maxlength="6"
+                autocomplete="off"
+                spellcheck="false"
+                autocapitalize="characters"
+                inputmode="text"
+            >
+            <p class="sk-type-confirm-hint-error" id="apPermanentDeleteError" style="display:none;">Please type "DELETE" to continue.</p>
+        </div>
+        <div class="sk-type-confirm-footer">
+            <button type="button" class="sk-btn-cancel-confirm" id="apPermanentDeleteCancel">Cancel</button>
+            <button type="button" class="sk-btn-action-confirm is-disabled" id="apPermanentDeleteConfirm" disabled>Delete Permanently</button>
         </div>
     </div>
 </div>

@@ -2,11 +2,12 @@
 
 namespace App\Modules\SK_Officials_Records\Services;
 
+use App\Modules\Accounts\Models\Barangay;
 use App\Modules\Accounts\Models\OfficialProfile;
 use App\Modules\Accounts\Models\OfficialTerm;
 use App\Modules\AuditLog\Contracts\AuditLogInterface;
-use App\Modules\SK_Officials_Records\Models\ArchivedSkOfficialRecord;
 use App\Modules\Shared\Models\User;
+use App\Modules\SK_Officials_Records\Models\ArchivedSkOfficialRecord;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -16,22 +17,26 @@ class SkOfficialsRecordsService
 {
     public function __construct(
         private readonly AuditLogInterface $auditLog,
-    ) {
-    }
+    ) {}
 
     public function archiveCompletedTerm(OfficialTerm $term, ?User $archivedBy = null): ?ArchivedSkOfficialRecord
     {
-        $term->loadMissing(['officialProfile.user.barangay']);
+        $term->loadMissing(['officialProfile']);
 
         $profile = $term->officialProfile;
-        $user = $profile?->user;
+        if ($profile === null) {
+            return null;
+        }
 
-        if ($profile === null || $user === null) {
+        $user = User::withTrashed()->with('barangay')->find($profile->user_id);
+
+        if ($user === null) {
             return null;
         }
 
         if ($user->role === User::ROLE_SK_FED) {
-            return app(\App\Modules\SK_Federation_Records\Services\SkFederationRecordsService::class)->archiveCompletedTerm($term, $archivedBy);
+            // Administrators are not archived via term expiry into Records.
+            return null;
         }
 
         $payload = [
@@ -55,15 +60,23 @@ class SkOfficialsRecordsService
             'email' => $user->email,
             'term_start' => $term->term_start,
             'term_end' => $term->term_end,
-            'term_status' => $term->status,
-            'archived_at' => now(),
+            'term_status' => $this->normalizeArchivedTermStatus((string) $term->status),
             'archived_by' => $archivedBy?->id,
         ];
 
-        $record = ArchivedSkOfficialRecord::query()->updateOrCreate(
-            ['official_term_id' => $term->id],
-            $payload,
-        );
+        $existing = ArchivedSkOfficialRecord::query()
+            ->where('official_term_id', $term->id)
+            ->first();
+
+        if ($existing !== null) {
+            // Never bump archived_at on refresh/sync — keep the original archive time.
+            $payload['archived_at'] = $existing->created_at ?? $existing->archived_at ?? now();
+            $existing->fill($payload)->save();
+            $record = $existing->fresh(['barangay']);
+        } else {
+            $payload['archived_at'] = now();
+            $record = ArchivedSkOfficialRecord::query()->create($payload);
+        }
 
         if ($record !== null && $archivedBy !== null) {
             $this->auditLog->log('archive.record_archived', $archivedBy, [
@@ -102,32 +115,32 @@ class SkOfficialsRecordsService
             });
         }
 
-        if ($barangay = trim((string) $request->input('barangay', ''))) {
-            $filtered->whereHas('barangay', fn (Builder $builder) => $builder->where('name', $barangay));
+        $barangayId = $request->input('barangay_id', $request->input('barangay', ''));
+        if ($barangayId !== null && $barangayId !== '' && $barangayId !== 'all') {
+            if (is_numeric($barangayId)) {
+                $filtered->where('barangay_id', (int) $barangayId);
+            } else {
+                $filtered->whereHas('barangay', fn (Builder $builder) => $builder->where('name', (string) $barangayId));
+            }
         }
 
         if ($position = trim((string) $request->input('position', ''))) {
-            $filtered->where('position', $position);
-        }
-
-        if ($year = $request->input('year')) {
-            if ($year !== 'all' && is_numeric($year)) {
-                $filtered->whereYear('term_start', (int) $year);
+            if ($position !== 'all') {
+                $filtered->where('position', $position);
             }
         }
 
         if ($term = trim((string) $request->input('term', ''))) {
-            if (str_contains($term, '|')) {
-                [$termStart, $termEnd] = array_pad(explode('|', $term, 2), 2, null);
-                if ($termStart && $termEnd) {
-                    $filtered->whereDate('term_start', $termStart)
-                        ->whereDate('term_end', $termEnd);
-                }
-            } else {
-                [$startYear, $endYear] = array_pad(explode('-', $term), 2, null);
-                if ($startYear && $endYear) {
-                    $filtered->whereYear('term_start', (int) $startYear)
-                        ->whereYear('term_end', (int) $endYear);
+            if ($term !== 'all') {
+                if (str_contains($term, '|')) {
+                    [$left, $right] = array_pad(explode('|', $term, 2), 2, null);
+                    if ($left && $right && preg_match('/^\d{4}-\d{2}-\d{2}$/', $left) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $right)) {
+                        $filtered->whereDate('term_start', $left)
+                            ->whereDate('term_end', $right);
+                    } elseif ($left && $right && is_numeric($left) && is_numeric($right)) {
+                        $filtered->whereYear('term_start', (int) $left)
+                            ->whereYear('term_end', (int) $right);
+                    }
                 }
             }
         }
@@ -149,19 +162,83 @@ class SkOfficialsRecordsService
                 'positions' => $all->pluck('position')->unique()->count(),
                 'barangays' => $all->pluck('barangay_id')->filter()->unique()->count(),
             ],
-            'filters' => [
-                'positions' => $all->pluck('position')->filter()->unique()->sort()->values()->all(),
-                'barangays' => $all->map(fn (ArchivedSkOfficialRecord $record) => $record->barangay?->name)->filter()->unique()->sort()->values()->all(),
-                'years' => $all->flatMap(fn (ArchivedSkOfficialRecord $record) => [
-                    $record->term_start?->format('Y'),
-                    $record->term_end?->format('Y'),
-                ])->filter()->unique()->sort()->values()->all(),
-                'terms' => $all->map(fn (ArchivedSkOfficialRecord $record) => [
-                    'value' => $record->term_start?->format('Y-m-d').'|'.$record->term_end?->format('Y-m-d'),
-                    'label' => $record->term_start?->format('F j, Y').' to '.$record->term_end?->format('F j, Y'),
-                ])->unique('value')->sortBy('value')->values()->all(),
-            ],
+            'filters' => $this->buildFilterCatalog($tenantId, $all),
         ];
+    }
+
+    /**
+     * @param  \Illuminate\Support\Collection<int, ArchivedSkOfficialRecord>  $archiveRows
+     * @return array{barangays: list<array{value: string, label: string}>, positions: list<string>, terms: list<array{value: string, label: string}>}
+     */
+    public function buildFilterCatalog(int $tenantId, $archiveRows = null): array
+    {
+        $archiveRows ??= ArchivedSkOfficialRecord::query()
+            ->where('tenant_id', $tenantId)
+            ->with('barangay')
+            ->get();
+
+        $barangays = Barangay::query()
+            ->where('tenant_id', $tenantId)
+            ->orderBy('name')
+            ->get(['id', 'name'])
+            ->map(fn (Barangay $barangay) => [
+                'value' => (string) $barangay->id,
+                'label' => (string) $barangay->name,
+            ])
+            ->values()
+            ->all();
+
+        if ($barangays === []) {
+            $barangays = $archiveRows
+                ->filter(fn (ArchivedSkOfficialRecord $record) => $record->barangay_id && $record->barangay?->name)
+                ->map(fn (ArchivedSkOfficialRecord $record) => [
+                    'value' => (string) $record->barangay_id,
+                    'label' => (string) $record->barangay->name,
+                ])
+                ->unique('value')
+                ->sortBy('label')
+                ->values()
+                ->all();
+        }
+
+        $canonicalPositions = OfficialProfile::OFFICIAL_POSITIONS;
+        $extraPositions = $archiveRows->pluck('position')
+            ->map(fn ($position) => trim((string) $position))
+            ->filter()
+            ->reject(fn (string $position) => in_array($position, $canonicalPositions, true))
+            ->unique()
+            ->sort()
+            ->values()
+            ->all();
+        $positions = array_values(array_merge($canonicalPositions, $extraPositions));
+
+        $terms = $archiveRows
+            ->filter(fn (ArchivedSkOfficialRecord $record) => $record->term_start && $record->term_end)
+            ->map(fn (ArchivedSkOfficialRecord $record) => [
+                'value' => $record->term_start->format('Y-m-d').'|'.$record->term_end->format('Y-m-d'),
+                'label' => $record->term_start->format('Y').'–'.$record->term_end->format('Y'),
+            ])
+            ->unique('label')
+            ->sortByDesc('value')
+            ->values()
+            ->all();
+
+        return [
+            'barangays' => $barangays,
+            'positions' => $positions,
+            'terms' => $terms,
+        ];
+    }
+
+    private function normalizeArchivedTermStatus(string $status): string
+    {
+        $normalized = strtoupper(trim($status));
+
+        if ($normalized === OfficialTerm::STATUS_REPLACED) {
+            return OfficialTerm::STATUS_REPLACED;
+        }
+
+        return OfficialTerm::STATUS_EXPIRED;
     }
 
     public function restoreRecord(int $recordId, User $admin): User
@@ -254,6 +331,7 @@ class SkOfficialsRecordsService
             'fullName' => trim("{$record->first_name} {$record->middle_name} {$record->last_name} {$record->suffix}"),
             'position' => $record->position,
             'barangay' => $record->barangay?->name ?? '—',
+            'barangayId' => $record->barangay_id,
             'municipality' => $record->municipality ?? 'Santa Cruz',
             'province' => $record->province ?? 'Laguna',
             'region' => $record->region ?? 'IV-A CALABARZON',
@@ -264,9 +342,24 @@ class SkOfficialsRecordsService
             'age' => $record->age ?? '—',
             'termStart' => $record->term_start?->format('F j, Y') ?? '—',
             'termEnd' => $record->term_end?->format('F j, Y') ?? '—',
+            'termStartRaw' => $record->term_start?->format('Y-m-d'),
+            'termEndRaw' => $record->term_end?->format('Y-m-d'),
             'term' => $termLabel,
-            'status' => $record->term_status,
-            'archivedAt' => $record->archived_at?->format('F j, Y, g:i a') ?? '—',
+            'status' => $this->normalizeArchivedTermStatus((string) ($record->term_status ?? OfficialTerm::STATUS_EXPIRED)),
+            'archivedAt' => $this->formatArchivedAt($record),
         ];
+    }
+
+    private function formatArchivedAt(ArchivedSkOfficialRecord $record): string
+    {
+        // Prefer original insert time when sync previously bumped archived_at.
+        $archivedAt = $record->archived_at;
+        $createdAt = $record->created_at;
+
+        if ($createdAt !== null && ($archivedAt === null || $createdAt->lt($archivedAt))) {
+            $archivedAt = $createdAt;
+        }
+
+        return $archivedAt?->timezone(config('app.timezone'))->format('F j, Y, g:i a') ?? '—';
     }
 }

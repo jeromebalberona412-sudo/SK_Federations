@@ -48,7 +48,7 @@
                 <i class="fas fa-compass"></i>
             </div>
             <h4>Skip tutorial?</h4>
-            <p>You can restart this interactive tour anytime using the <strong>question mark (?)</strong> button in the header or in your Account menu.</p>
+            <p>You can restart this interactive tour anytime using the <strong>question mark (?)</strong> button in the header.</p>
             <div class="sk-tour-confirm-actions">
                 <button type="button" class="sk-tour-confirm-btn sk-tour-confirm-btn--cancel" id="skTourConfirmCancelBtn">
                     Continue Tutorial

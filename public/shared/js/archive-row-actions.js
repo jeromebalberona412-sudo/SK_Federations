@@ -1,6 +1,9 @@
 (function (window) {
     'use strict';
 
+    let activeHandler = null;
+    let activeMenu = null;
+
     function escapeHtml(value) {
         return String(value ?? '')
             .replace(/&/g, '&amp;')
@@ -20,7 +23,7 @@
             items += `<button type="button" class="ar-row-actions-item" data-ar-action="restore" data-id="${id}" role="menuitem"><i class="fas fa-rotate-left" aria-hidden="true"></i><span>Restore</span></button>`;
         }
         if (options.deletePermanent) {
-            items += `<button type="button" class="ar-row-actions-item is-danger" data-ar-action="delete" data-id="${id}" role="menuitem"><i class="fas fa-trash" aria-hidden="true"></i><span>Delete</span></button>`;
+            items += `<button type="button" class="ar-row-actions-item is-danger" data-ar-action="delete" data-id="${id}" role="menuitem"><i class="fas fa-trash" aria-hidden="true"></i><span>Delete Permanently</span></button>`;
         }
 
         return `
@@ -32,33 +35,82 @@
             </div>`;
     }
 
+    function restoreDropdown(dropdown) {
+        if (!dropdown) return;
+        const home = dropdown._arHomeParent;
+        if (home && dropdown.parentElement !== home) {
+            home.appendChild(dropdown);
+        }
+        dropdown._arHomeParent = null;
+        dropdown.classList.remove('is-floating');
+        dropdown.style.position = '';
+        dropdown.style.top = '';
+        dropdown.style.right = '';
+        dropdown.style.left = '';
+        dropdown.style.bottom = '';
+        dropdown.style.zIndex = '';
+        dropdown.style.display = '';
+    }
+
     function closeAll(exceptMenu) {
         document.querySelectorAll('.ar-row-actions-menu.is-open').forEach((menu) => {
             if (exceptMenu && menu === exceptMenu) return;
             menu.classList.remove('is-open');
             const trigger = menu.querySelector('.ar-row-actions-trigger');
-            const dropdown = menu.querySelector('.ar-row-actions-dropdown');
+            const dropdown = menu._arDropdown
+                || menu.querySelector('.ar-row-actions-dropdown')
+                || document.querySelector(`.ar-row-actions-dropdown[data-ar-menu-id="${menu.dataset.arMenuId || ''}"]`);
             if (trigger) trigger.setAttribute('aria-expanded', 'false');
             if (dropdown) {
                 dropdown.hidden = true;
-                dropdown.classList.remove('is-floating');
-                dropdown.style.position = '';
-                dropdown.style.top = '';
-                dropdown.style.right = '';
-                dropdown.style.left = '';
+                restoreDropdown(dropdown);
+                delete dropdown.dataset.arMenuId;
             }
+            delete menu._arDropdown;
         });
+
+        // Clean up any orphaned floating dropdowns left after a table re-render.
+        document.querySelectorAll('.ar-row-actions-dropdown.is-floating').forEach((dropdown) => {
+            const home = dropdown._arHomeParent;
+            if (exceptMenu && (home === exceptMenu || dropdown.dataset.arMenuId === exceptMenu.dataset.arMenuId)) {
+                return;
+            }
+            dropdown.hidden = true;
+            restoreDropdown(dropdown);
+            delete dropdown.dataset.arMenuId;
+        });
+
+        if (!exceptMenu || exceptMenu !== activeMenu) {
+            activeHandler = null;
+            activeMenu = null;
+        }
     }
 
     function positionDropdown(menu) {
         const trigger = menu.querySelector('.ar-row-actions-trigger');
-        const dropdown = menu.querySelector('.ar-row-actions-dropdown');
+        let dropdown = menu.querySelector('.ar-row-actions-dropdown');
+        if (!trigger || !dropdown) {
+            dropdown = menu._arDropdown;
+        }
         if (!trigger || !dropdown) return;
 
+        if (!menu.dataset.arMenuId) {
+            menu.dataset.arMenuId = `ar-menu-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+        }
+
+        // Portal to body so overflow:auto/hidden ancestors cannot clip the menu.
+        if (dropdown.parentElement !== document.body) {
+            dropdown._arHomeParent = menu;
+            document.body.appendChild(dropdown);
+        }
+
+        menu._arDropdown = dropdown;
+        dropdown.dataset.arMenuId = menu.dataset.arMenuId;
         dropdown.hidden = false;
         dropdown.classList.add('is-floating');
         dropdown.style.position = 'fixed';
         dropdown.style.zIndex = '1400';
+        dropdown.style.display = 'flex';
 
         const rect = trigger.getBoundingClientRect();
         const width = dropdown.offsetWidth || 168;
@@ -74,38 +126,58 @@
         dropdown.style.top = `${top}px`;
         dropdown.style.right = `${right}px`;
         dropdown.style.left = 'auto';
+        dropdown.style.bottom = 'auto';
+    }
+
+    function runAction(action, id, actionBtn) {
+        const handler = activeHandler;
+        closeAll();
+        if (typeof handler === 'function' && action) {
+            handler(action, id, actionBtn);
+        }
     }
 
     function bind(container, handler) {
-        if (!container || container.dataset.arActionsBound === '1') return;
+        if (!container) return;
+
+        container._arActionsHandler = handler;
+
+        if (container.dataset.arActionsBound === '1') {
+            return;
+        }
         container.dataset.arActionsBound = '1';
 
         container.addEventListener('click', (event) => {
             const trigger = event.target.closest('.ar-row-actions-trigger');
-            if (trigger) {
+            if (trigger && container.contains(trigger)) {
                 event.preventDefault();
                 event.stopPropagation();
                 const menu = trigger.closest('.ar-row-actions-menu');
+                if (!menu) return;
+
                 const isOpen = menu.classList.contains('is-open');
                 closeAll();
                 if (!isOpen) {
                     menu.classList.add('is-open');
                     trigger.setAttribute('aria-expanded', 'true');
+                    activeHandler = container._arActionsHandler || handler;
+                    activeMenu = menu;
                     positionDropdown(menu);
                 }
                 return;
             }
 
             const actionBtn = event.target.closest('[data-ar-action]');
-            if (!actionBtn) return;
+            if (!actionBtn || !container.contains(actionBtn)) return;
 
             event.preventDefault();
-            const action = actionBtn.getAttribute('data-ar-action');
-            const id = actionBtn.getAttribute('data-id');
-            closeAll();
-            if (typeof handler === 'function') {
-                handler(action, id, actionBtn);
-            }
+            event.stopPropagation();
+            activeHandler = container._arActionsHandler || handler;
+            runAction(
+                actionBtn.getAttribute('data-ar-action'),
+                actionBtn.getAttribute('data-id'),
+                actionBtn
+            );
         });
     }
 
@@ -114,12 +186,28 @@
         document.body.dataset.arActionsGlobalBound = '1';
 
         document.addEventListener('click', (event) => {
-            if (!event.target.closest('.ar-row-actions-menu')) {
-                closeAll();
+            const floatingItem = event.target.closest('.ar-row-actions-dropdown.is-floating [data-ar-action]');
+            if (floatingItem) {
+                event.preventDefault();
+                event.stopPropagation();
+                runAction(
+                    floatingItem.getAttribute('data-ar-action'),
+                    floatingItem.getAttribute('data-id'),
+                    floatingItem
+                );
+                return;
             }
+
+            if (event.target.closest('.ar-row-actions-menu')
+                || event.target.closest('.ar-row-actions-dropdown.is-floating')) {
+                return;
+            }
+
+            closeAll();
         });
 
         window.addEventListener('scroll', () => closeAll(), true);
+        window.addEventListener('resize', () => closeAll());
     }
 
     function fullNameFieldHtml(label, value) {

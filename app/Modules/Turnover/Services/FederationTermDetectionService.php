@@ -57,7 +57,23 @@ class FederationTermDetectionService
             return false;
         }
 
+        // Term remains valid through the entire end date (app timezone).
+        // Mandatory turnover starts the calendar day after term_end.
         return now()->startOfDay()->greaterThan($termEnd->copy()->startOfDay());
+    }
+
+    /**
+     * True from (term_end - notice_days) through term_end inclusive,
+     * while the term has not yet ended.
+     */
+    public function isWithinNoticeWindow(Carbon $termEnd): bool
+    {
+        $today = now()->startOfDay();
+        $noticeDays = max(1, (int) config('turnover.notice_days_before_term_end', 7));
+        $noticeStart = $termEnd->copy()->subDays($noticeDays)->startOfDay();
+
+        return $today->greaterThanOrEqualTo($noticeStart)
+            && ! $today->greaterThan($termEnd->copy()->startOfDay());
     }
 
     public function shouldShowTurnoverModal(User $user): bool
@@ -82,7 +98,12 @@ class FederationTermDetectionService
                 return ! $this->hasCompletedTurnoverForTerm($tenantId, $context['current_term_id']);
             }
 
-            return $this->isWithinNoticeWindow($context['term_end']);
+            if (! $this->isWithinNoticeWindow($context['term_end'])) {
+                return false;
+            }
+
+            // Dismissible reminder only: honor per-session dismiss until next login.
+            return ! session()->get('turnover_reminder_dismissed', false);
         } catch (\Throwable $e) {
             report($e);
 
@@ -105,6 +126,20 @@ class FederationTermDetectionService
             }
 
             return ! $this->hasCompletedTurnoverForTerm($tenantId, $context['current_term_id']);
+        } catch (\Throwable $e) {
+            report($e);
+
+            return false;
+        }
+    }
+
+    /**
+     * Leadership officers may still log in after term end solely to finish turnover.
+     */
+    public function canLoginDespiteEndedTerm(User $user): bool
+    {
+        try {
+            return $this->mustLockPortalForTurnover($user);
         } catch (\Throwable $e) {
             report($e);
 
@@ -186,7 +221,7 @@ class FederationTermDetectionService
         );
     }
 
-    private function hasCompletedTurnoverForTerm(int $tenantId, ?int $currentTermId): bool
+    public function hasCompletedTurnoverForTerm(int $tenantId, ?int $currentTermId): bool
     {
         if (! $this->turnoversTableReady()) {
             return false;
@@ -239,15 +274,6 @@ class FederationTermDetectionService
         } catch (\Throwable) {
             return false;
         }
-    }
-
-    private function isWithinNoticeWindow(Carbon $termEnd): bool
-    {
-        $today = now()->startOfDay();
-        $noticeDays = max(1, (int) config('turnover.notice_days_before_term_end', 7));
-        $noticeStart = $termEnd->copy()->subDays($noticeDays)->startOfDay();
-
-        return $today->greaterThanOrEqualTo($noticeStart) && ! $today->greaterThan($termEnd->copy()->startOfDay());
     }
 
     /**

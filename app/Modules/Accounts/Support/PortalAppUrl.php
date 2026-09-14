@@ -2,6 +2,10 @@
 
 namespace App\Modules\Accounts\Support;
 
+use DateInterval;
+use DateTimeInterface;
+use Illuminate\Support\Facades\URL;
+
 /**
  * Resolves and normalizes portal base URLs for activation / password-setup emails.
  *
@@ -130,6 +134,16 @@ final class PortalAppUrl
         return self::join(self::selfApp(), $path);
     }
 
+    public static function temporarySignedRoute(
+        string $name,
+        DateTimeInterface|DateInterval|int $expiration,
+        array $parameters = [],
+    ): string {
+        return self::withPublicRoot(
+            fn (): string => URL::temporarySignedRoute($name, $expiration, $parameters, absolute: true)
+        );
+    }
+
     /**
      * Prefer a non-localhost absolute URL. Loopback is allowed only in local/testing.
      *
@@ -196,5 +210,37 @@ final class PortalAppUrl
         $path = isset($parts['path']) ? rtrim((string) $parts['path'], '/') : '';
 
         return $scheme.'://'.$host.$port.$path;
+    }
+
+    private static function withPublicRoot(callable $callback): string
+    {
+        $appRoot = rtrim((string) config('app.url'), '/');
+        $publicRoot = self::selfApp();
+
+        if ($publicRoot === '' || ! filter_var($publicRoot, FILTER_VALIDATE_URL)) {
+            return (string) $callback();
+        }
+
+        URL::forceRootUrl($publicRoot);
+        self::applySchemeFromUrl($publicRoot);
+
+        try {
+            return (string) $callback();
+        } finally {
+            $restore = filter_var($appRoot, FILTER_VALIDATE_URL) ? $appRoot : $publicRoot;
+            URL::forceRootUrl($restore);
+            self::applySchemeFromUrl($restore);
+        }
+    }
+
+    private static function applySchemeFromUrl(string $url): void
+    {
+        $scheme = strtolower((string) parse_url($url, PHP_URL_SCHEME));
+
+        if ($scheme === 'https') {
+            URL::forceScheme('https');
+        } elseif ($scheme === 'http') {
+            URL::forceScheme('http');
+        }
     }
 }

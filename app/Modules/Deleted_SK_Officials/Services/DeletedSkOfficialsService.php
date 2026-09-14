@@ -5,6 +5,7 @@ namespace App\Modules\Deleted_SK_Officials\Services;
 use App\Modules\Accounts\Models\Barangay;
 use App\Modules\Accounts\Models\OfficialProfile;
 use App\Modules\Accounts\Models\OfficialTerm;
+use App\Modules\Accounts\Services\SkOfficialRosterLimitsService;
 use App\Modules\AuditLog\Contracts\AuditLogInterface;
 use App\Modules\Deleted_SK_Officials\Models\DeletedSkOfficial;
 use App\Modules\Shared\Models\User;
@@ -21,7 +22,10 @@ class DeletedSkOfficialsService
      */
     public const RETENTION_DAYS = 30;
 
-    public function __construct(private readonly AuditLogInterface $auditLog) {}
+    public function __construct(
+        private readonly AuditLogInterface $auditLog,
+        private readonly SkOfficialRosterLimitsService $rosterLimits,
+    ) {}
 
     /**
      * Permanently remove archived officials whose 30-day retention window has passed.
@@ -161,22 +165,11 @@ class DeletedSkOfficialsService
         }
 
         if ($barangay = trim((string) $request->input('barangay', ''))) {
-            $query->where(function ($builder) use ($barangay) {
-                $builder->where('barangay_name', $barangay)
-                    ->orWhere('barangay_name', 'ilike', $barangay);
-            });
+            $query->where('barangay_name', $barangay);
         }
 
         if ($position = trim((string) $request->input('position', ''))) {
-            $normalized = strtolower(trim((string) preg_replace('/^sk\s+/i', '', $position)));
-            $query->where(function ($builder) use ($position, $normalized) {
-                $builder->where('position', $position)
-                    ->orWhere('position', 'ilike', $position)
-                    ->orWhereRaw(
-                        "LOWER(TRIM(BOTH FROM REGEXP_REPLACE(COALESCE(position, ''), '^\\s*SK\\s+', '', 'i'))) = ?",
-                        [$normalized]
-                    );
-            });
+            $query->where('position', $position);
         }
 
         if ($term = trim((string) $request->input('term', ''))) {
@@ -276,56 +269,114 @@ class DeletedSkOfficialsService
         }
 
         return DB::transaction(function () use ($archive, $admin, $role) {
-            $user = User::withTrashed()->find($archive->original_user_id);
+            $locked = DeletedSkOfficial::query()
+                ->whereKey($archive->id)
+                ->lockForUpdate()
+                ->first();
+
+            if ($locked === null || $locked->restored_at !== null) {
+                throw ValidationException::withMessages([
+                    'account' => 'This account has already been restored.',
+                ]);
+            }
+
+            $originalUserId = (int) ($locked->original_user_id ?? 0);
+            if ($originalUserId <= 0) {
+                throw ValidationException::withMessages([
+                    'account' => 'Original account identifier is missing. Restore cannot continue.',
+                ]);
+            }
+
+            /** @var User|null $user */
+            $user = User::withTrashed()->lockForUpdate()->find($originalUserId);
 
             if ($user === null) {
-                $user = User::query()->create([
-                    'tenant_id' => $archive->tenant_id,
-                    'barangay_id' => $archive->barangay_id,
-                    'name' => $archive->full_name,
-                    'email' => $archive->email,
-                    'role' => $role,
-                    'status' => User::STATUS_ACTIVE,
-                    'email_verified_at' => $archive->email_verified_at ?? now(),
+                throw ValidationException::withMessages([
+                    'account' => 'Original account was not found. Restore cannot continue.',
                 ]);
-            } else {
-                if ($user->trashed()) {
-                    $user->restore();
-                }
-
-                $user->forceFill([
-                    'status' => User::STATUS_ACTIVE,
-                    'tenant_id' => $archive->tenant_id,
-                    'barangay_id' => $archive->barangay_id,
-                    'role' => $role,
-                    'name' => $archive->full_name ?: $user->name,
-                ])->save();
             }
+
+            if (! $user->trashed()) {
+                throw ValidationException::withMessages([
+                    'account' => 'This account is already active in Manage Accounts.',
+                ]);
+            }
+
+            $emails = collect([$user->email, $locked->email])
+                ->map(static fn ($value) => strtolower(trim((string) $value)))
+                ->filter(static fn (string $value): bool => $value !== '')
+                ->unique()
+                ->values();
+
+            foreach ($emails as $email) {
+                $emailConflict = User::query()
+                    ->whereNull('deleted_at')
+                    ->where('id', '!=', $user->id)
+                    ->whereRaw('LOWER(email) = ?', [$email])
+                    ->exists();
+
+                if ($emailConflict) {
+                    throw ValidationException::withMessages([
+                        'account' => 'Cannot restore: another active account already uses this email address.',
+                    ]);
+                }
+            }
+
+            $barangayId = (int) ($locked->barangay_id ?: $user->barangay_id ?: 0);
+            $position = trim((string) ($locked->position ?: $user->officialProfile?->position ?: ''));
+            if ($barangayId > 0 && $position !== '') {
+                try {
+                    $this->rosterLimits->assertRosterLimits(
+                        (int) ($locked->tenant_id ?: $admin->tenant_id),
+                        $barangayId,
+                        $position,
+                        (int) $user->id,
+                        $locked->term_start?->format('Y-m-d'),
+                        $locked->term_end?->format('Y-m-d'),
+                    );
+                } catch (ValidationException $exception) {
+                    $message = (string) (collect($exception->errors())->flatten()->first()
+                        ?: 'Cannot restore due to an existing SK Official assignment conflict.');
+                    throw ValidationException::withMessages([
+                        'account' => 'Cannot restore: '.$message,
+                    ]);
+                }
+            }
+
+            $user->restore();
+            $user->forceFill([
+                'status' => User::STATUS_ACTIVE,
+                'tenant_id' => $locked->tenant_id,
+                'barangay_id' => $locked->barangay_id ?: $user->barangay_id,
+                'role' => $role,
+                'name' => $locked->full_name ?: $user->name,
+                'email' => $locked->email ?: $user->email,
+            ])->save();
 
             $profile = OfficialProfile::query()->firstOrNew(['user_id' => $user->id]);
             $profile->fill([
-                'tenant_id' => $archive->tenant_id,
-                'first_name' => $archive->first_name,
-                'middle_name' => $archive->middle_name,
-                'last_name' => $archive->last_name,
-                'suffix' => $archive->suffix,
-                'contact_number' => $archive->contact_number,
-                'position' => $archive->position,
-                'federation_position' => $archive->federation_position,
-                'sex' => $archive->sex,
-                'date_of_birth' => $archive->date_of_birth,
-                'age' => $archive->age,
-                'municipality' => $archive->municipality,
-                'province' => $archive->province,
-                'region' => $archive->region,
+                'tenant_id' => $locked->tenant_id,
+                'first_name' => $locked->first_name,
+                'middle_name' => $locked->middle_name,
+                'last_name' => $locked->last_name,
+                'suffix' => $locked->suffix,
+                'contact_number' => $locked->contact_number,
+                'position' => $locked->position,
+                'federation_position' => $locked->federation_position,
+                'sex' => $locked->sex,
+                'date_of_birth' => $locked->date_of_birth,
+                'age' => $locked->age,
+                'municipality' => $locked->municipality,
+                'province' => $locked->province,
+                'region' => $locked->region,
             ])->save();
 
-            if ($archive->term_start && $archive->term_end) {
+            if ($locked->term_start && $locked->term_end) {
                 OfficialTerm::query()->updateOrCreate(
                     [
                         'official_profile_id' => $profile->id,
-                        'term_start' => $archive->term_start,
-                        'term_end' => $archive->term_end,
+                        'term_start' => $locked->term_start,
+                        'term_end' => $locked->term_end,
                     ],
                     [
                         'status' => OfficialTerm::STATUS_ACTIVE,
@@ -333,7 +384,7 @@ class DeletedSkOfficialsService
                 );
             }
 
-            $archive->forceFill([
+            $locked->forceFill([
                 'restored_at' => now(),
             ])->save();
 
@@ -342,7 +393,7 @@ class DeletedSkOfficialsService
                 'target_user_id' => $user->id,
                 'target_name' => $user->name,
                 'barangay_id' => $user->barangay_id,
-                'archive_id' => $archive->id,
+                'archive_id' => $locked->id,
             ]);
 
             return $user->fresh(['officialProfile.terms', 'barangay']);
@@ -360,7 +411,7 @@ class DeletedSkOfficialsService
         $term = $profile?->latestTerm ?? $profile?->terms()->latest('id')->first();
         $now = now();
 
-        return DeletedSkOfficial::query()->create([
+        $payload = [
             'tenant_id' => (int) $target->tenant_id,
             'original_user_id' => (int) $target->id,
             'barangay_id' => $target->barangay_id !== null ? (int) $target->barangay_id : null,
@@ -394,7 +445,22 @@ class DeletedSkOfficialsService
             'deleted_by_name' => $admin->name,
             'deletion_reason' => $reason,
             'archived_at' => $now,
-        ]);
+            'restored_at' => null,
+        ];
+
+        $existing = DeletedSkOfficial::query()
+            ->where('original_user_id', (int) $target->id)
+            ->whereNull('restored_at')
+            ->orderByDesc('id')
+            ->first();
+
+        if ($existing !== null) {
+            $existing->fill($payload)->save();
+
+            return $existing->fresh();
+        }
+
+        return DeletedSkOfficial::query()->create($payload);
     }
 
     /**
@@ -451,7 +517,7 @@ class DeletedSkOfficialsService
 
         $termDisplay = '—';
         if ($termStart && $termEnd) {
-            $termDisplay = $termStartDisplay . ' — ' . $termEndDisplay;
+            $termDisplay = $termStartDisplay.' — '.$termEndDisplay;
         } elseif ($row->term_label) {
             $termDisplay = $row->term_label;
         }

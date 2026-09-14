@@ -2,6 +2,7 @@
 
 namespace App\Modules\Accounts\Notifications;
 
+use App\Modules\Accounts\Support\PortalAppUrl;
 use Illuminate\Bus\Queueable;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
@@ -26,6 +27,7 @@ class FederationPositionAssignedNotification extends Notification
     public function toMail(object $notifiable): MailMessage
     {
         $position = $this->federationPosition;
+        $portalUrl = PortalAppUrl::normalize($this->portalUrl) ?: PortalAppUrl::selfApp();
         $sentAt = now()->timezone(config('app.timezone', 'Asia/Manila'))->format('M j, Y g:i A');
 
         return (new MailMessage)
@@ -33,7 +35,7 @@ class FederationPositionAssignedNotification extends Notification
             ->greeting('Hello!')
             ->line("You have been assigned as {$position} of the SK Federation.")
             ->line('You may now sign in to the SK Federation portal to access federation tools, notifications, audit logs, and other assigned features.')
-            ->action('Open SK Federation Portal', $this->portalUrl)
+            ->action('Open SK Federation Portal', $portalUrl)
             ->line('Assignment recorded on '.$sentAt.'.')
             ->line('If you did not expect this assignment, please contact your SK Federation administrator.');
     }

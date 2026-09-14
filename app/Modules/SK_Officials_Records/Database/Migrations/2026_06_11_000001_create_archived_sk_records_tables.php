@@ -8,7 +8,7 @@ return new class extends Migration
 {
     public function up(): void
     {
-        if (!Schema::hasTable('archived_sk_official_records')) {
+        if (! Schema::hasTable('archived_sk_official_records')) {
             Schema::create('archived_sk_official_records', function (Blueprint $table) {
                 $table->id();
                 $table->foreignId('user_id')->nullable()->constrained('users')->nullOnDelete();
@@ -42,7 +42,7 @@ return new class extends Migration
             });
         }
 
-        if (!Schema::hasTable('archived_sk_federation_records')) {
+        if (! Schema::hasTable('archived_sk_federation_records')) {
             Schema::create('archived_sk_federation_records', function (Blueprint $table) {
                 $table->id();
                 $table->foreignId('user_id')->nullable()->constrained('users')->nullOnDelete();
@@ -77,7 +77,6 @@ return new class extends Migration
 
     public function down(): void
     {
-        Schema::dropIfExists('archived_sk_federation_records');
-        Schema::dropIfExists('archived_sk_official_records');
+        // Intentionally empty: never drop historical archive tables.
     }
 };

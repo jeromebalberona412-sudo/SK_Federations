@@ -5,6 +5,7 @@ namespace App\Modules\Accounts\Services;
 use App\Modules\Accounts\Models\OfficialProfile;
 use App\Modules\Accounts\Models\OfficialTerm;
 use App\Modules\Accounts\Notifications\FederationPositionAssignedNotification;
+use App\Modules\Accounts\Support\PortalAppUrl;
 use App\Modules\Shared\Models\User;
 use App\Services\InvalidEmailService;
 use Illuminate\Database\Eloquent\Builder;
@@ -15,8 +16,7 @@ class FederationRosterService
 {
     public function __construct(
         private readonly ChairpersonFederationSyncService $chairpersonFederationSyncService,
-    ) {
-    }
+    ) {}
 
     public function isChairPosition(string $position): bool
     {
@@ -185,7 +185,7 @@ class FederationRosterService
             && in_array($normalizedPosition, OfficialProfile::FEDERATION_PORTAL_ACCESS_POSITIONS, true)
         ) {
             $userId = (int) $account->getKey();
-            $portalUrl = rtrim((string) config('app.url'), '/');
+            $portalUrl = PortalAppUrl::selfApp();
 
             dispatch(function () use ($userId, $normalizedPosition, $portalUrl): void {
                 $user = User::query()->find($userId);

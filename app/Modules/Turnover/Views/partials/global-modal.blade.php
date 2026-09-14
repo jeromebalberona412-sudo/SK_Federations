@@ -9,16 +9,37 @@
     $termEndDefault = now()->addYears(4)->toDateString();
     $dobMin = now()->subYears(24)->toDateString();
     $dobMax = now()->subYears(18)->toDateString();
-    $canClose = !($tm['portal_locked'] ?? false);
+    $portalLocked = (bool) ($tm['portal_locked'] ?? false);
+    $canClose = ! $portalLocked;
+    $termEndRaw = $context['leadership']['term_end'] ?? $context['term_end'] ?? null;
+    $termEndDisplay = $termEndRaw
+        ? \Carbon\Carbon::parse($termEndRaw)->timezone(config('app.timezone'))->format('F j, Y')
+        : null;
+    $noticeDays = max(1, (int) config('turnover.notice_days_before_term_end', 7));
 @endphp
 
-<div id="federationTurnoverOverlay" class="to-overlay {{ ($tm['portal_locked'] ?? false) ? 'to-overlay--locked' : '' }}" aria-hidden="false">
-    <div class="to-modal" id="federationTurnoverModal" role="dialog" aria-modal="true" aria-labelledby="toModalTitle">
+<div
+    id="federationTurnoverOverlay"
+    class="to-overlay {{ $portalLocked ? 'to-overlay--locked' : '' }}"
+    aria-hidden="false"
+    data-portal-locked="{{ $portalLocked ? '1' : '0' }}"
+    data-can-close="{{ $canClose ? '1' : '0' }}"
+>
+    <div class="to-modal" id="federationTurnoverModal" role="dialog" aria-modal="true" aria-labelledby="toModalTitle" @if($portalLocked) data-bs-backdrop="static" data-bs-keyboard="false" @endif>
         <div class="to-modal-header">
             <div class="to-modal-header-text">
                 <span class="to-modal-eyebrow"><i class="fas fa-exchange-alt"></i> Federation Turnover</span>
-                <h2 id="toModalTitle">Transfer Federation Leadership</h2>
-                <p>Securely transfer Federation President and Vice President administrative access to newly elected officers.</p>
+                @if($portalLocked)
+                    <h2 id="toModalTitle">SK Account Turnover Required</h2>
+                    <p>
+                        Your SK Federation term has ended. Full portal access is locked.
+                        You may only use <strong>Account Turnover</strong> or <strong>Log out</strong>
+                        until the incoming President and Vice President are registered and turnover is completed.
+                    </p>
+                @else
+                    <h2 id="toModalTitle">SK Account Turnover Reminder</h2>
+                    <p>The current SK Officials term is approaching its end. Please prepare to complete the account turnover to the incoming SK Federation leadership.</p>
+                @endif
             </div>
             <div class="to-modal-controls">
                 <button type="button" class="to-win-btn" id="toModalToggleSizeBtn" title="Maximize" aria-label="Maximize">
@@ -31,16 +52,27 @@
         </div>
 
         <div class="to-modal-body">
-            @if(($tm['portal_locked'] ?? false))
+            @if($portalLocked)
                 <div class="to-alert to-alert--danger">
                     <i class="fas fa-exclamation-circle"></i>
-                    <span>Your federation term has ended. Complete turnover to restore full portal access.</span>
+                    <span>
+                        <strong>Why am I locked?</strong>
+                        @if($termEndDisplay)
+                            Your term ended on <strong>{{ $termEndDisplay }}</strong>.
+                        @else
+                            Your federation term has ended.
+                        @endif
+                        Other menus are disabled on purpose so outgoing leadership can finish Account Turnover first.
+                        Status: <strong>REQUIRED</strong>.
+                    </span>
                 </div>
-            @elseif(($context['leadership']['term_end'] ?? $context['term_end'] ?? null))
-                @php $termEndDisplay = $context['leadership']['term_end'] ?? $context['term_end']; @endphp
+            @elseif($termEndDisplay)
                 <div class="to-alert to-alert--info">
                     <i class="fas fa-info-circle"></i>
-                    <span>Current term ends on {{ \Carbon\Carbon::parse($termEndDisplay)->format('F j, Y') }}. Register incoming officers to begin turnover.</span>
+                    <span>
+                        The current SK Officials term will end on <strong>{{ $termEndDisplay }}</strong>.
+                        You are now within the {{ $noticeDays }}-day turnover period.
+                    </span>
                 </div>
             @endif
 
@@ -133,9 +165,18 @@
             @else
                 <div class="turnover-empty-state">
                     <div class="turnover-status-icon"><i class="fas fa-user-shield"></i></div>
-                    <h3>Start Federation Turnover</h3>
-                    <p>Register the incoming Federation President and Vice President to begin the secure turnover process.</p>
-                    <button type="button" class="to-btn-primary" id="startTurnoverBtn">Start Turnover Process</button>
+                    @if($portalLocked)
+                        <h3>Complete Account Turnover</h3>
+                        <p>Register the incoming Federation President and Vice President, then finalize the transfer to unlock the portal.</p>
+                        <div class="to-mandatory-actions">
+                            <button type="button" class="to-btn-primary" id="startTurnoverBtn">Complete Account Turnover</button>
+                            <button type="button" class="btn-secondary-modern" id="turnoverLogoutBtn">Logout</button>
+                        </div>
+                    @else
+                        <h3>Prepare for Account Turnover</h3>
+                        <p>Register the incoming Federation President and Vice President when you are ready to begin the secure turnover process.</p>
+                        <button type="button" class="to-btn-primary" id="startTurnoverBtn">Proceed to Turnover</button>
+                    @endif
                 </div>
             @endif
 
@@ -145,7 +186,16 @@
                         <i class="fas fa-check-double"></i>
                         <span>Both incoming officers completed account setup. You may now transfer administrative access.</span>
                     </div>
-                    <button type="button" class="btn-danger-modern" id="openCompleteTurnoverModal">Complete Turnover</button>
+                    <div class="to-mandatory-actions">
+                        <button type="button" class="btn-danger-modern" id="openCompleteTurnoverModal">Complete Account Turnover</button>
+                        @if($portalLocked)
+                            <button type="button" class="btn-secondary-modern" id="turnoverLogoutBtnComplete">Logout</button>
+                        @endif
+                    </div>
+                </div>
+            @elseif($portalLocked && $activeTurnover)
+                <div class="to-mandatory-actions to-mandatory-actions--footer">
+                    <button type="button" class="btn-secondary-modern" id="turnoverLogoutBtnLocked">Logout</button>
                 </div>
             @endif
         </div>
@@ -158,8 +208,10 @@
 <script>
     window.turnoverConfig = {
         showModal: true,
-        portalLocked: @json($tm['portal_locked'] ?? false),
+        portalLocked: @json($portalLocked),
         canClose: @json($canClose),
+        remindLaterUrl: @json(route('turnover.remind-later')),
+        logoutUrl: @json(route('logout')),
         registerUrl: @json(route('turnover.register')),
         startUrl: @json(route('turnover.start')),
         completeUrl: @json($activeTurnover ? route('turnover.complete', $activeTurnover) : ''),

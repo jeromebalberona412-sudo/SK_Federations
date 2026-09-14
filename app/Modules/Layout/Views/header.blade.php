@@ -20,6 +20,21 @@
             $unreadMsgLabel = $unreadMsgCount >= 9 ? '9+' : (string) $unreadMsgCount;
         @endphp
 
+        {{-- Tutorial Guide icon (left of Messages) --}}
+        <div class="notif-menu tutorial-guide-header-menu" id="tutorialGuideHeaderMenu">
+            <button
+                type="button"
+                class="notif-btn tutorial-header-btn"
+                id="tutorialGuideBtn"
+                data-tour="tutorial-guide"
+                onclick="window.startSkFedTutorial && window.startSkFedTutorial(true)"
+                aria-label="Tutorial Guide"
+                title="Tutorial Guide"
+            >
+                <i class="fas fa-question-circle" aria-hidden="true"></i>
+            </button>
+        </div>
+
         {{-- Messages (Officials-style icon button + Facebook-style dropdown) --}}
         <div class="notif-menu comms-header-msg" id="commsMsgMenu">
             <button
@@ -66,21 +81,6 @@
             @include('notifications::dropdown-popover')
         </div>
 
-        {{-- Interactive Tutorial Guide Button --}}
-        <div class="notif-menu tutorial-guide-header-menu" id="tutorialGuideHeaderMenu">
-            <button
-                type="button"
-                class="notif-btn tutorial-header-btn"
-                id="tutorialGuideBtn"
-                data-tour="tutorial-guide"
-                onclick="window.startSkFedTutorial && window.startSkFedTutorial(true)"
-                aria-label="Tutorial Guide"
-                title="Tutorial Guide"
-            >
-                <i class="fas fa-question-circle" aria-hidden="true"></i>
-            </button>
-        </div>
-
         <div class="profile-dropdown-wrapper" data-tour="account-menu">
             <button class="profile-btn" onclick="toggleProfileDropdown(event)" aria-label="Profile menu" aria-expanded="false" aria-haspopup="true">
                 <img src="{{ $avatar }}" alt="Profile" class="nav-avatar">
@@ -111,13 +111,6 @@
                     </span>
                     Account Settings
                 </a>
-
-                <button type="button" class="profile-dropdown-item" id="nav-tutorial-guide-btn" onclick="toggleProfileDropdown(event); window.startSkFedTutorial && window.startSkFedTutorial(true);" data-no-loading>
-                    <span class="profile-dropdown-icon profile-dropdown-icon--tutorial">
-                        <i class="fas fa-question-circle" style="font-size: 1rem; color: #f59e0b;"></i>
-                    </span>
-                    Tutorial Guide
-                </button>
 
                 <div class="profile-dropdown-divider"></div>
 

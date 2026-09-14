@@ -127,18 +127,16 @@ document.addEventListener('DOMContentLoaded', () => {
         timerInterval = setInterval(refreshButton, 1000);
     }
 
-    // ── Verified success → Okay / auto-redirect to dashboard ─────────────────
+    // ── Verified success (no auto dashboard redirect) ─────────────────────────
 
     function showVerifiedSuccess(url) {
         if (redirectStarted) return;
         redirectStarted = true;
         verificationDone = true;
 
-        const targetUrl = url || '/dashboard';
-
         if (stateEl) {
             stateEl.className = 'alert alert-success';
-            stateEl.textContent = 'Verified successfully. Opening your dashboard...';
+            stateEl.textContent = 'Verified successfully. You can now sign in.';
         }
 
         const modal = document.getElementById('success-modal');
@@ -147,26 +145,18 @@ document.addEventListener('DOMContentLoaded', () => {
             const copy = modal.querySelector('p');
             const action = modal.querySelector('[data-success-login]');
             if (title) title.textContent = 'Verified Successfully!';
-            if (copy) copy.textContent = 'Your email has been verified. Continuing to your dashboard.';
+            if (copy) copy.textContent = 'Your email has been verified. Sign in to continue.';
             if (action) {
                 action.hidden = false;
                 action.removeAttribute('hidden');
-                action.setAttribute('href', targetUrl);
-                action.textContent = 'Okay';
-                action.addEventListener('click', (e) => {
-                    e.preventDefault();
-                    window.location.replace(targetUrl);
-                }, { once: true });
+                action.setAttribute('href', url || '/login');
             }
             modal.classList.add('show');
         }
 
         clearCooldown();
         if (typeof window.hideLoading === 'function') window.hideLoading();
-
-        window.setTimeout(() => {
-            window.location.replace(targetUrl);
-        }, 1600);
+        // Do not auto-redirect to dashboard.
     }
 
     // ── Resend (button click only) ────────────────────────────────────────────

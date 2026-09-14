@@ -13,23 +13,55 @@
 
 <div id="mainContent" class="main-content-modern arfed-page container-fluid">
 
-    <div class="arfed-page-header row">
-        <div class="arfed-header-left col-md-6">
+    <div class="arfed-page-header">
+        <div class="arfed-header-left">
             <h1 class="arfed-page-title">Archived SK Federation Records</h1>
-            <p class="arfed-page-subtitle">Completed term records — read-only historical archive.</p>
-        </div>
-        <div class="arfed-header-right col-md-6">
-            <select id="arfedYearFilter" class="arfed-year-filter form-select">
-                <option value="all">All Years</option>
-            </select>
-            <select id="arfedTermFilter" class="arfed-term-filter form-select">
-                <option value="all">All Terms</option>
-            </select>
-            <input type="text" id="arfedSearch" class="arfed-search-input form-control" placeholder="Search by name or position…">
+            <p class="arfed-page-subtitle">Previous completed federation officer terms — read-only historical archive.</p>
         </div>
     </div>
 
-    <!-- Table Card -->
+    <div class="arfed-filters" role="search" aria-label="Archive filters">
+        <div class="arfed-filter-field arfed-filter-field--search">
+            <label for="arfedSearch">Search</label>
+            <input type="text" id="arfedSearch" class="arfed-search-input form-control" placeholder="Search by name or position…">
+        </div>
+        <div class="arfed-filter-field">
+            <label for="arfedBarangayFilter">Barangay</label>
+            <select id="arfedBarangayFilter" class="arfed-year-filter form-select" aria-label="Filter by barangay">
+                <option value="all">All Barangays</option>
+                @foreach(($initialFilters['barangays'] ?? []) as $barangay)
+                    @php
+                        $value = is_array($barangay) ? ($barangay['value'] ?? '') : $barangay;
+                        $label = is_array($barangay) ? ($barangay['label'] ?? $value) : $barangay;
+                    @endphp
+                    <option value="{{ $value }}">{{ $label }}</option>
+                @endforeach
+            </select>
+        </div>
+        <div class="arfed-filter-field">
+            <label for="arfedPositionFilter">Position</label>
+            <select id="arfedPositionFilter" class="arfed-year-filter form-select" aria-label="Filter by position">
+                <option value="all">All Positions</option>
+                @foreach(($initialFilters['positions'] ?? []) as $position)
+                    <option value="{{ is_array($position) ? ($position['value'] ?? '') : $position }}">{{ is_array($position) ? ($position['label'] ?? '') : $position }}</option>
+                @endforeach
+            </select>
+        </div>
+        <div class="arfed-filter-field">
+            <label for="arfedTermFilter">Term</label>
+            <select id="arfedTermFilter" class="arfed-term-filter form-select" aria-label="Filter by term">
+                <option value="all">All Terms</option>
+                @foreach(($initialFilters['terms'] ?? []) as $term)
+                    <option value="{{ is_array($term) ? ($term['value'] ?? '') : $term }}">{{ is_array($term) ? ($term['label'] ?? '') : $term }}</option>
+                @endforeach
+            </select>
+        </div>
+        <div class="arfed-filter-field arfed-filter-field--actions">
+            <label>&nbsp;</label>
+            <button type="button" id="arfedClearFiltersBtn" class="arfed-clear-filters-btn">Clear Filters</button>
+        </div>
+    </div>
+
     <div class="arfed-table-card">
         <div class="arfed-table-wrapper">
             <table class="arfed-table">
@@ -44,13 +76,33 @@
                                 <span class="ar-sort-icon" aria-hidden="true"></span>
                             </button>
                         </th>
-                        <th>Position</th>
-                        <th>Term Served</th>
+                        <th>Federation Position</th>
+                        <th>Term Start</th>
+                        <th>Term End</th>
                         <th>Status</th>
+                        <th>Archived Date</th>
                         <th class="arfed-col-actions">Actions</th>
                     </tr>
                 </thead>
-                <tbody id="arfedTableBody"></tbody>
+                <tbody id="arfedTableBody">
+                    @forelse(($initialRecords ?? []) as $record)
+                        <tr>
+                            <td class="arfed-name-cell">{{ trim(collect([$record['lastName'] ?? '', $record['firstName'] ?? '', $record['middleName'] ?? '', $record['suffix'] ?? ''])->filter()->implode(', ')) }}</td>
+                            <td style="text-align:center;">{{ $record['federationPosition'] ?? $record['position'] ?? '—' }}</td>
+                            <td style="text-align:center;">{{ $record['termStart'] ?? '—' }}</td>
+                            <td style="text-align:center;">{{ $record['termEnd'] ?? '—' }}</td>
+                            <td style="text-align:center;"><span class="arfed-completed-badge">{{ $record['status'] ?? $record['termStatus'] ?? 'EXPIRED' }}</span></td>
+                            <td style="text-align:center;">{{ $record['archivedAt'] ?? '—' }}</td>
+                            <td class="arfed-col-actions">
+                                <div class="arfed-action-btns">
+                                    <button type="button" class="arfed-btn-view" data-arfed-view="{{ $record['id'] }}" aria-label="View record">View</button>
+                                </div>
+                            </td>
+                        </tr>
+                    @empty
+                        <tr class="arfed-empty-row"><td colspan="7">No previous-term records found.</td></tr>
+                    @endforelse
+                </tbody>
             </table>
         </div>
     </div>
@@ -73,17 +125,16 @@
                 <option value="50">50 rows</option>
                 <option value="100">100 rows</option>
             </select>
-            <span class="pagination-record-count" id="arfedPaginationInfo">0 records</span>
+            <span class="pagination-record-count" id="arfedPaginationInfo">{{ count($initialRecords ?? []) }} records</span>
         </div>
     </div>
 
 </div>
 
-<!-- View Modal -->
 <div class="arfed-modal-backdrop" id="arfedViewModal" style="display:none;" role="dialog" aria-modal="true" aria-labelledby="arfedViewModalTitle">
     <div class="arfed-modal-box arfed-view-modal-box" id="arfedViewModalBox">
         <div class="arfed-modal-header arfed-view-modal-header">
-            <h2 class="arfed-modal-title" id="arfedViewModalTitle">View Details</h2>
+            <h2 class="arfed-modal-title" id="arfedViewModalTitle">Archived SK Federation Details</h2>
             <div class="arfed-view-controls modal-window-controls">
                 <button type="button" class="modal-toggle-btn" id="arfedViewMaximizeBtn" aria-label="Fullscreen" title="Fullscreen">□</button>
                 <button type="button" class="modal-toggle-btn" id="arfedViewRestoreBtn" hidden aria-label="Restore down" title="Restore down">⧉</button>
@@ -99,6 +150,14 @@
 @endsection
 
 @push('scripts')
+    <script>
+        window.__SK_FEDERATION_RECORDS_CONFIG__ = {
+            dataUrl: @json(route('archived.sk-federation-records.data')),
+            restoreUrl: @json(url('/manage-archive/sk-federation-records')),
+        };
+        window.__INITIAL_SK_FEDERATION_RECORDS__ = @json($initialRecords ?? []);
+        window.__INITIAL_SK_FEDERATION_FILTERS__ = @json($initialFilters ?? []);
+    </script>
     <script src="{{ url('/shared/js/archive-row-actions.js') }}?v={{ @filemtime(public_path('shared/js/archive-row-actions.js')) ?: time() }}"></script>
     <script src="{{ url('/shared/js/archive-fullname-sort.js') }}?v={{ @filemtime(public_path('shared/js/archive-fullname-sort.js')) ?: time() }}"></script>
     @vite([

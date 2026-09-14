@@ -3,11 +3,12 @@
 namespace App\Modules\CommunityFeed\Controllers;
 
 use App\Modules\Accounts\Models\OfficialProfile;
-use App\Modules\Deleted_Posts\Services\DeletedPostsService;
+use App\Modules\Accounts\Support\PortalAppUrl;
 use App\Modules\CommunityFeed\Services\CloudinaryService;
 use App\Modules\CommunityFeed\Services\CommunityFeedPostBodyValidator;
 use App\Modules\CommunityFeed\Services\FederationCommunityFeedBroadcastService;
 use App\Modules\CommunityFeed\Services\GoogleDriveVideoUrlService;
+use App\Modules\Deleted_Posts\Services\DeletedPostsService;
 use App\Modules\Shared\Controllers\Controller;
 use App\Modules\Shared\Models\Announcement;
 use App\Modules\Shared\Models\AnnouncementComment;
@@ -587,12 +588,12 @@ class CommunityFeedPostController extends Controller
         if ($result['created']) {
             $postLabel = $this->notificationService->postLabel($post->title, $post->body);
             if ($post->is_federation_wide) {
-                $this->notificationService->notifyFederationPortalUsersExcept(
+                $this->notificationService->notifyFederationPortalUsersCommunityFeedActivity(
                     [(int) $user->id],
-                    SkFederationsNotificationService::CATEGORY_COMMUNITY_FEED,
+                    (int) $post->id,
                     "{$user->name} liked a federation post",
                     $postLabel,
-                    $this->notificationService->communityFeedPostActionUrl((int) $post->id),
+                    'reactions',
                 );
             } elseif ((int) $post->user_id !== (int) $user->id) {
                 $this->notificationService->notifyCommunityFeedLike(
@@ -741,13 +742,16 @@ class CommunityFeedPostController extends Controller
 
         if ((int) $post->user_id !== (int) $user->id) {
             $postLabel = $this->notificationService->postLabel($post->title, $post->body);
+            $isReply = $parentId !== null && (int) $parentId > 0;
             if ($post->is_federation_wide) {
-                $this->notificationService->notifyFederationPortalUsersExcept(
+                $this->notificationService->notifyFederationPortalUsersCommunityFeedActivity(
                     [(int) $user->id],
-                    SkFederationsNotificationService::CATEGORY_COMMUNITY_FEED,
-                    "{$user->name} commented on a federation post",
+                    (int) $post->id,
+                    $isReply
+                        ? "{$user->name} replied on a federation post"
+                        : "{$user->name} commented on a federation post",
                     Str::limit(trim((string) $request->body), 160) ?: $postLabel,
-                    $this->notificationService->communityFeedPostActionUrl((int) $post->id),
+                    'comments',
                 );
             } else {
                 $this->notificationService->notifyCommunityFeedComment(
@@ -756,6 +760,7 @@ class CommunityFeedPostController extends Controller
                     $postLabel,
                     $post->id,
                     $request->body,
+                    (bool) $isReply,
                 );
             }
         }
@@ -913,8 +918,8 @@ class CommunityFeedPostController extends Controller
         $legacyDrive = $primaryDrive ?: $this->googleDriveVideoUrl->present($post->link_url);
         $canShare = $post->isShareable();
         $shareUrl = $canShare && filled($post->share_token)
-            ? \App\Modules\Accounts\Support\PortalAppUrl::join(
-                \App\Modules\Accounts\Support\PortalAppUrl::selfApp(),
+            ? PortalAppUrl::join(
+                PortalAppUrl::selfApp(),
                 '/community/post/'.$post->share_token
             )
             : null;

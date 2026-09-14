@@ -3,7 +3,6 @@
 namespace App\Modules\Accounts\Services;
 
 use App\Modules\Accounts\Models\OfficialProfile;
-use App\Modules\Accounts\Models\OfficialTerm;
 use App\Modules\Shared\Models\User;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Str;
@@ -60,7 +59,7 @@ class ChairpersonFederationSyncService
     }
 
     /**
-     * @param  Builder<\App\Modules\Accounts\Models\OfficialProfile>  $query
+     * @param  Builder<OfficialProfile>  $query
      */
     public function applyChairpersonPositionConstraint(Builder $query): void
     {
@@ -72,6 +71,9 @@ class ChairpersonFederationSyncService
     }
 
     /**
+     * Manage SK Federation Account: only current-term SK Chairpersons.
+     * Ended terms are archived into SK Federation / Officials Records instead.
+     *
      * @param  Builder<User>  $query
      */
     public function applyFederationRosterMemberConstraint(Builder $query): void
@@ -82,9 +84,20 @@ class ChairpersonFederationSyncService
                 $this->applyChairpersonPositionConstraint($profileQuery);
             })
             ->whereHas('officialProfile.terms', function (Builder $termQuery): void {
-                $termQuery
-                    ->where('status', OfficialTerm::STATUS_ACTIVE)
-                    ->whereDate('term_end', '>=', now()->startOfDay());
+                $termQuery->currentActive();
+            });
+    }
+
+    /**
+     * Manage SK Officials Account: only officials with a current ACTIVE term.
+     *
+     * @param  Builder<User>  $query
+     */
+    public function applyCurrentOfficialTermConstraint(Builder $query): void
+    {
+        $query->whereNull('deleted_at')
+            ->whereHas('officialProfile.terms', function (Builder $termQuery): void {
+                $termQuery->currentActive();
             });
     }
 

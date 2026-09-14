@@ -4,6 +4,7 @@ namespace App\Modules\CommunityFeed\Services;
 
 use App\Models\CommunityFeedEmailSend;
 use App\Models\KabataanRegistration;
+use App\Modules\Accounts\Support\PortalAppUrl;
 use App\Modules\CommunityFeed\Notifications\FederationCommunityFeedPostPublishedNotification;
 use App\Modules\Shared\Models\Announcement;
 use App\Modules\Shared\Models\User;
@@ -232,12 +233,12 @@ class FederationCommunityFeedBroadcastService
     {
         $postLabel = $this->federationNotifications->postLabel($post->title, $post->body);
 
-        $this->federationNotifications->notifyFederationPortalUsersExcept(
+        $this->federationNotifications->notifyFederationPortalUsersCommunityFeedActivity(
             [$authorUserId],
-            SkFederationsNotificationService::CATEGORY_COMMUNITY_FEED,
+            (int) $post->id,
             'New SK Federation Community Feed post',
             $postLabel,
-            $this->federationNotifications->communityFeedPostActionUrl((int) $post->id),
+            'comments',
         );
     }
 
@@ -503,7 +504,7 @@ class FederationCommunityFeedBroadcastService
 
     private function buildKabataanPostUrl(int $postId): string
     {
-        $base = \App\Modules\Accounts\Support\PortalAppUrl::preferAbsolute([
+        $base = PortalAppUrl::preferAbsolute([
             config('services.kabataan_app_url'),
             config('app.public_url'),
         ]) ?? '';
@@ -511,17 +512,17 @@ class FederationCommunityFeedBroadcastService
         if ($base === '') {
             Log::warning('KABATAAN_APP_URL is missing or localhost; Federation→Kabataan email links may be wrong in production.');
 
-            $fallback = \App\Modules\Accounts\Support\PortalAppUrl::selfApp();
+            $fallback = PortalAppUrl::selfApp();
 
-            return \App\Modules\Accounts\Support\PortalAppUrl::join($fallback, '/dashboard/comments/'.$postId);
+            return PortalAppUrl::join($fallback, '/dashboard/comments/'.$postId);
         }
 
-        return \App\Modules\Accounts\Support\PortalAppUrl::join($base, '/dashboard/comments/'.$postId);
+        return PortalAppUrl::join($base, '/dashboard/comments/'.$postId);
     }
 
     private function buildOfficialsPostUrl(int $postId): string
     {
-        $base = \App\Modules\Accounts\Support\PortalAppUrl::preferAbsolute([
+        $base = PortalAppUrl::preferAbsolute([
             config('services.sk_officials_app_url'),
         ]) ?? '';
         $path = '/community-feed/comments/'.$postId;
@@ -529,12 +530,12 @@ class FederationCommunityFeedBroadcastService
         if ($base === '') {
             Log::warning('SK_OFFICIALS_APP_URL is empty or localhost; Federation→Officials email links may open the wrong app.');
 
-            return \App\Modules\Accounts\Support\PortalAppUrl::join(
-                \App\Modules\Accounts\Support\PortalAppUrl::selfApp(),
+            return PortalAppUrl::join(
+                PortalAppUrl::selfApp(),
                 $path
             );
         }
 
-        return \App\Modules\Accounts\Support\PortalAppUrl::join($base, $path);
+        return PortalAppUrl::join($base, $path);
     }
 }

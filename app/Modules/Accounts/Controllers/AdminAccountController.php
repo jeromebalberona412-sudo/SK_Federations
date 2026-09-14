@@ -15,12 +15,13 @@ use App\Modules\Accounts\Services\AccountBatchTemplateService;
 use App\Modules\Accounts\Services\AccountService;
 use App\Modules\Accounts\Services\AccountSetupService;
 use App\Modules\Accounts\Services\BatchAccountImportService;
+use App\Modules\Accounts\Services\ChairpersonFederationSyncService;
 use App\Modules\Accounts\Services\FederationRosterService;
 use App\Modules\Accounts\Support\SkOfficialTermDates;
-use App\Modules\SK_Officials_Records\Services\ExpiredTermProcessorService;
 use App\Modules\Shared\Controllers\Controller;
 use App\Modules\Shared\Models\Tenant;
 use App\Modules\Shared\Models\User;
+use App\Modules\SK_Officials_Records\Services\ExpiredTermProcessorService;
 use App\Services\SkFedPageCache;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\QueryException;
@@ -28,7 +29,6 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
-use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Str;
@@ -43,6 +43,7 @@ class AdminAccountController extends Controller
         private readonly ExpiredTermProcessorService $expiredTermProcessor,
         private readonly AccountBatchTemplateService $batchTemplateService,
         private readonly FederationRosterService $federationRosterService,
+        private readonly ChairpersonFederationSyncService $chairpersonFederationSyncService,
     ) {}
 
     public function indexFederation(Request $request): View
@@ -51,7 +52,7 @@ class AdminAccountController extends Controller
 
         $tenantId = $this->resolveTenantId($request->user());
         $this->ensureTenantBarangays($tenantId);
-        $this->scheduleExpiredTermProcessing($tenantId, $request->user());
+        $this->processExpiredTermsForManage($tenantId, $request->user());
         $this->federationRosterService->syncFederationRosterAccess($tenantId);
 
         // Live DB read — do not cache roster rows (stale cache showed data ≠ users table).
@@ -92,8 +93,8 @@ class AdminAccountController extends Controller
         $tenantId = $this->resolveTenantId($request->user());
         $this->ensureTenantBarangays($tenantId);
 
-        // Do not block page render on expired-term archival; run once per short window after response.
-        $this->scheduleExpiredTermProcessing($tenantId, $request->user());
+        // Archive ended terms into Records before rendering so Manage stays current-term only.
+        $this->processExpiredTermsForManage($tenantId, $request->user());
 
         // Keep the page shell fast on Hostinger — table rows load via AJAX (/accounts/officials/data).
         $barangays = Barangay::query()
@@ -138,6 +139,7 @@ class AdminAccountController extends Controller
         $cacheVersion = app(SkFedPageCache::class)->version('accounts.officials');
 
         try {
+            $this->processExpiredTermsForManage($tenantId, $request->user());
             $accounts = $this->queryOfficialAccounts($tenantId);
             $data = [];
 
@@ -716,50 +718,44 @@ class AdminAccountController extends Controller
         ]);
     }
 
-    private function scheduleExpiredTermProcessing(int $tenantId, User $actor): void
+    private function processExpiredTermsForManage(int $tenantId, User $actor): void
     {
-        $lockKey = "sk_fed:expire_terms:schedule:{$tenantId}";
-
-        if (! Cache::add($lockKey, 1, now()->addMinutes(5))) {
-            return;
-        }
-
-        $actorId = (int) $actor->id;
-
-        dispatch(function () use ($tenantId, $actorId): void {
-            $actor = User::query()->find($actorId);
-            $processed = app(ExpiredTermProcessorService::class)->processForTenant($tenantId, $actor);
+        try {
+            $processed = $this->expiredTermProcessor->processForTenant($tenantId, $actor);
 
             if ($processed > 0) {
-                app(SkFedPageCache::class)->bumpMany([
-                    'accounts.federation',
-                    'accounts.officials',
-                    'archive.deleted_sk_officials',
-                    'archive.sk_officials_records',
-                    'archive.sk_federation_records',
-                ]);
+                $this->bumpAccountsCache();
             }
-        })->afterResponse();
+        } catch (Throwable $e) {
+            report($e);
+            Log::warning('Failed processing expired SK terms for manage accounts.', [
+                'tenant_id' => $tenantId,
+                'error' => $e->getMessage(),
+            ]);
+        }
     }
 
     /**
      * Live SK Officials users for Manage SK Officials Account.
+     * Ended terms are moved to SK Officials Records and excluded here.
      * Soft-deleted accounts stay in the Deleted SK Officials archive.
      *
      * @return Collection<int, User>
      */
     private function queryOfficialAccounts(int $tenantId)
     {
-        return User::query()
+        $query = User::query()
             ->with(['barangay', 'officialProfile.latestTerm'])
             ->where(function ($roleQuery): void {
                 $roleQuery->where('role', User::ROLE_SK_OFFICIAL)
                     ->orWhereRaw('LOWER(TRIM(role)) = ?', ['sk_official']);
             })
             // Strict tenant match so Manage SK Officials mirrors the live users table for this federation.
-            ->where('tenant_id', $tenantId)
-            ->orderByDesc('id')
-            ->get();
+            ->where('tenant_id', $tenantId);
+
+        $this->chairpersonFederationSyncService->applyCurrentOfficialTermConstraint($query);
+
+        return $query->orderByDesc('id')->get();
     }
 
     /**

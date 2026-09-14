@@ -1189,6 +1189,48 @@
         });
     }
 
+    function dismissReminderOverlay(overlay) {
+        if (!overlay) return;
+        if (config.portalLocked || !config.canClose) return;
+
+        overlay.classList.remove('to-overlay--visible');
+
+        if (!config.remindLaterUrl) return;
+
+        fetch(config.remindLaterUrl, {
+            method: 'POST',
+            headers: {
+                'X-CSRF-TOKEN': config.csrfToken || document.querySelector('meta[name="csrf-token"]')?.content || '',
+                'Accept': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest',
+            },
+            credentials: 'same-origin',
+        }).catch(function () { /* ignore dismiss sync errors */ });
+    }
+
+    function triggerLogout() {
+        const logoutForm = document.getElementById('logoutForm');
+        if (logoutForm) {
+            logoutForm.submit();
+            return;
+        }
+
+        if (!config.logoutUrl) return;
+
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = config.logoutUrl;
+        form.style.display = 'none';
+
+        const token = document.createElement('input');
+        token.type = 'hidden';
+        token.name = '_token';
+        token.value = config.csrfToken || document.querySelector('meta[name="csrf-token"]')?.content || '';
+        form.appendChild(token);
+        document.body.appendChild(form);
+        form.submit();
+    }
+
     function bindOverlay() {
         const overlay = document.getElementById('federationTurnoverOverlay');
         const modal = document.getElementById('federationTurnoverModal');
@@ -1202,9 +1244,42 @@
         overlay.classList.add('to-overlay--visible');
 
         closeBtn?.addEventListener('click', function () {
-            if (config.canClose && !config.portalLocked) {
-                overlay.classList.remove('to-overlay--visible');
+            dismissReminderOverlay(overlay);
+        });
+
+        // Outside click: only allow dismiss during reminder window.
+        overlay.addEventListener('click', function (event) {
+            if (event.target !== overlay) return;
+            if (config.portalLocked || !config.canClose) {
+                event.preventDefault();
+                event.stopPropagation();
+                return;
             }
+            dismissReminderOverlay(overlay);
+        });
+
+        document.addEventListener('keydown', function (event) {
+            if (event.key !== 'Escape' && event.key !== 'Esc') return;
+            if (!overlay.classList.contains('to-overlay--visible')) return;
+
+            if (config.portalLocked || !config.canClose) {
+                event.preventDefault();
+                event.stopPropagation();
+                return;
+            }
+
+            dismissReminderOverlay(overlay);
+        });
+
+        [
+            'turnoverLogoutBtn',
+            'turnoverLogoutBtnComplete',
+            'turnoverLogoutBtnLocked',
+        ].forEach(function (id) {
+            document.getElementById(id)?.addEventListener('click', function (event) {
+                event.preventDefault();
+                triggerLogout();
+            });
         });
 
         toggleSizeBtn?.addEventListener('click', function () {

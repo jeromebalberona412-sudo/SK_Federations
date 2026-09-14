@@ -604,21 +604,14 @@
     }
 
     // ── Launching Tour ───────────────────────────────────────────────────────
-    async function startTour(fromScratch = false, initialStep = 1) {
+    function startTour(fromScratch = false, initialStep = 1) {
         if (!cacheDom()) return;
         if (isActive) return;
 
+        // Open the modal immediately; sync progress with the API in the background.
         if (fromScratch) {
-            const resetRes = await apiRequest('reset', {}, true);
-            if (resetRes?.tutorial) {
-                applyTutorialPayload(resetRes.tutorial);
-            }
             currentStepIndex = 0;
         } else {
-            const startRes = await apiRequest('start', {}, true);
-            if (startRes?.tutorial) {
-                applyTutorialPayload(startRes.tutorial);
-            }
             currentStepIndex = Math.max(0, initialStep - 1);
             if (currentStepIndex >= TOUR_STEPS.length) {
                 currentStepIndex = 0;
@@ -629,9 +622,20 @@
         rootEl.style.display = 'block';
         rootEl.setAttribute('aria-hidden', 'false');
         applyDismissControls();
-
         document.addEventListener('keydown', handleKeydown);
         renderStep();
+
+        const syncPromise = fromScratch
+            ? apiRequest('reset', {}, true)
+            : apiRequest('start', {}, true);
+
+        syncPromise.then((res) => {
+            if (!isActive || !res?.tutorial) return;
+            applyTutorialPayload(res.tutorial);
+            applyDismissControls();
+        }).catch(() => {
+            // Tour UI already opened; ignore background sync failures.
+        });
     }
 
     // ── Setup Event Listeners ────────────────────────────────────────────────
@@ -684,9 +688,10 @@
 
         if (res.tutorial.should_auto_start) {
             const stepToStart = res.tutorial.current_step || 1;
-            window.setTimeout(() => {
+            // Next frame so layout/sidebar targets are ready without a noticeable delay.
+            window.requestAnimationFrame(() => {
                 startTour(false, stepToStart);
-            }, 600);
+            });
         }
     }
 

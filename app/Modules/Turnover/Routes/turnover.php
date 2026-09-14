@@ -33,6 +33,9 @@ Route::middleware(['auth', 'session.timeout', 'verified', 'single.session', 'sk_
         Route::post('/turnover/start', [TurnoverController::class, 'start'])
             ->middleware('throttle:'.max(1, (int) config('turnover.registration_rate_limit', 10)))
             ->name('turnover.start');
+        Route::post('/turnover/remind-later', [TurnoverController::class, 'remindLater'])
+            ->middleware('throttle:30,1')
+            ->name('turnover.remind-later');
         Route::get('/turnover/batch-template', [TurnoverController::class, 'downloadBatchTemplate'])->name('turnover.batch-template');
         Route::post('/turnover/register', [TurnoverController::class, 'register'])
             ->middleware('throttle:'.max(1, (int) config('turnover.registration_rate_limit', 10)))

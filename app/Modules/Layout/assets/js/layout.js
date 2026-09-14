@@ -223,10 +223,18 @@ function getUnreadTotal() {
 
 function updateNotifBadge(count) {
     var notifList = document.getElementById('notifList');
-    var notifBadge = document.getElementById('notifBadge');
+    var notifBadges = document.querySelectorAll('#notifBadge');
+    var notifBadge = notifBadges.length ? notifBadges[0] : null;
     var notifCountPill = document.getElementById('notifCountPill');
     var notifEmpty = document.getElementById('notifEmpty');
     var unread = typeof count === 'number' && !isNaN(count) ? Math.max(0, count) : getUnreadTotal();
+
+    // Keep a single header badge if the DOM somehow has duplicates.
+    if (notifBadges.length > 1) {
+        for (var i = 1; i < notifBadges.length; i += 1) {
+            notifBadges[i].remove();
+        }
+    }
 
     if (notifBadge) {
         notifBadge.setAttribute('data-unread-total', String(unread));
@@ -246,7 +254,78 @@ function updateNotifBadge(count) {
     }
 }
 
+function escapeNotifHtml(value) {
+    return String(value == null ? '' : value).replace(/[&<>"']/g, function (ch) {
+        return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch];
+    });
+}
+
+function renderNotifPopoverItems(items) {
+    var notifList = document.getElementById('notifList');
+    var notifEmpty = document.getElementById('notifEmpty');
+    if (!notifList) return;
+
+    var rows = Array.isArray(items) ? items : [];
+    if (rows.length === 0) {
+        notifList.innerHTML = '';
+        notifList.style.display = 'none';
+        if (notifEmpty) notifEmpty.style.display = 'flex';
+        return;
+    }
+
+    notifList.innerHTML = rows.map(function (n) {
+        var unread = !!n.unread;
+        return ''
+            + '<div class="notif-item' + (unread ? ' notif-unread' : '') + '"'
+            + ' data-id="' + escapeNotifHtml(n.id) + '"'
+            + ' data-action-url="' + escapeNotifHtml(n.action_url || '') + '"'
+            + ' role="button" tabindex="-1">'
+            + '<div class="notif-content">'
+            + '<div class="notif-item-title">' + escapeNotifHtml(n.title || '') + '</div>'
+            + '<div class="notif-item-text">' + escapeNotifHtml(n.text || '') + '</div>'
+            + '<div class="notif-item-time">' + escapeNotifHtml(n.time || '') + '</div>'
+            + '</div>'
+            + (unread ? '<span class="notif-unread-dot"></span>' : '')
+            + '</div>';
+    }).join('');
+
+    notifList.style.display = '';
+    if (notifEmpty) notifEmpty.style.display = 'none';
+}
+
+var notifRefreshInFlight = false;
+var lastNotifRefreshAt = 0;
+
+function refreshFederationsNotifications(force) {
+    var now = Date.now();
+    if (notifRefreshInFlight) return;
+    if (!force && now - lastNotifRefreshAt < 4000) return;
+
+    notifRefreshInFlight = true;
+    lastNotifRefreshAt = now;
+
+    fetch('/api/sk-federations/notifications?limit=5', {
+        headers: { 'Accept': 'application/json' },
+        credentials: 'same-origin',
+    }).then(function (response) {
+        return response.ok ? response.json() : null;
+    }).then(function (data) {
+        if (!data) return;
+        if (typeof data.unread_count === 'number') {
+            updateNotifBadge(data.unread_count);
+        }
+        if (Array.isArray(data.data)) {
+            renderNotifPopoverItems(data.data);
+        }
+    }).catch(function () {
+        // Keep the current badge/list on network errors.
+    }).finally(function () {
+        notifRefreshInFlight = false;
+    });
+}
+
 window.updateNotifBadge = updateNotifBadge;
+window.refreshFederationsNotifications = refreshFederationsNotifications;
 
 window.toggleNotifPopover = function (e) {
     e.stopPropagation();
@@ -2580,18 +2659,16 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     updateNotifBadge(getUnreadTotal());
+    refreshFederationsNotifications(true);
+    window.setInterval(function () {
+        if (document.hidden) return;
+        refreshFederationsNotifications(false);
+    }, 20000);
 
-    fetch('/api/sk-federations/notifications?limit=5', {
-        headers: { 'Accept': 'application/json' },
-        credentials: 'same-origin',
-    }).then(function (response) {
-        return response.ok ? response.json() : null;
-    }).then(function (data) {
-        if (data && typeof data.unread_count === 'number') {
-            updateNotifBadge(data.unread_count);
+    document.addEventListener('visibilitychange', function () {
+        if (!document.hidden) {
+            refreshFederationsNotifications(true);
         }
-    }).catch(function () {
-        // Keep the server-rendered unread total.
     });
 });
 

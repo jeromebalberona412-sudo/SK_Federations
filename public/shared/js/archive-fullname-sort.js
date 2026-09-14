@@ -91,8 +91,13 @@
 
         window.addEventListener('scroll', () => closeSortMenu(), true);
 
-        if (typeof getCurrentDir === 'function') {
-            updateHeaderState(getCurrentDir());
+        // Safe: never call getCurrentDir until callback is assigned and callable.
+        try {
+            if (typeof getCurrentDir === 'function') {
+                updateHeaderState(getCurrentDir());
+            }
+        } catch (_error) {
+            updateHeaderState(null);
         }
     }
 

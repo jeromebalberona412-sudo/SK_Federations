@@ -5,6 +5,8 @@ namespace App\Modules\Authentication\Services;
 use App\Modules\Authentication\Jobs\RecordPostLoginActivityJob;
 use App\Modules\Authentication\Middleware\SessionTimeout;
 use App\Modules\Shared\Models\User;
+use App\Modules\Turnover\Services\FederationTermDetectionService;
+use App\Modules\Turnover\Services\TurnoverService;
 use Illuminate\Database\Eloquent\SoftDeletingScope;
 use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Http\Request;
@@ -86,7 +88,7 @@ class AuthenticationService
 
         $tenantId = $this->tenantContextService->tenantId();
 
-        if ($this->hasEndedTerm($user)) {
+        if ($this->hasEndedTerm($user) && ! $this->canLoginDespiteEndedTerm($user)) {
             $this->auditLogService->log(
                 event: 'login_blocked_term_ended',
                 user: $user,
@@ -99,13 +101,13 @@ class AuthenticationService
 
             throw new HttpResponseException(
                 redirect()->route('login')->with('access_denied', [
-                    'title' => 'Access Denied',
-                    'message' => 'Your SK federation term has already ended. Login access is no longer available for this account.',
+                    'title' => 'Term Ended',
+                    'message' => 'Your SK Official term has ended. Login access is no longer available for this account. Your completed term was moved to SK Officials Records / SK Federation Records.',
                 ])
             );
         }
 
-        if ($user->turnover_status === 'archived') {
+        if ($user->turnover_status === 'archived' && ! $user->isSkFed()) {
             $this->auditLogService->log(
                 event: 'login_blocked_archived',
                 user: $user,
@@ -184,6 +186,7 @@ class AuthenticationService
 
         // ── Merge blocking writes: recordLogin + resetLockout in one UPDATE ─
         $this->recordLoginAndClearLockout($user, (string) $request->ip());
+        $this->clearTurnoverReminderDismissal();
 
         // ── Dispatch all remaining post-login work to the queue ────────────
         // Suspicious detection, alert notification, login attempt record,
@@ -211,6 +214,7 @@ class AuthenticationService
 
         // Merge recordLogin + resetLockout into a single UPDATE
         $this->recordLoginAndClearLockout($user, (string) $request->ip());
+        $this->clearTurnoverReminderDismissal();
 
         $this->claimCurrentSession($user, $request);
         $request->session()->put(
@@ -663,6 +667,11 @@ class AuthenticationService
 
     protected function hasEndedTerm(User $user): bool
     {
+        // Portal administrators (sk_fed) are not bound to SK Officials term dates.
+        if ($user->isSkFed()) {
+            return false;
+        }
+
         if (! Schema::hasTable('official_terms') || ! Schema::hasTable('official_profiles')) {
             return false;
         }
@@ -682,8 +691,33 @@ class AuthenticationService
                 ->value('official_terms.term_end');
         }
 
-        return $termEnd !== null
-            && Carbon::parse((string) $termEnd)->lte(now()->startOfDay());
+        if ($termEnd === null) {
+            return false;
+        }
+
+        // Align with FederationTermDetectionService: still valid on the end date.
+        return Carbon::parse((string) $termEnd)->startOfDay()->lt(now()->startOfDay());
+    }
+
+    protected function canLoginDespiteEndedTerm(User $user): bool
+    {
+        try {
+            return app(FederationTermDetectionService::class)->canLoginDespiteEndedTerm($user);
+        } catch (\Throwable $e) {
+            report($e);
+
+            return false;
+        }
+    }
+
+    protected function clearTurnoverReminderDismissal(): void
+    {
+        try {
+            app(TurnoverService::class)->clearReminderDismissal();
+        } catch (\Throwable $e) {
+            report($e);
+            session()->forget('turnover_reminder_dismissed');
+        }
     }
 
     /**

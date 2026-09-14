@@ -26,8 +26,7 @@ class TurnoverController extends Controller
         private readonly FederationTermDetectionService $termDetectionService,
         private readonly DashboardStatsService $dashboardStatsService,
         private readonly TurnoverBatchTemplateService $batchTemplateService,
-    ) {
-    }
+    ) {}
 
     public function index(Request $request): View
     {
@@ -84,10 +83,16 @@ class TurnoverController extends Controller
     {
         $this->authorize('start', FederationTurnover::class);
 
+        if ($this->termDetectionService->mustLockPortalForTurnover($request->user())) {
+            return response()->json([
+                'message' => 'Turnover is mandatory and cannot be dismissed.',
+            ], 423);
+        }
+
         $this->turnoverService->remindLater($request->user());
 
         return response()->json([
-            'message' => 'Turnover notice dismissed. We will remind you later.',
+            'message' => 'Turnover notice dismissed for this session. It will appear again on your next login.',
         ]);
     }
 

@@ -7,6 +7,21 @@
 @endpush
 
 @section('content')
+@if(!empty($turnoverModal['portal_locked']) || session()->has('turnover_lock_notice'))
+    @php
+        $lockNotice = session('turnover_lock_notice') ?? [
+            'title' => 'Account Turnover Required',
+            'message' => 'Your SK Federation term has ended. You can only use Account Turnover or Log out until turnover is completed.',
+        ];
+    @endphp
+    <div class="turnover-lock-banner" role="status">
+        <i class="fas fa-lock" aria-hidden="true"></i>
+        <div>
+            <strong>{{ $lockNotice['title'] ?? 'Account Turnover Required' }}</strong>
+            <p>{{ $lockNotice['message'] ?? 'Other portal pages are locked because your term has ended. Complete Account Turnover to restore access.' }}</p>
+        </div>
+    </div>
+@endif
 <div class="page-header page-header-modern-with-button">
     <div>
         <h1>Federation Turnover</h1>
