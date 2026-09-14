@@ -89,6 +89,36 @@ class TurnoverCompletionService
         $user->loadMissing('officialProfile.terms');
 
         $profile = $user->officialProfile;
+
+        // Revoke Federation portal assignment only — keep the same Auth/login account.
+        $user->forceFill([
+            'has_federation_access' => false,
+            'active_session_id' => null,
+            'account_status' => 'active',
+            'turnover_status' => 'completed_outgoing',
+        ])->save();
+
+        if ($profile) {
+            $profile->forceFill(['federation_position' => null])->save();
+        }
+
+        $this->chairpersonFederationSyncService->syncPortalAccessFromFederationPosition($user->fresh(), null);
+
+        // Keep SK Officials access when a current barangay term is still valid.
+        $hasCurrentOfficialTerm = $profile
+            ? $profile->terms()->currentActive()->exists()
+            : false;
+
+        if ($hasCurrentOfficialTerm) {
+            if ($user->status !== User::STATUS_ACTIVE) {
+                $user->forceFill(['status' => User::STATUS_ACTIVE])->save();
+            }
+
+            $this->invalidateUserSessions($user);
+
+            return;
+        }
+
         $activeTerms = $profile
             ? $profile->terms()->where('status', OfficialTerm::STATUS_ACTIVE)->get()
             : collect();
@@ -116,14 +146,10 @@ class TurnoverCompletionService
         ])->save();
 
         if ($profile) {
-            $profile->forceFill(['federation_position' => null])->save();
-
             $profile->terms()
                 ->where('status', OfficialTerm::STATUS_ACTIVE)
                 ->update(['status' => OfficialTerm::STATUS_REPLACED]);
         }
-
-        $this->chairpersonFederationSyncService->syncPortalAccessFromFederationPosition($user->fresh(), null);
 
         $this->invalidateUserSessions($user);
     }

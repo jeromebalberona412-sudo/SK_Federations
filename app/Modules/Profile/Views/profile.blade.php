@@ -145,6 +145,9 @@ class="profile-page" data-heartbeat-interval-ms="{{ (int) config('sk_fed_auth.si
                             <div>
                                 <div class="account-settings-label">Email Address</div>
                                 <div class="account-settings-desc">{{ $profile['email'] }}</div>
+                                @if(($profile['has_shared_portal_access'] ?? '0') === '1')
+                                    <div class="account-settings-hint">This email is used for your SK Officials and SK Federations account.</div>
+                                @endif
                             </div>
                         </div>
                         <a href="{{ route('change-email') }}" class="account-settings-btn" data-no-loading>
@@ -162,7 +165,11 @@ class="profile-page" data-heartbeat-interval-ms="{{ (int) config('sk_fed_auth.si
                             </div>
                             <div>
                                 <div class="account-settings-label">Password</div>
-                                <div class="account-settings-desc">Update your account password securely.</div>
+                                @if(($profile['has_shared_portal_access'] ?? '0') === '1')
+                                    <div class="account-settings-desc">Your password is shared across your SK Officials and SK Federations access.</div>
+                                @else
+                                    <div class="account-settings-desc">Update your account password securely.</div>
+                                @endif
                             </div>
                         </div>
                         <a href="{{ route('change-password') }}" class="account-settings-btn" data-no-loading>

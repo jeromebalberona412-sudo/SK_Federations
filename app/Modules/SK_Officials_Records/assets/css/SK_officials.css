@@ -65,8 +65,10 @@
 }
 
 .aroff-filter-field--search {
-    flex: 1.4 1 0;
-    min-width: 140px;
+    flex: 0 1 180px;
+    min-width: 120px;
+    max-width: 220px;
+    margin-left: auto;
 }
 
 .aroff-filter-field--actions {
@@ -107,6 +109,10 @@
     border-color: #94a3b8;
 }
 
+.aroff-clear-short {
+    display: none;
+}
+
 @media (max-width: 1024px) {
     .aroff-filters {
         gap: 6px;
@@ -115,15 +121,37 @@
     .aroff-filter-field label {
         font-size: 10px;
     }
+
+    .aroff-filter-field--search {
+        flex-basis: 150px;
+        max-width: 170px;
+    }
 }
 
 @media (max-width: 640px) {
     .aroff-filters {
-        gap: 5px;
+        gap: 4px;
+        align-items: center;
+    }
+
+    .aroff-filter-field label,
+    .aroff-filter-spacer {
+        display: none;
+    }
+
+    .aroff-filter-field {
+        flex: 1 1 0;
+    }
+
+    .aroff-filter-field--actions {
+        flex: 0 0 auto;
     }
 
     .aroff-filter-field--search {
-        min-width: 110px;
+        flex: 0 1 96px;
+        min-width: 84px;
+        max-width: 110px;
+        margin-left: 0;
     }
 
     .aroff-year-filter,
@@ -132,15 +160,23 @@
     .aroff-clear-filters-btn {
         width: 100%;
         min-width: 0;
-        height: 34px;
-        padding: 6px 8px;
-        font-size: 12px;
-        border-radius: 8px;
+        height: 30px;
+        padding: 4px 6px;
+        font-size: 11px;
+        border-radius: 6px;
     }
 
     .aroff-clear-filters-btn {
-        padding: 0 8px;
-        font-size: 11px;
+        padding: 0 7px;
+        font-size: 10px;
+    }
+
+    .aroff-clear-full {
+        display: none;
+    }
+
+    .aroff-clear-short {
+        display: inline;
     }
 }
 
@@ -661,6 +697,9 @@
     cursor: default;
     pointer-events: none;
     user-select: text;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    max-width: 100%;
 }
 
 .aroff-view-input:hover,
@@ -671,6 +710,20 @@
     background: #f3f4f6;
     box-shadow: none;
     outline: none;
+}
+
+/* Maximized / restore-down (match SK Federation Records + Deleted SK Officials) */
+.aroff-modal-backdrop.aroff-maximized {
+    align-items: stretch;
+    justify-content: stretch;
+}
+
+.aroff-modal-box.aroff-maximized {
+    width: 100%;
+    height: 100%;
+    max-width: none;
+    max-height: none;
+    border-radius: 0;
 }
 
 @media (max-width: 768px) {

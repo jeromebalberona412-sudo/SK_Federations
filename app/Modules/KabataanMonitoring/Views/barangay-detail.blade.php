@@ -13,6 +13,7 @@
 @push('styles')
     @vite([
         'app/Modules/KabataanMonitoring/assets/css/kabataan-monitoring.css',
+        'app/Modules/KabataanMonitoring/assets/css/kabataan-monitoring-responsive.css',
         'app/Modules/KabataanMonitoring/assets/css/kkprofiling.css',
         'app/Modules/KabataanMonitoring/assets/css/kk-profiling-form.css',
         'app/Modules/KabataanMonitoring/assets/css/kk-questionnaire-view.css',

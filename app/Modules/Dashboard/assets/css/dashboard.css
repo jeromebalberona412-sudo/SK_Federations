@@ -425,23 +425,26 @@ body.sidebar-collapsed .toggle-icon-collapse { display: block; }
 .comms-msg-filters {
     flex-shrink: 0;
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
     gap: 6px;
     padding: 0 12px 10px;
-    overflow-x: hidden;
+    overflow: visible;
+    max-width: 100%;
 }
 
 .comms-msg-filter-chip {
     border: 0;
     border-radius: 999px;
-    padding: 6px 12px;
+    padding: 7px 12px;
     background: #f1f5f9;
     color: #334155;
-    font-size: 13px;
+    font-size: 12px;
     font-weight: 600;
     line-height: 1;
     white-space: nowrap;
     cursor: pointer;
+    min-height: 32px;
 }
 
 .comms-msg-filter-chip.is-active {
@@ -453,6 +456,10 @@ body.sidebar-collapsed .toggle-icon-collapse { display: block; }
 .comms-msg-filter-chip:focus-visible {
     background: #e2e8f0;
     outline: none;
+}
+
+.comms-msg-item.is-filtered-out {
+    display: none !important;
 }
 
 .comms-msg-list {
@@ -2011,9 +2018,10 @@ body.comms-chat-modal-open {
     }
 
     .comms-msg-popover {
-        width: min(360px, calc(100vw - 16px));
-        height: min(400px, calc(100vh - 72px));
-        max-height: min(400px, calc(100vh - 72px));
+        width: min(300px, calc(100vw - 16px));
+        max-width: calc(100vw - 16px);
+        height: min(420px, calc(100vh - var(--navbar-height, 60px) - 24px));
+        max-height: min(420px, calc(100vh - var(--navbar-height, 60px) - 24px));
     }
 }
 
@@ -2506,11 +2514,14 @@ body.comms-chat-modal-open {
 
 @media (max-width: 768px) {
     .profile-dropdown {
-        width: min(220px, calc(100vw - 20px));
-        right: 0;
+        width: min(260px, calc(100vw - 16px));
+        max-width: calc(100vw - 16px);
+        right: 8px;
         left: auto;
-        top: calc(100% + 8px);
-        border-radius: 10px;
+        top: var(--navbar-height, 52px);
+        border-radius: 0 0 12px 12px;
+        margin: 0;
+        transform: none;
     }
     .profile-dropdown-user-card {
         padding: 10px;
@@ -3375,6 +3386,48 @@ body.sidebar-collapsed .main-content { margin-left: var(--sidebar-collapsed); }
     .navbar-right {
         position: relative;
         height: 100%;
+        gap: 2px;
+    }
+
+    .notif-btn,
+    .comms-header-msg-btn,
+    .tutorial-header-btn {
+        width: 30px;
+        height: 30px;
+        min-width: 30px;
+        min-height: 30px;
+        font-size: 14px;
+        border-radius: 7px;
+    }
+
+    .comms-header-msg-btn svg {
+        width: 15px;
+        height: 15px;
+    }
+
+    .profile-btn {
+        gap: 4px;
+        padding: 4px 6px;
+    }
+
+    .profile-btn .nav-avatar {
+        width: 26px;
+        height: 26px;
+        border-width: 1.5px;
+    }
+
+    .profile-btn .nav-chevron {
+        font-size: 9px;
+    }
+
+    .notif-badge,
+    .comms-header-msg-badge {
+        min-width: 14px;
+        height: 14px;
+        font-size: 9px;
+        padding: 0 3px;
+        top: 0;
+        right: 0;
     }
 
     .notif-menu,
@@ -3383,32 +3436,41 @@ body.sidebar-collapsed .main-content { margin-left: var(--sidebar-collapsed); }
         position: static;
     }
 
+    /* Match SK Officials mobile header popover sizing — flush under navbar */
     .notif-popover,
     .comms-msg-popover,
     .profile-dropdown {
         position: fixed;
-        top: 58px;
+        top: var(--navbar-height, 52px);
         right: 8px;
         left: auto;
-        width: min(360px, calc(100vw - 16px));
+        bottom: auto;
+        margin: 0;
+        width: min(300px, calc(100vw - 16px));
         max-width: calc(100vw - 16px);
-        border-radius: 12px;
-        z-index: 2600;
+        border-radius: 0 0 12px 12px;
+        z-index: 5200;
+        transform: none;
+    }
+
+    .profile-dropdown {
+        width: min(260px, calc(100vw - 16px));
     }
 
     .notif-popover,
     .comms-msg-popover {
-        transform: translateY(-8px);
-        max-height: min(400px, calc(100vh - 72px));
+        max-height: min(400px, calc(100vh - var(--navbar-height, 52px) - 12px));
+        height: auto;
     }
 
     .comms-msg-popover {
-        height: min(400px, calc(100vh - 72px));
+        height: min(420px, calc(100vh - var(--navbar-height, 52px) - 12px));
+        max-height: min(420px, calc(100vh - var(--navbar-height, 52px) - 12px));
     }
 
     .notif-popover.show,
     .comms-msg-popover.show {
-        transform: translateY(0);
+        transform: none;
     }
 
     .notif-popover-header {
@@ -3425,24 +3487,70 @@ body.sidebar-collapsed .main-content { margin-left: var(--sidebar-collapsed); }
 }
 
 @media (max-width: 480px) {
+    .navbar-right {
+        gap: 1px;
+    }
+
+    .notif-btn,
+    .comms-header-msg-btn,
+    .tutorial-header-btn {
+        width: 28px;
+        height: 28px;
+        min-width: 28px;
+        min-height: 28px;
+        font-size: 13px;
+    }
+
+    .comms-header-msg-btn svg {
+        width: 14px;
+        height: 14px;
+    }
+
+    .profile-btn {
+        padding: 3px 4px;
+    }
+
+    .profile-btn .nav-avatar {
+        width: 24px;
+        height: 24px;
+    }
+
     .stats-grid-6 { grid-template-columns: 1fr; }
+
+    /* Match SK Officials mobile header popover sizing — flush under navbar */
     .notif-popover,
     .comms-msg-popover,
     .profile-dropdown {
-        width: min(100vw - 16px, 360px);
-        max-width: calc(100vw - 16px);
+        top: var(--navbar-height, 48px);
         right: 8px;
         left: auto;
-        top: 56px;
+        bottom: auto;
+        margin: 0;
+        width: min(280px, calc(100vw - 16px));
+        max-width: calc(100vw - 16px);
+        border-radius: 0 0 12px 12px;
+        transform: none;
     }
+
+    .profile-dropdown {
+        width: min(240px, calc(100vw - 16px));
+    }
+
     .notif-popover,
     .comms-msg-popover {
-        transform: translateY(-8px);
+        max-height: min(400px, calc(100vh - var(--navbar-height, 48px) - 12px));
     }
+
+    .comms-msg-popover {
+        height: min(400px, calc(100vh - var(--navbar-height, 48px) - 12px));
+        max-height: min(400px, calc(100vh - var(--navbar-height, 48px) - 12px));
+    }
+
     .notif-popover.show,
     .comms-msg-popover.show {
-        transform: translateY(0);
+        transform: none;
     }
+
     .notif-popover-header {
         padding: 8px 10px;
         gap: 6px;

@@ -98,6 +98,7 @@ export default defineConfig({
 
                 // ── Kabataan Monitoring ───────────────────────────────────
                 'app/Modules/KabataanMonitoring/assets/css/kabataan-monitoring.css',
+                'app/Modules/KabataanMonitoring/assets/css/kabataan-monitoring-responsive.css',
                 'app/Modules/KabataanMonitoring/assets/js/kabataan-monitoring.js',
                 'app/Modules/KabataanMonitoring/assets/css/kk-profiling-form.css',
                 'app/Modules/KabataanMonitoring/assets/js/kabataan-monitoring-upload.js',

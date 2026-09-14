@@ -8,6 +8,7 @@ use App\Modules\Accounts\Models\OfficialTerm;
 use App\Modules\Accounts\Support\SkOfficialTermDates;
 use App\Modules\AuditLog\Contracts\AuditLogInterface;
 use App\Modules\Authentication\Services\BootstrapSkFedAdminService;
+use App\Modules\SK_Federation_Records\Services\SkFederationRecordsService;
 use App\Modules\SK_Officials_Records\Services\SkOfficialsRecordsService;
 use App\Modules\Shared\Models\User;
 use Carbon\Carbon;
@@ -22,6 +23,7 @@ class AccountService
     public function __construct(
         private readonly AuditLogInterface $auditLog,
         private readonly SkOfficialsRecordsService $termRecordsArchiveService,
+        private readonly SkFederationRecordsService $federationRecordsArchiveService,
         private readonly ChairpersonFederationSyncService $chairpersonFederationSyncService,
         private readonly FederationRosterService $federationRosterService,
         private readonly SkOfficialRosterLimitsService $skOfficialRosterLimitsService,
@@ -422,6 +424,10 @@ class AccountService
 
             if ($hasNewTermRange) {
                 if ($latestTerm) {
+                    // Preserve Previous Terms history before overwriting live dates in place.
+                    // (Direct SQL updates to ACTIVE terms were wiping history when snapshots were refreshed.)
+                    $this->archiveTermSnapshotsIfHistorical($latestTerm, $admin);
+
                     // Edit Account should update the current term in place so the table
                     // reflects the new dates immediately (no stale "latest by term_end" row).
                     if ($normalizedData['term_status'] === OfficialTerm::STATUS_ACTIVE) {
@@ -451,7 +457,7 @@ class AccountService
                         ->get();
 
                     foreach ($activeTerms as $activeTerm) {
-                        $this->termRecordsArchiveService->archiveCompletedTerm($activeTerm, $admin);
+                        $this->archiveTermToRecords($activeTerm, $admin);
                     }
 
                     $profile->terms()
@@ -461,7 +467,7 @@ class AccountService
                 }
 
                 if (in_array($normalizedData['term_status'], [OfficialTerm::STATUS_INACTIVE, OfficialTerm::STATUS_EXPIRED, OfficialTerm::STATUS_REPLACED], true)) {
-                    $this->termRecordsArchiveService->archiveCompletedTerm($latestTerm->fresh(), $admin);
+                    $this->archiveTermToRecords($latestTerm->fresh(), $admin);
                 }
 
                 $latestTerm->update([
@@ -876,7 +882,7 @@ class AccountService
                 ->get();
 
             foreach ($activeTerms as $activeTerm) {
-                $this->termRecordsArchiveService->archiveCompletedTerm($activeTerm, $admin);
+                $this->archiveTermToRecords($activeTerm, $admin);
             }
 
             $profile->terms()
@@ -961,6 +967,36 @@ class AccountService
         $trimmed = trim($value);
 
         return $trimmed === '' ? null : mb_strtoupper($trimmed, 'UTF-8');
+    }
+
+    protected function archiveTermToRecords(?OfficialTerm $term, ?User $admin): void
+    {
+        if ($term === null) {
+            return;
+        }
+
+        $this->termRecordsArchiveService->archiveCompletedTerm($term, $admin);
+        $this->federationRecordsArchiveService->archiveCompletedTerm($term, $admin);
+    }
+
+    /**
+     * Snapshot an ended / replaced term into Records before live dates are overwritten.
+     */
+    protected function archiveTermSnapshotsIfHistorical(OfficialTerm $term, ?User $admin): void
+    {
+        $termEnd = $term->term_end;
+        $wasEnded = $termEnd !== null && $termEnd->copy()->startOfDay()->lt(now()->startOfDay());
+        $wasHistoricalStatus = in_array((string) $term->status, [
+            OfficialTerm::STATUS_EXPIRED,
+            OfficialTerm::STATUS_REPLACED,
+            OfficialTerm::STATUS_INACTIVE,
+        ], true);
+
+        if (! $wasEnded && ! $wasHistoricalStatus) {
+            return;
+        }
+
+        $this->archiveTermToRecords($term, $admin);
     }
 
     protected function normalizeMiddleName(mixed $value): ?string

@@ -323,7 +323,7 @@ class KabataanMonitoringService
         }
 
         $fullName = trim($record->first_name.' '.($record->middle_name ? $record->middle_name.' ' : '').$record->last_name);
-        $suffix = trim((string) ($record->suffix ?? ''));
+        $suffix = $this->normalizeSuffix($record->suffix);
         if ($suffix !== '') {
             $fullName .= ', '.$suffix;
         }
@@ -451,18 +451,28 @@ class KabataanMonitoringService
     private function formSuffixValue(KabataanRegistration $record, array $formData): string
     {
         $suffix = trim((string) ($record->suffix ?? ''));
-        if ($suffix !== '') {
-            return $suffix;
+        if ($suffix === '') {
+            $suffix = trim((string) ($this->formValue($formData, 'suffix')));
         }
 
-        return $this->formValue($formData, 'suffix');
+        if ($suffix === '' || $suffix === '—' || $suffix === '-'
+            || strcasecmp($suffix, 'none') === 0
+            || strcasecmp($suffix, 'n/a') === 0
+            || strcasecmp($suffix, 'na') === 0) {
+            return 'None';
+        }
+
+        return $suffix;
     }
 
     private function normalizeSuffix(?string $suffix): string
     {
         $suffix = trim((string) ($suffix ?? ''));
 
-        if ($suffix === '' || strcasecmp($suffix, 'none') === 0) {
+        if ($suffix === '' || $suffix === '—' || $suffix === '-'
+            || strcasecmp($suffix, 'none') === 0
+            || strcasecmp($suffix, 'n/a') === 0
+            || strcasecmp($suffix, 'na') === 0) {
             return '';
         }
 

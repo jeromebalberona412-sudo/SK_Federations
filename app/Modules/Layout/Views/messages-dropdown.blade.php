@@ -54,6 +54,8 @@
     <div class="comms-msg-filters" role="tablist" aria-label="Message filters">
         <button type="button" class="comms-msg-filter-chip is-active" data-filter="all" role="tab" aria-selected="true">All</button>
         <button type="button" class="comms-msg-filter-chip" data-filter="unread" role="tab" aria-selected="false">Unread</button>
+        <button type="button" class="comms-msg-filter-chip" data-filter="officials" role="tab" aria-selected="false">SK Officials</button>
+        <button type="button" class="comms-msg-filter-chip" data-filter="federation" role="tab" aria-selected="false">SK Federation</button>
     </div>
 
     <div class="comms-msg-list" id="commsMsgList" @if(! $hasMsgItems) style="display: none;" @endif>
@@ -67,6 +69,10 @@
                 $convId = (int) ($conversation['id'] ?? 0);
                 $peerUserId = (int) ($peer['id'] ?? 0);
                 $searchBlob = mb_strtolower(trim($name.' '.$preview.' '.($peer['barangay_name'] ?? '').' '.($peer['position'] ?? '')));
+                $group = $peer['directory_group']
+                    ?? (($peer['user_type'] ?? '') === 'sk_fed' ? 'federation' : null)
+                    ?? (($peer['user_type'] ?? '') === 'sk_official' ? 'officials' : '');
+                $isFederation = ! empty($peer['is_federation_member']) || $group === 'federation';
             @endphp
             <button
                 type="button"
@@ -76,6 +82,8 @@
                 data-name="{{ e($name) }}"
                 data-avatar="{{ e((string) ($avatar ?? '')) }}"
                 data-unread="{{ $unread > 0 ? '1' : '0' }}"
+                data-group="{{ e((string) $group) }}"
+                data-federation="{{ $isFederation ? '1' : '0' }}"
                 data-search="{{ e($searchBlob) }}"
                 role="menuitem"
             >

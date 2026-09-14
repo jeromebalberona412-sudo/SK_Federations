@@ -46,8 +46,10 @@ class BatchAccountImportService
         $errors = [];
         $seenEmails = [];
         $seenRows = [];
-        $chairsInFileByBarangay = [];
-        $rosterService = app(FederationRosterService::class);
+        $seenFullNames = [];
+        /** @var array<int, array{total: int, chairperson: int, secretary: int, treasurer: int, kagawad: int}> $rosterInFileByBarangay */
+        $rosterInFileByBarangay = [];
+        $rosterLimitsService = app(SkOfficialRosterLimitsService::class);
 
         foreach ($rows as $index => $row) {
             if (! is_array($row)) {
@@ -68,6 +70,16 @@ class BatchAccountImportService
 
                 $seenEmails[$email] = true;
 
+                $fullNameKey = $this->fullNameKey($normalized);
+                if ($fullNameKey !== '' && isset($seenFullNames[$fullNameKey])) {
+                    $errors[] = [
+                        'row' => $index + 1,
+                        'error' => 'This full name already appears in another row (same First Name, Middle Name, Last Name, and Suffix). Please change the name.',
+                    ];
+                } elseif ($fullNameKey !== '') {
+                    $seenFullNames[$fullNameKey] = $index + 1;
+                }
+
                 $fingerprint = $this->rowFingerprint(array_merge($normalized, [
                     'barangay' => mb_strtoupper($this->stringValue($row, ['barangay', 'barangay_name', 'barangay name']), 'UTF-8'),
                 ]));
@@ -86,26 +98,41 @@ class BatchAccountImportService
                     $errors[] = ['row' => $index + 1, 'error' => 'Email is already registered.'];
                 }
 
-                if ($role === User::ROLE_SK_OFFICIAL && $rosterService->isChairPosition((string) $normalized['position'])) {
+                if ($role === User::ROLE_SK_OFFICIAL) {
                     $barangayId = (int) ($normalized['barangay_id'] ?? 0);
+                    $position = (string) ($normalized['position'] ?? '');
 
-                    if ($barangayId > 0) {
-                        if (isset($chairsInFileByBarangay[$barangayId])) {
-                            $errors[] = ['row' => $index + 1, 'error' => 'This barangay already has an SK Chairperson in the uploaded file.'];
-                        } else {
-                            $chairsInFileByBarangay[$barangayId] = true;
-                        }
+                    if ($barangayId > 0 && $position !== '') {
+                        $pending = $rosterInFileByBarangay[$barangayId] ?? [
+                            'total' => 0,
+                            'chairperson' => 0,
+                            'secretary' => 0,
+                            'treasurer' => 0,
+                            'kagawad' => 0,
+                        ];
 
                         try {
-                            $rosterService->assertSingleChairPerBarangay(
+                            $rosterLimitsService->assertRosterLimits(
                                 $this->tenantId,
                                 $barangayId,
-                                (string) $normalized['position'],
+                                $position,
+                                null,
+                                isset($normalized['term_start']) ? (string) $normalized['term_start'] : null,
+                                isset($normalized['term_end']) ? (string) $normalized['term_end'] : null,
+                                $pending,
                             );
-                        } catch (ValidationException $chairException) {
+
+                            $kind = $rosterLimitsService->positionKind($position);
+                            $pending['total']++;
+                            if (isset($pending[$kind])) {
+                                $pending[$kind]++;
+                            }
+                            $rosterInFileByBarangay[$barangayId] = $pending;
+                        } catch (ValidationException $rosterException) {
                             $errors[] = [
                                 'row' => $index + 1,
-                                'error' => collect($chairException->errors())->flatten()->first() ?? 'This barangay already has an SK Chairperson account.',
+                                'error' => collect($rosterException->errors())->flatten()->first()
+                                    ?? 'This barangay roster limit was reached (max 10: 1 Chairperson, 1 Secretary, 1 Treasurer, 7 Kagawad).',
                             ];
                         }
                     }
@@ -405,6 +432,26 @@ class BatchAccountImportService
     /**
      * @param  array<string, mixed>  $data
      */
+    private function fullNameKey(array $data): string
+    {
+        $first = mb_strtolower(trim((string) ($data['first_name'] ?? '')), 'UTF-8');
+        $middle = mb_strtolower(trim((string) ($data['middle_name'] ?? '')), 'UTF-8');
+        $last = mb_strtolower(trim((string) ($data['last_name'] ?? '')), 'UTF-8');
+        if ($first === '' || $last === '') {
+            return '';
+        }
+
+        $suffix = mb_strtoupper(trim((string) ($data['suffix'] ?? '')), 'UTF-8');
+        if ($suffix === '' || in_array($suffix, ['NONE', 'N/A', 'NA', '-'], true)) {
+            $suffix = 'NONE';
+        }
+
+        return mb_strtolower(implode('|', [$first, $middle, $last, $suffix]), 'UTF-8');
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     */
     private function rowFingerprint(array $data): string
     {
         $parts = [
@@ -552,7 +599,8 @@ class BatchAccountImportService
             'sk secretary' => 'Secretary',
             'sk treasurer' => 'Treasurer',
             'sk kagawad' => 'Kagawad',
-            'councilor' => 'Councilor',
+            'councilor' => 'Kagawad',
+            'sk councilor' => 'Kagawad',
             'auditor' => 'Auditor',
             'pio' => 'PIO',
             'president' => 'President',
@@ -624,7 +672,11 @@ class BatchAccountImportService
         }
 
         if ($value instanceof \DateTimeInterface) {
-            return Carbon::parse($value)->toDateString();
+            // Excel date cells are calendar dates (UTC midnight). Use UTC Y-m-d
+            // so timezone conversion does not shift the day in preview/import.
+            return Carbon::instance(\DateTimeImmutable::createFromInterface($value))
+                ->utc()
+                ->toDateString();
         }
 
         if (is_numeric($value) && ! preg_match('/^\d{4}-\d{2}-\d{2}$/', trim((string) $value))) {
@@ -714,7 +766,9 @@ class BatchAccountImportService
 
             $value = $this->unwrapCellValue($row[$key]);
             if ($value instanceof \DateTimeInterface) {
-                $value = Carbon::parse($value)->toDateString();
+                $value = Carbon::instance(\DateTimeImmutable::createFromInterface($value))
+                    ->utc()
+                    ->toDateString();
             }
 
             $value = trim((string) $value);

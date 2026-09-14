@@ -34,7 +34,8 @@ class FederationPositionAssignedNotification extends Notification
             ->subject("You have been assigned as SK Federation {$position}")
             ->greeting('Hello!')
             ->line("You have been assigned as {$position} of the SK Federation.")
-            ->line('You may now sign in to the SK Federation portal to access federation tools, notifications, audit logs, and other assigned features.')
+            ->line('Use your existing SK Officials email and password to sign in to the SK Federation portal. No new login account was created.')
+            ->line('You may now access federation tools, notifications, audit logs, and other assigned features.')
             ->action('Open SK Federation Portal', $portalUrl)
             ->line('Assignment recorded on '.$sentAt.'.')
             ->line('If you did not expect this assignment, please contact your SK Federation administrator.');

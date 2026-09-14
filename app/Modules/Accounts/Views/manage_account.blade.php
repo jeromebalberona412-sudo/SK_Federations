@@ -161,7 +161,7 @@
                             @forelse($accounts as $account)
                                 @php
                                     $profile = $account->officialProfile;
-                                    $term = $profile?->latestTerm;
+                                    $term = $profile?->currentActiveTerm ?? $profile?->latestTerm;
                                     $firstName = $profile?->first_name ? mb_strtoupper($profile->first_name, 'UTF-8') : null;
                                     $lastName = $profile?->last_name ? mb_strtoupper($profile->last_name, 'UTF-8') : null;
                                     $middleName = trim((string) ($profile?->middle_name ?? ''));

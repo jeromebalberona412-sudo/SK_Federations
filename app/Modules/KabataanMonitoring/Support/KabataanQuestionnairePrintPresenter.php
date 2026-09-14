@@ -65,7 +65,7 @@ class KabataanQuestionnairePrintPresenter
 
         $suffix = trim($read('suffix'));
         $customSuffix = $read('custom_suffix') ?: $read('suffix_other');
-        if ($suffix === '' || strcasecmp($suffix, 'none') === 0) {
+        if ($suffix === '' || strcasecmp($suffix, 'none') === 0 || $suffix === '—' || $suffix === '-') {
             $suffix = '';
         } elseif (strcasecmp($suffix, 'other') === 0 || strcasecmp($suffix, 'others') === 0) {
             $suffix = $customSuffix;
@@ -92,7 +92,7 @@ class KabataanQuestionnairePrintPresenter
             'lastName' => strtoupper($read('last_name')),
             'firstName' => strtoupper($read('first_name')),
             'middleName' => strtoupper($read('middle_name')),
-            'suffix' => $suffix,
+            'suffix' => $suffix !== '' ? $suffix : 'None',
             'region' => $read('region', 'Region IV-A (CALABARZON)'),
             'province' => $read('province', 'Laguna'),
             'city' => $read('city', 'Santa Cruz'),

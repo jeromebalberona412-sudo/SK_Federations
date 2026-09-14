@@ -167,11 +167,13 @@
                 <input type="hidden" id="edit-post-id" value="">
                 <div class="compose-author-row">
                     <img src="{{ $avatar }}" alt="Avatar" class="compose-avatar-sm">
-                    <div>
+                    <div class="compose-author-meta">
                         <div class="compose-author-name">{{ $user->name ?? 'SK Official' }}</div>
                         <div class="compose-audience-wrap" id="compose-audience-wrap">
-                            <button type="button" class="compose-visibility-select compose-audience-toggle" id="compose-audience-toggle" aria-haspopup="listbox" aria-expanded="false" aria-label="Notify targets">
-                                Select targets
+                            <span class="compose-audience-label" id="compose-audience-label">Select targets</span>
+                            <button type="button" class="compose-visibility-select compose-audience-toggle" id="compose-audience-toggle" aria-haspopup="listbox" aria-expanded="false" aria-labelledby="compose-audience-label">
+                                <span class="compose-audience-toggle-text">Choose who to notify</span>
+                                <i class="fas fa-chevron-down compose-audience-chevron" aria-hidden="true"></i>
                             </button>
                             <div class="compose-audience-menu" id="compose-audience-menu" hidden role="listbox" aria-multiselectable="true" aria-label="Select who to notify">
                                 <p class="compose-audience-hint">Select one or more. These control who gets the notification bell. Email is optional via the checkbox below. Public also makes the post shareable and selects all audiences.</p>
@@ -210,8 +212,8 @@
                 <div class="compose-type-row">
                     <label class="compose-type-label" for="compose-type">Post Type:</label>
                     <select class="compose-type-select" id="compose-type" aria-label="Post type">
+                        <option value="announcement" selected>Announcement</option>
                         <option value="update">Update</option>
-                        <option value="announcement">Announcement</option>
                         <option value="event">Event</option>
                         <option value="photo">Photo</option>
                         <option value="activity">Activity</option>
@@ -268,8 +270,12 @@
                     </div>
                     <div id="compose-video-drive-panel" class="compose-video-input-wrap" hidden>
                         <label class="compose-media-label" for="compose-video-input">Google Drive Video Link</label>
-                        <input type="url" id="compose-video-input" class="compose-link-field" placeholder="Paste Google Drive video link here" autocomplete="off" inputmode="url" aria-describedby="compose-video-help compose-video-error">
+                        <input type="url" id="compose-video-input" class="compose-link-field" placeholder="Paste Google Drive video link here" autocomplete="off" inputmode="url" aria-describedby="compose-video-help compose-video-share-help compose-video-error">
                         <p id="compose-video-help" class="compose-video-help">For <strong>1 specific video</strong> only (single file link, not a folder).</p>
+                        <p id="compose-video-share-help" class="compose-video-help compose-video-share-help">
+                            <strong>Sharing required:</strong> In Google Drive, open the file → Share → set access to
+                            <em>“Anyone with the link”</em> (Viewer). Otherwise people who see this post cannot play the video.
+                        </p>
                         <p id="compose-video-error" class="compose-field-error" role="alert" hidden></p>
                         <button type="button" class="compose-remove-video-btn" id="compose-remove-video-btn" hidden onclick="clearComposeDriveVideo()">Remove Drive link</button>
                     </div>

@@ -83,7 +83,7 @@
                                     </button>
                                 </div>
                                 <div class="cf-drive-video-fallback" hidden>
-                                    <p>Video unavailable. Please check the Google Drive sharing permissions.</p>
+                                    <p>Video unavailable. Set Google Drive sharing to “Anyone with the link” (Viewer), then try again.</p>
                                     @if (!empty($video['open_url']))
                                         <a href="{{ $video['open_url'] }}" target="_blank" rel="noopener noreferrer" class="cf-drive-open-link">Open in Google Drive</a>
                                     @endif
@@ -100,7 +100,7 @@
                             </button>
                         </div>
                         <div class="cf-drive-video-fallback" hidden>
-                            <p>Video unavailable. Please check the Google Drive sharing permissions.</p>
+                            <p>Video unavailable. Set Google Drive sharing to “Anyone with the link” (Viewer), then try again.</p>
                             @if (!empty($post['google_drive_video']['open_url']))
                                 <a href="{{ $post['google_drive_video']['open_url'] }}" target="_blank" rel="noopener noreferrer" class="cf-drive-open-link">Open in Google Drive</a>
                             @endif

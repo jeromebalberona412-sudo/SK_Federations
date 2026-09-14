@@ -127,7 +127,7 @@ document.addEventListener('DOMContentLoaded', () => {
         timerInterval = setInterval(refreshButton, 1000);
     }
 
-    // ── Verified success (no auto dashboard redirect) ─────────────────────────
+    // ── Verified success → auto redirect to dashboard ─────────────────────────
 
     function showVerifiedSuccess(url) {
         if (redirectStarted) return;
@@ -136,8 +136,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (stateEl) {
             stateEl.className = 'alert alert-success';
-            stateEl.textContent = 'Verified successfully. You can now sign in.';
+            stateEl.textContent = 'Verified successfully. Redirecting to dashboard…';
         }
+
+        const target = url || dashboardUrl || '/dashboard';
 
         const modal = document.getElementById('success-modal');
         if (modal) {
@@ -145,18 +147,22 @@ document.addEventListener('DOMContentLoaded', () => {
             const copy = modal.querySelector('p');
             const action = modal.querySelector('[data-success-login]');
             if (title) title.textContent = 'Verified Successfully!';
-            if (copy) copy.textContent = 'Your email has been verified. Sign in to continue.';
+            if (copy) copy.textContent = 'Your email has been verified. Redirecting to your dashboard…';
             if (action) {
                 action.hidden = false;
                 action.removeAttribute('hidden');
-                action.setAttribute('href', url || '/login');
+                action.setAttribute('href', target);
+                action.textContent = 'Go to Dashboard';
             }
             modal.classList.add('show');
         }
 
         clearCooldown();
         if (typeof window.hideLoading === 'function') window.hideLoading();
-        // Do not auto-redirect to dashboard.
+
+        window.setTimeout(() => {
+            window.location.replace(target);
+        }, 700);
     }
 
     // ── Resend (button click only) ────────────────────────────────────────────

@@ -44,7 +44,7 @@
             <span class="kkp-col-label">Middle Name</span>
         </div>
         <div class="kkp-name-col kkp-name-col-sm">
-            <span class="kkp-uline kkp-uline-select kkp-view-value">{{ $suffix !== '' ? $suffix : '' }}</span>
+            <span class="kkp-uline kkp-uline-select kkp-view-value">{{ ($suffix ?? '') !== '' ? $suffix : 'None' }}</span>
             <span class="kkp-col-label">Suffix</span>
         </div>
     </div>

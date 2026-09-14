@@ -25,6 +25,7 @@ class SkOfficialRosterLimitsService
         ?int $ignoreUserId = null,
         ?string $proposedTermStart = null,
         ?string $proposedTermEnd = null,
+        array $pendingInFile = [],
     ): void {
         $normalized = $this->normalizePosition($position);
 
@@ -35,7 +36,8 @@ class SkOfficialRosterLimitsService
             $proposedTermStart,
             $proposedTermEnd,
         );
-        $total = (clone $activeQuery)->count();
+        $pendingTotal = max(0, (int) ($pendingInFile['total'] ?? 0));
+        $total = (clone $activeQuery)->count() + $pendingTotal;
 
         if ($total >= self::MAX_OFFICIALS_PER_BARANGAY) {
             throw ValidationException::withMessages([
@@ -44,7 +46,8 @@ class SkOfficialRosterLimitsService
         }
 
         if ($this->chairpersonFederationSyncService->isChairpersonPosition($position)) {
-            $chairCount = $this->countByPositionKind($activeQuery, 'chairperson');
+            $chairCount = $this->countByPositionKind($activeQuery, 'chairperson')
+                + max(0, (int) ($pendingInFile['chairperson'] ?? 0));
             if ($chairCount >= 1) {
                 throw ValidationException::withMessages([
                     'position' => 'This barangay already has an SK Chairperson.',
@@ -55,7 +58,9 @@ class SkOfficialRosterLimitsService
         }
 
         if ($normalized === 'secretary') {
-            if ($this->countByPositionKind($activeQuery, 'secretary') >= 1) {
+            $secretaryCount = $this->countByPositionKind($activeQuery, 'secretary')
+                + max(0, (int) ($pendingInFile['secretary'] ?? 0));
+            if ($secretaryCount >= 1) {
                 throw ValidationException::withMessages([
                     'position' => 'This barangay already has an SK Secretary.',
                 ]);
@@ -65,7 +70,9 @@ class SkOfficialRosterLimitsService
         }
 
         if ($normalized === 'treasurer') {
-            if ($this->countByPositionKind($activeQuery, 'treasurer') >= 1) {
+            $treasurerCount = $this->countByPositionKind($activeQuery, 'treasurer')
+                + max(0, (int) ($pendingInFile['treasurer'] ?? 0));
+            if ($treasurerCount >= 1) {
                 throw ValidationException::withMessages([
                     'position' => 'This barangay already has an SK Treasurer.',
                 ]);
@@ -75,12 +82,19 @@ class SkOfficialRosterLimitsService
         }
 
         if ($normalized === 'kagawad') {
-            if ($this->countByPositionKind($activeQuery, 'kagawad') >= self::MAX_KAGAWAD_PER_BARANGAY) {
+            $kagawadCount = $this->countByPositionKind($activeQuery, 'kagawad')
+                + max(0, (int) ($pendingInFile['kagawad'] ?? 0));
+            if ($kagawadCount >= self::MAX_KAGAWAD_PER_BARANGAY) {
                 throw ValidationException::withMessages([
                     'position' => 'This barangay already has the maximum of '.self::MAX_KAGAWAD_PER_BARANGAY.' SK Kagawad.',
                 ]);
             }
         }
+    }
+
+    public function positionKind(string $position): string
+    {
+        return $this->normalizePosition($position);
     }
 
     /**
@@ -140,7 +154,7 @@ class SkOfficialRosterLimitsService
     {
         $value = strtolower(trim($position));
 
-        if (str_contains($value, 'kagawad')) {
+        if (str_contains($value, 'kagawad') || str_contains($value, 'councilor')) {
             return 'kagawad';
         }
 

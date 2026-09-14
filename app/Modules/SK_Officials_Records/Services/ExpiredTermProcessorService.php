@@ -72,7 +72,16 @@ class ExpiredTermProcessorService
                 }
 
                 if (! $user->trashed() && $user->status !== User::STATUS_INACTIVE) {
-                    $user->forceFill(['status' => User::STATUS_INACTIVE])->save();
+                    $user->forceFill([
+                        'status' => User::STATUS_INACTIVE,
+                        'has_federation_access' => false,
+                        'active_session_id' => null,
+                    ])->save();
+                }
+
+                $profile = $user->officialProfile;
+                if ($profile && filled($profile->federation_position)) {
+                    $profile->forceFill(['federation_position' => null])->save();
                 }
 
                 $processed++;

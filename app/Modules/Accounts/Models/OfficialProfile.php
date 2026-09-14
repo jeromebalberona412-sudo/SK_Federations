@@ -155,6 +155,15 @@ class OfficialProfile extends Model
         return $this->hasOne(OfficialTerm::class)->latestOfMany('id');
     }
 
+    public function currentActiveTerm(): HasOne
+    {
+        return $this->hasOne(OfficialTerm::class)
+            ->ofMany(['id' => 'max'], function ($query): void {
+                $query->where('status', OfficialTerm::STATUS_ACTIVE)
+                    ->whereDate('term_end', '>=', now()->toDateString());
+            });
+    }
+
     public function displayFederationPosition(): ?string
     {
         if ($this->federation_position !== null && $this->federation_position !== '') {

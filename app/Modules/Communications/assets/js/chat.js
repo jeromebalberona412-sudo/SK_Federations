@@ -25,6 +25,7 @@
         loadingOlder: false,
         listMode: 'conversations',
         directoryFilter: 'officials',
+        directoryGroups: [],
         barangayId: '',
         reactionEmojis: ['👍', '❤️', '😆', '😮', '😢', '🙏'],
         openReactionPickerId: null,
@@ -71,11 +72,13 @@
         barangayFilter: document.getElementById('commsBarangayFilter'),
         attachBtn: document.getElementById('commsAttachBtn'),
         photoInput: document.getElementById('commsPhotoInput'),
+        cameraInput: document.getElementById('commsCameraInput'),
         fileInput: document.getElementById('commsFileInput'),
         attachPreview: document.getElementById('commsAttachPreview'),
         attachPreviewInner: document.getElementById('commsAttachPreviewInner'),
         attachClear: document.getElementById('commsAttachClear'),
         attachMenu: document.getElementById('commsAttachMenu'),
+        pickCameraBtn: document.getElementById('commsPickCameraBtn'),
         pickPhotosBtn: document.getElementById('commsPickPhotosBtn'),
         pickFilesBtn: document.getElementById('commsPickFilesBtn'),
         uploadProgress: document.getElementById('commsUploadProgress'),
@@ -367,6 +370,7 @@
         state.pendingAttachment = null;
         state.pendingPreviewUrl = null;
         if (els.photoInput) els.photoInput.value = '';
+        if (els.cameraInput) els.cameraInput.value = '';
         if (els.fileInput) els.fileInput.value = '';
         if (els.attachPreview) els.attachPreview.hidden = true;
         if (els.attachPreviewInner) els.attachPreviewInner.innerHTML = '';
@@ -1251,19 +1255,48 @@
 
     function renderDirectory(groups) {
         if (!els.directoryList) return;
-        if (!groups.length || groups.every(function (g) { return !(g.users || []).length; })) {
+        state.directoryGroups = Array.isArray(groups) ? groups : [];
+        paintDirectory(state.directoryGroups, els.convFilter ? els.convFilter.value : '');
+    }
+
+    function filterDirectoryLocal(query) {
+        paintDirectory(state.directoryGroups || [], query);
+    }
+
+    function paintDirectory(groups, query) {
+        if (!els.directoryList) return;
+        var q = String(query || '').trim().toLowerCase();
+        var filtered = (groups || []).map(function (group) {
+            var users = (group.users || []).filter(function (u) {
+                if (!q) return true;
+                var blob = [
+                    u.name || '',
+                    u.position || '',
+                    u.barangay_name || '',
+                    u.user_type_label || ''
+                ].join(' ').toLowerCase();
+                return blob.indexOf(q) !== -1;
+            });
+            return { title: group.title, users: users };
+        }).filter(function (g) { return (g.users || []).length > 0; });
+
+        if (!filtered.length) {
             els.directoryList.innerHTML = '<div class="comms-empty"><p>No people found for this filter.</p></div>';
             return;
         }
-        els.directoryList.innerHTML = groups.map(function (group) {
+        els.directoryList.innerHTML = filtered.map(function (group) {
             var users = group.users || [];
             if (!users.length) return '';
             return '<div class="comms-dir-group-title">' + Comms.escapeHtml(group.title || 'People') + '</div>' +
                 users.map(function (u) {
                     var avatar = u.profile_image_url || Comms.defaultAvatar(u.name);
+                    var online = String(u.online_status || '').toLowerCase() === 'online';
                     var meta = [u.position || u.user_type_label || '', u.barangay_name || ''].filter(Boolean).join(' · ');
                     return '<div class="comms-dir-item" role="listitem" data-user-id="' + u.id + '">' +
+                        '<div class="comms-dir-avatar-wrap">' +
                         '<img class="comms-avatar" src="' + Comms.escapeHtml(avatar) + '" alt="" onerror="this.onerror=null;this.src=\'' + Comms.escapeHtml(Comms.defaultAvatar(u.name)) + '\'">' +
+                        (online ? '<span class="comms-online-dot" title="Online" aria-label="Online"></span>' : '') +
+                        '</div>' +
                         '<button type="button" class="comms-dir-open" data-user-id="' + u.id + '" style="border:0;background:transparent;text-align:left;padding:0;cursor:pointer;min-width:0;">' +
                         '<div class="comms-conv-name">' + Comms.escapeHtml(u.name || 'User') + '</div>' +
                         '<div class="comms-dir-meta">' + Comms.escapeHtml(meta) + '</div>' +
@@ -2017,6 +2050,8 @@
             state.filterTimer = setTimeout(function () {
                 if (state.listMode === 'conversations') {
                     renderConversations(q);
+                } else {
+                    filterDirectoryLocal(q);
                 }
             }, 120);
             state.searchTimer = setTimeout(function () {
@@ -2037,6 +2072,12 @@
             e.stopPropagation();
             els.attachMenu.hidden = !els.attachMenu.hidden;
         });
+        if (els.pickCameraBtn && els.cameraInput) {
+            els.pickCameraBtn.addEventListener('click', function () {
+                els.attachMenu.hidden = true;
+                els.cameraInput.click();
+            });
+        }
         if (els.pickPhotosBtn) {
             els.pickPhotosBtn.addEventListener('click', function () {
                 els.attachMenu.hidden = true;
@@ -2047,6 +2088,12 @@
             els.pickFilesBtn.addEventListener('click', function () {
                 els.attachMenu.hidden = true;
                 els.fileInput.click();
+            });
+        }
+        if (els.cameraInput) {
+            els.cameraInput.addEventListener('change', function () {
+                pushPendingFiles(els.cameraInput.files, 'image');
+                els.cameraInput.value = '';
             });
         }
         els.photoInput.addEventListener('change', function () {

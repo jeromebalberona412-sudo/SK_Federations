@@ -11,7 +11,10 @@
 @endpush
 
 @push('styles')
-    @vite(['app/Modules/KabataanMonitoring/assets/css/kabataan-monitoring.css'])
+    @vite([
+        'app/Modules/KabataanMonitoring/assets/css/kabataan-monitoring.css',
+        'app/Modules/KabataanMonitoring/assets/css/kabataan-monitoring-responsive.css',
+    ])
 @endpush
 
 @section('content')

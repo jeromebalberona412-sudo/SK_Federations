@@ -2974,13 +2974,19 @@ body.comms-officials-page .main-content {
     background: #fff;
 }
 
-.comms-directory-list {
-    overflow-x: hidden;
-    overflow-y: auto;
-    flex: 1 1 auto;
-    min-height: 0;
-    -webkit-overflow-scrolling: touch;
-    overscroll-behavior: contain;
+.comms-dir-avatar-wrap {
+    position: relative;
+    flex-shrink: 0;
+}
+.comms-online-dot {
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: #22c55e;
+    border: 2px solid #fff;
 }
 
 .comms-dir-group-title {

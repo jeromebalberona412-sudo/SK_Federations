@@ -29,7 +29,7 @@ class FederationRosterService
     public function federationRosterQuery(int $tenantId): Builder
     {
         $query = User::query()
-            ->with(['barangay', 'officialProfile.latestTerm'])
+            ->with(['barangay', 'officialProfile.latestTerm', 'officialProfile.currentActiveTerm'])
             ->where('tenant_id', $tenantId);
 
         $this->chairpersonFederationSyncService->applyFederationRosterMemberConstraint($query);

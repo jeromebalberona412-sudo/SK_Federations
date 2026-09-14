@@ -10,22 +10,7 @@
         <a href="{{ route('profile') }}" class="sidebar-profile sidebar-profile-link" id="sidebar-profile-link" data-no-loading>
             <img src="{{ $avatar }}" alt="Profile" class="sidebar-avatar">
             <div class="sidebar-user-info">
-                <div class="s-name">{{ $displayName ?? ($user->name ?? 'User') }}</div>
-                <div class="s-role">{{ $formattedRole }}</div>
-                @if(!empty($sidebarMeta))
-                    @if(!empty($sidebarMeta['position']))
-                        <div class="s-meta">{{ $sidebarMeta['position'] }}</div>
-                    @endif
-                    @if(!empty($sidebarMeta['sex']))
-                        <div class="s-meta">{{ $sidebarMeta['sex'] }}</div>
-                    @endif
-                    @if(!empty($sidebarMeta['contact_number']))
-                        <div class="s-meta">{{ $sidebarMeta['contact_number'] }}</div>
-                    @endif
-                    @if(!empty($sidebarMeta['term_start']) && !empty($sidebarMeta['term_end']))
-                        <div class="s-meta">Term: {{ $sidebarMeta['term_start'] }} – {{ $sidebarMeta['term_end'] }}</div>
-                    @endif
-                @endif
+                <div class="s-name" title="{{ $displayName ?? ($user->name ?? 'User') }}">{{ $displayName ?? ($user->name ?? 'User') }}</div>
             </div>
         </a>
 

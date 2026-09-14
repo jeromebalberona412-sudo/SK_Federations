@@ -211,7 +211,7 @@
     }
 
     function updateComposeTitleUi(event) {
-        var type = (document.getElementById('compose-type') || {}).value || 'update';
+        var type = (document.getElementById('compose-type') || {}).value || 'announcement';
         syncComposeMediaByType(type);
         var wrap = document.getElementById('compose-update-title-wrap');
         var input = document.getElementById('compose-title');
@@ -290,7 +290,7 @@
             + '<div class="cf-drive-video-frame cf-drive-video-poster">'
             + '<button type="button" class="cf-drive-play-btn" aria-label="Play video">'
             + '<span class="cf-drive-play-icon" aria-hidden="true">▶</span><span>Play video</span></button></div>'
-            + '<div class="cf-drive-video-fallback" hidden><p>Video unavailable. Please check the Google Drive sharing permissions.</p>'
+            + '<div class="cf-drive-video-fallback" hidden><p>Video unavailable. Set Google Drive sharing to “Anyone with the link” (Viewer), then try again.</p>'
             + (openUrl ? '<a href="' + openUrl + '" target="_blank" rel="noopener noreferrer" class="cf-drive-open-link">Open in Google Drive</a>' : '')
             + '</div>'
             + (openUrl ? '<a href="' + openUrl + '" target="_blank" rel="noopener noreferrer" class="cf-drive-open-link cf-drive-open-link--below">Open in Google Drive</a>' : '')
@@ -922,7 +922,7 @@
     }
 
     function toggleVideoMethodPanel() {
-        var type = (document.getElementById('compose-type') || {}).value || 'update';
+        var type = (document.getElementById('compose-type') || {}).value || 'announcement';
         if (type === 'photo') {
             notifyFeed('Photo posts are for images only. Videos are not allowed.', 'error');
             return;

@@ -20,6 +20,9 @@
     <div class="form-header cp-form-header">
         <h2>Change Password</h2>
         <p>Set a new password for your account</p>
+        @if(isset($user) && method_exists($user, 'hasSharedOfficialAndFederationAccess') && $user->hasSharedOfficialAndFederationAccess())
+            <p class="shared-account-note">Your password is shared across your SK Officials and SK Federations access.</p>
+        @endif
     </div>
 
     @if ($errors->any())

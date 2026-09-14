@@ -1975,7 +1975,7 @@ function editPost(id) {
     document.getElementById('compose-modal-title').textContent = 'Edit Post';
     document.getElementById('edit-post-id').value = id;
     document.getElementById('compose-content').value = p.body || '';
-    document.getElementById('compose-type').value = p.type || 'update';
+    document.getElementById('compose-type').value = p.type || 'announcement';
     var titleInput = document.getElementById('compose-title');
     if (titleInput) titleInput.value = p.title || '';
     var linkWrap = document.getElementById('compose-link-input-wrap');
@@ -2245,10 +2245,11 @@ function openComposeModal(type) {
     setComposeLinkError('');
     var fileInput = document.getElementById('compose-image-input');
     if (fileInput) fileInput.value = '';
-    if (type && document.getElementById('compose-type')) {
+    if (document.getElementById('compose-type')) {
         var sel = document.getElementById('compose-type');
-        var allowed = ['update', 'announcement', 'event', 'photo', 'activity', 'program'];
-        sel.value = allowed.indexOf(type) >= 0 ? type : 'update';
+        var allowed = ['announcement', 'update', 'event', 'photo', 'activity', 'program'];
+        var nextType = type && allowed.indexOf(type) >= 0 ? type : 'announcement';
+        sel.value = nextType;
     }
     if (window.SkCfMedia) window.SkCfMedia.updateComposeTitleUi();
     var emailNotify = document.getElementById('compose-email-notify');
@@ -2326,12 +2327,17 @@ function onComposeAudienceChange(changed) {
 function syncComposeAudienceToggleLabel() {
     var btn = document.getElementById('compose-audience-toggle');
     if (!btn) return;
+    var textEl = btn.querySelector('.compose-audience-toggle-text');
     var targets = getComposeAudienceTargets();
-    if (!targets.length) {
-        btn.textContent = 'Select targets';
-        return;
+    var label = !targets.length
+        ? 'Choose who to notify'
+        : targets.map(function (t) { return AUDIENCE_LABELS[t] || t; }).join(', ');
+    if (textEl) {
+        textEl.textContent = label;
+    } else {
+        btn.textContent = label;
     }
-    btn.textContent = targets.map(function (t) { return AUDIENCE_LABELS[t] || t; }).join(', ');
+    btn.title = label;
 }
 
 function setComposeAudienceMenuOpen(open) {

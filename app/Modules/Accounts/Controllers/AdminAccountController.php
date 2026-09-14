@@ -312,7 +312,7 @@ class AdminAccountController extends Controller
         $createdUserIds = array_values(array_filter(array_map('intval', $result['created_user_ids'] ?? [])));
         if ($createdUserIds !== []) {
             $createdAccounts = User::query()
-                ->with(['officialProfile.latestTerm', 'barangay'])
+                ->with(['officialProfile.latestTerm', 'officialProfile.currentActiveTerm', 'barangay'])
                 ->whereIn('id', $createdUserIds)
                 ->get()
                 ->map(fn (User $account): array => $this->formatAccountForTable($account))
@@ -410,7 +410,7 @@ class AdminAccountController extends Controller
                 : 'Account created successfully.';
 
             if ($request->expectsJson()) {
-                $user->loadMissing(['barangay', 'officialProfile.latestTerm']);
+                $user->loadMissing(['barangay', 'officialProfile.latestTerm', 'officialProfile.currentActiveTerm']);
 
                 return response([
                     'success' => true,
@@ -486,7 +486,7 @@ class AdminAccountController extends Controller
         }
 
         if ($request->expectsJson()) {
-            $account->loadMissing(['barangay', 'officialProfile.latestTerm', 'officialProfile.terms']);
+            $account->loadMissing(['barangay', 'officialProfile.latestTerm', 'officialProfile.currentActiveTerm', 'officialProfile.terms']);
 
             $payload = [
                 'success' => true,
@@ -745,7 +745,7 @@ class AdminAccountController extends Controller
     private function queryOfficialAccounts(int $tenantId)
     {
         $query = User::query()
-            ->with(['barangay', 'officialProfile.latestTerm'])
+            ->with(['barangay', 'officialProfile.latestTerm', 'officialProfile.currentActiveTerm'])
             ->where(function ($roleQuery): void {
                 $roleQuery->where('role', User::ROLE_SK_OFFICIAL)
                     ->orWhereRaw('LOWER(TRIM(role)) = ?', ['sk_official']);
@@ -764,7 +764,7 @@ class AdminAccountController extends Controller
     private function formatAccountForTable(User $account): array
     {
         $profile = $account->officialProfile;
-        $term = $profile?->latestTerm;
+        $term = $profile?->currentActiveTerm ?? $profile?->latestTerm;
         $firstName = $profile?->first_name ? mb_strtoupper($profile->first_name, 'UTF-8') : null;
         $lastName = $profile?->last_name ? mb_strtoupper($profile->last_name, 'UTF-8') : null;
         $middleName = trim((string) ($profile?->middle_name ?? ''));

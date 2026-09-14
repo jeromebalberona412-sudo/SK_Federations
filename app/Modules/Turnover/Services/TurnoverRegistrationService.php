@@ -59,8 +59,13 @@ class TurnoverRegistrationService
                 'status' => FederationTurnover::STATUS_PENDING_ACCOUNT_SETUP,
             ])->save();
 
-            $this->invitationService->sendSetupInvitation($president['user'], $president['registration']);
-            $this->invitationService->sendSetupInvitation($vicePresident['user'], $vicePresident['registration']);
+            foreach ([$president, $vicePresident] as $officer) {
+                if (($officer['skip_setup_invite'] ?? false) === true) {
+                    $this->markAccountSetupCompleted($officer['user']);
+                } else {
+                    $this->invitationService->sendSetupInvitation($officer['user'], $officer['registration']);
+                }
+            }
 
             $this->auditLog->log('turnover_officers_registered', $admin, [
                 'turnover_id' => $turnover->id,
@@ -76,7 +81,7 @@ class TurnoverRegistrationService
                         $recipient,
                         SkFederationsNotificationService::CATEGORY_GENERAL,
                         'Incoming Officers Registered',
-                        'Incoming Federation President and Vice President have been registered. Account setup emails have been sent.',
+                        'Incoming Federation President and Vice President have been registered. Account setup emails have been sent where needed.',
                         route('dashboard'),
                     );
                 }
@@ -98,6 +103,23 @@ class TurnoverRegistrationService
     ): array {
         $normalized = $this->normalizeOfficerData($data, $federationPosition);
 
+        $existing = User::query()
+            ->where('tenant_id', (int) $admin->tenant_id)
+            ->whereRaw('LOWER(email) = ?', [strtolower($normalized['email'])])
+            ->whereNull('deleted_at')
+            ->with(['officialProfile.terms', 'barangay'])
+            ->first();
+
+        if ($existing !== null) {
+            return $this->attachExistingOfficialToTurnover(
+                $turnover,
+                $existing,
+                $normalized,
+                $federationPosition,
+                $admin,
+            );
+        }
+
         $this->rosterLimitsService->assertRosterLimits(
             (int) $admin->tenant_id,
             (int) $normalized['barangay_id'],
@@ -106,12 +128,6 @@ class TurnoverRegistrationService
             (string) ($normalized['term_start'] ?? ''),
             (string) ($normalized['term_end'] ?? ''),
         );
-
-        if (User::query()->where('email', $normalized['email'])->whereNull('deleted_at')->exists()) {
-            throw ValidationException::withMessages([
-                'email' => "Email {$normalized['email']} is already registered.",
-            ]);
-        }
 
         $user = $this->accountService->createUser(array_merge($normalized, [
             'status' => User::STATUS_INACTIVE,
@@ -162,6 +178,109 @@ class TurnoverRegistrationService
             'user' => $user->fresh(['officialProfile.latestTerm', 'barangay']),
             'term' => $term,
             'registration' => $registration,
+            'skip_setup_invite' => false,
+        ];
+    }
+
+    /**
+     * Reuse an existing SK Official login account for federation turnover.
+     * Never creates a second Auth/password identity for the same person.
+     *
+     * @param  array<string, mixed>  $normalized
+     * @return array{user: User, term: OfficialTerm, registration: FederationTurnoverRegistration, skip_setup_invite: bool}
+     */
+    private function attachExistingOfficialToTurnover(
+        FederationTurnover $turnover,
+        User $existing,
+        array $normalized,
+        string $federationPosition,
+        User $admin,
+    ): array {
+        if ($existing->role !== User::ROLE_SK_OFFICIAL) {
+            throw ValidationException::withMessages([
+                'email' => "Email {$normalized['email']} already belongs to a non-SK Official account and cannot be reused for turnover.",
+            ]);
+        }
+
+        if ((int) $existing->tenant_id !== (int) $admin->tenant_id) {
+            throw ValidationException::withMessages([
+                'email' => "Email {$normalized['email']} is already registered outside your tenant scope.",
+            ]);
+        }
+
+        $this->rosterLimitsService->assertRosterLimits(
+            (int) $admin->tenant_id,
+            (int) $normalized['barangay_id'],
+            (string) $normalized['position'],
+            (int) $existing->id,
+            (string) ($normalized['term_start'] ?? ''),
+            (string) ($normalized['term_end'] ?? ''),
+        );
+
+        $this->accountService->assignBarangay($existing, (int) $normalized['barangay_id']);
+
+        $profile = $existing->officialProfile;
+        if ($profile === null) {
+            $profile = $this->accountService->createOfficialProfile($existing, $normalized);
+        } else {
+            $profile->forceFill([
+                'first_name' => $normalized['first_name'] ?? $profile->first_name,
+                'middle_name' => $normalized['middle_name'] ?? $profile->middle_name,
+                'last_name' => $normalized['last_name'] ?? $profile->last_name,
+                'suffix' => $normalized['suffix'] ?? $profile->suffix,
+                'sex' => $normalized['sex'] ?? $profile->sex,
+                'date_of_birth' => $normalized['date_of_birth'] ?? $profile->date_of_birth,
+                'contact_number' => $normalized['contact_number'] ?? $profile->contact_number,
+                'position' => 'Chairperson',
+                'municipality' => $normalized['municipality'] ?? $profile->municipality,
+                'province' => $normalized['province'] ?? $profile->province,
+                'region' => $normalized['region'] ?? $profile->region,
+                'federation_position' => $federationPosition,
+            ])->save();
+        }
+
+        $term = $this->accountService->createTermRecord($profile, [
+            'term_start' => $normalized['term_start'],
+            'term_end' => $normalized['term_end'],
+            'status' => OfficialTerm::STATUS_INACTIVE,
+        ]);
+
+        // Keep existing password/email identity and Officials portal access.
+        // Federation portal unlocks only after turnover completion.
+        $existing->forceFill([
+            'turnover_status' => 'pending_confirmation',
+            'account_status' => 'turnover_waiting',
+            'has_federation_access' => false,
+            'status' => User::STATUS_ACTIVE,
+        ])->save();
+
+        $registration = FederationTurnoverRegistration::query()->create([
+            'federation_turnover_id' => $turnover->id,
+            'user_id' => $existing->id,
+            'official_term_id' => $term->id,
+            'position' => $federationPosition,
+            'complete_name' => FederationTurnoverRegistration::formatFullName(
+                $normalized['first_name'] ?? null,
+                $normalized['middle_name'] ?? null,
+                $normalized['last_name'] ?? null,
+                $normalized['suffix'] ?? null,
+            ),
+            'email' => $existing->email,
+            'contact_number' => $normalized['contact_number'] ?? null,
+            'municipality' => 'Santa Cruz',
+            'term_start' => $normalized['term_start'],
+            'term_end' => $normalized['term_end'],
+            'status' => FederationTurnoverRegistration::STATUS_PENDING,
+            'registration_payload' => array_merge($normalized, [
+                'reused_existing_user_id' => $existing->id,
+            ]),
+        ]);
+
+        return [
+            'user' => $existing->fresh(['officialProfile.latestTerm', 'barangay']),
+            'term' => $term,
+            'registration' => $registration,
+            'skip_setup_invite' => filled($existing->password),
         ];
     }
 
@@ -231,10 +350,14 @@ class TurnoverRegistrationService
             'account_setup_completed_at' => now(),
         ])->save();
 
+        $keepOfficialsActive = filled($user->password)
+            && $user->role === User::ROLE_SK_OFFICIAL;
+
         $user->forceFill([
             'turnover_status' => 'pending_confirmation',
             'account_status' => 'turnover_waiting',
-            'status' => User::STATUS_INACTIVE,
+            // Existing SK Official credentials remain usable on Officials portal.
+            'status' => $keepOfficialsActive ? User::STATUS_ACTIVE : User::STATUS_INACTIVE,
         ])->save();
 
         $turnover = $registration->turnover()->with('registrations')->first();

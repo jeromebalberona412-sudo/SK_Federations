@@ -21,10 +21,6 @@
     </div>
 
     <div class="aroff-filters" role="search" aria-label="Archive filters">
-        <div class="aroff-filter-field aroff-filter-field--search">
-            <label for="aroffSearch">Search</label>
-            <input type="text" id="aroffSearch" class="aroff-search-input form-control" placeholder="Search by name or position…">
-        </div>
         <div class="aroff-filter-field">
             <label for="aroffBarangayFilter">Barangay</label>
             <select id="aroffBarangayFilter" class="aroff-year-filter form-select" aria-label="Filter by barangay">
@@ -57,8 +53,15 @@
             </select>
         </div>
         <div class="aroff-filter-field aroff-filter-field--actions">
-            <label>&nbsp;</label>
-            <button type="button" id="aroffClearFiltersBtn" class="aroff-clear-filters-btn">Clear Filters</button>
+            <label class="aroff-filter-spacer" aria-hidden="true">&nbsp;</label>
+            <button type="button" id="aroffClearFiltersBtn" class="aroff-clear-filters-btn" title="Clear Filters">
+                <span class="aroff-clear-full">Clear Filters</span>
+                <span class="aroff-clear-short">Clear</span>
+            </button>
+        </div>
+        <div class="aroff-filter-field aroff-filter-field--search">
+            <label for="aroffSearch">Search</label>
+            <input type="text" id="aroffSearch" class="aroff-search-input form-control" placeholder="Search…">
         </div>
     </div>
 
@@ -88,7 +91,10 @@
                 <tbody id="aroffTableBody">
                     @forelse(($initialRecords ?? []) as $record)
                         <tr>
-                            <td class="aroff-name-cell">{{ trim(collect([$record['lastName'] ?? '', $record['firstName'] ?? '', $record['middleName'] ?? '', $record['suffix'] ?? ''])->filter()->implode(', ')) }}</td>
+                            <td class="aroff-name-cell">{{ trim(collect([$record['lastName'] ?? '', $record['firstName'] ?? '', $record['middleName'] ?? '', $record['suffix'] ?? ''])->filter(function ($part) {
+                                $text = trim((string) $part);
+                                return $text !== '' && ! in_array(mb_strtolower($text), ['none', 'n/a', 'na', '-', '—'], true);
+                            })->implode(', ')) }}</td>
                             <td style="text-align:center;">{{ $record['position'] ?? '—' }}</td>
                             <td style="text-align:center;">{{ $record['barangay'] ?? '—' }}</td>
                             <td style="text-align:center;">{{ $record['termStart'] ?? '—' }}</td>

@@ -156,6 +156,7 @@
 .km-select {
     height: 36px;
     min-width: 110px;
+    max-width: 100%;
     padding: 0 10px;
     border: 1px solid #cbd5e1;
     border-radius: 8px;
@@ -165,6 +166,8 @@
     color: var(--km-text);
     cursor: pointer;
     outline: none;
+    box-sizing: border-box;
+    text-overflow: ellipsis;
 }
 .km-select:focus { border-color: var(--km-blue); }
 
@@ -1727,12 +1730,13 @@
     gap: 8px;
     flex: 1 1 auto;
     min-width: 0;
+    flex-wrap: wrap;
 }
 
 .km-filter-bar--detail .km-filter-dropdowns .km-select {
-    flex: 1 1 0;
+    flex: 1 1 140px;
     min-width: 0;
-    max-width: none;
+    max-width: 100%;
     width: auto;
 }
 
@@ -3256,6 +3260,70 @@ body.sidebar-collapsed .km-page-pagination {
     .km-page-pagination {
         left: 0;
     }
+
+    .km-barangay-detail-page,
+    .km-container {
+        max-width: 100%;
+        overflow-x: hidden;
+    }
+
+    .km-filter-bar--detail {
+        width: 100%;
+        max-width: 100%;
+        box-sizing: border-box;
+    }
+
+    .km-filter-bar-top {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 10px;
+        width: 100%;
+    }
+
+    .km-filter-dropdowns {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 8px;
+        width: 100%;
+        flex-wrap: unset;
+    }
+
+    .km-filter-bar--detail .km-filter-dropdowns .km-select {
+        flex: none;
+        width: 100%;
+        min-width: 0;
+        max-width: 100%;
+    }
+
+    .km-filter-bar--detail .km-search-group,
+    .km-filter-bar--detail .km-search-group--compact {
+        width: 100%;
+        max-width: none;
+        margin-left: 0;
+    }
+
+    .km-filter-bar-actions,
+    .km-filter-bar-actions-right {
+        width: 100%;
+    }
+
+    .km-filter-bar-actions-right {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 8px;
+    }
+
+    .km-filter-bar--detail .km-btn--add-record {
+        grid-column: 1 / -1;
+        width: 100%;
+        justify-content: center;
+    }
+
+    .km-filter-bar--detail .km-export-btn,
+    .km-filter-bar--detail .km-batch-print-btn {
+        width: 100%;
+        justify-content: center;
+    }
 }
 
 @media (max-width: 768px) {
@@ -3270,6 +3338,7 @@ body.sidebar-collapsed .km-page-pagination {
 
     .main-content.km-barangay-detail-main {
         padding: 12px 12px 52px;
+        overflow-x: hidden;
     }
 
     .km-brgy-hero {
@@ -3336,7 +3405,7 @@ body.sidebar-collapsed .km-page-pagination {
 
     .km-filter-dropdowns {
         display: grid;
-        grid-template-columns: 1fr 1fr;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
         gap: 8px;
         width: 100%;
         overflow: visible;
@@ -3347,9 +3416,9 @@ body.sidebar-collapsed .km-page-pagination {
         flex: none;
         width: 100%;
         min-width: 0;
-        max-width: none;
-        height: 38px;
-        padding: 0 8px;
+        max-width: 100%;
+        height: 40px;
+        padding: 0 10px;
         font-size: 12px;
     }
 
@@ -3370,7 +3439,7 @@ body.sidebar-collapsed .km-page-pagination {
 
     .km-filter-bar-actions-right {
         display: grid;
-        grid-template-columns: 1fr 1fr;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
         gap: 8px;
         width: 100%;
         margin-left: 0;
@@ -3397,6 +3466,8 @@ body.sidebar-collapsed .km-page-pagination {
     .km-barangay-detail-page .km-table-wrapper {
         max-height: none !important;
         overflow-y: visible !important;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
     }
 
     .km-table-footer {
@@ -3431,14 +3502,14 @@ body.sidebar-collapsed .km-page-pagination {
     }
 
     .km-filter-dropdowns {
-        grid-template-columns: 1fr 1fr;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
         gap: 6px;
     }
 
     .km-filter-bar--detail .km-filter-dropdowns .km-select {
         font-size: 11px;
-        height: 36px;
-        padding: 0 6px;
+        height: 38px;
+        padding: 0 8px;
     }
 
     .km-filter-bar--detail .km-search-group--compact {

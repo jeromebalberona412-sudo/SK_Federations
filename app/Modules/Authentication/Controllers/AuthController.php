@@ -61,12 +61,16 @@ class AuthController extends Controller
             $user = $request->user()?->fresh();
 
             if ($user !== null && $user->hasVerifiedEmail()) {
-                $this->clearVerificationSession($request);
-                Auth::logout();
-                $request->session()->invalidate();
-                $request->session()->regenerateToken();
+                $pending = $this->resolveVerificationPending($request);
 
-                return redirect()->route('skfed.verification.success');
+                if (is_array($pending) && (int) ($pending['user_id'] ?? 0) === (int) $user->getKey()) {
+                    $this->authenticationService->completeEmailVerificationLogin($user, $request, $pending);
+                    $this->clearVerificationSession($request, $pending);
+                } else {
+                    $this->clearVerificationSession($request);
+                }
+
+                return redirect()->to($this->postVerificationDestination($request));
             }
 
             if ($user !== null) {
@@ -97,16 +101,10 @@ class AuthController extends Controller
             $user = User::query()->find((int) ($pending['user_id'] ?? 0))?->fresh();
 
             if ($user !== null) {
-                // Email already verified — show success only (no auto dashboard login).
+                $this->authenticationService->completeEmailVerificationLogin($user, $request, $pending);
                 $this->clearVerificationSession($request, $pending);
 
-                if (Auth::check()) {
-                    Auth::logout();
-                    $request->session()->invalidate();
-                    $request->session()->regenerateToken();
-                }
-
-                return redirect()->route('skfed.verification.success');
+                return redirect()->to($this->postVerificationDestination($request));
             }
         }
 
@@ -155,15 +153,18 @@ class AuthController extends Controller
             $user = $request->user()?->fresh();
 
             if ($user !== null && $user->hasVerifiedEmail()) {
-                $this->clearVerificationSession($request);
+                $pending = $this->resolveVerificationPending($request);
 
-                if (Auth::check()) {
-                    Auth::logout();
+                if (is_array($pending) && (int) ($pending['user_id'] ?? 0) === (int) $user->getKey()) {
+                    $this->authenticationService->completeEmailVerificationLogin($user, $request, $pending);
+                    $this->clearVerificationSession($request, $pending);
+                } else {
+                    $this->clearVerificationSession($request);
                 }
 
                 return response()->json([
                     'state' => 'verified',
-                    'redirect' => route('skfed.verification.success'),
+                    'redirect' => $this->postVerificationDestination($request),
                 ]);
             }
 
@@ -213,12 +214,13 @@ class AuthController extends Controller
             ]);
         }
 
-        // Verified — keep the wait page on a success state (no auto dashboard login).
+        // Verified on wait page — log in and send the browser to dashboard.
+        $this->authenticationService->completeEmailVerificationLogin($user, $request, $pending);
         $this->clearVerificationSession($request, $pending);
 
         return response()->json([
             'state' => 'verified',
-            'redirect' => route('skfed.verification.success'),
+            'redirect' => $this->postVerificationDestination($request),
         ]);
     }
 
@@ -260,18 +262,27 @@ class AuthController extends Controller
             $user = $request->user()?->fresh();
 
             if ($user !== null && $user->hasVerifiedEmail()) {
-                $this->clearVerificationSession($request);
+                $pending = $this->resolveVerificationPending($request);
+
+                if (is_array($pending) && (int) ($pending['user_id'] ?? 0) === (int) $user->getKey()) {
+                    $this->authenticationService->completeEmailVerificationLogin($user, $request, $pending);
+                    $this->clearVerificationSession($request, $pending);
+                } else {
+                    $this->clearVerificationSession($request);
+                }
+
+                $redirect = $this->postVerificationDestination($request);
 
                 if ($request->expectsJson()) {
                     return response()->json([
                         'ok' => true,
                         'state' => 'verified',
                         'message' => 'Email is already verified.',
-                        'redirect' => route('skfed.verification.success'),
+                        'redirect' => $redirect,
                     ]);
                 }
 
-                return redirect()->route('skfed.verification.success');
+                return redirect()->to($redirect);
             }
 
             if ($user !== null) {
@@ -331,24 +342,21 @@ class AuthController extends Controller
         }
 
         if ($this->canCompleteVerifiedLogin($pending, $user)) {
+            $this->authenticationService->completeEmailVerificationLogin($user, $request, $pending);
             $this->clearVerificationSession($request, $pending);
 
-            if (Auth::check()) {
-                Auth::logout();
-                $request->session()->invalidate();
-                $request->session()->regenerateToken();
-            }
+            $redirect = $this->postVerificationDestination($request);
 
             if ($request->expectsJson()) {
                 return response()->json([
                     'ok' => true,
                     'state' => 'verified',
                     'message' => 'Email is already verified.',
-                    'redirect' => route('skfed.verification.success'),
+                    'redirect' => $redirect,
                 ]);
             }
 
-            return redirect()->route('skfed.verification.success');
+            return redirect()->to($redirect);
         }
 
         try {
@@ -469,10 +477,13 @@ class AuthController extends Controller
         $pending = $request->session()->get('sk_fed_email_verification_pending');
         $sameDevice = is_array($pending) && (int) ($pending['user_id'] ?? 0) === (int) $user->getKey();
 
-        // Always show success page after verification. Do not auto-login or
-        // redirect to dashboard (avoids single-session kick / Session Expired).
+        // Same device as the wait page: finish login and go to dashboard.
+        // Other device: show success page so the wait tab can poll and log in there.
         if ($sameDevice) {
+            $this->authenticationService->completeEmailVerificationLogin($user, $request, $pending);
             $this->clearVerificationSession($request, $pending);
+
+            return redirect()->to($this->postVerificationDestination($request));
         }
 
         if (Auth::check()) {
@@ -891,5 +902,21 @@ class AuthController extends Controller
         $startedAt = Carbon::parse((string) ($pending['started_at'] ?? now()->toIso8601String()));
 
         return $user->email_verified_at->greaterThanOrEqualTo($startedAt->copy()->subSeconds(5));
+    }
+
+    protected function postVerificationDestination(Request $request): string
+    {
+        try {
+            $user = $request->user();
+            if ($user !== null && app(\App\Modules\Turnover\Services\FederationTermDetectionService::class)
+                ->mustLockPortalForTurnover($user)
+            ) {
+                return route('turnover.index');
+            }
+        } catch (\Throwable $e) {
+            report($e);
+        }
+
+        return route('dashboard');
     }
 }

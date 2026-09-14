@@ -15,6 +15,9 @@
     <div class="form-header ce-form-header">
         <h2>Change Email</h2>
         <p>Update your email address</p>
+        @if(isset($user) && method_exists($user, 'hasSharedOfficialAndFederationAccess') && $user->hasSharedOfficialAndFederationAccess())
+            <p class="shared-account-note">This email is used for your SK Officials and SK Federations account.</p>
+        @endif
     </div>
 
     @if (session('status'))

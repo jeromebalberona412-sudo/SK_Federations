@@ -63,9 +63,9 @@
                 @if(($portalUserType ?? '') === 'sk_fed')
                     <div class="comms-filter-bar" id="commsFilterBar" role="tablist" aria-label="Directory filters">
                         <button type="button" class="comms-filter-btn is-active" data-filter="conversations">Chats</button>
+                        <button type="button" class="comms-filter-btn" data-filter="officials">SK Officials</button>
+                        <button type="button" class="comms-filter-btn" data-filter="federation">SK Federation</button>
                         <button type="button" class="comms-filter-btn" data-filter="chairpersons">Chairpersons</button>
-                        <button type="button" class="comms-filter-btn" data-filter="officials">Officials</button>
-                        <button type="button" class="comms-filter-btn" data-filter="federation">Federation</button>
                     </div>
                     <div class="comms-barangay-wrap" id="commsBarangayWrap" hidden>
                         <label class="visually-hidden" for="commsBarangayFilter">Filter by barangay</label>
@@ -137,13 +137,18 @@
 
                 <form class="comms-composer" id="commsComposer" autocomplete="off">
                     <input type="file" id="commsPhotoInput" class="visually-hidden" accept="image/jpeg,image/png,image/webp,image/gif" multiple aria-hidden="true" tabindex="-1">
+                    <input type="file" id="commsCameraInput" class="visually-hidden" accept="image/*" capture="environment" aria-hidden="true" tabindex="-1">
                     <input type="file" id="commsFileInput" class="visually-hidden" accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" multiple aria-hidden="true" tabindex="-1">
                     <div class="comms-composer-tools">
                         <div class="comms-attach-menu-wrap">
-                            <button type="button" class="comms-attach-btn" id="commsAttachBtn" title="Maximum 25 MB" aria-label="Attach photos or files. Maximum 25 MB" aria-expanded="false" aria-controls="commsAttachMenu">
+                            <button type="button" class="comms-attach-btn" id="commsAttachBtn" title="Maximum 25 MB" aria-label="Attach photos, camera, or files. Maximum 25 MB" aria-expanded="false" aria-controls="commsAttachMenu">
                                 <span aria-hidden="true">+</span>
                             </button>
                             <div class="comms-attach-menu" id="commsAttachMenu" hidden>
+                                <button type="button" class="comms-attach-menu-btn" id="commsPickCameraBtn" title="Take a photo with your camera">
+                                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+                                    <span>Camera</span>
+                                </button>
                                 <button type="button" class="comms-attach-menu-btn" id="commsPickPhotosBtn" title="Maximum 25 MB">
                                     <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
                                     <span>Photos</span>

@@ -2,7 +2,12 @@
 
 function formatRecordName(record) {
     return [record.lastName, record.firstName, record.middleName, record.suffix]
-        .filter((part) => part && String(part).trim() !== '')
+        .filter((part) => {
+            const text = String(part ?? '').trim();
+            if (text === '') return false;
+            const lower = text.toLowerCase();
+            return lower !== 'none' && lower !== 'n/a' && lower !== 'na' && text !== '-' && text !== '—';
+        })
         .join(', ');
 }
 
@@ -126,12 +131,41 @@ function displayValue(value) {
     return text !== '' ? text : '—';
 }
 
+function displaySuffixValue(value) {
+    const text = String(value ?? '').trim();
+    if (text === '' || text === '—' || text === '-'
+        || text.toLowerCase() === 'none'
+        || text.toLowerCase() === 'n/a'
+        || text.toLowerCase() === 'na') {
+        return 'None';
+    }
+    return text;
+}
+
+function limitedEmailDisplay(value, maxLen = 64) {
+    const text = String(value ?? '').trim();
+    if (text === '' || text === '—') return { display: '—', title: '' };
+    if (text.length <= maxLen) return { display: text, title: text };
+    return { display: `${text.slice(0, maxLen)}…`, title: text };
+}
+
 function aroffProfileGroup(iconClass, title, fields) {
-    const cells = fields.map(([label, value]) => `
+    const cells = fields.map(([label, value]) => {
+        const isEmail = String(label).toLowerCase().includes('email');
+        if (isEmail) {
+            const email = limitedEmailDisplay(value);
+            return `
+        <div class="account-profile-field">
+            <label>${escapeAroffHtml(label)}</label>
+            <div class="aroff-view-value" title="${escapeAroffHtml(email.title)}">${escapeAroffHtml(email.display)}</div>
+        </div>`;
+        }
+        return `
         <div class="account-profile-field">
             <label>${escapeAroffHtml(label)}</label>
             <div class="aroff-view-value">${escapeAroffHtml(displayValue(value))}</div>
-        </div>`).join('');
+        </div>`;
+    }).join('');
 
     return `
         <div class="account-profile-group">
@@ -345,7 +379,7 @@ function openAroffViewModal(id) {
                     ['First Name', r.firstName],
                     ['Last Name', r.lastName],
                     ['Middle Name', r.middleName],
-                    ['Suffix', r.suffix],
+                    ['Suffix', displaySuffixValue(r.suffix)],
                     ['Sex', r.sex],
                     ['Date of Birth', r.dateOfBirth],
                     ['Age', r.age],

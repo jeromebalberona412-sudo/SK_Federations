@@ -773,7 +773,16 @@ async function openDsoViewModal(id) {
                 ['First Name', r.firstName || '—'],
                 ['Middle Name', r.middleName || '—'],
                 ['Last Name', r.lastName || '—'],
-                ['Suffix', r.suffix || '—'],
+                ['Suffix', (function () {
+                    const text = String(r.suffix ?? '').trim();
+                    if (text === '' || text === '—' || text === '-'
+                        || text.toLowerCase() === 'none'
+                        || text.toLowerCase() === 'n/a'
+                        || text.toLowerCase() === 'na') {
+                        return 'None';
+                    }
+                    return text;
+                })()],
                 ['Sex', r.sex || '—'],
                 ['Date of Birth', r.dateOfBirth || '—'],
                 ['Age', r.age ?? '—'],

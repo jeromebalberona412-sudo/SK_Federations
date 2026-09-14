@@ -18,10 +18,14 @@ body.km-main {
         margin-left: 0;
         margin-top: 60px;
         padding: 12px;
+        overflow-x: hidden;
+        max-width: 100%;
     }
 
     .km-container {
         padding: 0;
+        max-width: 100%;
+        overflow-x: hidden;
     }
 
     .km-page-header {
@@ -38,6 +42,9 @@ body.km-main {
         flex-direction: column;
         align-items: stretch;
         gap: 8px;
+        width: 100%;
+        max-width: 100%;
+        box-sizing: border-box;
     }
 
     .km-filter-bar .km-search-group--index {
@@ -60,20 +67,29 @@ body.km-main {
     .km-filter-bar--detail {
         flex-direction: column;
         align-items: stretch;
+        width: 100%;
+        max-width: 100%;
+        box-sizing: border-box;
     }
 
     .km-filter-bar-top {
         flex-direction: column;
         gap: 8px;
+        width: 100%;
     }
 
     .km-filter-dropdowns {
-        flex-direction: column;
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 8px;
         width: 100%;
     }
 
     .km-filter-dropdowns .km-select {
         width: 100%;
+        max-width: 100%;
+        min-width: 0;
+        box-sizing: border-box;
     }
 
     .km-search-group--compact {

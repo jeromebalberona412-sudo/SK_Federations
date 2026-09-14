@@ -69,7 +69,9 @@ class SkOfficialsRecordsService
             ->first();
 
         if ($existing !== null) {
-            // Never bump archived_at on refresh/sync — keep the original archive time.
+            // Historical snapshots stay immutable for term dates / archive time.
+            // Extending live ACTIVE official_terms must not wipe Previous Terms rows.
+            unset($payload['term_start'], $payload['term_end'], $payload['term_status']);
             $payload['archived_at'] = $existing->created_at ?? $existing->archived_at ?? now();
             $existing->fill($payload)->save();
             $record = $existing->fresh(['barangay']);

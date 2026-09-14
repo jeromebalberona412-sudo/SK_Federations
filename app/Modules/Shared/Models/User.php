@@ -186,6 +186,15 @@ class User extends Authenticatable implements MustVerifyEmail
         $this->save();
     }
 
+    /**
+     * Shared OnePortal identity: this SK Official also has SK Federations portal access
+     * (same users.id / email / password — no second login account).
+     */
+    public function hasSharedOfficialAndFederationAccess(): bool
+    {
+        return $this->canAccessFederationPortal() && $this->hasRole(self::ROLE_SK_OFFICIAL);
+    }
+
     public function hasRole(string ...$roles): bool
     {
         if (! $this->hasTableColumn('role')) {

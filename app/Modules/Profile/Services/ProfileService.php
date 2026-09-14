@@ -2,6 +2,7 @@
 
 namespace App\Modules\Profile\Services;
 
+use App\Modules\Accounts\Support\SkOfficialTermDates;
 use App\Modules\Authentication\Services\BootstrapSkFedAdminService;
 use App\Modules\Profile\Models\Barangay;
 use App\Modules\Profile\Models\OfficialProfile;
@@ -32,24 +33,54 @@ class ProfileService
             'province' => $this->displayValue($officialProfile?->province ?? 'Laguna'),
             'municipality' => $this->displayValue($officialProfile?->municipality ?? 'Santa Cruz'),
             'barangay' => $this->displayValue($barangay?->name),
-            'term_start' => $this->resolveTermStart($officialProfile),
-            'term_end' => $this->resolveTermEnd($officialProfile),
+            'term_start' => $this->resolveTermStart($officialProfile, $user),
+            'term_end' => $this->resolveTermEnd($officialProfile, $user),
             'email' => $this->displayValue($user->email),
+            'has_shared_portal_access' => $user->hasSharedOfficialAndFederationAccess() ? '1' : '0',
         ];
     }
 
-    private function resolveTermStart(?OfficialProfile $officialProfile): string
+    private function resolveTermStart(?OfficialProfile $officialProfile, ?User $user = null): string
     {
         $term = $this->resolveLatestTerm($officialProfile);
 
-        return $term?->term_start ? $this->formatDate($term->term_start) : 'N/A';
+        if ($term?->term_start) {
+            return $this->formatDate($term->term_start);
+        }
+
+        return $this->resolveLeadershipTermFallback($user, 'term_start');
     }
 
-    private function resolveTermEnd(?OfficialProfile $officialProfile): string
+    private function resolveTermEnd(?OfficialProfile $officialProfile, ?User $user = null): string
     {
         $term = $this->resolveLatestTerm($officialProfile);
 
-        return $term?->term_end ? $this->formatDate($term->term_end) : 'N/A';
+        if ($term?->term_end) {
+            return $this->formatDate($term->term_end);
+        }
+
+        return $this->resolveLeadershipTermFallback($user, 'term_end');
+    }
+
+    private function resolveLeadershipTermFallback(?User $user, string $field): string
+    {
+        if ($user === null || ! $user->isSkFed()) {
+            return 'N/A';
+        }
+
+        $tenantId = (int) ($user->tenant_id ?? 0);
+        if ($tenantId <= 0) {
+            return 'N/A';
+        }
+
+        try {
+            $defaults = SkOfficialTermDates::leadershipDefaults($tenantId);
+            $raw = $defaults[$field] ?? null;
+
+            return is_string($raw) && $raw !== '' ? $this->formatDate($raw) : 'N/A';
+        } catch (\Throwable) {
+            return 'N/A';
+        }
     }
 
     private function resolveLatestTerm(?OfficialProfile $officialProfile): ?object
@@ -93,8 +124,11 @@ class ProfileService
     {
         $trimmed = trim((string) $suffix);
 
-        if ($trimmed === '' || strcasecmp($trimmed, 'none') === 0 || strcasecmp($trimmed, 'n/a') === 0) {
-            return 'N/A';
+        if ($trimmed === '' || $trimmed === '—' || $trimmed === '-'
+            || strcasecmp($trimmed, 'none') === 0
+            || strcasecmp($trimmed, 'n/a') === 0
+            || strcasecmp($trimmed, 'na') === 0) {
+            return 'None';
         }
 
         return $trimmed;

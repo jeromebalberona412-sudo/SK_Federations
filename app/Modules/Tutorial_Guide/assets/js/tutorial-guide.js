@@ -528,8 +528,9 @@
         }
 
         hideSkipConfirmation();
-        await apiRequest('skip', {}, true);
+        // Close overlay immediately; persist skip in the background.
         endTour();
+        apiRequest('skip', {}, true);
     }
 
     async function finishTutorial() {

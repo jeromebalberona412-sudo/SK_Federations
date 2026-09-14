@@ -76,12 +76,16 @@
 
                 <form class="comms-chat-modal-composer" id="commsChatModalForm" autocomplete="off">
                     <input type="file" id="commsChatPhotoInput" class="visually-hidden" accept="image/jpeg,image/png,image/webp,image/gif" multiple aria-hidden="true" tabindex="-1">
+                    <input type="file" id="commsChatCameraInput" class="visually-hidden" accept="image/*" capture="environment" aria-hidden="true" tabindex="-1">
                     <input type="file" id="commsChatFileInput" class="visually-hidden" accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" multiple aria-hidden="true" tabindex="-1">
                     <div class="comms-chat-attach-wrap">
                         <button type="button" class="comms-chat-attach-btn" id="commsChatAttachBtn" title="Attach" aria-label="Attach">
                             <span aria-hidden="true">+</span>
                         </button>
                         <div class="comms-chat-attach-menu" id="commsChatAttachMenu" hidden>
+                            <button type="button" class="comms-chat-attach-menu-item" id="commsChatPickCamera">
+                                <i class="fas fa-camera" aria-hidden="true"></i> Camera
+                            </button>
                             <button type="button" class="comms-chat-attach-menu-item" id="commsChatPickPhotos">
                                 <i class="fas fa-image" aria-hidden="true"></i> Photos
                             </button>

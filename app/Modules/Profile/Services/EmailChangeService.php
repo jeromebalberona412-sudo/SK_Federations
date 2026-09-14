@@ -228,6 +228,12 @@ class EmailChangeService
             $this->invalidEmails->markVerified($newEmail);
             $this->bumpUserCache();
 
+            if (Schema::hasColumn('users', 'active_session_id')) {
+                User::query()
+                    ->whereKey($user->id)
+                    ->update(['active_session_id' => null]);
+            }
+
             $fresh = $user->fresh() ?? $user;
             $this->auditLog->log('email_change_verified', $fresh, [
                 'new_email' => $newEmail,

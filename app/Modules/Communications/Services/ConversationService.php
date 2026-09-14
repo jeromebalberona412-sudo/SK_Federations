@@ -170,8 +170,8 @@ class ConversationService
     }
 
     /**
-     * Header Chats popover: existing conversations first, then all messageable SK Officials
-     * (even when no conversation exists yet).
+     * Header Chats popover: existing conversations first, then all messageable
+     * SK Officials and SK Federation members (even when no conversation exists yet).
      *
      * @return \Illuminate\Support\Collection<int, array<string, mixed>>
      */
@@ -187,8 +187,10 @@ class ConversationService
             }
         }
 
-        $directory = $this->directory($user, 'officials');
-        $directoryUsers = collect($directory['users'] ?? []);
+        $directoryUsers = collect($this->directory($user, 'officials')['users'] ?? [])
+            ->concat(collect($this->directory($user, 'federation')['users'] ?? []))
+            ->unique(fn (array $peer) => (int) ($peer['id'] ?? 0))
+            ->values();
 
         $pending = $directoryUsers
             ->filter(function (array $peer) use ($seenPeerIds): bool {
@@ -326,7 +328,7 @@ class ConversationService
 
     /**
      * Federations directory listing for quick message/call.
-     * Filters: conversations | chairpersons | officials | federation
+     * Filters: chairpersons | officials | federation
      *
      * @return array{users: Collection, groups: array<int, array{title: string, users: array}>}
      */
@@ -341,6 +343,11 @@ class ConversationService
             ->where('status', User::STATUS_ACTIVE)
             ->where('id', '!=', (int) $authUser->id);
 
+        $tenantId = (int) ($authUser->tenant_id ?? 0);
+        if ($tenantId > 0 && Schema::hasColumn('users', 'tenant_id')) {
+            $query->where('tenant_id', $tenantId);
+        }
+
         $with = [];
         if (method_exists(User::class, 'barangay')) {
             $with[] = 'barangay';
@@ -353,9 +360,32 @@ class ConversationService
         }
 
         if ($filter === 'federation') {
-            $query->where('role', 'sk_fed');
+            $query->where(function (Builder $scope) {
+                $scope->where('role', User::ROLE_SK_FED);
+
+                $scope->orWhere(function (Builder $officials) {
+                    $officials->where('role', User::ROLE_SK_OFFICIAL);
+
+                    $officials->where(function (Builder $fed) {
+                        if (Schema::hasColumn('users', 'has_federation_access')) {
+                            $fed->where('has_federation_access', true);
+                        }
+
+                        if (method_exists(User::class, 'officialProfile')) {
+                            $fed->orWhereHas('officialProfile', function (Builder $profile) {
+                                $profile->whereNotNull('federation_position')
+                                    ->where('federation_position', '!=', '')
+                                    ->whereRaw('LOWER(TRIM(federation_position)) NOT IN (?, ?, ?, ?)', [
+                                        'none', 'n/a', 'na', '-',
+                                    ]);
+                            });
+                        }
+                    });
+                });
+            });
         } else {
-            $query->where('role', 'sk_official');
+            // All SK Officials across Santa Cruz (optionally by barangay / chairperson).
+            $query->where('role', User::ROLE_SK_OFFICIAL);
 
             if ($barangayId) {
                 $query->where('barangay_id', $barangayId);
@@ -372,7 +402,7 @@ class ConversationService
         }
 
         $users = $query->orderBy('name')
-            ->limit(300)
+            ->limit(500)
             ->get()
             ->filter(fn (User $user) => $this->canMessage($authUser, $user))
             ->values();
@@ -530,12 +560,24 @@ class ConversationService
             ?: $user->officialProfile?->federation_position
             ?: null;
 
+        $isFederationMember = $type === ParticipantTypeResolver::SK_FED
+            || (bool) ($user->has_federation_access ?? false)
+            || filled(trim((string) ($user->officialProfile?->federation_position ?? '')));
+
+        $directoryGroup = match ($type) {
+            ParticipantTypeResolver::SK_FED => 'federation',
+            ParticipantTypeResolver::SK_OFFICIAL => 'officials',
+            default => (string) $type,
+        };
+
         return [
             'id' => (int) $user->id,
             'name' => $this->displayNameForUser($user),
             'role' => (string) $user->role,
             'user_type' => $type,
             'user_type_label' => $this->types->label($type),
+            'directory_group' => $directoryGroup,
+            'is_federation_member' => $isFederationMember,
             'profile_image_url' => $avatar,
             'online_status' => $online,
             'last_seen' => $lastSeen,

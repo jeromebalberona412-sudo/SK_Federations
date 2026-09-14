@@ -4060,6 +4060,15 @@ body.sidebar-collapsed .accounts-page-footer {
     color: #64748b;
 }
 
+.batch-term-lock-hint {
+    color: #1e3a5f;
+    background: #eff6ff;
+    border: 1px solid #bfdbfe;
+    border-radius: 8px;
+    padding: 0.55rem 0.75rem;
+    font-weight: 600;
+}
+
 .batch-preview-wrap-editable {
     max-height: min(56vh, 520px);
     overflow: auto;
@@ -4114,7 +4123,9 @@ body.sidebar-collapsed .accounts-page-footer {
 }
 
 .batch-col-location .batch-cell-input,
-.batch-col-position .batch-cell-input {
+.batch-col-position .batch-cell-input,
+.batch-col-location .batch-cell-select,
+.batch-col-position .batch-cell-select {
     min-width: 150px;
 }
 
@@ -4123,12 +4134,17 @@ body.sidebar-collapsed .accounts-page-footer {
     min-width: 280px;
 }
 
+.batch-col-email .batch-cell-input {
+    text-transform: lowercase;
+}
+
 .batch-row-status-ok {
     color: #15803d;
     font-weight: 700;
 }
 
-.batch-cell-input {
+.batch-cell-input,
+.batch-cell-select {
     display: block;
     width: 100%;
     min-width: 140px;
@@ -4142,7 +4158,20 @@ body.sidebar-collapsed .accounts-page-footer {
     background: #fff;
 }
 
-.batch-cell-input:focus {
+.batch-cell-select {
+    appearance: auto;
+    cursor: pointer;
+    max-width: 240px;
+}
+
+.batch-cell-select:disabled {
+    background: #f1f5f9;
+    color: #64748b;
+    cursor: not-allowed;
+}
+
+.batch-cell-input:focus,
+.batch-cell-select:focus {
     outline: none;
     border-color: #2563eb;
     box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.15);
@@ -4335,6 +4364,8 @@ body.sidebar-collapsed .accounts-page-footer {
     color: #1f2937;
     line-height: 1.45;
     word-break: break-word;
+    overflow-wrap: anywhere;
+    max-width: 100%;
 }
 
 .delete-modal-overlay {

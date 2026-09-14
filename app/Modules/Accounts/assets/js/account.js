@@ -2864,7 +2864,7 @@ function todayYmdLocal() {
 function normalizeOfficialPositionKind(position) {
     const value = String(position || '').toLowerCase().trim();
     if (!value) return '';
-    if (value.includes('kagawad')) return 'kagawad';
+    if (value.includes('kagawad') || value.includes('councilor')) return 'kagawad';
     if (value.includes('secretary')) return 'secretary';
     if (value.includes('treasurer')) return 'treasurer';
     if (value.includes('chair')) return 'chairperson';
@@ -3487,9 +3487,100 @@ const BATCH_OFFICIAL_LAST_NAME_REGEX = PERSON_NAME_ONE_SPACE_REGEX;
 const BATCH_OFFICIAL_MIDDLE_NAME_REGEX = PERSON_NAME_ONE_SPACE_REGEX;
 const BATCH_SK_OFFICIAL_POSITIONS = ['Chairperson', 'Secretary', 'Treasurer', 'Kagawad'];
 const BATCH_SK_FED_POSITIONS = ['President', 'Vice President', 'Secretary', 'Treasurer', 'PIO', 'Sergeant at Arms'];
+const BATCH_DEFAULT_REGION = 'IV-A CALABARZON';
+const BATCH_DEFAULT_PROVINCE = 'Laguna';
+const BATCH_DEFAULT_MUNICIPALITY = 'Santa Cruz';
+const BATCH_SEX_OPTIONS = ['Male', 'Female'];
+const BATCH_SUFFIX_OPTIONS = ['None', 'Jr.', 'Sr.', 'I', 'II', 'III', 'IV', 'V'];
+const BATCH_SELECT_FIELD_KEYS = new Set([
+    'sex',
+    'suffix',
+    'position',
+    'barangay',
+    'region',
+    'province',
+    'municipality',
+]);
+const BATCH_LOCATION_FIELD_KEYS = new Set(['region', 'province', 'municipality']);
 
 function normalizeBatchLookupKey(value) {
     return String(value || '').trim().toLowerCase();
+}
+
+function batchBarangayOptionList() {
+    return Array.from(new Set(Array.from(buildBatchBarangayLookup().values())))
+        .sort((left, right) => String(left).localeCompare(String(right), undefined, { sensitivity: 'base' }));
+}
+
+function batchSelectOptions(fieldKey, role) {
+    if (fieldKey === 'sex') return BATCH_SEX_OPTIONS;
+    if (fieldKey === 'suffix') return BATCH_SUFFIX_OPTIONS;
+    if (fieldKey === 'position') {
+        return role === 'sk_official' ? BATCH_SK_OFFICIAL_POSITIONS : BATCH_SK_FED_POSITIONS;
+    }
+    if (fieldKey === 'barangay') return batchBarangayOptionList();
+    if (fieldKey === 'region') return [BATCH_DEFAULT_REGION];
+    if (fieldKey === 'province') return [BATCH_DEFAULT_PROVINCE];
+    if (fieldKey === 'municipality') return [BATCH_DEFAULT_MUNICIPALITY];
+    return null;
+}
+
+function matchBatchSelectOption(options, selected) {
+    const raw = String(selected ?? '').trim();
+    if (!raw || !Array.isArray(options) || options.length === 0) {
+        return '';
+    }
+    const hit = options.find((opt) => normalizeBatchLookupKey(opt) === normalizeBatchLookupKey(raw));
+    return hit || '';
+}
+
+function batchOptionHtml(options, selected, meta = {}) {
+    const matched = matchBatchSelectOption(options, selected);
+    const opts = Array.isArray(options) ? [...options] : [];
+    const disabledMap = meta.disabledMap instanceof Map ? meta.disabledMap : new Map();
+    if (matched === '' && String(selected ?? '').trim() !== '') {
+        opts.unshift(String(selected).trim());
+    }
+    return opts.map((opt) => {
+        const isSelected = matched !== ''
+            ? normalizeBatchLookupKey(opt) === normalizeBatchLookupKey(matched)
+            : normalizeBatchLookupKey(opt) === normalizeBatchLookupKey(selected);
+        const disableReason = disabledMap.get(opt) || disabledMap.get(normalizeBatchLookupKey(opt));
+        const isDisabled = Boolean(disableReason);
+        const label = isDisabled ? `${opt} (taken)` : opt;
+        const titleAttr = isDisabled ? ` title="${escapeHtml(disableReason)}"` : '';
+        return '<option value="' + escapeHtml(opt) + '"'
+            + (isSelected ? ' selected' : '')
+            + (isDisabled ? ' disabled' : '')
+            + titleAttr
+            + '>' + escapeHtml(label) + '</option>';
+    }).join('');
+}
+
+function normalizeBatchSex(value) {
+    const trimmed = String(value || '').trim();
+    if (!trimmed) return '';
+    const lower = trimmed.toLowerCase();
+    if (lower === 'male' || lower === 'm') return 'Male';
+    if (lower === 'female' || lower === 'f') return 'Female';
+    return trimmed;
+}
+
+function normalizeBatchSuffixDisplay(rawSuffix) {
+    const result = normalizeBatchSuffix(rawSuffix);
+    if (!result.suffix || result.suffix === 'NONE') {
+        return 'None';
+    }
+    const matched = matchBatchSelectOption(BATCH_SUFFIX_OPTIONS, result.suffix)
+        || matchBatchSelectOption(BATCH_SUFFIX_OPTIONS, result.suffix_input);
+    return matched || result.suffix_input || 'None';
+}
+
+function batchLocationDefaultValue(fieldKey) {
+    if (fieldKey === 'region') return BATCH_DEFAULT_REGION;
+    if (fieldKey === 'province') return BATCH_DEFAULT_PROVINCE;
+    if (fieldKey === 'municipality') return BATCH_DEFAULT_MUNICIPALITY;
+    return '';
 }
 
 function digitToRomanBatch(digit) {
@@ -3637,7 +3728,8 @@ function normalizeBatchPosition(value, role) {
         'sk secretary': 'Secretary',
         'sk treasurer': 'Treasurer',
         'sk kagawad': 'Kagawad',
-        councilor: 'Councilor',
+        councilor: 'Kagawad',
+        'sk councilor': 'Kagawad',
         auditor: 'Auditor',
         pio: 'PIO',
         president: 'President',
@@ -3674,6 +3766,7 @@ function normalizeBatchSuffix(rawSuffix) {
     const mapped = {
         jr: 'Jr.',
         sr: 'Sr.',
+        i: 'I',
         ii: 'II',
         iii: 'III',
         iv: 'IV',
@@ -3681,7 +3774,7 @@ function normalizeBatchSuffix(rawSuffix) {
     }[base];
 
     if (mapped) {
-        return { suffix_input: suffixInput, suffix: mapped };
+        return { suffix_input: mapped, suffix: mapped };
     }
 
     if (suffixInput.length <= SK_OFFICIAL_SUFFIX_OTHER_MAX) {
@@ -3722,13 +3815,12 @@ function batchExcelSerialToDateString(serial) {
 
 function jsDateToIsoDate(date) {
     if (!(date instanceof Date) || Number.isNaN(date.getTime())) return '';
-    if (date.getUTCHours() === 0 && date.getUTCMinutes() === 0 && date.getUTCSeconds() === 0) {
-        const year = date.getUTCFullYear();
-        const month = String(date.getUTCMonth() + 1).padStart(2, '0');
-        const day = String(date.getUTCDate()).padStart(2, '0');
-        return `${year}-${month}-${day}`;
-    }
-    return formatLocalDate(date);
+    // SheetJS Excel calendar dates are UTC midnight — always use UTC parts
+    // so preview/import do not shift a day in PH (+8) or other timezones.
+    const year = date.getUTCFullYear();
+    const month = String(date.getUTCMonth() + 1).padStart(2, '0');
+    const day = String(date.getUTCDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
 }
 
 function unwrapExcelCellValue(value) {
@@ -3767,33 +3859,88 @@ function parseBatchUsDateString(value) {
     const raw = String(unwrapped).trim();
     if (!raw || /^m{1,2}\/d{1,2}\/y{2,4}$/i.test(raw)) return '';
 
-    const isoMatch = /^(\d{4})-(\d{2})-(\d{2})/.exec(raw);
-    if (isoMatch) return `${isoMatch[1]}-${isoMatch[2]}-${isoMatch[3]}`;
+    // Kabataan-style: only accept complete calendar dates (never Date() parse of partial typing).
+    const isoMatch = /^(\d{4})-(\d{2})-(\d{2})$/.exec(raw);
+    if (isoMatch) {
+        const year = Number(isoMatch[1]);
+        const month = Number(isoMatch[2]);
+        const day = Number(isoMatch[3]);
+        if (month >= 1 && month <= 12 && day >= 1 && day <= 31) {
+            return `${isoMatch[1]}-${isoMatch[2]}-${isoMatch[3]}`;
+        }
+        return '';
+    }
 
+    // Prefer MM/DD/YYYY (template format). Also accept M/D/YYYY and 2-digit years.
     const slashMatch = /^(\d{1,2})\/(\d{1,2})\/(\d{2}|\d{4})$/.exec(raw);
     if (slashMatch) {
         let year = slashMatch[3];
         if (year.length === 2) {
             year = Number(year) >= 70 ? `19${year}` : `20${year}`;
         }
-        return `${year}-${slashMatch[1].padStart(2, '0')}-${slashMatch[2].padStart(2, '0')}`;
+        const month = Number(slashMatch[1]);
+        const day = Number(slashMatch[2]);
+        if (month >= 1 && month <= 12 && day >= 1 && day <= 31) {
+            return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+        }
+        return '';
     }
 
+    // DD-MM-YYYY or MM-DD-YYYY with dashes — if first part > 12 treat as day-first.
     const dashMatch = /^(\d{1,2})-(\d{1,2})-(\d{4})$/.exec(raw);
     if (dashMatch) {
-        return `${dashMatch[3]}-${dashMatch[1].padStart(2, '0')}-${dashMatch[2].padStart(2, '0')}`;
+        const a = Number(dashMatch[1]);
+        const b = Number(dashMatch[2]);
+        const year = dashMatch[3];
+        if (a > 12 && b >= 1 && b <= 12) {
+            return `${year}-${String(b).padStart(2, '0')}-${String(a).padStart(2, '0')}`;
+        }
+        if (a >= 1 && a <= 12 && b >= 1 && b <= 31) {
+            return `${year}-${String(a).padStart(2, '0')}-${String(b).padStart(2, '0')}`;
+        }
     }
-
-    const parsed = new Date(raw);
-    if (!Number.isNaN(parsed.getTime())) return jsDateToIsoDate(parsed);
 
     return '';
 }
 
 function formatIsoDateToUs(isoDate) {
     const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(isoDate || '').trim());
-    if (!match) return '';
+    if (!match) return String(isoDate || '').trim();
     return `${match[2]}/${match[3]}/${match[1]}`;
+}
+
+function isBatchDateCellEmpty(value) {
+    return String(value ?? '').trim() === '';
+}
+
+function batchFullNameKey(row) {
+    const first = String(row?.first_name ?? '').trim().toLowerCase();
+    const middle = String(row?.middle_name ?? '').trim().toLowerCase();
+    const last = String(row?.last_name ?? '').trim().toLowerCase();
+    if (!first || !last) {
+        return '';
+    }
+    const suffixResult = normalizeBatchSuffix(row?.suffix_input ?? row?.suffix ?? '');
+    const suffixKey = (!suffixResult.suffix || suffixResult.suffix === 'NONE')
+        ? 'none'
+        : String(suffixResult.suffix).trim().toLowerCase();
+    return [first, middle, last, suffixKey].join('|');
+}
+
+function collectExistingBatchFullNameKeys() {
+    const keys = new Set();
+    document.querySelectorAll('#accountsTableBody [data-first-name][data-last-name]').forEach((el) => {
+        const key = batchFullNameKey({
+            first_name: el.getAttribute('data-first-name') || '',
+            middle_name: el.getAttribute('data-middle-name') || '',
+            last_name: el.getAttribute('data-last-name') || '',
+            suffix: el.getAttribute('data-suffix') || '',
+        });
+        if (key) {
+            keys.add(key);
+        }
+    });
+    return keys;
 }
 
 function normalizeBatchCellValue(fieldKey, value) {
@@ -3812,7 +3959,7 @@ function normalizeBatchCellValue(fieldKey, value) {
     }
 
     if (fieldKey === 'email') {
-        return String(unwrapped).trim();
+        return String(unwrapped).trim().toLowerCase();
     }
 
     if (unwrapped instanceof Date) {
@@ -3877,8 +4024,7 @@ function normalizeBatchAccountRow(row, role) {
     }
 
     if (normalized.sex) {
-        const sex = String(normalized.sex).trim();
-        normalized.sex = ['Male', 'Female'].includes(sex) ? sex : sex;
+        normalized.sex = normalizeBatchSex(normalized.sex);
     }
 
     if (normalized.position) {
@@ -3891,6 +4037,18 @@ function normalizeBatchAccountRow(row, role) {
         if (resolvedBarangay) {
             normalized.barangay = resolvedBarangay.toUpperCase();
         }
+    }
+
+    normalized.region = BATCH_DEFAULT_REGION;
+    normalized.province = BATCH_DEFAULT_PROVINCE;
+    normalized.municipality = BATCH_DEFAULT_MUNICIPALITY;
+
+    // SK Officials batch: when SK Federation President exists, all term dates match the President.
+    if (role === 'sk_official' && isPresidentTermLocked()) {
+        const fedStart = federationDefaultTermStart();
+        const fedEnd = federationDefaultTermEnd();
+        if (fedStart) normalized.term_start = fedStart;
+        if (fedEnd) normalized.term_end = fedEnd;
     }
 
     return normalized;
@@ -3978,7 +4136,7 @@ function batchRowFingerprint(row) {
     return keys.map((key) => String(row[key] ?? '').trim().toLowerCase()).join('|');
 }
 
-function validateBatchAccountRow(row, rowNumber, role, seenEmails, seenFingerprints) {
+function validateBatchAccountRow(row, rowNumber, role, seenEmails, seenFingerprints, seenFullNames) {
     const errors = [];
     const isOfficial = role === 'sk_official';
     const rawSuffix = row.suffix ?? row.suffix_input ?? '';
@@ -4065,6 +4223,26 @@ function validateBatchAccountRow(row, rowNumber, role, seenEmails, seenFingerpri
         }
     }
 
+    const fullNameKey = batchFullNameKey(data);
+    if (fullNameKey && seenFullNames && typeof seenFullNames.has === 'function') {
+        const existingFullNames = seenFullNames._existing instanceof Set ? seenFullNames._existing : null;
+        if (existingFullNames && existingFullNames.has(fullNameKey)) {
+            const message = 'This full name already matches an existing account (First + Middle + Last + Suffix). Please change the name.';
+            errors.push({ row: rowNumber, field: 'first_name', error: message });
+            errors.push({ row: rowNumber, field: 'last_name', error: message });
+            errors.push({ row: rowNumber, field: 'middle_name', error: message });
+            errors.push({ row: rowNumber, field: 'suffix', error: message });
+        } else if (seenFullNames.has(fullNameKey)) {
+            const message = 'This full name already appears in another row (same First Name, Middle Name, Last Name, and Suffix). Please change the name.';
+            errors.push({ row: rowNumber, field: 'first_name', error: message });
+            errors.push({ row: rowNumber, field: 'last_name', error: message });
+            errors.push({ row: rowNumber, field: 'middle_name', error: message });
+            errors.push({ row: rowNumber, field: 'suffix', error: message });
+        } else {
+            seenFullNames.add(fullNameKey);
+        }
+    }
+
     const fingerprint = batchRowFingerprint(data);
     if (fingerprint.replace(/\|/g, '') !== '') {
         if (seenFingerprints.has(fingerprint)) {
@@ -4123,10 +4301,19 @@ function validateBatchAccountRow(row, rowNumber, role, seenEmails, seenFingerpri
         errors.push({ row: rowNumber, field: 'municipality', error: 'Municipality must be Santa Cruz. Suggested: Santa Cruz.' });
     }
 
+    const fedStart = federationDefaultTermStart();
+    const fedEnd = federationDefaultTermEnd();
+    const presidentLocked = role === 'sk_official' && isPresidentTermLocked();
+
+    // When SK Federation President exists, every batch row uses the same locked term dates.
+    if (presidentLocked && fedStart && fedEnd) {
+        data.term_start = fedStart;
+        data.term_end = fedEnd;
+    }
+
     if (data.term_start) {
         const termStartMin = SK_OFFICIAL_FIRST_TERM_START;
         const termStartMax = maxTermStartDate();
-        const fedStart = federationDefaultTermStart();
         const matchesLeadershipStart = Boolean(fedStart && data.term_start === fedStart);
         if (!matchesLeadershipStart && (data.term_start < termStartMin || data.term_start > termStartMax)) {
             errors.push({
@@ -4140,8 +4327,6 @@ function validateBatchAccountRow(row, rowNumber, role, seenEmails, seenFingerpri
     if (data.term_start && data.term_end) {
         const minEnd = skOfficialMinTermEndForStart(data.term_start);
         const maxEnd = skOfficialMaxTermEndForStart(data.term_start);
-        const fedStart = federationDefaultTermStart();
-        const fedEnd = federationDefaultTermEnd();
         const matchesLeadership = fedStart && fedEnd && data.term_start === fedStart && data.term_end === fedEnd;
         if (!matchesLeadership && (data.term_end < minEnd || data.term_end > maxEnd)) {
             errors.push({
@@ -4152,18 +4337,113 @@ function validateBatchAccountRow(row, rowNumber, role, seenEmails, seenFingerpri
         }
     }
 
+    if (presidentLocked && fedStart && fedEnd) {
+        if (data.term_start !== fedStart) {
+            errors.push({
+                row: rowNumber,
+                field: 'term_start',
+                error: `Term Start Date must be ${formatIsoDateToUs(fedStart)} (SK Federation President).`,
+            });
+        }
+        if (data.term_end !== fedEnd) {
+            errors.push({
+                row: rowNumber,
+                field: 'term_end',
+                error: `Term End Date must be ${formatIsoDateToUs(fedEnd)} (SK Federation President).`,
+            });
+        }
+    }
+
     return { errors, data };
+}
+
+function resolveBatchBarangayId(rawBarangay) {
+    const resolvedName = resolveBatchBarangayName(rawBarangay);
+    if (!resolvedName) {
+        return null;
+    }
+
+    const selects = [
+        document.getElementById('barangayFilter'),
+        document.querySelector('#addSkOfficialsForm [name="barangay_id"]'),
+        document.querySelector('#editSkOfficialsForm [name="barangay_id"]'),
+        document.querySelector('select[name="barangay_id"]'),
+    ].filter(Boolean);
+
+    for (const select of selects) {
+        for (const opt of select.options) {
+            if (!opt.value || !opt.text) continue;
+            if (normalizeBatchLookupKey(opt.text.trim()) === normalizeBatchLookupKey(resolvedName)) {
+                return String(opt.value);
+            }
+        }
+    }
+
+    return null;
 }
 
 function validateMappedRows(rows, role) {
     const errors = [];
     const seenEmails = new Set();
     const seenFingerprints = new Set();
+    const seenFullNames = new Set();
+    seenFullNames._existing = collectExistingBatchFullNameKeys();
+    const roster = role === 'sk_official' ? collectSkOfficialRoster(null) : [];
+    /** @type {Map<string, {total: number, chairperson: number, secretary: number, treasurer: number, kagawad: number}>} */
+    const pendingByBarangay = new Map();
 
     rows.forEach((row, index) => {
-        const result = validateBatchAccountRow(row, index + 1, role, seenEmails, seenFingerprints);
+        const result = validateBatchAccountRow(row, index + 1, role, seenEmails, seenFingerprints, seenFullNames);
         errors.push(...result.errors);
         Object.assign(row, result.data);
+
+        if (role !== 'sk_official') {
+            return;
+        }
+
+        const barangayId = resolveBatchBarangayId(row.barangay || result.data.barangay || '');
+        const position = normalizeBatchPosition(row.position || result.data.position || '', role)
+            || String(result.data.position || row.position || '').trim();
+        if (!barangayId || !position) {
+            return;
+        }
+
+        const kind = normalizeOfficialPositionKind(position);
+        const pending = pendingByBarangay.get(barangayId) || {
+            total: 0,
+            chairperson: 0,
+            secretary: 0,
+            treasurer: 0,
+            kagawad: 0,
+        };
+
+        const dbTotal = countRosterInBarangay(roster, barangayId);
+        const dbKind = kind ? countRosterInBarangay(roster, barangayId, kind) : 0;
+        const limit = positionKindLimit(kind);
+
+        if (dbTotal + pending.total >= SK_OFFICIAL_MAX_PER_BARANGAY) {
+            errors.push({
+                row: index + 1,
+                field: 'barangay',
+                error: `This barangay already has the maximum of ${SK_OFFICIAL_MAX_PER_BARANGAY} SK Officials.`,
+            });
+            return;
+        }
+
+        if (kind && limit !== null && (dbKind + (pending[kind] || 0) >= limit)) {
+            errors.push({
+                row: index + 1,
+                field: 'position',
+                error: `This barangay already has ${positionKindLabel(kind)}.`,
+            });
+            return;
+        }
+
+        pending.total += 1;
+        if (kind && Object.prototype.hasOwnProperty.call(pending, kind)) {
+            pending[kind] += 1;
+        }
+        pendingByBarangay.set(barangayId, pending);
     });
 
     return errors;
@@ -4254,9 +4534,9 @@ function initBatchUploadPanel(prefix, role) {
             return false;
         }
 
-        return mapped.region === 'IV-A CALABARZON'
-            && mapped.province === 'LAGUNA'
-            && mapped.municipality === 'SANTA CRUZ';
+        return normalizeBatchLookupKey(mapped.region) === normalizeBatchLookupKey(BATCH_DEFAULT_REGION)
+            && normalizeBatchLookupKey(mapped.province) === normalizeBatchLookupKey(BATCH_DEFAULT_PROVINCE)
+            && normalizeBatchLookupKey(mapped.municipality) === normalizeBatchLookupKey(BATCH_DEFAULT_MUNICIPALITY);
     }
 
     function getBatchRowErrors(errors, rowNumber) {
@@ -4278,8 +4558,8 @@ function initBatchUploadPanel(prefix, role) {
                     return iso;
                 }
                 const trimmed = String(current ?? '').trim();
-                // Keep incomplete typed dates so preview editing is not wiped mid-input.
-                if (trimmed !== '' && /^[\d/.\-]+$/.test(trimmed)) {
+                // Keep incomplete typed dates so preview editing is not wiped mid-input (Kabataan-style).
+                if (trimmed !== '') {
                     return trimmed;
                 }
                 return '';
@@ -4301,7 +4581,11 @@ function initBatchUploadPanel(prefix, role) {
 
         const startCol = state.parsedHeaders.findIndex((header) => resolveBatchFieldKey(header) === 'term_start');
         const endCol = state.parsedHeaders.findIndex((header) => resolveBatchFieldKey(header) === 'term_end');
+        if (startCol < 0 && endCol < 0) {
+            return;
+        }
 
+        // Force every row to the same SK Federation President term dates.
         state.parsedRows = state.parsedRows.map((row) => {
             const next = ensureParsedRowWidth(row);
             if (startCol >= 0) next[startCol] = startIso;
@@ -4315,6 +4599,12 @@ function initBatchUploadPanel(prefix, role) {
             return;
         }
 
+        // Prefer President lock path whenever available.
+        if (isPresidentTermLocked()) {
+            applyLockedLeadershipTermsToParsedRows();
+            return;
+        }
+
         const startIso = federationDefaultTermStart() || currentDefaultTermStart();
         const endIso = federationDefaultTermEnd() || currentDefaultTermEnd(startIso);
         const startCol = state.parsedHeaders.findIndex((header) => resolveBatchFieldKey(header) === 'term_start');
@@ -4322,10 +4612,11 @@ function initBatchUploadPanel(prefix, role) {
 
         state.parsedRows = state.parsedRows.map((row) => {
             const next = ensureParsedRowWidth(row);
-            if (startCol >= 0 && !parseBatchUsDateString(next[startCol])) {
+            // Only fill truly empty term cells — never overwrite partial date typing.
+            if (startCol >= 0 && isBatchDateCellEmpty(next[startCol])) {
                 next[startCol] = startIso;
             }
-            if (endCol >= 0 && !parseBatchUsDateString(next[endCol])) {
+            if (endCol >= 0 && isBatchDateCellEmpty(next[endCol])) {
                 const rowStart = parseBatchUsDateString(next[startCol]) || startIso;
                 next[endCol] = (rowStart === startIso) ? endIso : currentDefaultTermEnd(rowStart);
             }
@@ -4345,20 +4636,67 @@ function initBatchUploadPanel(prefix, role) {
 
         state.parsedRows = state.parsedRows.map((row) => {
             const next = ensureParsedRowWidth(row);
-            if (String(next[suffixCol] ?? '').trim() === '') {
-                next[suffixCol] = 'None';
+            next[suffixCol] = normalizeBatchSuffixDisplay(next[suffixCol]);
+            return next;
+        });
+    }
+
+    function fillLocationDefaultsOnParsedRows() {
+        const regionCol = state.parsedHeaders.findIndex((header) => resolveBatchFieldKey(header) === 'region');
+        const provinceCol = state.parsedHeaders.findIndex((header) => resolveBatchFieldKey(header) === 'province');
+        const municipalityCol = state.parsedHeaders.findIndex((header) => resolveBatchFieldKey(header) === 'municipality');
+
+        if (regionCol < 0 && provinceCol < 0 && municipalityCol < 0) {
+            return;
+        }
+
+        state.parsedRows = state.parsedRows.map((row) => {
+            const next = ensureParsedRowWidth(row);
+            if (regionCol >= 0) next[regionCol] = BATCH_DEFAULT_REGION;
+            if (provinceCol >= 0) next[provinceCol] = BATCH_DEFAULT_PROVINCE;
+            if (municipalityCol >= 0) next[municipalityCol] = BATCH_DEFAULT_MUNICIPALITY;
+            return next;
+        });
+    }
+
+    function canonicalizeBatchSelectFieldsOnParsedRows() {
+        const sexCol = state.parsedHeaders.findIndex((header) => resolveBatchFieldKey(header) === 'sex');
+        const positionCol = state.parsedHeaders.findIndex((header) => resolveBatchFieldKey(header) === 'position');
+        const barangayCol = state.parsedHeaders.findIndex((header) => resolveBatchFieldKey(header) === 'barangay');
+
+        state.parsedRows = state.parsedRows.map((row) => {
+            const next = ensureParsedRowWidth(row);
+
+            if (sexCol >= 0) {
+                next[sexCol] = normalizeBatchSex(next[sexCol]);
             }
+
+            if (positionCol >= 0) {
+                const resolvedPosition = normalizeBatchPosition(next[positionCol], role);
+                if (resolvedPosition) {
+                    next[positionCol] = resolvedPosition;
+                }
+            }
+
+            if (barangayCol >= 0) {
+                const resolvedBarangay = resolveBatchBarangayName(next[barangayCol]);
+                if (resolvedBarangay) {
+                    next[barangayCol] = resolvedBarangay;
+                }
+            }
+
             return next;
         });
     }
 
     function revalidateBatchState() {
         fillEmptySuffixOnParsedRows();
+        fillLocationDefaultsOnParsedRows();
+        canonicalizeBatchSelectFieldsOnParsedRows();
         if (isPresidentTermLocked()) {
             applyLockedLeadershipTermsToParsedRows();
-        } else {
-            fillEmptyLeadershipTermsOnParsedRows();
         }
+        // Do not refill empty term dates here — that wipes in-progress edits (Kabataan-style).
         state.parsedRows.forEach((_, rowIndex) => syncBatchAgeFromBirthdate(rowIndex));
         syncMappedAccountsFromParsedRows();
         const missingHeaders = getMissingBatchHeaders(state.parsedHeaders);
@@ -4376,9 +4714,11 @@ function initBatchUploadPanel(prefix, role) {
         } else {
             renderBatchErrorReport([]);
             state.validationErrors = [];
-            if (isPresidentTermLocked()) {
-                previewMessage += ' Term dates are locked to the SK Federation President.';
-            }
+        }
+        if (role === 'sk_official' && isPresidentTermLocked()) {
+            const fedStart = federationDefaultTermStart();
+            const fedEnd = federationDefaultTermEnd();
+            previewMessage += ` Term Start/End are locked to the SK Federation President (${formatIsoDateToUs(fedStart)} – ${formatIsoDateToUs(fedEnd)}).`;
         }
 
         renderBatchEditablePreview(state.parsedHeaders, state.parsedRows, previewMessage, {
@@ -4435,6 +4775,20 @@ function initBatchUploadPanel(prefix, role) {
                 // Keep partial MM/DD/YYYY typing so preview edits are not wiped mid-input.
                 state.parsedRows[rowIndex][colIndex] = trimmed;
             }
+        } else if (BATCH_LOCATION_FIELD_KEYS.has(fieldKey)) {
+            state.parsedRows[rowIndex][colIndex] = batchLocationDefaultValue(fieldKey);
+        } else if (fieldKey === 'sex') {
+            state.parsedRows[rowIndex][colIndex] = normalizeBatchSex(value);
+        } else if (fieldKey === 'suffix') {
+            state.parsedRows[rowIndex][colIndex] = normalizeBatchSuffixDisplay(value);
+        } else if (fieldKey === 'position') {
+            const resolvedPosition = normalizeBatchPosition(value, role);
+            state.parsedRows[rowIndex][colIndex] = resolvedPosition || normalizeBatchCellValue(fieldKey, value);
+        } else if (fieldKey === 'barangay') {
+            const resolvedBarangay = resolveBatchBarangayName(value);
+            state.parsedRows[rowIndex][colIndex] = resolvedBarangay || normalizeBatchCellValue(fieldKey, value);
+        } else if (fieldKey === 'email') {
+            state.parsedRows[rowIndex][colIndex] = String(value ?? '').trim().toLowerCase();
         } else {
             state.parsedRows[rowIndex][colIndex] = normalizeBatchCellValue(fieldKey, value);
         }
@@ -4509,18 +4863,83 @@ function initBatchUploadPanel(prefix, role) {
         state.validationErrors = errors;
     }
 
+    function getBatchPositionDisabledMap(rowIndex) {
+        const disabledMap = new Map();
+        if (role !== 'sk_official') {
+            return disabledMap;
+        }
+
+        const barangayCol = state.parsedHeaders.findIndex((header) => resolveBatchFieldKey(header) === 'barangay');
+        const positionCol = state.parsedHeaders.findIndex((header) => resolveBatchFieldKey(header) === 'position');
+        if (barangayCol < 0 || positionCol < 0) {
+            return disabledMap;
+        }
+
+        const row = ensureParsedRowWidth(state.parsedRows[rowIndex] || []);
+        const barangayId = resolveBatchBarangayId(row[barangayCol] || '');
+        if (!barangayId) {
+            return disabledMap;
+        }
+
+        const roster = collectSkOfficialRoster(null);
+        const pending = {
+            total: 0,
+            chairperson: 0,
+            secretary: 0,
+            treasurer: 0,
+            kagawad: 0,
+        };
+
+        state.parsedRows.forEach((otherRow, otherIndex) => {
+            if (otherIndex === rowIndex) return;
+            const padded = ensureParsedRowWidth(otherRow || []);
+            const otherBarangayId = resolveBatchBarangayId(padded[barangayCol] || '');
+            if (String(otherBarangayId) !== String(barangayId)) return;
+            const otherPosition = normalizeBatchPosition(padded[positionCol], role) || String(padded[positionCol] || '').trim();
+            if (!otherPosition) return;
+            const kind = normalizeOfficialPositionKind(otherPosition);
+            pending.total += 1;
+            if (kind && Object.prototype.hasOwnProperty.call(pending, kind)) {
+                pending[kind] += 1;
+            }
+        });
+
+        const dbTotal = countRosterInBarangay(roster, barangayId);
+        const barangayFull = (dbTotal + pending.total) >= SK_OFFICIAL_MAX_PER_BARANGAY;
+
+        BATCH_SK_OFFICIAL_POSITIONS.forEach((position) => {
+            const kind = normalizeOfficialPositionKind(position);
+            const limit = positionKindLimit(kind);
+            const dbKind = kind ? countRosterInBarangay(roster, barangayId, kind) : 0;
+            const pendingKind = kind ? (pending[kind] || 0) : 0;
+            if (barangayFull) {
+                disabledMap.set(position, `This barangay already has the maximum of ${SK_OFFICIAL_MAX_PER_BARANGAY} SK Officials.`);
+                return;
+            }
+            if (kind && limit !== null && (dbKind + pendingKind) >= limit) {
+                disabledMap.set(position, `This barangay already has ${positionKindLabel(kind)}.`);
+            }
+        });
+
+        return disabledMap;
+    }
+
     function renderBatchEditablePreview(headers, rows, message, options = {}) {
         if (!els.preview) return;
 
         const hasErrors = Boolean(options.hasErrors);
         const errors = options.errors || [];
-        const activeInput = document.activeElement && document.activeElement.classList
-            && document.activeElement.classList.contains('batch-cell-input')
+        const activeEl = document.activeElement;
+        const isBatchCell = activeEl
+            && activeEl.classList
+            && (activeEl.classList.contains('batch-cell-input') || activeEl.classList.contains('batch-cell-select'));
+        const activeInput = isBatchCell
             ? {
-                rowIndex: Number(document.activeElement.dataset.rowIndex),
-                colIndex: Number(document.activeElement.dataset.colIndex),
-                start: document.activeElement.selectionStart,
-                end: document.activeElement.selectionEnd,
+                rowIndex: Number(activeEl.dataset.rowIndex),
+                colIndex: Number(activeEl.dataset.colIndex),
+                start: typeof activeEl.selectionStart === 'number' ? activeEl.selectionStart : null,
+                end: typeof activeEl.selectionEnd === 'number' ? activeEl.selectionEnd : null,
+                isSelect: activeEl.tagName === 'SELECT',
             }
             : null;
 
@@ -4543,28 +4962,59 @@ function initBatchUploadPanel(prefix, role) {
 
             const cells = headers.map((header, colIndex) => {
                 const fieldKey = resolveBatchFieldKey(header);
-                const rawValue = row[colIndex] ?? '';
                 const isDateField = fieldKey && BATCH_DATE_FIELD_KEYS.has(fieldKey);
+                const isLockedTerm = role === 'sk_official'
+                    && isPresidentTermLocked()
+                    && (fieldKey === 'term_start' || fieldKey === 'term_end');
+                let rawValue = row[colIndex] ?? '';
+                if (isLockedTerm) {
+                    rawValue = fieldKey === 'term_start'
+                        ? (federationDefaultTermStart() || rawValue)
+                        : (federationDefaultTermEnd() || rawValue);
+                }
                 const isoDate = isDateField ? parseBatchUsDateString(rawValue) : '';
-                const displayValue = isoDate
+                let displayValue = isoDate
                     ? formatIsoDateToUs(isoDate)
                     : String(rawValue ?? '').trim();
+                if (fieldKey === 'email') {
+                    displayValue = displayValue.toLowerCase();
+                }
+                if (BATCH_LOCATION_FIELD_KEYS.has(fieldKey)) {
+                    displayValue = batchLocationDefaultValue(fieldKey);
+                }
                 const invalidClass = invalidFields.has(fieldKey) ? ' batch-cell-input-invalid' : '';
                 const placeholder = isDateField ? 'MM/DD/YYYY' : '';
                 const colClass = batchPreviewColumnClass(fieldKey);
                 const inputSize = fieldKey === 'email' ? Math.max(28, displayValue.length + 2) : Math.max(12, Math.min(displayValue.length + 2, 24));
                 const isAgeField = fieldKey === 'age';
-                const isLockedTerm = role === 'sk_official'
-                    && isPresidentTermLocked()
-                    && (fieldKey === 'term_start' || fieldKey === 'term_end');
+                const isLocationLocked = BATCH_LOCATION_FIELD_KEYS.has(fieldKey);
+                const selectOptions = fieldKey && BATCH_SELECT_FIELD_KEYS.has(fieldKey)
+                    ? batchSelectOptions(fieldKey, role)
+                    : null;
+                const useSelect = Array.isArray(selectOptions);
+
+                if (useSelect) {
+                    const disabledAttr = isLocationLocked ? ' disabled' : '';
+                    const titleAttr = isLocationLocked
+                        ? 'Fixed to Santa Cruz, Laguna defaults'
+                        : escapeHtml(displayValue || header);
+                    const disabledMap = fieldKey === 'position'
+                        ? getBatchPositionDisabledMap(rowIndex)
+                        : new Map();
+                    return '<td class="' + colClass + '"><select class="batch-cell-input batch-cell-select' + invalidClass + '" data-row-index="' + rowIndex + '" data-col-index="' + colIndex + '" data-field-key="' + escapeHtml(fieldKey || '') + '" title="' + titleAttr + '" aria-label="' + escapeHtml(header) + ' row ' + rowNumber + '"' + disabledAttr + '>' + batchOptionHtml(selectOptions, displayValue, { disabledMap }) + '</select></td>';
+                }
+
                 const readOnlyAttr = (isAgeField || isLockedTerm) ? ' readonly tabindex="-1"' : '';
                 const titleAttr = isLockedTerm
-                    ? 'Locked to SK Federation President term'
+                    ? 'Locked to SK Federation President term — same for all rows'
                     : (isAgeField
                         ? 'Age is auto-calculated from Birthdate'
                         : escapeHtml(displayValue));
+                const emailAttrs = fieldKey === 'email'
+                    ? ' autocapitalize="off" autocomplete="email" spellcheck="false" inputmode="email"'
+                    : '';
 
-                return '<td class="' + colClass + '"><input type="text" class="batch-cell-input' + invalidClass + (isLockedTerm ? ' is-term-locked' : '') + '" data-row-index="' + rowIndex + '" data-col-index="' + colIndex + '" data-field-key="' + escapeHtml(fieldKey || '') + '" value="' + escapeHtml(displayValue) + '" placeholder="' + escapeHtml(placeholder) + '" size="' + inputSize + '" title="' + titleAttr + '" aria-label="' + escapeHtml(header) + ' row ' + rowNumber + '"' + readOnlyAttr + '></td>';
+                return '<td class="' + colClass + '"><input type="text" class="batch-cell-input' + invalidClass + (isLockedTerm ? ' is-term-locked' : '') + '" data-row-index="' + rowIndex + '" data-col-index="' + colIndex + '" data-field-key="' + escapeHtml(fieldKey || '') + '" value="' + escapeHtml(displayValue) + '" placeholder="' + escapeHtml(placeholder) + '" size="' + inputSize + '" title="' + titleAttr + '" aria-label="' + escapeHtml(header) + ' row ' + rowNumber + '"' + readOnlyAttr + emailAttrs + '></td>';
             }).join('');
 
             const statusText = rowErrors.length > 0
@@ -4578,31 +5028,37 @@ function initBatchUploadPanel(prefix, role) {
         }).join('');
 
         const messageClass = hasErrors ? 'batch-row-count batch-row-count-error' : 'batch-row-count';
+        const termLockHint = (role === 'sk_official' && isPresidentTermLocked())
+            ? '<p class="batch-edit-hint batch-term-lock-hint">Term Start and Term End are automatic and locked to the SK Federation President (' + escapeHtml(formatIsoDateToUs(federationDefaultTermStart())) + ' – ' + escapeHtml(formatIsoDateToUs(federationDefaultTermEnd())) + '). All rows use the same dates.</p>'
+            : '';
         els.preview.innerHTML =
             '<p class="' + messageClass + '">' + escapeHtml(message || '') + '</p>' +
-            '<p class="batch-edit-hint">You can edit values directly in the table below. Changes are validated automatically.</p>' +
+            '<p class="batch-edit-hint">You can edit values directly in the table below. Use the dropdowns for Sex, Suffix, Position, Barangay, and location fields. Changes are validated automatically.</p>' +
+            termLockHint +
             '<div class="batch-preview-wrap batch-preview-wrap-editable"><table class="batch-preview-table batch-preview-table-editable"><thead><tr>' + theadCells + '</tr></thead><tbody>' + tbodyRows + '</tbody></table></div>';
 
         els.preview.style.display = '';
 
         els.preview.querySelectorAll('.batch-cell-input').forEach((input) => {
-            input.addEventListener('input', function () {
+            if (input.disabled) {
+                return;
+            }
+            const handler = function () {
                 handleBatchCellEdit(Number(input.dataset.rowIndex), Number(input.dataset.colIndex), input.value);
-            });
-            input.addEventListener('change', function () {
-                handleBatchCellEdit(Number(input.dataset.rowIndex), Number(input.dataset.colIndex), input.value);
-            });
+            };
+            input.addEventListener('input', handler);
+            input.addEventListener('change', handler);
         });
 
         if (activeInput && Number.isFinite(activeInput.rowIndex) && Number.isFinite(activeInput.colIndex)) {
             const selector = `.batch-cell-input[data-row-index="${activeInput.rowIndex}"][data-col-index="${activeInput.colIndex}"]`;
             const replacementInput = els.preview.querySelector(selector);
-            if (replacementInput) {
+            if (replacementInput && !replacementInput.disabled) {
                 replacementInput.focus();
-                const maxLength = replacementInput.value.length;
-                const start = Number.isFinite(activeInput.start) ? Math.min(activeInput.start, maxLength) : maxLength;
-                const end = Number.isFinite(activeInput.end) ? Math.min(activeInput.end, maxLength) : start;
-                if (typeof replacementInput.setSelectionRange === 'function') {
+                if (!activeInput.isSelect && typeof replacementInput.setSelectionRange === 'function') {
+                    const maxLength = replacementInput.value.length;
+                    const start = Number.isFinite(activeInput.start) ? Math.min(activeInput.start, maxLength) : maxLength;
+                    const end = Number.isFinite(activeInput.end) ? Math.min(activeInput.end, maxLength) : start;
                     replacementInput.setSelectionRange(start, end);
                 }
             }
@@ -4659,6 +5115,11 @@ function initBatchUploadPanel(prefix, role) {
                     .filter((row) => Array.isArray(row) && row.some((cell) => !isEmptyExcelCell(cell)))
                     .map((row) => ensureParsedRowWidth(row))
                     .filter((row) => !isTemplateSampleDataRow(row));
+                if (isPresidentTermLocked()) {
+                    applyLockedLeadershipTermsToParsedRows();
+                } else {
+                    fillEmptyLeadershipTermsOnParsedRows();
+                }
                 updateBatchUploadLimitState(state.parsedRows.length);
 
                 if (state.parsedRows.length > BATCH_MAX_ACCOUNTS) {
@@ -4689,7 +5150,16 @@ function initBatchUploadPanel(prefix, role) {
         if (event) event.preventDefault();
         const XLSX = getXlsxLib();
         if (XLSX) {
-            const worksheet = XLSX.utils.aoa_to_sheet([BATCH_TEMPLATE_HEADERS, BATCH_TEMPLATE_SAMPLE_ROW]);
+            const sampleRow = [...BATCH_TEMPLATE_SAMPLE_ROW];
+            if (role === 'sk_official' && isPresidentTermLocked()) {
+                const startIso = federationDefaultTermStart();
+                const endIso = federationDefaultTermEnd();
+                const startCol = BATCH_TEMPLATE_HEADERS.findIndex((header) => resolveBatchFieldKey(header) === 'term_start');
+                const endCol = BATCH_TEMPLATE_HEADERS.findIndex((header) => resolveBatchFieldKey(header) === 'term_end');
+                if (startCol >= 0 && startIso) sampleRow[startCol] = formatIsoDateToUs(startIso);
+                if (endCol >= 0 && endIso) sampleRow[endCol] = formatIsoDateToUs(endIso);
+            }
+            const worksheet = XLSX.utils.aoa_to_sheet([BATCH_TEMPLATE_HEADERS, sampleRow]);
             worksheet['!cols'] = BATCH_TEMPLATE_HEADERS.map((header) => ({
                 wch: Math.max(String(header).length + 6, 18),
             }));
@@ -6040,40 +6510,59 @@ document.addEventListener('DOMContentLoaded', function () {
 
     // ── View button click → populate view modal ───────────────
     function openViewWithData(btn) {
+        const attr = (name) => {
+            const raw = btn.getAttribute(name);
+            return raw == null ? '' : String(raw).trim();
+        };
         const d = btn.dataset;
         const isOfficials = getCurrentAccountType() === 'sk_officials';
-        const fullName = [d.firstName, d.middleName, d.lastName]
+        const firstName = attr('data-first-name') || d.firstName || '';
+        const middleName = attr('data-middle-name') || d.middleName || '';
+        const lastName = attr('data-last-name') || d.lastName || '';
+        const suffixRaw = attr('data-suffix') || d.suffix || '';
+        const suffixNormalized = String(suffixRaw).trim();
+        const hasRealSuffix = suffixNormalized !== ''
+            && !['none', 'n/a', 'na', '-', '—'].includes(suffixNormalized.toLowerCase());
+        const suffixDisplay = hasRealSuffix ? suffixNormalized : 'None';
+        const fullName = [firstName, middleName, lastName]
             .filter(v => v && v.trim())
             .map(v => v.trim().toUpperCase())
-            .concat(d.suffix && d.suffix.trim() ? [d.suffix.trim()] : [])
+            .concat(hasRealSuffix ? [suffixNormalized] : [])
             .join(' ');
+
+        const termStartRaw = attr('data-term-start') || d.termStart || '';
+        const termEndRaw = attr('data-term-end') || d.termEnd || '';
+        const dateOfBirthRaw = attr('data-date-of-birth') || d.dateOfBirth || '';
+        const email = attr('data-email') || d.email || '';
+        const emailDisplay = email.length > 64 ? `${email.slice(0, 64)}…` : email;
 
         const sections = [];
 
         sections.push(viewProfileGroup('fa-user', 'Personal Information', [
             ['Full Name', fullName],
-            ['Sex', d.sex],
-            ['Date of Birth', d.dateOfBirth ? formatDate(d.dateOfBirth) : ''],
-            ['Age', d.age],
-            ['Contact Number', d.contactNumber],
+            ['Suffix', suffixDisplay],
+            ['Sex', attr('data-sex') || d.sex || ''],
+            ['Date of Birth', dateOfBirthRaw ? (formatAccountDateDisplay(dateOfBirthRaw) !== '—' ? formatAccountDateDisplay(dateOfBirthRaw) : formatDate(dateOfBirthRaw)) : ''],
+            ['Age', attr('data-age') || d.age || ''],
+            ['Contact Number', attr('data-contact-number') || d.contactNumber || ''],
         ]));
 
         sections.push(viewProfileGroup('fa-briefcase', 'Position & Account', [
-            ['Position', d.position],
-            ['Email Address', d.email],
-            ['Email Verification', d.emailVerifiedAt || 'Not Verified'],
+            ['Position', attr('data-position') || d.position || ''],
+            ['Email Address', emailDisplay],
+            ['Email Verification', attr('data-email-verified-at') || d.emailVerifiedAt || 'Not Verified'],
         ]));
 
         sections.push(viewProfileGroup('fa-location-dot', 'Address', [
-            ['Region', isOfficials ? (d.region || 'IV-A CALABARZON') : (d.region || 'IV-A CALABARZON')],
-            ['Province', d.province || 'Laguna'],
-            ['Municipality', d.municipality || 'Santa Cruz'],
-            ['Barangay', d.barangayName || '-'],
+            ['Region', isOfficials ? (attr('data-region') || d.region || 'IV-A CALABARZON') : (attr('data-region') || d.region || 'IV-A CALABARZON')],
+            ['Province', attr('data-province') || d.province || 'Laguna'],
+            ['Municipality', attr('data-municipality') || d.municipality || 'Santa Cruz'],
+            ['Barangay', attr('data-barangay-name') || d.barangayName || '-'],
         ]));
 
         sections.push(viewProfileGroup('fa-calendar-check', 'Term Information', [
-            ['Term Start', d.termStart ? formatDate(d.termStart) : ''],
-            ['Term End', d.termEnd ? formatDate(d.termEnd) : ''],
+            ['Term Start', termStartRaw ? (formatAccountDateDisplay(termStartRaw) !== '—' ? formatAccountDateDisplay(termStartRaw) : formatDate(termStartRaw)) : ''],
+            ['Term End', termEndRaw ? (formatAccountDateDisplay(termEndRaw) !== '—' ? formatAccountDateDisplay(termEndRaw) : formatDate(termEndRaw)) : ''],
         ]));
 
         document.getElementById('viewAccountBody').innerHTML = `

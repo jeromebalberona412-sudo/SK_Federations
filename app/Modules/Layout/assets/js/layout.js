@@ -423,12 +423,19 @@ function renderMessagesPopoverList(conversations) {
         var convId = Number(c.id || 0);
         var userId = Number(peer.id || 0);
         var searchBlob = String(name + ' ' + preview + ' ' + (peer.barangay_name || '') + ' ' + (peer.position || '')).toLowerCase();
+        var group = peer.directory_group
+            || (peer.user_type === 'sk_fed' ? 'federation' : '')
+            || (peer.user_type === 'sk_official' ? 'officials' : '')
+            || '';
+        var isFed = peer.is_federation_member ? '1' : (group === 'federation' ? '1' : '0');
         return '<button type="button" class="comms-msg-item' + (unread > 0 ? ' comms-msg-unread' : '') + '"' +
             ' data-id="' + (convId > 0 ? convId : '') + '"' +
             ' data-user-id="' + (userId > 0 ? userId : '') + '"' +
             ' data-name="' + escapeCommsHtml(name) + '"' +
             ' data-avatar="' + escapeCommsHtml(avatar) + '"' +
             ' data-unread="' + (unread > 0 ? '1' : '0') + '"' +
+            ' data-group="' + escapeCommsHtml(group) + '"' +
+            ' data-federation="' + isFed + '"' +
             ' data-search="' + escapeCommsHtml(searchBlob) + '"' +
             ' role="menuitem">' +
             '<img class="comms-msg-avatar" src="' + escapeCommsHtml(avatar) + '" alt="" onerror="this.onerror=null;this.src=\'' + escapeCommsHtml(defaultCommsAvatar(name)) + '\'">' +
@@ -461,7 +468,13 @@ function applyMessagesPopoverFilters() {
     items.forEach(function (item) {
         var unread = item.getAttribute('data-unread') === '1';
         var haystack = String(item.getAttribute('data-search') || '').toLowerCase();
-        var matchesFilter = filter === 'all' || (filter === 'unread' && unread);
+        var group = String(item.getAttribute('data-group') || '').toLowerCase();
+        var isFederation = item.getAttribute('data-federation') === '1' || group === 'federation' || group === 'sk_fed';
+        var isOfficial = group === 'officials' || group === 'sk_official';
+        var matchesFilter = filter === 'all'
+            || (filter === 'unread' && unread)
+            || (filter === 'officials' && isOfficial)
+            || (filter === 'federation' && isFederation);
         var matchesSearch = !query || haystack.indexOf(query) !== -1;
         var show = matchesFilter && matchesSearch;
         item.classList.toggle('is-filtered-out', !show);
@@ -480,7 +493,10 @@ function applyMessagesPopoverFilters() {
             empty.style.display = 'flex';
             var main = empty.querySelector('p');
             if (main) {
-                main.textContent = filter === 'unread' ? 'No unread messages' : 'No matching chats';
+                if (filter === 'unread') main.textContent = 'No unread messages';
+                else if (filter === 'officials') main.textContent = 'No SK Officials found';
+                else if (filter === 'federation') main.textContent = 'No SK Federation members found';
+                else main.textContent = 'No matching chats';
             }
             list.style.display = 'none';
         } else {
@@ -2146,8 +2162,10 @@ function sendHeaderChatMessage(event) {
 function wireHeaderChatAttachButtons() {
     var attachBtn = document.getElementById('commsChatAttachBtn');
     var attachMenu = document.getElementById('commsChatAttachMenu');
+    var pickCamera = document.getElementById('commsChatPickCamera');
     var pickPhotos = document.getElementById('commsChatPickPhotos');
     var pickFiles = document.getElementById('commsChatPickFiles');
+    var cameraInput = document.getElementById('commsChatCameraInput');
     var photoInput = document.getElementById('commsChatPhotoInput');
     var fileInput = document.getElementById('commsChatFileInput');
     var clearBtn = document.getElementById('commsChatAttachClear');
@@ -2158,11 +2176,23 @@ function wireHeaderChatAttachButtons() {
         e.stopPropagation();
         if (attachMenu) attachMenu.hidden = !attachMenu.hidden;
     });
+    if (pickCamera && cameraInput) {
+        pickCamera.addEventListener('click', function () {
+            cameraInput.click();
+            if (attachMenu) attachMenu.hidden = true;
+        });
+    }
     if (pickPhotos && photoInput) {
         pickPhotos.addEventListener('click', function () { photoInput.click(); if (attachMenu) attachMenu.hidden = true; });
     }
     if (pickFiles && fileInput) {
         pickFiles.addEventListener('click', function () { fileInput.click(); if (attachMenu) attachMenu.hidden = true; });
+    }
+    if (cameraInput) {
+        cameraInput.addEventListener('change', function () {
+            if (cameraInput.files && cameraInput.files.length) pushHeaderFiles(cameraInput.files, 'image');
+            cameraInput.value = '';
+        });
     }
     if (photoInput) {
         photoInput.addEventListener('change', function () {

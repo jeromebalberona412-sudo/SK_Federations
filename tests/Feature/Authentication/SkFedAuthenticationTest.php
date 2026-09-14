@@ -126,9 +126,9 @@ it('returns verified success redirect from wait-status once an unverified user v
     $response->assertOk()
         ->assertJson([
             'state' => 'verified',
-            'redirect' => route('skfed.verification.success'),
+            'redirect' => route('dashboard'),
         ]);
-    assertGuest();
+    assertAuthenticatedAs($user);
 });
 
 it('redirects authenticated unverified users away from fortify verify notice', function () {
@@ -225,12 +225,12 @@ it('keeps wait-status pending for fresh verification until email_verified_at cha
         ->assertOk()
         ->assertJson([
             'state' => 'verified',
-            'redirect' => route('skfed.verification.success'),
+            'redirect' => route('dashboard'),
         ]);
-    assertGuest();
+    assertAuthenticatedAs($user);
 });
 
-it('shows success page when verify link is opened on the same device', function () {
+it('logs in and redirects to dashboard when verify link is opened on the same device', function () {
     FeatureFlag::query()->where('flag_key', 'features.device_verification')->update(['enabled' => false]);
 
     $tenantId = (int) DB::table('tenants')->where('code', config('sk_fed_auth.tenant_code'))->value('id');
@@ -260,9 +260,9 @@ it('shows success page when verify link is opened on the same device', function 
 
     $this->withSession(['sk_fed_email_verification_pending' => $pending])
         ->get($url)
-        ->assertRedirect(route('skfed.verification.success'));
+        ->assertRedirect(route('dashboard'));
 
-    assertGuest();
+    assertAuthenticatedAs($user);
     expect($user->fresh()->hasVerifiedEmail())->toBeTrue();
 });
 
