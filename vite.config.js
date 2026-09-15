@@ -85,6 +85,7 @@ export default defineConfig({
                 'app/Modules/CommunityFeed/assets/css/community-feed-comment-preview.css',
                 'app/Modules/CommunityFeed/assets/js/community-feed-comment-preview.js',
                 'app/Modules/CommunityFeed/assets/js/barangay-profile.js',
+                'app/Modules/CommunityFeed/assets/js/sk-fed-profile.js',
 
                 // ── Dashboard ───────────────────────────────────────────────
                 'app/Modules/Dashboard/assets/css/dashboard.css',
@@ -123,6 +124,7 @@ export default defineConfig({
                 'app/Modules/Communications/assets/js/chat.js',
                 'app/Modules/Communications/assets/js/realtime.js',
                 'app/Modules/Communications/assets/js/webrtc.js',
+                'app/Modules/Communications/assets/js/webrtc-group.js',
 
                 // ── Profile ─────────────────────────────────────────────────
                 'app/Modules/Profile/assets/css/profile.css',

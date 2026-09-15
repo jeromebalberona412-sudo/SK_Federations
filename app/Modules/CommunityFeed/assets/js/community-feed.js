@@ -294,6 +294,26 @@ function escapeHtml(v) {
     return String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
+function linkifyText(text) {
+    var escaped = escapeHtml(text);
+    return escaped.replace(
+        /(https?:\/\/[^\s<]+|www\.[^\s<]+)/gi,
+        function (raw) {
+            var href = raw;
+            if (/^www\./i.test(href)) href = 'https://' + href;
+            var trailing = '';
+            var match = href.match(/[),.;!?]+$/);
+            if (match) {
+                trailing = match[0];
+                href = href.slice(0, -trailing.length);
+                raw = raw.slice(0, -trailing.length);
+            }
+            return '<a href="' + href + '" target="_blank" rel="noopener noreferrer" class="feed-inline-link">' + raw + '</a>' + trailing;
+        }
+    );
+}
+window.linkifyFeedText = linkifyText;
+
 function truncateName(text, max = 50) {
     const s = String(text ?? '').trim();
     return s.length > max ? s.substring(0, max) + '...' : s;
@@ -805,7 +825,7 @@ function buildCommentItem(c, postId, isReply) {
         + '<div class="comment-body">'
         + '<div class="comment-bubble">'
         + '<p class="comment-author">' + escapeHtml(truncateName(c.author_name)) + '</p>'
-        + '<p class="comment-text">' + escapeHtml(c.body) + '</p>'
+        + '<p class="comment-text" id="comment-text-' + c.id + '" data-full="' + escapeHtml(c.body || '') + '">' + linkifyText(c.body || '') + '</p>'
         + '</div>'
         + '<div class="comment-meta">'
         + '<div class="reaction-wrap comment-like-wrap" data-target="comment" data-post-id="' + postId + '" data-comment-id="' + c.id + '">'
@@ -1025,15 +1045,28 @@ function buildPost(p) {
     var reactionType = p.reaction_type || (liked ? 'like' : '');
     var likeIcon = reactionType && REACTION_EMOJI[reactionType] ? REACTION_EMOJI[reactionType] : LIKE_THUMB_SVG;
 
-    return '<div class="post-header">'
-        + avatarImg(avatar, 'post-avatar', p.author_name)
+    var authorLabel = truncateName(p.author_name || (p.is_federation_wide ? 'SK Federation' : ('SK Brgy. ' + (p.barangay_name || 'Barangay'))));
+    var profileUrl = p.profile_url || '';
+    if (!profileUrl && p.is_federation_wide) {
+        profileUrl = '/sk-federation-profile';
+    } else if (!profileUrl && p.barangay_slug) {
+        profileUrl = '/barangay-profile/' + encodeURIComponent(p.barangay_slug);
+    }
+    var authorInner = avatarImg(avatar, 'post-avatar', p.author_name)
         + '<div class="post-info">'
-        + '<h3 class="post-author">' + escapeHtml(truncateName(p.author_name || (p.is_federation_wide ? 'SK Federation' : ('SK Brgy. ' + (p.barangay_name || 'Barangay'))))) + '</h3>'
+        + '<h3 class="post-author">' + escapeHtml(authorLabel) + '</h3>'
         + '<p class="post-meta"><span class="post-type ' + escapeHtml(p.type || 'update') + '">' + escapeHtml(p.type || 'update') + '</span><span class="post-time">' + escapeHtml(p.time || '') + '</span></p>'
-        + '</div>' + optionsHtml + '</div>'
+        + '</div>';
+    var authorBlock = profileUrl
+        ? ('<a class="post-author-link" href="' + escapeHtml(profileUrl) + '" data-no-loading>' + authorInner + '</a>')
+        : authorInner;
+
+    return '<div class="post-header">'
+        + authorBlock
+        + optionsHtml + '</div>'
         + '<div class="post-content">'
         + (p.title ? '<h2 class="post-title">' + escapeHtml(p.title) + '</h2>' : '')
-        + '<p class="post-text">' + escapeHtml(p.body || '') + '</p>'
+        + '<p class="post-text">' + linkifyText(p.body || '') + '</p>'
         + mediaHtml + linkHtml
         + '</div>'
         + statsHtml
@@ -1600,12 +1633,14 @@ function confirmEditComment() {
         .then(function (updated) {
             var feedEl = document.getElementById('comment-text-' + commentId);
             if (feedEl) {
-                feedEl.textContent = updated.body;
+                feedEl.innerHTML = linkifyText(updated.body || '');
                 feedEl.dataset.full = updated.body || '';
             }
             var previewEl = document.getElementById('cp-text-' + commentId);
             if (previewEl) {
-                previewEl.textContent = updated.body;
+                previewEl.innerHTML = (typeof window.linkifyFeedText === 'function'
+                    ? window.linkifyFeedText(updated.body || '')
+                    : linkifyText(updated.body || ''));
                 previewEl.dataset.full = updated.body || '';
             }
             updateCachedCommentBody(postId, commentId, updated.body || '');

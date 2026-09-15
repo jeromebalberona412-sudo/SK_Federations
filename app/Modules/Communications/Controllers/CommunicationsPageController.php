@@ -12,6 +12,16 @@ class CommunicationsPageController extends Controller
 {
     public function index(Request $request, ConversationService $conversations): View
     {
+        $user = Auth::user();
+        if ($user) {
+            try {
+                app(\App\Modules\Communications\Services\DefaultGroupChatService::class)
+                    ->ensureForUser($user);
+            } catch (\Throwable $e) {
+                report($e);
+            }
+        }
+
         $conversationId = $request->integer('conversation') ?: null;
         $barangays = [];
         if (config('communications.portal_user_type') === 'sk_fed') {

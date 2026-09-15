@@ -18,11 +18,20 @@ class ConversationService
 {
     public function __construct(
         protected ParticipantTypeResolver $types,
-        protected CommunityFeedAvatarService $avatars
+        protected CommunityFeedAvatarService $avatars,
+        protected DefaultGroupChatService $defaultGroups,
     ) {}
 
     public function isParticipant(Conversation $conversation, Authenticatable $user, ?string $userType = null): bool
     {
+        // Groups (and shared Official/Federation accounts) key membership by stable user id.
+        if ($conversation->isGroup()) {
+            return ConversationParticipant::query()
+                ->where('conversation_id', $conversation->id)
+                ->where('user_id', (int) $user->id)
+                ->exists();
+        }
+
         $userType ??= $this->types->portalType();
 
         return ConversationParticipant::query()
@@ -83,13 +92,16 @@ class ConversationService
 
     public function listForUser(Authenticatable $user, ?string $search = null): Collection
     {
+        $this->defaultGroups->ensureForUser($user);
+
         $userType = $this->types->portalType();
         $userId = (int) $user->id;
 
         $conversationIds = ConversationParticipant::query()
             ->where('user_id', $userId)
-            ->where('user_type', $userType)
-            ->pluck('conversation_id');
+            ->pluck('conversation_id')
+            ->unique()
+            ->values();
 
         if ($conversationIds->isEmpty()) {
             return collect();
@@ -116,15 +128,10 @@ class ConversationService
         $myParticipants = ConversationParticipant::query()
             ->whereIn('conversation_id', $conversationIds)
             ->where('user_id', $userId)
-            ->where('user_type', $userType)
             ->get()
             ->keyBy('conversation_id');
 
-        $items = $conversations->map(function (Conversation $conversation) use ($userId, $userType, $lastMessages, $myParticipants) {
-            $other = $conversation->participants
-                ->first(fn (ConversationParticipant $p) => ! ((int) $p->user_id === $userId && $p->user_type === $userType));
-
-            $otherUser = $other?->user;
+        $items = $conversations->map(function (Conversation $conversation) use ($user, $userId, $userType, $lastMessages, $myParticipants) {
             $last = $lastMessages->get($conversation->id);
             $mine = $myParticipants->get($conversation->id);
             $unread = $this->unreadCountForParticipant($conversation->id, $mine, $userId, $userType);
@@ -141,10 +148,21 @@ class ConversationService
                 $lastBody = ((string) $last->message_type === 'image' ? '📷 ' : '📎 ').$lastBody;
             }
 
-            return [
+            $payload = [
                 'id' => $conversation->id,
                 'conversation_type' => $conversation->conversation_type,
-                'other_user' => $this->serializeUser($otherUser, $other?->user_type),
+                'name' => $conversation->name,
+                'default_group_type' => $conversation->default_group_type,
+                'max_members' => $conversation->max_members,
+                'member_count' => $conversation->participants->count(),
+                'is_default_group' => $conversation->isDefaultGroup(),
+                'can_rename' => $conversation->isDefaultGroup()
+                    ? $this->defaultGroups->canRename($conversation, $user)
+                    : false,
+                'can_change_avatar' => $conversation->isDefaultGroup()
+                    ? $this->defaultGroups->canChangeAvatar($conversation, $user)
+                    : false,
+                'other_user' => null,
                 'last_message' => $last ? [
                     'id' => $last->id,
                     'body' => $lastBody,
@@ -155,18 +173,73 @@ class ConversationService
                 'unread_count' => $unread,
                 'updated_at' => optional($last?->created_at ?? $conversation->updated_at)?->toIso8601String(),
             ];
+
+            if ($conversation->isGroup()) {
+                $groupName = trim((string) ($conversation->name ?: 'Group chat'));
+                $max = (int) ($conversation->max_members ?: 0);
+                $count = (int) $payload['member_count'];
+                $avatar = $this->defaultGroups->groupAvatarUrl($conversation);
+                $payload['avatar_url'] = $avatar;
+                $payload['other_user'] = [
+                    'id' => null,
+                    'name' => $groupName,
+                    'user_type' => 'group',
+                    'user_type_label' => $this->groupTypeLabel($conversation),
+                    'position' => $max > 0 ? ($count.' / '.$max.' members') : ($count.' members'),
+                    'barangay_name' => null,
+                    'profile_image_url' => $avatar,
+                    'online_status' => null,
+                    'is_group' => true,
+                ];
+                // Empty GCs still appear in Chats with a clear preview.
+                if ($payload['last_message'] === null) {
+                    $payload['last_message'] = [
+                        'id' => null,
+                        'body' => 'No messages yet',
+                        'message_type' => 'system',
+                        'sender_id' => null,
+                        'created_at' => optional($conversation->created_at)?->toIso8601String(),
+                    ];
+                }
+
+                return $payload;
+            }
+
+            $other = $conversation->participants
+                ->first(fn (ConversationParticipant $p) => ! ((int) $p->user_id === $userId && $p->user_type === $userType));
+
+            $payload['other_user'] = $this->serializeUser($other?->user, $other?->user_type);
+
+            return $payload;
         });
 
         if ($search !== null && trim($search) !== '') {
             $q = mb_strtolower(trim($search));
             $items = $items->filter(function (array $item) use ($q) {
-                $name = mb_strtolower((string) ($item['other_user']['name'] ?? ''));
+                $name = mb_strtolower((string) ($item['other_user']['name'] ?? $item['name'] ?? ''));
 
                 return str_contains($name, $q);
             })->values();
         }
 
-        return $items->sortByDesc(fn (array $item) => $item['updated_at'] ?? '')->values();
+        return $items->sort(function (array $a, array $b): int {
+            $aDefault = ($a['is_default_group'] ?? false) ? 0 : 1;
+            $bDefault = ($b['is_default_group'] ?? false) ? 0 : 1;
+            if ($aDefault !== $bDefault) {
+                return $aDefault <=> $bDefault;
+            }
+
+            return strcmp((string) ($b['updated_at'] ?? ''), (string) ($a['updated_at'] ?? ''));
+        })->values();
+    }
+
+    public function groupTypeLabel(Conversation $conversation): string
+    {
+        return match ((string) $conversation->default_group_type) {
+            DefaultGroupChatService::TYPE_SK_OFFICIALS => 'SK Officials group',
+            DefaultGroupChatService::TYPE_SK_FEDERATIONS => 'SK Federations group',
+            default => 'Group chat',
+        };
     }
 
     /**
@@ -221,13 +294,55 @@ class ConversationService
 
         $conversation->load(['participants.user']);
 
+        if ($conversation->isGroup()) {
+            $memberCount = $conversation->participants->count();
+            $max = (int) ($conversation->max_members ?: 0);
+            $groupName = trim((string) ($conversation->name ?: 'Group chat'));
+            $avatar = $this->defaultGroups->groupAvatarUrl($conversation);
+
+            return [
+                'id' => $conversation->id,
+                'conversation_type' => $conversation->conversation_type,
+                'name' => $groupName,
+                'default_group_type' => $conversation->default_group_type,
+                'max_members' => $max ?: null,
+                'member_count' => $memberCount,
+                'is_default_group' => $conversation->isDefaultGroup(),
+                'can_rename' => $this->defaultGroups->canRename($conversation, $user),
+                'can_change_avatar' => $this->defaultGroups->canChangeAvatar($conversation, $user),
+                'call_max_participants' => (int) config('communications.call_max_participants', 8),
+                'avatar_url' => $avatar,
+                'other_user' => [
+                    'id' => null,
+                    'name' => $groupName,
+                    'user_type' => 'group',
+                    'user_type_label' => $this->groupTypeLabel($conversation),
+                    'position' => $max > 0 ? ($memberCount.' / '.$max.' members') : ($memberCount.' members'),
+                    'barangay_name' => null,
+                    'profile_image_url' => $avatar,
+                    'online_status' => null,
+                    'is_group' => true,
+                ],
+                'members' => $this->defaultGroups->serializeMembers($conversation, $this),
+            ];
+        }
+
         $other = $conversation->participants
             ->first(fn (ConversationParticipant $p) => ! ((int) $p->user_id === $userId && $p->user_type === $userType));
 
         return [
             'id' => $conversation->id,
             'conversation_type' => $conversation->conversation_type,
+            'name' => null,
+            'default_group_type' => null,
+            'max_members' => null,
+            'member_count' => $conversation->participants->count(),
+            'is_default_group' => false,
+            'can_rename' => false,
+            'can_change_avatar' => false,
+            'call_max_participants' => (int) config('communications.call_max_participants', 8),
             'other_user' => $this->serializeUser($other?->user, $other?->user_type),
+            'members' => [],
         ];
     }
 
@@ -235,11 +350,15 @@ class ConversationService
     {
         $userType = $this->types->portalType();
 
-        ConversationParticipant::query()
+        $query = ConversationParticipant::query()
             ->where('conversation_id', $conversation->id)
-            ->where('user_id', (int) $user->id)
-            ->where('user_type', $userType)
-            ->update(['last_read_at' => now()]);
+            ->where('user_id', (int) $user->id);
+
+        if (! $conversation->isGroup()) {
+            $query->where('user_type', $userType);
+        }
+
+        $query->update(['last_read_at' => now()]);
     }
 
     public function unreadTotalForUser(Authenticatable $user): int
@@ -249,8 +368,7 @@ class ConversationService
 
         $participants = ConversationParticipant::query()
             ->where('user_id', $userId)
-            ->where('user_type', $userType)
-            ->get(['conversation_id', 'last_read_at']);
+            ->get(['conversation_id', 'last_read_at', 'user_type']);
 
         if ($participants->isEmpty()) {
             return 0;
@@ -368,7 +486,7 @@ class ConversationService
 
                     $officials->where(function (Builder $fed) {
                         if (Schema::hasColumn('users', 'has_federation_access')) {
-                            $fed->where('has_federation_access', true);
+                            $fed->whereRaw('has_federation_access IS TRUE');
                         }
 
                         if (method_exists(User::class, 'officialProfile')) {
@@ -498,6 +616,14 @@ class ConversationService
 
     public function assertCanMessagePeer(Conversation $conversation, Authenticatable $user): void
     {
+        if ($conversation->isGroup()) {
+            if (! $this->isParticipant($conversation, $user)) {
+                abort(403, 'You are not a member of this group.');
+            }
+
+            return;
+        }
+
         $userType = $this->types->portalType();
         $other = ConversationParticipant::query()
             ->where('conversation_id', $conversation->id)

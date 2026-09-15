@@ -32,6 +32,13 @@ Route::middleware([
         ->name('api.communications.conversations.store');
     Route::get('/api/communications/conversations/{conversation}', [ConversationController::class, 'show'])
         ->name('api.communications.conversations.show');
+    Route::patch('/api/communications/conversations/{conversation}', [ConversationController::class, 'rename'])
+        ->middleware('throttle:20,1')
+        ->name('api.communications.conversations.rename');
+    Route::post('/api/communications/conversations/{conversation}/avatar', [ConversationController::class, 'updateAvatar'])
+        ->name('api.communications.conversations.avatar');
+    Route::get('/api/communications/conversations/{conversation}/members', [ConversationController::class, 'members'])
+        ->name('api.communications.conversations.members');
     Route::post('/api/communications/conversations/{conversation}/read', [ConversationController::class, 'markRead'])
         ->name('api.communications.conversations.read');
 

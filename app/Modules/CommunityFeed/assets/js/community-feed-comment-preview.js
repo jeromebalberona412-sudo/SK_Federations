@@ -57,6 +57,28 @@ function escapeHtml(text) {
         .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
+function linkifyText(text) {
+    if (typeof window.linkifyFeedText === 'function') {
+        return window.linkifyFeedText(text);
+    }
+    var escaped = escapeHtml(text);
+    return escaped.replace(
+        /(https?:\/\/[^\s<]+|www\.[^\s<]+)/gi,
+        function (raw) {
+            var href = raw;
+            if (/^www\./i.test(href)) href = 'https://' + href;
+            var trailing = '';
+            var match = href.match(/[),.;!?]+$/);
+            if (match) {
+                trailing = match[0];
+                href = href.slice(0, -trailing.length);
+                raw = raw.slice(0, -trailing.length);
+            }
+            return '<a href="' + href + '" target="_blank" rel="noopener noreferrer" class="feed-inline-link">' + raw + '</a>' + trailing;
+        }
+    );
+}
+
 function truncateName(text, max = 50) {
     const s = String(text ?? '').trim();
     return s.length > max ? s.substring(0, max) + '...' : s;
@@ -204,7 +226,7 @@ function renderPost() {
             </div>
         </div>
         ${post.title ? `<h2 class="cp-title-text">${escapeHtml(post.title)}</h2>` : ''}
-        <p class="cp-body">${escapeHtml(post.body || '')}</p>
+        <p class="cp-body">${linkifyText(post.body || '')}</p>
         ${media}${video}${link}
     `;
     const cpPostEl = document.getElementById('cpPost');
@@ -288,7 +310,7 @@ function commentHtml(comment, isReply) {
         <div class="cp-comment-body">
             <div class="cp-bubble">
                 <span class="cp-bubble-name">${escapeHtml(truncateName(comment.author_name))}</span>
-                <span class="cp-bubble-text" id="cp-text-${comment.id}" data-full="${escapeHtml(comment.body || '')}">${escapeHtml(comment.body)}</span>
+                <span class="cp-bubble-text" id="cp-text-${comment.id}" data-full="${escapeHtml(comment.body || '')}">${linkifyText(comment.body || '')}</span>
                 ${badge}
             </div>
             <div class="cp-comment-meta">

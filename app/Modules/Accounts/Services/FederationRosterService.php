@@ -226,6 +226,13 @@ class FederationRosterService
 
         $account->setRelation('officialProfile', $profile);
 
+        try {
+            app(\App\Modules\Communications\Services\DefaultGroupChatService::class)
+                ->syncTenant((int) $account->tenant_id);
+        } catch (\Throwable $e) {
+            report($e);
+        }
+
         return $account;
     }
 }

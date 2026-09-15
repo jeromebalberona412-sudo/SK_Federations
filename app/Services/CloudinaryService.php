@@ -134,8 +134,53 @@ class CloudinaryService
         }
 
         return [
-            'public_id' => (string) $result['public_id'],
+            'public_id' => (string) ($result['public_id'] ?? ''),
             'url' => $deliveryUrl,
+            'version' => $version,
+        ];
+    }
+
+    /**
+     * Upload default group-chat avatar using Avatar_Profile_GroupChats preset.
+     *
+     * @return array{public_id: string, url: string, version: int|null}
+     */
+    public function uploadGroupChatAvatar(UploadedFile $file): array
+    {
+        $this->ensureConfigured();
+
+        $folder = trim((string) config('services.cloudinary.group_chat_avatar_folder', 'Avatar_Profile_GroupChats'), '/');
+        $preset = trim((string) config('services.cloudinary.group_chat_avatar_upload_preset', 'Avatar_Profile_GroupChats'));
+        $path = $file->getRealPath() ?: $file->getPathname();
+        $displayName = pathinfo((string) $file->getClientOriginalName(), PATHINFO_FILENAME);
+
+        $options = [
+            'folder' => $folder !== '' ? $folder : 'Avatar_Profile_GroupChats',
+            'resource_type' => 'image',
+            'overwrite' => false,
+            'use_filename' => false,
+            // Unique public ids so the President can change the photo unlimited times.
+            'unique_filename' => true,
+            'use_filename_as_display_name' => true,
+            'display_name' => $displayName !== '' ? $displayName : 'group_chat_avatar',
+            'type' => 'upload',
+        ];
+
+        if ($preset !== '') {
+            $options['upload_preset'] = $preset;
+        }
+
+        $result = $this->cloudinary->uploadApi()->upload($path, $options);
+        $version = isset($result['version']) ? (int) $result['version'] : null;
+        $deliveryUrl = (string) ($result['secure_url'] ?? $result['url'] ?? '');
+
+        if ($deliveryUrl === '') {
+            $deliveryUrl = $this->deliverUrl((string) $result['public_id'], $version);
+        }
+
+        return [
+            'public_id' => (string) ($result['public_id'] ?? ''),
+            'url' => self::cacheBust($deliveryUrl, now()),
             'version' => $version,
         ];
     }

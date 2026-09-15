@@ -4,13 +4,25 @@ namespace App\Modules\Communications\Policies;
 
 use App\Modules\Communications\Models\Conversation;
 use App\Modules\Communications\Services\ConversationService;
+use App\Modules\Communications\Services\DefaultGroupChatService;
 use Illuminate\Contracts\Auth\Authenticatable;
 
 class ConversationPolicy
 {
     public function __construct(
-        protected ConversationService $conversations
+        protected ConversationService $conversations,
+        protected DefaultGroupChatService $defaultGroups,
     ) {}
+
+    public function rename(Authenticatable $user, Conversation $conversation): bool
+    {
+        return $this->defaultGroups->canRename($conversation, $user);
+    }
+
+    public function updateAvatar(Authenticatable $user, Conversation $conversation): bool
+    {
+        return $this->defaultGroups->canChangeAvatar($conversation, $user);
+    }
 
     public function view(Authenticatable $user, Conversation $conversation): bool
     {

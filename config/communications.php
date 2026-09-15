@@ -17,6 +17,17 @@ return [
 
     'reaction_emojis' => ['👍', '❤️', '😆', '😮', '😢', '🙏'],
 
+    /*
+    | Simultaneous WebRTC call participants supported by the current mesh client.
+    | Independent from default GC membership limits (260 / 10).
+    */
+    'call_max_participants' => (int) env('COMMUNICATIONS_CALL_MAX_PARTICIPANTS', 8),
+
+    /*
+    | Default avatar for org group chats until SK Federation uploads a custom logo.
+    */
+    'default_group_avatar' => env('COMMUNICATIONS_DEFAULT_GROUP_AVATAR', '/Images/SK_OnePortal_logo.png'),
+
     'attachments' => [
         'image_max_kb' => (int) env('COMMUNICATIONS_IMAGE_MAX_KB', 25600),
         'file_max_kb' => (int) env('COMMUNICATIONS_FILE_MAX_KB', 25600),

@@ -123,6 +123,15 @@ class CommunityFeedService
         ];
     }
 
+    public function slugForBarangayName(?string $name): ?string
+    {
+        if ($name === null || trim($name) === '') {
+            return null;
+        }
+
+        return $this->matchCanonicalSlug($this->monitoringService->slugToNameMap(), $name);
+    }
+
     /**
      * @return list<array{name: string, role: string, initials: string, logo_url: string|null}>
      */

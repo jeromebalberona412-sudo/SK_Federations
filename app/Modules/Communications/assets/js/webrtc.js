@@ -3,6 +3,12 @@
  * Voice: mic on, camera off (can turn on). Video: camera on (can turn off).
  * Shows visible ringing UI on both sides and a Call ended screen when not picked up.
  */
+import {
+    mediaConstraints,
+    videoOnlyConstraints,
+    prepareLocalStream
+} from './media-constraints.js';
+
 (function () {
     'use strict';
 
@@ -402,7 +408,9 @@
         var peerId = null;
         var peerType = null;
 
-        if (currentCall.receiver_id != null && currentCall.caller_id != null) {
+        if (currentCall.receiver_id != null && currentCall.caller_id != null
+            && !(Number(currentCall.caller_id) === Number(currentCall.receiver_id)
+                && String(currentCall.caller_type) === String(currentCall.receiver_type))) {
             var iAmCaller = Number(currentCall.caller_id) === myId && currentCall.caller_type === myType;
             if (iAmCaller) {
                 peerId = currentCall.receiver_id;
@@ -532,20 +540,25 @@
     async function getLocalStream(videoEnabled) {
         var devices = assertMediaReady();
         try {
-            return await devices.getUserMedia({
-                audio: {
-                    echoCancellation: true,
-                    noiseSuppression: true,
-                    autoGainControl: true,
-                    channelCount: 1
-                },
-                video: videoEnabled ? {
-                    facingMode: 'user',
-                    width: { ideal: 1280, max: 1920 },
-                    height: { ideal: 720, max: 1080 }
-                } : false
-            });
+            var stream = await devices.getUserMedia(mediaConstraints(!!videoEnabled));
+            if (videoEnabled) {
+                await prepareLocalStream(stream);
+            }
+            return stream;
         } catch (err) {
+            // Fallback: simpler constraints if the device rejects aspect/ideal combo.
+            if (videoEnabled) {
+                try {
+                    var fallback = await devices.getUserMedia({
+                        audio: mediaConstraints(false).audio,
+                        video: { facingMode: 'user' }
+                    });
+                    await prepareLocalStream(fallback);
+                    return fallback;
+                } catch (e2) {
+                    err = e2;
+                }
+            }
             var name = (err && err.name) || '';
             if (name === 'NotAllowedError' || name === 'PermissionDeniedError') {
                 throw new Error('Microphone/camera permission was denied. Allow access and try again.');
@@ -575,15 +588,37 @@
         if (!els.incoming) return;
         role = 'callee';
         callConnected = false;
-        currentCall = Object.assign({}, currentCall || {}, call);
-        rememberCallContext(currentCall);
         hideEnded();
         if (els.incomingPeer) {
             els.incomingPeer.textContent = (call.peer && call.peer.name) || 'Incoming caller';
         }
         if (els.incomingType) {
-            els.incomingType.textContent = (call.call_type === 'video' ? 'Video call' : 'Voice call');
+            var groupLabel = !!(call.is_group_call || call._groupInvite);
+            els.incomingType.textContent = groupLabel
+                ? (call.call_type === 'video' ? 'Group video call' : 'Group voice call')
+                : (call.call_type === 'video' ? 'Video call' : 'Voice call');
         }
+        if (call.is_group_call || call._groupInvite) {
+            if (call._groupInvite) {
+                window.__commsPendingGroupInvite = call._groupInvite;
+            }
+            // Keep currentCall null so 1:1 cleanup does not steal the group room.
+            currentCall = null;
+            els.incoming.hidden = false;
+            startRingtone('incoming');
+            clearRingTimeout();
+            ringTimeout = setTimeout(function () {
+                if (typeof window.CommsWebRTC !== 'undefined'
+                    && typeof window.CommsWebRTC.__rejectGroupIfPending === 'function') {
+                    window.CommsWebRTC.__rejectGroupIfPending();
+                }
+                hideIncoming();
+                stopRingtone();
+            }, RING_TIMEOUT_MS);
+            return;
+        }
+        currentCall = Object.assign({}, currentCall || {}, call);
+        rememberCallContext(currentCall);
         els.incoming.hidden = false;
         startRingtone('incoming');
         armRingTimeout();
@@ -646,6 +681,7 @@
         });
         if (els.localVideo) {
             els.localVideo.srcObject = localStream;
+            syncLocalPipLayout();
         }
         if (els.muteBtn) setMuteUi(false);
         updateCameraUi();
@@ -660,14 +696,8 @@
         if (enabled) {
             if (!videoTracks.length || videoTracks.every(function (t) { return t.readyState === 'ended'; })) {
                 var devices = assertMediaReady();
-                var camStream = await devices.getUserMedia({
-                    video: {
-                        facingMode: 'user',
-                        width: { ideal: 1280 },
-                        height: { ideal: 720 }
-                    },
-                    audio: false
-                });
+                var camStream = await devices.getUserMedia(videoOnlyConstraints());
+                await prepareLocalStream(camStream);
                 var newTrack = camStream.getVideoTracks()[0];
                 if (!newTrack) {
                     throw new Error('No camera was found on this device.');
@@ -826,7 +856,7 @@
         return true;
     }
 
-    function beginCallCountdown(conversationId, callType, conversation) {
+    function beginCallCountdown(conversationId, callType, conversation, receiverId) {
         if (startingCall || pendingStart || currentCall) return;
 
         var peer = (conversation && conversation.other_user) || {};
@@ -855,7 +885,8 @@
         pendingStart = {
             conversationId: conversationId,
             callType: callType,
-            conversation: conversation
+            conversation: conversation,
+            receiverId: receiverId || null
         };
 
         peer = peer.name ? peer : { name: 'Contact' };
@@ -873,15 +904,16 @@
         }, 1000);
 
         pendingStartTimer = setTimeout(function () {
+            var queuedReceiverId = pendingStart ? pendingStart.receiverId : null;
             clearPendingStart();
             if (els.muteBtn) els.muteBtn.hidden = false;
             if (els.cameraBtn) els.cameraBtn.hidden = false;
             setCtrlLabel(els.endBtn, 'End');
-            placeCall(conversationId, callType, conversation);
+            placeCall(conversationId, callType, conversation, queuedReceiverId);
         }, CALL_START_DELAY_MS);
     }
 
-    async function placeCall(conversationId, callType, conversation) {
+    async function placeCall(conversationId, callType, conversation, receiverId) {
         if (!window.Comms || startingCall) return;
         startingCall = true;
         var r = routes();
@@ -891,9 +923,13 @@
                 throw new Error('Realtime is not configured. Rebuild after setting VITE_SUPABASE keys.');
             }
 
+            var body = { call_type: callType };
+            if (receiverId) {
+                body.receiver_id = Number(receiverId);
+            }
             var data = await window.Comms.api(window.Comms.route(r.startCall, conversationId), {
                 method: 'POST',
-                body: JSON.stringify({ call_type: callType }),
+                body: JSON.stringify(body),
                 dedupe: false
             });
             role = 'caller';
@@ -901,7 +937,7 @@
             lastEndedCallId = null;
             currentCall = data.call;
             wantsVideo = callType === 'video';
-            if (conversation && conversation.other_user) {
+            if (conversation && conversation.other_user && !conversation.other_user.is_group) {
                 currentCall.peer = conversation.other_user;
             }
             rememberCallContext(currentCall);
@@ -909,7 +945,7 @@
             if (els.cameraBtn) els.cameraBtn.hidden = false;
             setCtrlLabel(els.endBtn, 'End');
             showInCall(Object.assign({}, currentCall, {
-                peer: (conversation && conversation.other_user) || currentCall.peer
+                peer: currentCall.peer || (conversation && conversation.other_user) || { name: 'Contact' }
             }), 'Calling...');
             startRingtone('outgoing');
             armRingTimeout();
@@ -946,11 +982,42 @@
         }
     }
 
-    async function startCall(conversationId, callType, conversation) {
-        beginCallCountdown(conversationId, callType, conversation);
+    async function startCall(conversationId, callType, conversation, receiverId) {
+        // Groups skip offline peer check — recipient is chosen explicitly.
+        if (conversation && (conversation.conversation_type === 'group' || conversation.is_default_group || (conversation.other_user && conversation.other_user.is_group))) {
+            if (startingCall || pendingStart || currentCall) return;
+            try {
+                assertMediaReady();
+            } catch (err) {
+                toast(err.message || 'Unable to start call.', 'error');
+                return;
+            }
+            if (!window.CommsRealtime || !window.CommsRealtime.enabled) {
+                toast('Realtime is not configured. Rebuild after setting VITE_SUPABASE keys.', 'error');
+                return;
+            }
+            placeCall(conversationId, callType, conversation, receiverId);
+            return;
+        }
+        beginCallCountdown(conversationId, callType, conversation, receiverId);
     }
 
     async function acceptIncoming() {
+        if (typeof window.CommsWebRTC !== 'undefined'
+            && typeof window.CommsWebRTC.__acceptGroupIfPending === 'function') {
+            try {
+                var groupHandled = await window.CommsWebRTC.__acceptGroupIfPending();
+                if (groupHandled) {
+                    hideIncoming();
+                    stopRingtone();
+                    clearRingTimeout();
+                    return;
+                }
+            } catch (err) {
+                toast((err && err.message) || 'Unable to join group call.', 'error');
+                return;
+            }
+        }
         if (!currentCall || startingCall) return;
         startingCall = true;
         clearRingTimeout();
@@ -1015,11 +1082,30 @@
     }
 
     async function rejectIncoming() {
+        if (typeof window.CommsWebRTC !== 'undefined'
+            && typeof window.CommsWebRTC.__rejectGroupIfPending === 'function') {
+            try {
+                var groupRejected = await window.CommsWebRTC.__rejectGroupIfPending();
+                if (groupRejected) {
+                    hideIncoming();
+                    stopRingtone();
+                    clearRingTimeout();
+                    return;
+                }
+            } catch (e) { /* fall through */ }
+        }
         if (!currentCall) return;
         await finishUnanswered('rejected');
     }
 
     async function endCall() {
+        if (typeof window.CommsWebRTC !== 'undefined'
+            && typeof window.CommsWebRTC.__meshActive === 'function'
+            && window.CommsWebRTC.__meshActive()
+            && typeof window.CommsWebRTC.__meshLeave === 'function') {
+            return window.CommsWebRTC.__meshLeave('ended');
+        }
+
         if (pendingStart) {
             await cancelPendingStart();
             setCtrlLabel(els.endBtn, 'End');
@@ -1229,6 +1315,15 @@
 
     if (els.muteBtn) {
         els.muteBtn.addEventListener('click', function () {
+            if (window.CommsWebRTC && typeof window.CommsWebRTC.__meshActive === 'function' && window.CommsWebRTC.__meshActive()) {
+                var pressed = els.muteBtn.getAttribute('aria-pressed') === 'true';
+                var nextMuted = !pressed;
+                if (typeof window.CommsWebRTC.__meshSetMuted === 'function') {
+                    window.CommsWebRTC.__meshSetMuted(nextMuted);
+                }
+                setMuteUi(nextMuted);
+                return;
+            }
             if (!localStream) return;
             localStream.getAudioTracks().forEach(function (t) {
                 t.enabled = !t.enabled;
@@ -1239,6 +1334,18 @@
     if (els.cameraBtn) {
         els.cameraBtn.hidden = false;
         els.cameraBtn.addEventListener('click', function () {
+            if (window.CommsWebRTC && typeof window.CommsWebRTC.__meshActive === 'function' && window.CommsWebRTC.__meshActive()) {
+                var next = !(els.cameraBtn.getAttribute('aria-pressed') === 'true');
+                if (typeof window.CommsWebRTC.__meshSetCamera === 'function') {
+                    window.CommsWebRTC.__meshSetCamera(next).then(function () {
+                        setCameraUi(next);
+                        updateCameraUi();
+                    }).catch(function (err) {
+                        toast((err && err.message) || 'Unable to toggle camera.', 'error');
+                    });
+                }
+                return;
+            }
             if (!localStream || !pc) return;
             setCameraEnabled(!cameraEnabled).catch(function (err) {
                 toast((err && err.message) || 'Unable to toggle camera.', 'error');
@@ -1266,6 +1373,9 @@
                 return false;
             }
         },
-        suggestedHttpsUrl: suggestedHttpsUrl
+        suggestedHttpsUrl: suggestedHttpsUrl,
+        __paintIncoming: showIncoming,
+        __showEnded: showCallEnded,
+        __startTimer: startTimer
     };
 })();

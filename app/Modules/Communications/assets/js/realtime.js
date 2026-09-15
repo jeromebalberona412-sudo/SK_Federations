@@ -224,18 +224,40 @@ import { createClient } from '@supabase/supabase-js';
         };
     }
 
+    var messageReloadTimers = Object.create(null);
+
+    function scheduleActiveMessageReload(conversationId) {
+        var cid = Number(conversationId || 0);
+        if (!cid) return;
+        window.clearTimeout(messageReloadTimers[cid]);
+        messageReloadTimers[cid] = window.setTimeout(function () {
+            delete messageReloadTimers[cid];
+            var active = window.CommsChat && typeof window.CommsChat.getActiveId === 'function'
+                ? window.CommsChat.getActiveId()
+                : null;
+            if (Number(active) !== cid) return;
+            if (window.CommsChat && typeof window.CommsChat.reloadActiveMessages === 'function') {
+                window.CommsChat.reloadActiveMessages();
+            }
+        }, 120);
+    }
+
     function deliverRealtimeInsert(row) {
         var message = normalizeRealtimeMessage(row);
-        if (window.CommsChat && typeof window.CommsChat.appendMessage === 'function') {
-            var isAttachment = row.message_type === 'image' || row.message_type === 'file';
-            if (isAttachment && typeof window.CommsChat.reloadActiveMessages === 'function') {
-                window.CommsChat.reloadActiveMessages();
-            } else {
-                window.CommsChat.appendMessage(message);
-            }
-            if (typeof window.CommsChat.noteInboxActivity === 'function') {
-                window.CommsChat.noteInboxActivity(row);
-            }
+        var cid = Number(row.conversation_id || message.conversation_id || 0);
+        var active = window.CommsChat && typeof window.CommsChat.getActiveId === 'function'
+            ? window.CommsChat.getActiveId()
+            : null;
+
+        // Always hydrate full payload (attachments, sender, reactions) for the open thread.
+        if (cid && Number(active) === cid) {
+            scheduleActiveMessageReload(cid);
+        } else if (window.CommsChat && typeof window.CommsChat.appendMessage === 'function') {
+            window.CommsChat.appendMessage(message);
+        }
+
+        if (window.CommsChat && typeof window.CommsChat.noteInboxActivity === 'function') {
+            window.CommsChat.noteInboxActivity(row);
         }
         if (typeof window.onCommsHeaderMessageInsert === 'function') {
             window.onCommsHeaderMessageInsert(message);
@@ -422,8 +444,9 @@ import { createClient } from '@supabase/supabase-js';
     }
 
     /**
-     * Broadcast WebRTC signal on conversation channel + optional peer inbox.
+     * Broadcast WebRTC signal on conversation channel + optional peer inbox(es).
      * options.peerType / options.peerId → personal inbox so callee receives even if chat not open.
+     * options.peers → [{ id, type }] fan-out for group calls.
      */
     function broadcastSignal(conversationId, payload, options) {
         options = options || {};
@@ -442,9 +465,22 @@ import { createClient } from '@supabase/supabase-js';
             jobs.push(sendOnChannel('comms-signal-' + conversationId, payload));
         }
 
-        var inbox = peerInboxName(options.peerType, options.peerId);
-        if (inbox) {
+        var seen = Object.create(null);
+        function enqueuePeer(peerId, peerType) {
+            var inbox = peerInboxName(peerType, peerId);
+            if (!inbox || seen[inbox]) return;
+            seen[inbox] = true;
             jobs.push(sendOnChannel(inbox, payload));
+        }
+
+        if (options.peerId != null && options.peerType) {
+            enqueuePeer(options.peerId, options.peerType);
+        }
+        if (Array.isArray(options.peers)) {
+            options.peers.forEach(function (peer) {
+                if (!peer) return;
+                enqueuePeer(peer.id != null ? peer.id : peer.user_id, peer.type || peer.user_type);
+            });
         }
 
         return Promise.all(jobs);

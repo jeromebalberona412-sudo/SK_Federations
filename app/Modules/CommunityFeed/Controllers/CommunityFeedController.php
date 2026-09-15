@@ -84,7 +84,19 @@ class CommunityFeedController extends Controller
 
     public function skFedProfile(Request $request): View
     {
-        return view('community_feed::sk-fed-profile', ['user' => $request->user()]);
+        $user = $request->user();
+        $formattedPosts = $this->loadFormattedFederationPosts((int) $user->id);
+        $officerCount = $this->countFederationOfficers((int) ($user->tenant_id ?? 0));
+
+        return view('community_feed::sk-fed-profile', [
+            'user' => $user,
+            'formattedPosts' => $formattedPosts,
+            'post_count' => count($formattedPosts),
+            'officer_count' => $officerCount,
+            'term_label' => $this->federationTermLabel((int) ($user->tenant_id ?? 0)),
+            'commentPreviewPost' => null,
+            'avatar' => asset('Images/SK_OnePortal_logo.png'),
+        ]);
     }
 
     public function createPost(Request $request): RedirectResponse
@@ -166,6 +178,73 @@ class CommunityFeedController extends Controller
             'formattedPosts' => $formattedPosts,
             'commentPreviewPost' => app(CommunityFeedPostController::class)->formatPostForPage($post, (int) $user->id),
         ]);
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function loadFormattedFederationPosts(int $userId): array
+    {
+        $formatter = app(CommunityFeedPostController::class);
+
+        return Announcement::query()
+            ->with([
+                'barangay',
+                'comments.user',
+                'comments.reactions',
+                'user',
+                'images',
+                'videos',
+                'reactions.user',
+            ])
+            ->withCount('reactions')
+            ->active()
+            ->whereRaw('"is_federation_wide" = true')
+            ->orderByDesc('created_at')
+            ->get()
+            ->map(fn (Announcement $post) => $formatter->formatPostForPage($post, $userId))
+            ->values()
+            ->all();
+    }
+
+    private function countFederationOfficers(int $tenantId): int
+    {
+        if ($tenantId <= 0) {
+            return 0;
+        }
+
+        return \App\Modules\Shared\Models\User::query()
+            ->where('tenant_id', $tenantId)
+            ->whereNull('deleted_at')
+            ->where(function ($q) {
+                $q->where('role', \App\Modules\Shared\Models\User::ROLE_SK_FED)
+                    ->orWhere(function ($officials) {
+                        $officials->where('role', \App\Modules\Shared\Models\User::ROLE_SK_OFFICIAL)
+                            // pgsql boolean columns reject integer 1 — use IS TRUE.
+                            ->whereRaw('has_federation_access IS TRUE');
+                    });
+            })
+            ->count();
+    }
+
+    private function federationTermLabel(int $tenantId): string
+    {
+        try {
+            // Prefer President term; fall back to leadership defaults so SK Term is never blank.
+            $terms = \App\Modules\Accounts\Support\SkOfficialTermDates::presidentTermDates($tenantId)
+                ?? \App\Modules\Accounts\Support\SkOfficialTermDates::leadershipDefaults($tenantId);
+
+            if (empty($terms['term_start']) || empty($terms['term_end'])) {
+                return '—';
+            }
+
+            $start = \Illuminate\Support\Carbon::parse($terms['term_start'])->format('Y');
+            $end = \Illuminate\Support\Carbon::parse($terms['term_end'])->format('Y');
+
+            return $start.'–'.$end;
+        } catch (\Throwable) {
+            return '—';
+        }
     }
 
     /**

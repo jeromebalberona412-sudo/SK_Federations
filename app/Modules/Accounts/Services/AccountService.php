@@ -144,6 +144,8 @@ class AccountService
             $this->accountSetupService->queueBatchSetupEmailsAfterResponse($pendingEmailJobs);
         }
 
+        $this->syncDefaultGroupChats((int) $admin->tenant_id);
+
         return [
             'created' => $created,
             'failed' => $failed,
@@ -284,6 +286,8 @@ class AccountService
         if ($user->officialProfile) {
             $this->chairpersonFederationSyncService->syncForUser($user, (string) $user->officialProfile->position);
         }
+
+        $this->syncDefaultGroupChats((int) $admin->tenant_id);
 
         return $user;
     }
@@ -547,6 +551,8 @@ class AccountService
             }
         }
 
+        $this->syncDefaultGroupChats((int) $admin->tenant_id);
+
         return [
             'account' => $fresh->fresh(['officialProfile.terms', 'barangay', 'officialProfile.latestTerm']),
             'email_changed' => $emailChanged,
@@ -790,6 +796,8 @@ class AccountService
                 ]
             );
         });
+
+        $this->syncDefaultGroupChats((int) $admin->tenant_id);
     }
 
     public function restoreAccount(User $target, User $admin): User
@@ -802,7 +810,7 @@ class AccountService
             ]);
         }
 
-        return DB::transaction(function () use ($target, $admin) {
+        $restored = DB::transaction(function () use ($target, $admin) {
             $target->restore();
             $target->forceFill([
                 'status' => User::STATUS_ACTIVE,
@@ -825,6 +833,10 @@ class AccountService
 
             return $target->fresh(['officialProfile.terms', 'barangay']);
         });
+
+        $this->syncDefaultGroupChats((int) $admin->tenant_id);
+
+        return $restored;
     }
 
     /**
@@ -919,6 +931,20 @@ class AccountService
             'entity_type' => $entityType,
             'entity_id' => $entityId,
         ], $metadata));
+    }
+
+    protected function syncDefaultGroupChats(int $tenantId): void
+    {
+        if ($tenantId <= 0) {
+            return;
+        }
+
+        try {
+            app(\App\Modules\Communications\Services\DefaultGroupChatService::class)
+                ->syncTenant($tenantId);
+        } catch (\Throwable $e) {
+            report($e);
+        }
     }
 
     protected function assertSameTenant(?int $targetTenantId, ?int $actorTenantId, string $message): void

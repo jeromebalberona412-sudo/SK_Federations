@@ -29,6 +29,9 @@
         'presence' => route('api.communications.presence'),
         'callHistoryPage' => route('communications.calls'),
         'directory' => route('api.communications.directory'),
+        'renameConversation' => url('/api/communications/conversations/__ID__'),
+        'conversationMembers' => url('/api/communications/conversations/__ID__/members'),
+        'conversationAvatar' => url('/api/communications/conversations/__ID__/avatar'),
     ];
 @endphp
 <div
@@ -124,6 +127,17 @@
                             <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>
                             <span class="comms-call-action-label">Video call</span>
                         </button>
+                        <div class="comms-thread-menu-wrap">
+                            <button type="button" class="comms-icon-btn" id="commsThreadMenuBtn" aria-label="Conversation actions" aria-expanded="false" aria-controls="commsThreadMenu" hidden>
+                                <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true"><circle cx="12" cy="5" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="12" cy="19" r="1.6"/></svg>
+                            </button>
+                            <div class="comms-thread-menu" id="commsThreadMenu" hidden role="menu">
+                                <button type="button" class="comms-thread-menu-item" id="commsRenameGroupBtn" role="menuitem" hidden>Rename Group</button>
+                                <button type="button" class="comms-thread-menu-item" id="commsChangeGroupPhotoBtn" role="menuitem" hidden>Change Group Photo</button>
+                                <button type="button" class="comms-thread-menu-item" id="commsViewMembersBtn" role="menuitem">View Members</button>
+                                <button type="button" class="comms-thread-menu-item" id="commsGroupInfoBtn" role="menuitem">Group Info</button>
+                            </div>
+                        </div>
                     </div>
                 </header>
 
@@ -183,6 +197,37 @@
 
     @include('communications::partials.incoming-call-modal')
     @include('communications::partials.in-call-ui')
+
+    <div class="comms-modal" id="commsGroupModal" hidden>
+        <div class="comms-modal-backdrop" data-comms-group-close></div>
+        <div class="comms-modal-dialog" role="dialog" aria-modal="true" aria-labelledby="commsGroupModalTitle">
+            <header class="comms-modal-header">
+                <h2 id="commsGroupModalTitle">Group</h2>
+                <button type="button" class="comms-icon-btn" data-comms-group-close aria-label="Close">&times;</button>
+            </header>
+            <div class="comms-modal-body" id="commsGroupModalBody"></div>
+        </div>
+    </div>
+
+    <div class="comms-modal" id="commsRenameModal" hidden>
+        <div class="comms-modal-backdrop" data-comms-rename-close></div>
+        <div class="comms-modal-dialog" role="dialog" aria-modal="true" aria-labelledby="commsRenameModalTitle">
+            <header class="comms-modal-header">
+                <h2 id="commsRenameModalTitle">Rename Group</h2>
+                <button type="button" class="comms-icon-btn" data-comms-rename-close aria-label="Close">&times;</button>
+            </header>
+            <form class="comms-modal-body" id="commsRenameForm">
+                <label class="comms-field-label" for="commsRenameInput">Group name</label>
+                <input type="text" id="commsRenameInput" class="comms-field-input" maxlength="120" required autocomplete="off">
+                <div class="comms-modal-actions">
+                    <button type="button" class="comms-btn-secondary" data-comms-rename-close>Cancel</button>
+                    <button type="submit" class="comms-btn-primary" id="commsRenameSubmit">Save</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <input type="file" id="commsGroupAvatarInput" class="visually-hidden" accept="image/jpeg,image/png,image/webp,image/gif" aria-hidden="true" tabindex="-1">
 </div>
 @endsection
 
@@ -190,5 +235,6 @@
     @vite([
         'app/Modules/Communications/assets/js/chat.js',
         'app/Modules/Communications/assets/js/webrtc.js',
+        'app/Modules/Communications/assets/js/webrtc-group.js',
     ])
 @endpush

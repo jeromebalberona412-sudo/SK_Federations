@@ -1,5 +1,6 @@
 <div class="comms-call-overlay" id="commsInCall" hidden>
     <div class="comms-call-stage">
+        <div class="comms-remote-grid" id="commsRemoteGrid" hidden></div>
         <video id="commsRemoteVideo" class="comms-remote-video" autoplay playsinline></video>
         <video id="commsLocalVideo" class="comms-local-video" autoplay playsinline muted></video>
         <audio id="commsRemoteAudio" autoplay playsinline></audio>

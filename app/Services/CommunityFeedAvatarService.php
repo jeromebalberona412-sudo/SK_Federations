@@ -57,6 +57,19 @@ class CommunityFeedAvatarService
         return $this->uiAvatar($user?->name ?? $fallbackName ?? 'Member');
     }
 
+    /**
+     * Personal profile photo for member lists / DM identity (not barangay/federation org logos).
+     */
+    public function resolvePersonalPhoto(?User $user, ?string $fallbackName = null): string
+    {
+        $photo = $this->absoluteProfilePhoto($user);
+        if ($photo) {
+            return $photo;
+        }
+
+        return $this->uiAvatar($user?->name ?? $fallbackName ?? 'Member');
+    }
+
     private function absoluteProfilePhoto(?User $user): ?string
     {
         if (! $user) {

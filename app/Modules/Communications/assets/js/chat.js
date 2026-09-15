@@ -83,8 +83,161 @@
         pickFilesBtn: document.getElementById('commsPickFilesBtn'),
         uploadProgress: document.getElementById('commsUploadProgress'),
         uploadProgressBar: document.getElementById('commsUploadProgressBar'),
-        scrollBottom: document.getElementById('commsScrollBottom')
+        scrollBottom: document.getElementById('commsScrollBottom'),
+        threadMenuBtn: document.getElementById('commsThreadMenuBtn'),
+        threadMenu: document.getElementById('commsThreadMenu'),
+        renameGroupBtn: document.getElementById('commsRenameGroupBtn'),
+        changeGroupPhotoBtn: document.getElementById('commsChangeGroupPhotoBtn'),
+        groupAvatarInput: document.getElementById('commsGroupAvatarInput'),
+        viewMembersBtn: document.getElementById('commsViewMembersBtn'),
+        groupInfoBtn: document.getElementById('commsGroupInfoBtn'),
+        groupModal: document.getElementById('commsGroupModal'),
+        groupModalTitle: document.getElementById('commsGroupModalTitle'),
+        groupModalBody: document.getElementById('commsGroupModalBody'),
+        renameModal: document.getElementById('commsRenameModal'),
+        renameForm: document.getElementById('commsRenameForm'),
+        renameInput: document.getElementById('commsRenameInput')
     };
+
+    function isGroupConversation(conversation) {
+        if (!conversation) return false;
+        return conversation.conversation_type === 'group'
+            || !!conversation.is_default_group
+            || !!(conversation.other_user && conversation.other_user.is_group);
+    }
+
+    function syncGroupActions(conversation) {
+        var isGroup = isGroupConversation(conversation);
+        if (els.threadMenuBtn) els.threadMenuBtn.hidden = !isGroup;
+        if (els.threadMenu) els.threadMenu.hidden = true;
+        if (els.threadMenuBtn) els.threadMenuBtn.setAttribute('aria-expanded', 'false');
+        if (els.renameGroupBtn) {
+            els.renameGroupBtn.hidden = !(isGroup && conversation && conversation.can_rename);
+        }
+        if (els.changeGroupPhotoBtn) {
+            els.changeGroupPhotoBtn.hidden = !(isGroup && conversation && conversation.can_change_avatar);
+        }
+    }
+
+    function closeGroupModals() {
+        if (els.groupModal) els.groupModal.hidden = true;
+        if (els.renameModal) els.renameModal.hidden = true;
+        if (els.threadMenu) els.threadMenu.hidden = true;
+        if (els.threadMenuBtn) els.threadMenuBtn.setAttribute('aria-expanded', 'false');
+    }
+
+    function memberAvatarHtml(member) {
+        var mName = (member && member.name) || 'User';
+        var src = resolvePeerAvatar(member);
+        var fallback = Comms.defaultAvatar(mName);
+        return '<img class="comms-avatar comms-group-member-avatar" src="' + Comms.escapeHtml(src) + '" alt="' +
+            Comms.escapeHtml(mName) + '" loading="lazy" referrerpolicy="no-referrer" ' +
+            'onerror="this.onerror=null;this.src=\'' + Comms.escapeHtml(fallback) + '\'">';
+    }
+
+    function renderMembersListHtml(members, mode) {
+        var html = '<div class="comms-group-members" role="list">';
+        if (!members.length) {
+            html += '<p class="comms-muted">No members found.</p>';
+        } else {
+            members.forEach(function (m) {
+                var mName = m.name || 'User';
+                var role = m.participant_role === 'admin' ? 'Admin' : 'Member';
+                var position = m.federation_position || m.position || '';
+                html += '<div class="comms-group-member" role="listitem" data-user-id="' + Number(m.id || 0) + '">' +
+                    memberAvatarHtml(m) +
+                    '<div class="comms-group-member-main">' +
+                    '<div class="comms-group-member-name">' + Comms.escapeHtml(mName) + '</div>' +
+                    '<div class="comms-group-member-meta">' + Comms.escapeHtml(role) +
+                    (position ? (' · ' + Comms.escapeHtml(String(position))) : '') +
+                    '</div></div>';
+                if (mode === 'call' && Number(m.id) !== Number(state.currentUserId)) {
+                    html += '<div class="comms-group-member-actions">' +
+                        '<button type="button" class="comms-btn-secondary comms-group-call-btn" data-call-type="voice" data-user-id="' + Number(m.id) + '">Voice</button>' +
+                        '<button type="button" class="comms-btn-secondary comms-group-call-btn" data-call-type="video" data-user-id="' + Number(m.id) + '">Video</button>' +
+                        '</div>';
+                }
+                html += '</div>';
+            });
+        }
+        html += '</div>';
+        return html;
+    }
+
+    function openGroupInfoModal(mode, opts) {
+        opts = opts || {};
+        var conv = state.activeConversation;
+        if (!conv || !isGroupConversation(conv) || !els.groupModal || !els.groupModalBody) return;
+        var name = conv.name || (conv.other_user && conv.other_user.name) || 'Group chat';
+        var count = Number(conv.member_count || (conv.members && conv.members.length) || 0);
+        var max = Number(conv.max_members || 0);
+        var typeLabel = conv.default_group_type === 'SK_OFFICIALS'
+            ? 'SK Officials'
+            : (conv.default_group_type === 'SK_FEDERATIONS' ? 'SK Federations' : 'Group');
+        if (els.groupModalTitle) {
+            els.groupModalTitle.textContent = mode === 'members'
+                ? 'View Members'
+                : (mode === 'call' ? 'Select call recipient' : 'Group Info');
+        }
+
+        // Always refresh members so photos/names stay accurate.
+        if (!opts.skipFetch && routes.conversationMembers) {
+            els.groupModalBody.innerHTML = '<p class="comms-muted">Loading members…</p>';
+            els.groupModal.hidden = false;
+            Comms.api(Comms.route(routes.conversationMembers, conv.id), { dedupe: true }).then(function (data) {
+                if (data && data.conversation) {
+                    state.activeConversation = Object.assign({}, state.activeConversation || {}, data.conversation);
+                }
+                if (data && Array.isArray(data.members)) {
+                    state.activeConversation.members = data.members;
+                    state.activeConversation.member_count = data.member_count != null
+                        ? data.member_count
+                        : data.members.length;
+                }
+                openGroupInfoModal(mode, { skipFetch: true });
+            }).catch(function (err) {
+                Comms.showToast(err.message || 'Unable to load members.', 'error');
+                els.groupModalBody.innerHTML = '<p class="comms-muted">Unable to load members.</p>';
+            });
+            return;
+        }
+
+        var members = Array.isArray(conv.members) ? conv.members : [];
+        var html = '';
+        if (mode !== 'members' && mode !== 'call') {
+            var groupAvatar = conv.avatar_url
+                || (conv.other_user && conv.other_user.profile_image_url)
+                || Comms.defaultAvatar(name);
+            html += '<div class="comms-group-info">' +
+                '<div class="comms-group-info-head">' +
+                '<img class="comms-avatar comms-group-info-avatar" src="' + Comms.escapeHtml(groupAvatar) + '" alt="" ' +
+                'onerror="this.onerror=null;this.src=\'' + Comms.escapeHtml(Comms.defaultAvatar(name)) + '\'">' +
+                '<div class="comms-group-info-copy">' +
+                '<div class="comms-group-info-name">' + Comms.escapeHtml(name) + '</div>' +
+                '<div class="comms-group-info-meta">Type: ' + Comms.escapeHtml(typeLabel) + '</div>' +
+                '<div class="comms-group-info-meta">Members: ' + count + (max > 0 ? (' / ' + max) : '') + '</div>' +
+                '<div class="comms-group-info-meta">Call limit: ' + Number(conv.call_max_participants || 8) + ' simultaneous participants</div>' +
+                '</div></div></div>';
+            html += '<div class="comms-group-info-section-title">Members</div>';
+            html += renderMembersListHtml(members, 'info');
+        } else {
+            html += renderMembersListHtml(members, mode);
+        }
+
+        els.groupModalBody.innerHTML = html;
+        els.groupModal.hidden = false;
+    }
+
+    function beginGroupOrDirectCall(callType) {
+        var conv = state.activeConversation;
+        if (!state.activeId || !window.CommsWebRTC) return;
+        if (!isGroupConversation(conv)) {
+            window.CommsWebRTC.startCall(state.activeId, callType, conv);
+            return;
+        }
+        // Default GCs: ring the whole group (mesh). Optional 1:1 still available from Members.
+        window.CommsWebRTC.startCall(state.activeId, callType, conv);
+    }
 
     function setThreadOpen(open) {
         root.classList.toggle('is-thread-open', !!open);
@@ -95,7 +248,8 @@
         var items = state.conversations;
         if (q) {
             items = items.filter(function (c) {
-                return String((c.other_user && c.other_user.name) || '').toLowerCase().indexOf(q) !== -1;
+                var label = (c.other_user && c.other_user.name) || c.name || '';
+                return String(label).toLowerCase().indexOf(q) !== -1;
             });
         }
 
@@ -107,6 +261,7 @@
         els.convEmpty.hidden = true;
         els.convList.innerHTML = items.map(function (c) {
             var peer = c.other_user || {};
+            var isGroup = c.conversation_type === 'group' || c.is_default_group || peer.is_group;
             var lm = c.last_message;
             var preview = 'No messages yet';
             if (lm) {
@@ -114,7 +269,6 @@
                     preview = lm.body || 'Call update';
                 } else if (lm.body) {
                     preview = lm.body;
-                    // Append attachment indicator if message also has attachments
                     if (lm.message_type === 'image') preview = '📷 ' + lm.body;
                     else if (lm.message_type === 'file') preview = '📎 ' + lm.body;
                 } else if (lm.message_type === 'image') {
@@ -127,16 +281,33 @@
             }
             var unread = Number(c.unread_count || 0);
             var active = Number(c.id) === Number(state.activeId) ? ' is-active' : '';
-            var avatar = resolvePeerAvatar(peer);
-            var online = String(peer.online_status || '').toLowerCase() === 'online' ? 'online' : 'offline';
-            return '<button type="button" class="comms-conv-item' + active + '" data-id="' + c.id + '"' +
-                ' data-peer-name="' + Comms.escapeHtml(peer.name || 'User') + '"' +
+            var displayName = isGroup
+                ? (c.name || peer.name || 'Group chat')
+                : (peer.name || 'User');
+            var avatar = isGroup
+                ? (peer.profile_image_url || c.avatar_url || Comms.defaultAvatar(displayName))
+                : resolvePeerAvatar(peer);
+            var online = isGroup
+                ? 'offline'
+                : (String(peer.online_status || '').toLowerCase() === 'online' ? 'online' : 'offline');
+            var memberHint = '';
+            if (isGroup) {
+                var max = Number(c.max_members || 0);
+                var count = Number(c.member_count || 0);
+                memberHint = max > 0
+                    ? ('<div class="comms-conv-limit">' + count + ' / ' + max + ' members</div>')
+                    : (count > 0 ? ('<div class="comms-conv-limit">' + count + ' members</div>') : '');
+            }
+            return '<button type="button" class="comms-conv-item' + (isGroup ? ' is-group' : '') + active + '" data-id="' + c.id + '"' +
+                ' data-peer-name="' + Comms.escapeHtml(displayName) + '"' +
                 ' data-peer-avatar="' + Comms.escapeHtml(avatar) + '"' +
                 ' data-peer-status="' + online + '"' +
+                ' data-is-group="' + (isGroup ? '1' : '0') + '"' +
                 ' role="listitem">' +
-                '<img class="comms-avatar" src="' + Comms.escapeHtml(avatar) + '" alt="" onerror="this.onerror=null;this.src=\'' + Comms.escapeHtml(Comms.defaultAvatar(peer.name)) + '\'">' +
+                '<img class="comms-avatar" src="' + Comms.escapeHtml(avatar) + '" alt="" onerror="this.onerror=null;this.src=\'' + Comms.escapeHtml(Comms.defaultAvatar(displayName)) + '\'">' +
                 '<div class="comms-conv-main">' +
-                '<div class="comms-conv-name">' + Comms.escapeHtml(peer.name || 'User') + '</div>' +
+                '<div class="comms-conv-name">' + Comms.escapeHtml(displayName) + '</div>' +
+                memberHint +
                 '<div class="comms-conv-preview">' + Comms.escapeHtml(preview) + '</div>' +
                 '</div>' +
                 '<div class="comms-conv-meta">' +
@@ -1097,35 +1268,52 @@
 
     function updatePeerHeader(conversation) {
         var peer = (conversation && conversation.other_user) || {};
-        var name = peer.name || 'User';
+        var isGroup = isGroupConversation(conversation);
+        var name = isGroup
+            ? ((conversation && conversation.name) || peer.name || 'Group chat')
+            : (peer.name || 'User');
         if (els.peerName) els.peerName.textContent = name;
 
         var statusBits = [];
-        if (peer.user_type_label) statusBits.push(String(peer.user_type_label));
-        if (peer.position) statusBits.push(String(peer.position));
-        if (peer.barangay_name) statusBits.push(String(peer.barangay_name));
-        statusBits.push(formatPresenceLabel(peer));
+        if (isGroup) {
+            var count = Number((conversation && conversation.member_count) || 0);
+            var max = Number((conversation && conversation.max_members) || 0);
+            if (peer.user_type_label) statusBits.push(String(peer.user_type_label));
+            statusBits.push(max > 0 ? (count + ' / ' + max + ' members') : (count + ' members'));
+        } else {
+            if (peer.user_type_label) statusBits.push(String(peer.user_type_label));
+            if (peer.position) statusBits.push(String(peer.position));
+            if (peer.barangay_name) statusBits.push(String(peer.barangay_name));
+            statusBits.push(formatPresenceLabel(peer));
+        }
         if (els.peerMeta) els.peerMeta.textContent = statusBits.filter(Boolean).join(' · ');
 
-        var isOnline = String(peer.online_status || '').toLowerCase() === 'online';
+        var isOnline = !isGroup && String(peer.online_status || '').toLowerCase() === 'online';
         if (els.peerStatusDot) {
+            els.peerStatusDot.hidden = !!isGroup;
             els.peerStatusDot.setAttribute('data-status', isOnline ? 'online' : 'offline');
             els.peerStatusDot.title = isOnline ? 'Online' : 'Offline';
         }
 
         if (els.peerAvatar) {
-            var avatarUrl = resolvePeerAvatar(peer);
+            var avatarUrl = isGroup
+                ? ((conversation && conversation.avatar_url) || peer.profile_image_url || Comms.defaultAvatar(name))
+                : resolvePeerAvatar(peer);
             els.peerAvatar.alt = name;
             els.peerAvatar.onerror = function () {
                 els.peerAvatar.onerror = null;
-                els.peerAvatar.src = Comms.defaultAvatar(name);
+                els.peerAvatar.src = isGroup
+                    ? ((conversation && conversation.avatar_url) || peer.profile_image_url || Comms.defaultAvatar(name))
+                    : Comms.defaultAvatar(name);
             };
             if (els.peerAvatar.getAttribute('src') !== avatarUrl) {
                 els.peerAvatar.src = avatarUrl;
             }
         }
 
-        if (conversation && conversation.id) {
+        syncGroupActions(conversation);
+
+        if (conversation && conversation.id && !isGroup) {
             savePeerProfileCache(conversation.id, peer);
         }
     }
@@ -2186,16 +2374,139 @@
     });
 
     els.voiceBtn.addEventListener('click', function () {
-        if (window.CommsWebRTC && state.activeId) {
-            window.CommsWebRTC.startCall(state.activeId, 'voice', state.activeConversation);
-        }
+        beginGroupOrDirectCall('voice');
     });
 
     els.videoBtn.addEventListener('click', function () {
-        if (window.CommsWebRTC && state.activeId) {
-            window.CommsWebRTC.startCall(state.activeId, 'video', state.activeConversation);
-        }
+        beginGroupOrDirectCall('video');
     });
+
+    if (els.threadMenuBtn) {
+        els.threadMenuBtn.addEventListener('click', function (e) {
+            e.stopPropagation();
+            if (!els.threadMenu) return;
+            var open = els.threadMenu.hidden;
+            els.threadMenu.hidden = !open;
+            els.threadMenuBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+        });
+    }
+    if (els.renameGroupBtn) {
+        els.renameGroupBtn.addEventListener('click', function () {
+            closeGroupModals();
+            if (!state.activeConversation || !state.activeConversation.can_rename || !els.renameModal) return;
+            if (els.renameInput) {
+                els.renameInput.value = state.activeConversation.name
+                    || (state.activeConversation.other_user && state.activeConversation.other_user.name)
+                    || '';
+            }
+            els.renameModal.hidden = false;
+            if (els.renameInput) els.renameInput.focus();
+        });
+    }
+    if (els.changeGroupPhotoBtn && els.groupAvatarInput) {
+        els.changeGroupPhotoBtn.addEventListener('click', function () {
+            closeGroupModals();
+            if (!state.activeConversation || !state.activeConversation.can_change_avatar) return;
+            els.groupAvatarInput.value = '';
+            els.groupAvatarInput.click();
+        });
+        els.groupAvatarInput.addEventListener('change', function () {
+            var file = els.groupAvatarInput.files && els.groupAvatarInput.files[0];
+            if (!file || !state.activeId || !routes.conversationAvatar) return;
+            if (file.size > 10 * 1024 * 1024) {
+                Comms.showToast('Group photo must be 10 MB or smaller.', 'error');
+                return;
+            }
+            var fd = new FormData();
+            fd.append('avatar', file);
+            Comms.showToast('Uploading group photo…', 'info');
+            fetch(Comms.route(routes.conversationAvatar, state.activeId), {
+                method: 'POST',
+                headers: {
+                    'X-CSRF-TOKEN': (document.querySelector('meta[name="csrf-token"]') || {}).content || '',
+                    'Accept': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
+                credentials: 'same-origin',
+                body: fd
+            })
+                .then(function (r) {
+                    return r.json().then(function (data) {
+                        if (!r.ok) throw new Error((data && (data.message || (data.errors && data.errors.avatar && data.errors.avatar[0]))) || 'Upload failed.');
+                        return data;
+                    });
+                })
+                .then(function (data) {
+                    if (data && data.conversation) {
+                        state.activeConversation = data.conversation;
+                        updatePeerHeader(data.conversation);
+                        loadConversations();
+                    }
+                    Comms.showToast('Group photo updated.', 'success');
+                })
+                .catch(function (err) {
+                    Comms.showToast(err.message || 'Unable to update group photo.', 'error');
+                })
+                .finally(function () {
+                    els.groupAvatarInput.value = '';
+                });
+        });
+    }
+    if (els.viewMembersBtn) {
+        els.viewMembersBtn.addEventListener('click', function () {
+            closeGroupModals();
+            openGroupInfoModal('members');
+        });
+    }
+    if (els.groupInfoBtn) {
+        els.groupInfoBtn.addEventListener('click', function () {
+            closeGroupModals();
+            openGroupInfoModal('info');
+        });
+    }
+    if (els.renameForm) {
+        els.renameForm.addEventListener('submit', function (e) {
+            e.preventDefault();
+            if (!state.activeId || !routes.renameConversation || !els.renameInput) return;
+            var name = String(els.renameInput.value || '').trim();
+            if (!name) {
+                Comms.showToast('Group name is required.', 'error');
+                return;
+            }
+            Comms.api(Comms.route(routes.renameConversation, state.activeId), {
+                method: 'PATCH',
+                body: JSON.stringify({ name: name }),
+                dedupe: false
+            }).then(function (data) {
+                if (data && data.conversation) {
+                    state.activeConversation = data.conversation;
+                    updatePeerHeader(data.conversation);
+                    loadConversations();
+                }
+                closeGroupModals();
+                Comms.showToast('Group renamed.', 'success');
+            }).catch(function (err) {
+                Comms.showToast(err.message || 'Unable to rename group.', 'error');
+            });
+        });
+    }
+    document.querySelectorAll('[data-comms-group-close]').forEach(function (el) {
+        el.addEventListener('click', closeGroupModals);
+    });
+    document.querySelectorAll('[data-comms-rename-close]').forEach(function (el) {
+        el.addEventListener('click', closeGroupModals);
+    });
+    if (els.groupModalBody) {
+        els.groupModalBody.addEventListener('click', function (e) {
+            var btn = e.target.closest('.comms-group-call-btn');
+            if (!btn || !state.activeId || !window.CommsWebRTC) return;
+            var uid = Number(btn.getAttribute('data-user-id') || 0);
+            var callType = btn.getAttribute('data-call-type') || 'voice';
+            if (!uid) return;
+            closeGroupModals();
+            window.CommsWebRTC.startCall(state.activeId, callType, state.activeConversation, uid);
+        });
+    }
 
     document.addEventListener('click', function (e) {
         if (els.searchResults && !els.searchResults.contains(e.target) && e.target !== els.convFilter) {
@@ -2204,8 +2515,11 @@
         if (els.attachMenu && !els.attachMenu.hidden && !e.target.closest('.comms-attach-menu-wrap')) {
             els.attachMenu.hidden = true;
         }
+        if (els.threadMenu && !els.threadMenu.hidden && !e.target.closest('.comms-thread-menu-wrap')) {
+            els.threadMenu.hidden = true;
+            if (els.threadMenuBtn) els.threadMenuBtn.setAttribute('aria-expanded', 'false');
+        }
     });
-
     window.CommsChat = {
         appendMessage: appendMessage,
         reloadConversations: loadConversations,

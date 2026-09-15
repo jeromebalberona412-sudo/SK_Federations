@@ -6,6 +6,7 @@ use App\Modules\Accounts\Models\OfficialProfile;
 use App\Modules\Accounts\Support\PortalAppUrl;
 use App\Modules\CommunityFeed\Services\CloudinaryService;
 use App\Modules\CommunityFeed\Services\CommunityFeedPostBodyValidator;
+use App\Modules\CommunityFeed\Services\CommunityFeedService;
 use App\Modules\CommunityFeed\Services\FederationCommunityFeedBroadcastService;
 use App\Modules\CommunityFeed\Services\GoogleDriveVideoUrlService;
 use App\Modules\Deleted_Posts\Services\DeletedPostsService;
@@ -63,12 +64,13 @@ class CommunityFeedPostController extends Controller
         $filter = (string) ($request->filter ?: 'all');
         $search = trim((string) $request->get('search', ''));
         $barangayId = $request->filled('barangay_id') ? (int) $request->barangay_id : null;
+        $federationOnly = $request->boolean('federation_only');
         $year = (int) $request->query('year', 0);
         if ($year < 2000 || $year > 2100) {
             $year = 0;
         }
 
-        $payload = $pageCache->remember('community.feed', function () use ($user, $perPage, $filter, $search, $barangayId, $year) {
+        $payload = $pageCache->remember('community.feed', function () use ($user, $perPage, $filter, $search, $barangayId, $federationOnly, $year) {
             $query = Announcement::with([
                 'barangay',
                 'comments.user',
@@ -87,7 +89,9 @@ class CommunityFeedPostController extends Controller
                 $query->where('type', $filter);
             }
 
-            if ($barangayId) {
+            if ($federationOnly) {
+                $query->whereRaw('"is_federation_wide" = true');
+            } elseif ($barangayId) {
                 $query->where('barangay_id', $barangayId)
                     ->whereRaw('"is_federation_wide" = false');
             }
@@ -122,6 +126,7 @@ class CommunityFeedPostController extends Controller
             'filter' => $filter,
             'search' => $search,
             'barangay_id' => $barangayId,
+            'federation_only' => $federationOnly ? 1 : 0,
             'year' => $year,
         ], 20);
 
@@ -925,6 +930,18 @@ class CommunityFeedPostController extends Controller
             : null;
         $comments = $post->relationLoaded('comments') ? $post->comments : collect();
 
+        $barangaySlug = null;
+        $profileUrl = null;
+        if ($post->is_federation_wide) {
+            $profileUrl = route('sk-fed-profile');
+        } elseif ($post->barangay) {
+            $barangaySlug = app(CommunityFeedService::class)
+                ->slugForBarangayName((string) $post->barangay->name);
+            if ($barangaySlug) {
+                $profileUrl = route('skfed.barangay-profile', ['slug' => $barangaySlug]);
+            }
+        }
+
         return [
             'id' => $post->id,
             'type' => $post->type,
@@ -942,9 +959,11 @@ class CommunityFeedPostController extends Controller
             'share_url' => $shareUrl,
             'is_federation_wide' => (bool) $post->is_federation_wide,
             'barangay_name' => $post->barangay?->name,
+            'barangay_slug' => $barangaySlug,
             'barangay_logo_url' => $this->avatarService->barangayLogo((int) $post->barangay_id),
             'author_name' => $authorName,
             'author_avatar_url' => $this->avatarService->resolveForPost($post),
+            'profile_url' => $profileUrl,
             'owned' => $post->user_id === $userId && $post->is_federation_wide,
             'likes' => array_sum($reactionCounts),
             'liked' => $userReaction !== null,

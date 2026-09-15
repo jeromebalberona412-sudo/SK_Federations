@@ -30,12 +30,25 @@ class CallController extends Controller
 
         $validated = $request->validate([
             'call_type' => ['required', 'string', 'in:voice,video'],
+            'receiver_id' => ['nullable', 'integer', 'min:1', 'exists:users,id'],
         ]);
 
-        $call = $this->calls->start($conversation, Auth::user(), $validated['call_type']);
+        $receiverId = isset($validated['receiver_id']) ? (int) $validated['receiver_id'] : null;
+        if ($receiverId !== null && $receiverId === (int) Auth::id()) {
+            return response()->json([
+                'message' => 'You cannot call yourself.',
+            ], 422);
+        }
+
+        $call = $this->calls->start(
+            $conversation,
+            Auth::user(),
+            $validated['call_type'],
+            $receiverId
+        );
 
         return response()->json([
-            'call' => $this->calls->serialize($call->load(['caller', 'receiver']), Auth::user()),
+            'call' => $this->calls->serialize($call->load(['caller', 'receiver', 'conversation']), Auth::user()),
         ], 201);
     }
 
@@ -48,7 +61,7 @@ class CallController extends Controller
         $call = $this->calls->updateStatus($call, Auth::user(), $validated['status']);
 
         return response()->json([
-            'call' => $this->calls->serialize($call->load(['caller', 'receiver']), Auth::user()),
+            'call' => $this->calls->serialize($call->load(['caller', 'receiver', 'conversation']), Auth::user()),
         ]);
     }
 }

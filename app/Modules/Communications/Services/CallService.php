@@ -17,8 +17,12 @@ class CallService
         protected ConversationService $conversations
     ) {}
 
-    public function start(Conversation $conversation, Authenticatable $caller, string $callType): Call
-    {
+    public function start(
+        Conversation $conversation,
+        Authenticatable $caller,
+        string $callType,
+        ?int $receiverUserId = null
+    ): Call {
         if (! $this->conversations->isParticipant($conversation, $caller)) {
             abort(403);
         }
@@ -30,31 +34,70 @@ class CallService
             abort(422, 'Invalid call type.');
         }
 
-        $callerType = $this->types->portalType();
-        $other = ConversationParticipant::query()
-            ->where('conversation_id', $conversation->id)
-            ->where(function ($q) use ($caller, $callerType) {
-                $q->where('user_id', '!=', (int) $caller->id)
-                    ->orWhere('user_type', '!=', $callerType);
-            })
-            ->first();
+        $callMax = max(2, (int) config('communications.call_max_participants', 8));
+        if ($callMax < 2) {
+            $callMax = 2;
+        }
 
-        if (! $other) {
+        $callerType = $this->types->portalType();
+        $callerId = (int) $caller->id;
+        $isGroupCall = false;
+        $other = null;
+
+        $otherQuery = ConversationParticipant::query()
+            ->where('conversation_id', $conversation->id)
+            ->where('user_id', '!=', $callerId);
+
+        if ($conversation->isGroup()) {
+            if ($receiverUserId !== null) {
+                $other = (clone $otherQuery)->where('user_id', $receiverUserId)->first();
+                if (! $other) {
+                    abort(403, 'Call recipient must be a member of this group.');
+                }
+            } else {
+                $others = $otherQuery->get();
+                if ($others->isEmpty()) {
+                    abort(422, 'No call recipients found in this group.');
+                }
+                // Ring-all mesh: store caller as receiver sentinel (caller_id === receiver_id).
+                $isGroupCall = true;
+                $other = null;
+            }
+        } else {
+            $other = ConversationParticipant::query()
+                ->where('conversation_id', $conversation->id)
+                ->where(function ($q) use ($caller, $callerType) {
+                    $q->where('user_id', '!=', (int) $caller->id)
+                        ->orWhere('user_type', '!=', $callerType);
+                })
+                ->first();
+        }
+
+        if (! $isGroupCall && ! $other) {
             abort(422, 'No call recipient found.');
+        }
+
+        $memberCount = ConversationParticipant::query()
+            ->where('conversation_id', $conversation->id)
+            ->count();
+
+        if ($isGroupCall && $memberCount > $callMax) {
+            // Soft cap: still allow the call; clients limit connected mesh peers.
         }
 
         $call = Call::query()->create([
             'conversation_id' => $conversation->id,
-            'caller_id' => (int) $caller->id,
+            'caller_id' => $callerId,
             'caller_type' => $callerType,
-            'receiver_id' => (int) $other->user_id,
-            'receiver_type' => $other->user_type,
+            'receiver_id' => $isGroupCall ? $callerId : (int) $other->user_id,
+            'receiver_type' => $isGroupCall ? $callerType : $other->user_type,
             'call_type' => $callType,
             'status' => Call::STATUS_RINGING,
         ]);
 
         $label = $callType === Call::TYPE_VIDEO ? 'Video call' : 'Voice call';
-        $this->postCallMessage($call, $caller, $label.' started');
+        $prefix = $isGroupCall ? 'Group ' : '';
+        $this->postCallMessage($call, $caller, $prefix.$label.' started');
 
         return $call;
     }
@@ -76,9 +119,15 @@ class CallService
             abort(422, 'Invalid call status.');
         }
 
-        // Avoid duplicate chat lines if the same terminal status is posted twice.
         $previous = $call->status;
         if ($previous === $status) {
+            return $call;
+        }
+
+        // Group mesh: first acceptor marks accepted; later reject/missed from others must not end the room.
+        $isGroupCall = $this->isGroupCall($call);
+        if ($isGroupCall && in_array($status, [Call::STATUS_REJECTED, Call::STATUS_MISSED], true)
+            && (int) $call->caller_id !== (int) $user->id) {
             return $call;
         }
 
@@ -89,6 +138,12 @@ class CallService
         }
 
         if (in_array($status, [Call::STATUS_ENDED, Call::STATUS_REJECTED, Call::STATUS_MISSED, Call::STATUS_CANCELLED], true)) {
+            // Only caller (or terminal end) closes a group room.
+            if ($isGroupCall && $status === Call::STATUS_ENDED && (int) $call->caller_id !== (int) $user->id) {
+                // Non-caller leaving: do not mark the shared call ended for everyone.
+                return $call;
+            }
+
             $call->ended_at = now();
             if ($call->started_at && $status === Call::STATUS_ENDED) {
                 $call->duration_seconds = max(0, $call->ended_at->diffInSeconds($call->started_at));
@@ -116,9 +171,17 @@ class CallService
                     $inner->where('caller_id', $userId)->where('caller_type', $userType);
                 })->orWhere(function ($inner) use ($userId, $userType) {
                     $inner->where('receiver_id', $userId)->where('receiver_type', $userType);
+                })->orWhere(function ($inner) use ($userId) {
+                    // Group ring-all (caller_id === receiver_id): include conversation peers.
+                    $inner->whereColumn('caller_id', 'receiver_id')
+                        ->whereIn('conversation_id', function ($sub) use ($userId) {
+                            $sub->select('conversation_id')
+                                ->from('conversation_participants')
+                                ->where('user_id', $userId);
+                        });
                 });
             })
-            ->with(['caller', 'receiver'])
+            ->with(['caller', 'receiver', 'conversation'])
             ->orderByDesc('id')
             ->limit($limit)
             ->get()
@@ -128,9 +191,41 @@ class CallService
     public function serialize(Call $call, Authenticatable $viewer): array
     {
         $viewerType = $this->types->portalType();
+        $isGroupCall = $this->isGroupCall($call);
         $isCaller = (int) $call->caller_id === (int) $viewer->id && $call->caller_type === $viewerType;
         $peer = $isCaller ? $call->receiver : $call->caller;
         $peerType = $isCaller ? $call->receiver_type : $call->caller_type;
+
+        $conversation = $call->relationLoaded('conversation')
+            ? $call->conversation
+            : $call->conversation()->first();
+
+        $peerPayload = $isGroupCall
+            ? [
+                'id' => 0,
+                'name' => $conversation?->name ?: 'Group call',
+                'is_group' => true,
+                'profile_image_url' => $conversation?->avatar_url,
+            ]
+            : $this->conversations->serializeUser($peer instanceof User ? $peer : null, $peerType);
+
+        $invitees = [];
+        if ($isGroupCall && $conversation) {
+            $invitees = ConversationParticipant::query()
+                ->where('conversation_id', $conversation->id)
+                ->where('user_id', '!=', (int) $viewer->id)
+                ->with('user')
+                ->get()
+                ->map(function (ConversationParticipant $row) {
+                    return [
+                        'id' => (int) $row->user_id,
+                        'user_type' => $row->user_type,
+                        'name' => $row->user?->name ?? 'Member',
+                    ];
+                })
+                ->values()
+                ->all();
+        }
 
         return [
             'id' => $call->id,
@@ -141,18 +236,28 @@ class CallService
             'caller_type' => $call->caller_type,
             'receiver_id' => (int) $call->receiver_id,
             'receiver_type' => $call->receiver_type,
+            'is_group_call' => $isGroupCall,
+            'call_max_participants' => (int) config('communications.call_max_participants', 8),
+            'invitees' => $invitees,
             'started_at' => optional($call->started_at)?->toIso8601String(),
             'ended_at' => optional($call->ended_at)?->toIso8601String(),
             'duration_seconds' => $call->duration_seconds,
             'direction' => $isCaller ? 'outgoing' : 'incoming',
-            'peer' => $this->conversations->serializeUser($peer instanceof User ? $peer : null, $peerType),
+            'peer' => $peerPayload,
             'created_at' => optional($call->created_at)?->toIso8601String(),
         ];
     }
 
+    public function isGroupCall(Call $call): bool
+    {
+        return (int) $call->caller_id === (int) $call->receiver_id
+            && (string) $call->caller_type === (string) $call->receiver_type;
+    }
+
     protected function statusMessageBody(Call $call, string $status): ?string
     {
-        $label = $call->call_type === Call::TYPE_VIDEO ? 'Video call' : 'Voice call';
+        $isGroup = $this->isGroupCall($call);
+        $label = ($isGroup ? 'Group ' : '').($call->call_type === Call::TYPE_VIDEO ? 'Video call' : 'Voice call');
 
         return match ($status) {
             Call::STATUS_ACCEPTED => $label.' answered',
@@ -196,8 +301,20 @@ class CallService
         $isCaller = (int) $call->caller_id === $userId && $call->caller_type === $userType;
         $isReceiver = (int) $call->receiver_id === $userId && $call->receiver_type === $userType;
 
-        if (! $isCaller && ! $isReceiver) {
-            abort(403);
+        if ($isCaller || $isReceiver) {
+            return;
         }
+
+        if ($this->isGroupCall($call)) {
+            $inRoom = ConversationParticipant::query()
+                ->where('conversation_id', $call->conversation_id)
+                ->where('user_id', $userId)
+                ->exists();
+            if ($inRoom) {
+                return;
+            }
+        }
+
+        abort(403);
     }
 }

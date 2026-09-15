@@ -48,6 +48,11 @@ return [
         'barangay_logos_folder' => env('CLOUDINARY_BARANGAY_LOGOS_FOLDER', 'sk_oneportal/barangay_logos'),
         'communication_folder' => env('CLOUDINARY_COMMUNICATION_FOLDER', 'communication'),
         'communication_upload_preset' => env('CLOUDINARY_COMMUNICATION_UPLOAD_PRESET', ''),
+        'group_chat_avatar_folder' => env('CLOUDINARY_GROUP_CHAT_AVATAR_FOLDER', 'Avatar_Profile_GroupChats'),
+        'group_chat_avatar_upload_preset' => env(
+            'CLOUDINARY_GROUP_CHAT_AVATAR_UPLOAD_PRESET',
+            'Avatar_Profile_GroupChats'
+        ),
         'community_video_folder' => env('CLOUDINARY_COMMUNITY_VIDEO_FOLDER', 'SK_Federations_community_video'),
         'community_video_upload_preset' => env(
             'CLOUDINARY_COMMUNITY_VIDEO_UPLOAD_PRESET',
