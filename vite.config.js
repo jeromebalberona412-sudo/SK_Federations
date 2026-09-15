@@ -21,6 +21,8 @@ export default defineConfig({
                 'app/Modules/Deleted_Posts/assets/js/deleted-posts.js',
                 'app/Modules/Deleted_SK_Officials/assets/css/deleted-sk-officials.css',
                 'app/Modules/Deleted_SK_Officials/assets/js/deleted-sk-officials.js',
+                'app/Modules/Rejected_Abyip/assets/css/rejected-abyip.css',
+                'app/Modules/Rejected_Abyip/assets/js/rejected-abyip.js',
                 'app/Modules/SK_Officials_Records/assets/css/SK_officials.css',
                 'app/Modules/SK_Officials_Records/assets/js/SK_officials.js',
                 'app/Modules/SK_Federation_Records/assets/css/SK_federation.css',

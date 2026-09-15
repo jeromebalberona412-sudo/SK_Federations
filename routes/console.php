@@ -10,6 +10,7 @@ Artisan::command('inspire', function () {
 
 Schedule::command('sk-fed:auth:prune')->dailyAt('01:30');
 Schedule::command('deleted-sk-officials:purge')->dailyAt('02:00');
+Schedule::command('rejected-abyip:purge')->dailyAt('02:15');
 Schedule::command('sk-fed:archive-expired-terms')->dailyAt('00:20');
 Schedule::command('sk-fed:backfill-archived-term-records')->dailyAt('00:35');
 Schedule::command('disposable:update')->weekly();

@@ -11,7 +11,7 @@
         'app/Modules/CommunityFeed/assets/css/community-feed.css',
         'app/Modules/CommunityFeed/assets/css/community-feed-comment-preview.css',
     ])
-    <link rel="preload" href="{{ url('/sounds/reactions_ux.mp3') }}" as="audio" type="audio/mpeg">
+    <link rel="preload" href="{{ url('/sounds/reactions_ux.mp3') }}" as="fetch" type="audio/mpeg" crossorigin="anonymous">
 @endpush
 
 @section('content')
@@ -234,8 +234,8 @@
             prohibitedWords: window.__skProhibitedWords,
             cloudinaryCloudName: @json(config('services.cloudinary.cloud_name')),
             communityVideoPreset: @json(config('services.cloudinary.community_video_upload_preset')),
-            communityVideoMaxBytes: @json((int) config('services.cloudinary.community_video_max_bytes', 262144000)),
-            communityVideoMaxCount: @json((int) config('services.cloudinary.community_video_max_count', 5)),
+            communityVideoMaxBytes: @json((int) config('services.cloudinary.community_video_max_bytes', 524288000)),
+            communityVideoMaxCount: @json((int) config('services.cloudinary.community_video_max_count', 30)),
         };
         window.CommentPreviewConfig = {
             post: @json($commentPreviewPost ?? null),

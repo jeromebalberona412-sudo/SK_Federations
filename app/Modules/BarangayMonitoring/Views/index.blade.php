@@ -203,6 +203,10 @@
                             <p class="bm-schedule-label">Deadline</p>
                             <p class="bm-schedule-value">{{ $abyipSchedule['deadline'] }}</p>
                         </div>
+                        <div class="bm-schedule-item">
+                            <p class="bm-schedule-label">Late Resubmission</p>
+                            <p class="bm-schedule-value">{{ !empty($abyipSchedule['allow_late_extension']) ? 'Allowed for non-submitters' : 'Not allowed' }}</p>
+                        </div>
                         @if($showCreatedBy)
                         <div class="bm-schedule-item">
                             <p class="bm-schedule-label">Created By</p>
@@ -223,8 +227,16 @@
             </button>
             @if(!empty($abyipSchedule) && ($abyipSchedule['status'] ?? '') !== 'cancelled')
             <button type="button" class="bm-btn-schedule secondary" id="btnEditSchedule" data-id="{{ $abyipSchedule['id'] }}">
-                <i class="fas fa-edit"></i> Edit
+                <i class="fas fa-edit"></i> Edit / Reschedule
             </button>
+            <button type="button" class="bm-btn-schedule secondary" id="btnExtendSchedule" data-id="{{ $abyipSchedule['id'] }}">
+                <i class="fas fa-calendar-plus"></i> Extend Deadline
+            </button>
+            @if(empty($abyipSchedule['allow_late_extension']))
+            <button type="button" class="bm-btn-schedule" id="btnAllowScheduleResubmission" data-id="{{ $abyipSchedule['id'] }}">
+                <i class="fas fa-unlock"></i> Allow Resubmission
+            </button>
+            @endif
             <button type="button" class="bm-btn-schedule danger" id="btnCancelSchedule" data-id="{{ $abyipSchedule['id'] }}">
                 <i class="fas fa-ban"></i> Cancel
             </button>
@@ -321,6 +333,10 @@
                     <span class="bm-field-hint" id="scheduleDeadlineHint">Must be on or after start date and on or before Dec 31, {{ date('Y') }}.</span>
                     <span class="bm-field-error" id="scheduleDeadlineError" hidden></span>
                 </label>
+                <label class="bm-checkbox-label bm-schedule-resubmit-toggle" for="scheduleAllowLate">
+                    <input type="checkbox" id="scheduleAllowLate">
+                    <span>Allow late resubmission for barangays that have not submitted yet</span>
+                </label>
             </div>
         </div>
         <div class="bm-modal-footer">
@@ -409,6 +425,8 @@
         listUrl: @json(route('api.barangay-monitoring.schedules')),
         storeUrl: @json(route('api.barangay-monitoring.schedules.store')),
         updateUrl: @json(url('/api/barangay-monitoring/abyip-schedules')),
+        extendUrl: @json(url('/api/barangay-monitoring/abyip-schedules/__ID__/extend')),
+        allowResubmissionUrl: @json(url('/api/barangay-monitoring/abyip-schedules/__ID__/allow-resubmission')),
         csrfToken: @json(csrf_token()),
         currentSchedule: @json($abyipSchedule),
         canCreateSchedule: @json($canCreateAbyipSchedule ?? true),

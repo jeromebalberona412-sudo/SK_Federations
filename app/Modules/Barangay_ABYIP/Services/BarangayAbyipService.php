@@ -6,6 +6,7 @@ use App\Models\Abyip;
 use App\Modules\Shared\Models\User;
 use App\Services\AbyipApprovalProvisioningService;
 use App\Services\SkFedPageCache;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -129,17 +130,208 @@ class BarangayAbyipService
         }
 
         DB::transaction(function () use ($document, $reviewer, $reason) {
-            $document->update([
+            $payload = [
                 'status' => Abyip::STATUS_REJECTED,
                 'reviewed_at' => now(),
                 'reviewed_by_user_id' => $reviewer->id,
                 'rejection_reason' => $reason,
-            ]);
+            ];
+
+            if (Schema::hasColumn('abyip', 'rejected_at')) {
+                $payload['rejected_at'] = now();
+            }
+
+            $document->update($payload);
         });
 
         app(SkFedPageCache::class)->bump('barangay.monitoring.index');
 
         return $this->formatSubmission($document->fresh(['barangay', 'creator']));
+    }
+
+    /**
+     * @return Collection<int, array<string, mixed>>
+     */
+    public function listRejected(int $retentionDays = 30): Collection
+    {
+        if (! Schema::hasTable('abyip')) {
+            return collect();
+        }
+
+        return Abyip::query()
+            ->documents()
+            ->where('status', Abyip::STATUS_REJECTED)
+            ->with(['barangay:id,name', 'creator:id,name'])
+            ->orderByDesc(Schema::hasColumn('abyip', 'rejected_at') ? 'rejected_at' : 'reviewed_at')
+            ->get()
+            ->map(fn (Abyip $document) => $this->formatRejected($document, $retentionDays));
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function showRejected(int $id, int $retentionDays = 30): array
+    {
+        $document = $this->findRejectedDocument($id);
+
+        return $this->formatRejected($document, $retentionDays, includeContent: true);
+    }
+
+    public function restoreRejected(User $actor, int $id): array
+    {
+        $document = $this->findRejectedDocument($id);
+
+        DB::transaction(function () use ($document) {
+            $payload = [
+                'status' => Abyip::STATUS_PENDING,
+                'rejection_reason' => null,
+                'reviewed_at' => null,
+                'reviewed_by_user_id' => null,
+            ];
+
+            if (Schema::hasColumn('abyip', 'rejected_at')) {
+                $payload['rejected_at'] = null;
+            }
+
+            $document->update($payload);
+        });
+
+        app(SkFedPageCache::class)->bump('barangay.monitoring.index');
+
+        return $this->formatSubmission($document->fresh(['barangay', 'creator']));
+    }
+
+    public function permanentlyDeleteRejected(User $actor, int $id): void
+    {
+        $document = $this->findRejectedDocument($id);
+
+        DB::transaction(function () use ($document) {
+            if (Schema::hasColumn('abyip', 'document_id')) {
+                Abyip::query()
+                    ->where('document_id', $document->id)
+                    ->delete();
+            }
+
+            $document->delete();
+        });
+
+        app(SkFedPageCache::class)->bump('barangay.monitoring.index');
+    }
+
+    public function purgeExpiredRejected(int $days = 30): int
+    {
+        if (! Schema::hasTable('abyip') || ! Schema::hasColumn('abyip', 'rejected_at')) {
+            return 0;
+        }
+
+        $cutoff = now()->subDays($days);
+        $expiredIds = Abyip::query()
+            ->documents()
+            ->where('status', Abyip::STATUS_REJECTED)
+            ->whereNotNull('rejected_at')
+            ->where('rejected_at', '<=', $cutoff)
+            ->pluck('id');
+
+        if ($expiredIds->isEmpty()) {
+            return 0;
+        }
+
+        $deleted = 0;
+
+        DB::transaction(function () use ($expiredIds, &$deleted) {
+            if (Schema::hasColumn('abyip', 'document_id')) {
+                Abyip::query()
+                    ->whereIn('document_id', $expiredIds)
+                    ->delete();
+            }
+
+            $deleted = Abyip::query()
+                ->whereIn('id', $expiredIds)
+                ->delete();
+        });
+
+        if ($deleted > 0) {
+            app(SkFedPageCache::class)->bump('barangay.monitoring.index');
+        }
+
+        return (int) $deleted;
+    }
+
+    private function findRejectedDocument(int $id): Abyip
+    {
+        $document = Abyip::query()
+            ->documents()
+            ->where('status', Abyip::STATUS_REJECTED)
+            ->with(['barangay:id,name', 'creator:id,name'])
+            ->find($id);
+
+        if ($document === null) {
+            throw ValidationException::withMessages([
+                'document' => ['Rejected ABYIP submission not found.'],
+            ]);
+        }
+
+        return $document;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function formatRejected(Abyip $document, int $retentionDays = 30, bool $includeContent = false): array
+    {
+        $barangayName = $document->barangay?->name ?? $document->barangay_name ?? '—';
+        $rejectedAt = $document->rejected_at ?? $document->reviewed_at;
+        $daysRemaining = $this->rejectedDaysRemaining($rejectedAt, $retentionDays);
+        $daysTier = $this->rejectedDaysTier($daysRemaining);
+        $creator = $document->creator;
+        $submittedBy = $creator?->name ?: '—';
+
+        return [
+            'id' => $document->id,
+            'title' => $document->document_title ?: ('ABYIP '.$document->fiscal_year),
+            'barangay_name' => $barangayName,
+            'barangay_slug' => $barangayName !== '—' ? Str::slug($barangayName) : null,
+            'calendar_year' => $document->fiscal_year,
+            'fiscal_year' => $document->fiscal_year,
+            'rejected_at' => $rejectedAt?->toIso8601String(),
+            'rejection_reason' => $document->rejection_reason,
+            'submitted_by' => $submittedBy !== '' ? $submittedBy : '—',
+            'days_remaining' => $daysRemaining,
+            'days_tier' => $daysTier,
+            'auto_delete_label' => $daysRemaining === 0
+                ? 'Auto delete today'
+                : 'Auto delete in '.$daysRemaining.' day'.($daysRemaining === 1 ? '' : 's'),
+            'file_url' => filled($document->pdf_data)
+                ? url('/api/barangay-abyip/'.$document->id.'/file')
+                : null,
+            'document_html' => $includeContent ? $document->document_html : null,
+            'has_pdf' => filled($document->pdf_data),
+            'has_html' => filled($document->document_html),
+        ];
+    }
+
+    private function rejectedDaysRemaining(?Carbon $rejectedAt, int $retentionDays): int
+    {
+        if ($rejectedAt === null) {
+            return 0;
+        }
+
+        $expiresAt = $rejectedAt->copy()->addDays($retentionDays);
+
+        return max(0, (int) now()->diffInDays($expiresAt, false));
+    }
+
+    private function rejectedDaysTier(int $daysRemaining): string
+    {
+        if ($daysRemaining <= 3) {
+            return 'red';
+        }
+
+        if ($daysRemaining <= 7) {
+            return 'orange';
+        }
+
+        return 'green';
     }
 
     public function revoke(User $reviewer, int $id, string $reason): array
@@ -159,13 +351,19 @@ class BarangayAbyipService
             ]);
         }
 
-        DB::transaction(function () use ($document, $reviewer, $reason) {
-            $document->update([
+        DB::transaction(function () use ($document) {
+            $payload = [
                 'status' => Abyip::STATUS_PENDING,
                 'reviewed_at' => null,
                 'reviewed_by_user_id' => null,
                 'rejection_reason' => null,
-            ]);
+            ];
+
+            if (Schema::hasColumn('abyip', 'rejected_at')) {
+                $payload['rejected_at'] = null;
+            }
+
+            $document->update($payload);
         });
 
         app(SkFedPageCache::class)->bump('barangay.monitoring.index');

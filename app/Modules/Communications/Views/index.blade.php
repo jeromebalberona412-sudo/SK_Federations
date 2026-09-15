@@ -2,9 +2,7 @@
 
 @section('title', 'Messages — SK OnePortal')
 
-@push('body-attributes')
-    class="comms-messages-layout"
-@endpush
+@section('body-class', 'comms-messages-layout')
 
 @push('styles')
     @vite(['app/Modules/Communications/assets/css/communication.css'])

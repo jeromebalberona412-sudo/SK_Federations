@@ -1098,16 +1098,15 @@
 
 .bm-show-page .bm-data-table--abyip thead tr th:first-child {
     border-top-left-radius: 12px;
-    border-bottom-left-radius: 12px;
 }
 
 .bm-show-page .bm-data-table--abyip thead tr th:last-child {
     border-top-right-radius: 12px;
-    border-bottom-right-radius: 12px;
 }
 
 .bm-show-page .bm-data-table--abyip th {
     color: #ffffff !important;
+    background: var(--bm-fed-blue, #213F99);
     border-bottom: 1px solid rgba(255, 255, 255, 0.15);
     text-align: center;
     border-right: 1px solid rgba(255, 255, 255, 0.18);
@@ -2613,6 +2612,11 @@
     align-items: center;
     gap: 8px !important;
     font-weight: 500 !important;
+}
+
+.bm-schedule-resubmit-toggle {
+    grid-column: 1 / -1;
+    margin-top: 0.35rem;
 }
 
 .bm-btn-primary,

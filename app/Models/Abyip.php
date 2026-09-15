@@ -25,6 +25,7 @@ class Abyip extends Model
         'reviewed_at',
         'reviewed_by_user_id',
         'rejection_reason',
+        'rejected_at',
     ];
 
     protected function casts(): array
@@ -34,6 +35,7 @@ class Abyip extends Model
             'created_at' => 'datetime',
             'updated_at' => 'datetime',
             'reviewed_at' => 'datetime',
+            'rejected_at' => 'datetime',
         ];
     }
 

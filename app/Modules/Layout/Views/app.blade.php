@@ -31,7 +31,31 @@
     @stack('styles')
     <link rel="stylesheet" href="{{ url('/shared/css/federations-responsive.css') }}?v={{ @filemtime(public_path('shared/css/federations-responsive.css')) ?: time() }}">
 </head>
-<body @stack('body-attributes') @if(!empty($turnoverModal['show']) && !empty($turnoverModal['portal_locked'])) class="turnover-portal-locked" @endif>
+@php
+    $pushedBodyAttrs = trim((string) $__env->yieldPushContent('body-attributes'));
+    $pushedBodyClass = '';
+    if ($pushedBodyAttrs !== '' && preg_match('/\bclass=(["\'])(.*?)\1/s', $pushedBodyAttrs, $classMatch)) {
+        $pushedBodyClass = trim((string) $classMatch[2]);
+        $pushedBodyAttrs = trim(preg_replace('/\bclass=(["\'])(.*?)\1/s', '', $pushedBodyAttrs, 1));
+    }
+    $sectionBodyClass = trim((string) $__env->yieldContent('body-class'));
+    $layoutBodyClasses = array_values(array_unique(array_filter(array_merge(
+        $sectionBodyClass !== '' ? preg_split('/\s+/', $sectionBodyClass) ?: [] : [],
+        $pushedBodyClass !== '' ? preg_split('/\s+/', $pushedBodyClass) ?: [] : [],
+        (! empty($turnoverModal['show']) && ! empty($turnoverModal['portal_locked']))
+            ? ['turnover-portal-locked']
+            : [],
+    ))));
+
+    $bodyOpenAttrs = '';
+    if ($layoutBodyClasses !== []) {
+        $bodyOpenAttrs .= ' class="'.e(implode(' ', $layoutBodyClasses)).'"';
+    }
+    if ($pushedBodyAttrs !== '') {
+        $bodyOpenAttrs .= ' '.$pushedBodyAttrs;
+    }
+@endphp
+<body{!! $bodyOpenAttrs !!}>
     @include('layout::anti-back')
     @include('layout::header')
     @include('layout::sidebar-overlay')

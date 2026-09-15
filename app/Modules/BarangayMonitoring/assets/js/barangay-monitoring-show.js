@@ -270,14 +270,90 @@
         const confirmInput = document.getElementById('abyipRejectConfirm');
         const rejectBtn = document.querySelector('.reject-submit-btn');
         if (!rejectBtn) return;
-        rejectBtn.disabled = (confirmInput?.value || '').trim() !== 'Confirm';
+        rejectBtn.disabled = normalizeRejectConfirm(confirmInput?.value) !== 'REJECT';
+    }
+
+    function normalizeRejectConfirm(value) {
+        return String(value || '')
+            .replace(/[^a-zA-Z]/g, '')
+            .toUpperCase()
+            .slice(0, 6);
+    }
+
+    function normalizeRevokeConfirm(value) {
+        return String(value || '')
+            .replace(/[^a-zA-Z]/g, '')
+            .toUpperCase()
+            .slice(0, 6);
+    }
+
+    function removeSubmissionRow(id) {
+        const row = document.querySelector('#abyipTable tbody tr[data-id="' + id + '"]')
+            || document.querySelector('#abyipTable tbody .bm-actions-menu[data-report-id="' + id + '"]')?.closest('tr');
+        if (row) row.remove();
+        const tbody = document.querySelector('#abyipTable tbody');
+        if (tbody && !tbody.querySelector('tr.bm-abyip-row')) {
+            tbody.innerHTML = '<tr class="bm-empty-row-tr"><td colspan="8" class="bm-empty-row"><i class="fas fa-inbox"></i><span>No ABYIP reports submitted yet</span></td></tr>';
+        }
+        // Keep in-memory list in sync for filters/modals.
+        const idx = submissions.findIndex(function (item) { return String(item.id) === String(id); });
+        if (idx >= 0) submissions.splice(idx, 1);
+    }
+
+    function updateSubmissionRowStatus(id, status) {
+        const menu = document.querySelector('.bm-actions-menu[data-report-id="' + id + '"]');
+        const row = menu?.closest('tr');
+        if (!row) return;
+        const pill = row.querySelector('.bm-status-pill');
+        if (pill) {
+            pill.className = 'bm-status-pill bm-status-' + status;
+            pill.textContent = status.charAt(0).toUpperCase() + status.slice(1);
+        }
+        menu.setAttribute('data-report-status', status);
+        const dropdown = menu.querySelector('.bm-actions-dropdown');
+        if (!dropdown) return;
+        const approveBtn = dropdown.querySelector('[data-abyip-approve]');
+        const rejectBtn = dropdown.querySelector('[data-abyip-reject]');
+        const revokeBtn = dropdown.querySelector('[data-abyip-revoke]');
+        if (status === 'approved') {
+            if (approveBtn) approveBtn.remove();
+            if (rejectBtn) rejectBtn.remove();
+            if (!revokeBtn) {
+                dropdown.insertAdjacentHTML(
+                    'beforeend',
+                    '<button type="button" class="bm-actions-item row-actions-item row-actions-item-revoke bm-actions-revoke" data-abyip-revoke="' +
+                    id +
+                    '" role="menuitem"><i class="fas fa-undo" aria-hidden="true"></i><span>Revoke</span></button>'
+                );
+            }
+        } else if (status === 'pending') {
+            if (revokeBtn) revokeBtn.remove();
+            if (!approveBtn) {
+                dropdown.insertAdjacentHTML(
+                    'beforeend',
+                    '<button type="button" class="bm-actions-item row-actions-item row-actions-item-approve bm-actions-approve" data-abyip-approve="' +
+                    id +
+                    '" role="menuitem"><i class="fas fa-check" aria-hidden="true"></i><span>Approve</span></button>'
+                );
+            }
+            if (!rejectBtn) {
+                dropdown.insertAdjacentHTML(
+                    'beforeend',
+                    '<button type="button" class="bm-actions-item row-actions-item row-actions-item-danger bm-actions-reject" data-abyip-reject="' +
+                    id +
+                    '" role="menuitem"><i class="fas fa-times" aria-hidden="true"></i><span>Reject</span></button>'
+                );
+            }
+        }
+        const cached = findCachedSubmission(id);
+        if (cached) cached.status = status;
     }
 
     function syncRevokeSubmitState() {
         const confirmInput = document.getElementById('abyipRevokeConfirm');
         const revokeBtn = document.querySelector('.revoke-submit-btn');
         if (!revokeBtn) return;
-        revokeBtn.disabled = (confirmInput?.value || '').trim() !== 'Confirm';
+        revokeBtn.disabled = normalizeRevokeConfirm(confirmInput?.value) !== 'REVOKE';
     }
 
     function resetRevokeForm() {
@@ -398,7 +474,14 @@
             syncRejectReasonField();
         });
 
-        confirmInput?.addEventListener('input', syncRejectSubmitState);
+        confirmInput?.addEventListener('input', function () {
+            if (!confirmInput) return;
+            const next = normalizeRejectConfirm(confirmInput.value);
+            if (confirmInput.value !== next) {
+                confirmInput.value = next;
+            }
+            syncRejectSubmitState();
+        });
     }
 
     function bindRevokeReasonControls() {
@@ -416,7 +499,14 @@
 
         accidental?.addEventListener('change', syncRevokeReasonField);
         other?.addEventListener('change', syncRevokeReasonField);
-        confirmInput?.addEventListener('input', syncRevokeSubmitState);
+        confirmInput?.addEventListener('input', function () {
+            if (!confirmInput) return;
+            const next = normalizeRevokeConfirm(confirmInput.value);
+            if (confirmInput.value !== next) {
+                confirmInput.value = next;
+            }
+            syncRevokeSubmitState();
+        });
     }
 
     function showActionLoading(message, subtext) {
@@ -466,7 +556,8 @@
             succeeded = true;
             showToast('Submission successfully approved!', 'success');
             closeApproveModal();
-            window.location.reload();
+            updateSubmissionRowStatus(approveSubmissionId, 'approved');
+            hideActionLoading();
         } catch (error) {
             showToast(error.message || 'Approval failed.', 'error');
         } finally {
@@ -490,8 +581,8 @@
         confirmError.textContent = '';
         reasonError.textContent = '';
 
-        if ((confirmInput?.value || '').trim() !== 'Confirm') {
-            confirmError.textContent = 'Type Confirm to continue.';
+        if (normalizeRevokeConfirm(confirmInput?.value) !== 'REVOKE') {
+            confirmError.textContent = 'Type REVOKE to continue.';
             return;
         }
 
@@ -528,7 +619,8 @@
             succeeded = true;
             showToast('ABYIP approval revoked. Status is now Pending.', 'success');
             closeRevokeModal();
-            window.location.reload();
+            updateSubmissionRowStatus(revokeSubmissionId, 'pending');
+            hideActionLoading();
         } catch (error) {
             showToast(error.message || 'Revocation failed.', 'error');
         } finally {
@@ -551,8 +643,8 @@
         reasonError.textContent = '';
         confirmError.textContent = '';
 
-        if ((confirmInput?.value || '').trim() !== 'Confirm') {
-            confirmError.textContent = 'Type Confirm to continue.';
+        if (normalizeRejectConfirm(confirmInput?.value) !== 'REJECT') {
+            confirmError.textContent = 'Type REJECT to continue.';
             return;
         }
 
@@ -588,7 +680,8 @@
             succeeded = true;
             showToast('Submission successfully rejected!', 'error');
             closeRejectModal();
-            window.location.reload();
+            removeSubmissionRow(rejectSubmissionId);
+            hideActionLoading();
         } catch (error) {
             showToast(error.message || 'Rejection failed.', 'error');
         } finally {
@@ -726,7 +819,13 @@
                 }
             } catch (error) {
                 button.disabled = false;
-                window.alert(error.message || 'Unable to allow resubmission.');
+                const message = error.message || 'Unable to allow resubmission.';
+                if (/no longer exists|no query results for model/i.test(message)) {
+                    window.alert(message + '\n\nThe page will refresh.');
+                    window.location.reload();
+                    return;
+                }
+                window.alert(message);
             }
         });
     }

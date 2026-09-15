@@ -24,6 +24,7 @@ class PublishModuleAssetsCommand extends Command
         'audit-log' => 'AuditLog/assets',
         'deleted-posts' => 'Deleted_Posts/assets',
         'deleted-sk-officials' => 'Deleted_SK_Officials/assets',
+        'rejected-abyip' => 'Rejected_Abyip/assets',
         'sk-officials-records' => 'SK_Officials_Records/assets',
         'sk-federation-records' => 'SK_Federation_Records/assets',
         'barangay-monitoring' => 'BarangayMonitoring/assets',

@@ -1,0 +1,536 @@
+/* ── Rejected ABYIP Archive ── */
+
+.rejected-abyip-page {
+    padding: 0 8px calc(24px + env(safe-area-inset-bottom, 0px));
+    min-height: 0;
+    background: #f1f4f8;
+    color: #374151;
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+    overflow-x: hidden;
+}
+
+.page-header-section {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 16px;
+    flex-wrap: wrap;
+    margin-bottom: 20px;
+    width: 100%;
+    max-width: 100%;
+}
+
+.page-title {
+    font-size: 1.5rem;
+    font-weight: 800;
+    color: #1e293b;
+    margin: 0 0 6px;
+}
+
+.page-subtitle {
+    color: #64748b;
+    font-size: 14px;
+    margin: 0;
+    max-width: 720px;
+    line-height: 1.45;
+}
+
+.page-header-right {
+    display: flex;
+    align-items: center;
+    min-width: 0;
+}
+
+.filter-input {
+    min-width: 0;
+    max-width: 100%;
+    width: min(320px, 100%);
+    padding: 10px 12px;
+    border: 1px solid #d1d5db;
+    border-radius: 8px;
+    font-size: 14px;
+    background: #fff;
+    color: #111827;
+}
+
+.filter-input:focus {
+    outline: none;
+    border-color: #b91c1c;
+    box-shadow: 0 0 0 3px rgba(185, 28, 28, 0.12);
+}
+
+.table-card {
+    background: #fff;
+    border-radius: 12px;
+    border: 1px solid #e5e7eb;
+    overflow: hidden;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+    width: 100%;
+    max-width: 100%;
+}
+
+.table-wrapper {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    width: 100%;
+}
+
+.ra-archive-table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    min-width: 760px;
+    font-size: 13px;
+}
+
+.ra-archive-table thead {
+    background: #b91c1c;
+}
+
+.ra-archive-table thead th {
+    color: #fff;
+    background: #b91c1c;
+    padding: 12px 14px;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    text-align: center;
+    white-space: nowrap;
+    border-right: 1px solid rgba(255, 255, 255, 0.35);
+    border-bottom: 1px solid #991b1b;
+    vertical-align: middle;
+}
+
+.ra-archive-table thead th:first-child {
+    border-top-left-radius: 12px;
+}
+
+.ra-archive-table thead th:last-child {
+    border-right: none;
+    border-top-right-radius: 12px;
+}
+
+.ra-archive-table td {
+    padding: 12px 14px;
+    border-bottom: 1px solid #e5e7eb;
+    border-right: 1px solid #d1d5db;
+    text-align: center;
+    vertical-align: middle;
+}
+
+.ra-archive-table td:last-child {
+    border-right: none;
+}
+
+.ra-archive-table td:first-child {
+    text-align: left;
+    font-weight: 600;
+    color: #1e293b;
+}
+
+.ra-archive-table tbody tr:nth-child(even) {
+    background: #f9fafb;
+}
+
+.ra-archive-table tbody tr:hover {
+    background: #fef2f2;
+}
+
+.ra-archive-table .col-actions {
+    width: 96px;
+    min-width: 96px;
+    overflow: visible;
+}
+
+.ra-archive-table tbody tr.ap-empty-row td,
+.ra-archive-table tbody tr.ap-empty-row td:nth-child(1) {
+    text-align: center !important;
+    vertical-align: middle !important;
+    height: 140px;
+    padding: 40px 16px !important;
+    border-right: none !important;
+    color: #6b7280;
+    font-weight: 600;
+    white-space: normal;
+}
+
+.ap-empty-message {
+    display: inline-flex;
+    width: 100%;
+    justify-content: center;
+    text-align: center;
+}
+
+.days-badge {
+    display: inline-block;
+    padding: 4px 10px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.days-green {
+    background: #dcfce7;
+    color: #166534;
+}
+
+.days-orange {
+    background: #ffedd5;
+    color: #c2410c;
+}
+
+.days-red {
+    background: #fee2e2;
+    color: #b91c1c;
+}
+
+/* ── View Modal ── */
+.archive-view-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.55);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1200;
+    padding: 16px;
+    box-sizing: border-box;
+}
+
+.archive-view-box {
+    background: #fff;
+    border-radius: 14px;
+    width: min(900px, 96vw);
+    max-height: 88vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    box-shadow: 0 16px 40px rgba(15, 23, 42, 0.25);
+}
+
+.archive-view-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 14px 18px;
+    background: linear-gradient(135deg, #b91c1c 0%, #dc2626 100%);
+    color: #fff;
+    flex-shrink: 0;
+}
+
+.archive-view-title {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 700;
+}
+
+.archive-view-body {
+    overflow-y: auto;
+    padding: 16px 18px;
+    min-height: 0;
+}
+
+.archive-view-backdrop.archive-maximized {
+    padding: 0;
+    align-items: stretch;
+    justify-content: stretch;
+}
+
+.archive-view-box.archive-maximized {
+    width: 100%;
+    height: 100%;
+    max-width: none;
+    max-height: none;
+    border-radius: 0;
+}
+
+.ra-preview-frame {
+    width: 100%;
+    min-height: 420px;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    background: #fff;
+}
+
+.ra-preview-html {
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    padding: 14px;
+    background: #fff;
+    max-height: 480px;
+    overflow: auto;
+}
+
+body.ap-modal-open {
+    overflow: hidden;
+}
+
+/* ── Restore / shared action modals ── */
+.ap-modal-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.45);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10050;
+    padding: 16px;
+    box-sizing: border-box;
+}
+
+.ap-modal-box {
+    background: #fff;
+    border-radius: 16px;
+    width: 100%;
+    max-width: 420px;
+    overflow: hidden;
+    box-shadow: 0 20px 50px rgba(15, 23, 42, 0.4);
+}
+
+.ap-modal-header {
+    padding: 18px 22px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.ap-modal-header--restore {
+    background: #16a34a;
+}
+
+.ap-modal-title {
+    font-size: 17px;
+    font-weight: 700;
+    color: #fff;
+    margin: 0;
+}
+
+.ap-modal-body {
+    padding: 24px 22px 14px;
+    text-align: center;
+}
+
+.ap-modal-message {
+    color: #475569;
+    font-size: 14px;
+    margin: 0 0 10px;
+    line-height: 1.45;
+}
+
+.ap-modal-name {
+    font-size: 15px;
+    font-weight: 700;
+    color: #0f172a;
+    margin: 0;
+    word-break: break-word;
+}
+
+.ap-modal-footer {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    padding: 14px 22px 18px;
+    background: #f8fafc;
+    border-top: 1px solid #f1f5f9;
+}
+
+.ap-btn-cancel {
+    border: 1px solid #cbd5e1;
+    background: #fff;
+    color: #475569;
+    border-radius: 8px;
+    padding: 10px 18px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    min-height: 42px;
+    touch-action: manipulation;
+}
+
+.ap-btn-cancel:hover {
+    background: #f1f5f9;
+}
+
+.ap-btn-restore {
+    border: none;
+    background: #16a34a !important;
+    color: #fff !important;
+    border-radius: 8px;
+    padding: 10px 18px;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    min-height: 42px;
+    touch-action: manipulation;
+    box-shadow: 0 4px 12px rgba(22, 163, 74, 0.3);
+}
+
+.ap-btn-restore:hover {
+    background: #15803d !important;
+}
+
+.ap-btn-restore:disabled,
+.ap-btn-cancel:disabled {
+    opacity: 0.65;
+    cursor: not-allowed;
+}
+
+#apPermanentDeleteModal.sk-type-confirm-backdrop {
+    z-index: 10100;
+    align-items: center;
+    justify-content: center;
+}
+
+#apPermanentDeleteModal .sk-type-confirm-modal {
+    max-width: min(380px, 100%);
+}
+
+.account-modal-card {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+.account-profile-group {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    padding: 14px;
+}
+
+.account-profile-group-label {
+    font-size: 13px;
+    font-weight: 700;
+    color: #1e293b;
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.account-profile-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 12px;
+}
+
+.account-profile-field {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+
+.account-profile-field--wide {
+    grid-column: 1 / -1;
+}
+
+.account-profile-field label {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    color: #64748b;
+    margin: 0;
+}
+
+.account-profile-field p {
+    font-size: 13px;
+    color: #1e293b;
+    margin: 0;
+    word-break: break-word;
+}
+
+@media (max-width: 767.98px) {
+    .rejected-abyip-page {
+        padding-left: 4px;
+        padding-right: 4px;
+    }
+
+    .page-header-section {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 12px;
+    }
+
+    .page-title {
+        font-size: 1.3rem;
+    }
+
+    .page-subtitle {
+        font-size: 13px;
+    }
+
+    .filter-input {
+        width: 100%;
+    }
+
+    .ra-archive-table {
+        min-width: 680px;
+        font-size: 12px;
+    }
+
+    .ra-archive-table thead th,
+    .ra-archive-table td {
+        padding: 10px 8px;
+    }
+
+    .archive-view-backdrop,
+    .ap-modal-backdrop,
+    #apPermanentDeleteModal.sk-type-confirm-backdrop {
+        padding: 12px;
+        align-items: center;
+    }
+
+    .archive-view-box {
+        width: 100%;
+        max-height: min(92vh, 100%);
+        border-radius: 14px;
+    }
+
+    .ap-modal-box,
+    #apPermanentDeleteModal .sk-type-confirm-modal {
+        max-width: 100%;
+    }
+
+    .ap-modal-footer,
+    #apPermanentDeleteModal .sk-type-confirm-footer {
+        flex-direction: row;
+        flex-wrap: nowrap;
+    }
+
+    .ap-btn-cancel,
+    .ap-btn-restore,
+    #apPermanentDeleteModal .sk-btn-cancel-confirm,
+    #apPermanentDeleteModal .sk-btn-action-confirm {
+        flex: 1 1 0;
+        min-width: 0;
+    }
+
+    .account-profile-row {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 414px) {
+    .page-title {
+        font-size: 1.2rem;
+    }
+
+    .ap-modal-footer,
+    #apPermanentDeleteModal .sk-type-confirm-footer {
+        flex-direction: column-reverse;
+    }
+
+    .ap-btn-cancel,
+    .ap-btn-restore,
+    #apPermanentDeleteModal .sk-btn-cancel-confirm,
+    #apPermanentDeleteModal .sk-btn-action-confirm {
+        width: 100%;
+        flex: none;
+    }
+}

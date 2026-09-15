@@ -1996,6 +1996,12 @@ function markHeaderConversationRead(conversationId) {
             'X-CSRF-TOKEN': getCommsCsrfToken()
         },
         credentials: 'same-origin'
+    }).then(function () {
+        if (window.CommsRealtime && typeof window.CommsRealtime.refreshUnread === 'function') {
+            window.CommsRealtime.refreshUnread();
+        } else if (typeof window.refreshMessagesUnreadBadge === 'function') {
+            window.refreshMessagesUnreadBadge();
+        }
     }).catch(function () { /* ignore */ });
 }
 

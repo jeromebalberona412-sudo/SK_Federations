@@ -58,8 +58,8 @@ return [
             'CLOUDINARY_COMMUNITY_VIDEO_UPLOAD_PRESET',
             'SK_Federations_community_video'
         ),
-        'community_video_max_bytes' => (int) env('CLOUDINARY_COMMUNITY_VIDEO_MAX_BYTES', 262144000),
-        'community_video_max_count' => (int) env('CLOUDINARY_COMMUNITY_VIDEO_MAX_COUNT', 5),
+        'community_video_max_bytes' => (int) env('CLOUDINARY_COMMUNITY_VIDEO_MAX_BYTES', 524288000), // 500 MB
+        'community_video_max_count' => (int) env('CLOUDINARY_COMMUNITY_VIDEO_MAX_COUNT', 30),
     ],
 
     'google_drive' => [

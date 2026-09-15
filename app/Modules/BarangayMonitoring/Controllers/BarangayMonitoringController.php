@@ -9,6 +9,7 @@ use App\Services\BarangayLogoUrlService;
 use App\Services\SkFedPageCache;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 
@@ -59,19 +60,17 @@ class BarangayMonitoringController extends Controller
             return [
                 'barangays' => $barangays,
                 'stats' => $this->buildStats($barangays),
-                'abyipSchedule' => $this->scheduleService->currentSchedule(),
-                'abyipSchedules' => $this->scheduleService->listSchedules()->values()->all(),
-                'canCreateAbyipSchedule' => $this->scheduleService->canCreateForCurrentYear(),
             ];
         });
 
+        // Always read schedule live — never serve a deleted/stale schedule id from page cache.
         return view('barangay_monitoring::index', [
             'user' => $request->user(),
             'barangays' => $payload['barangays'],
             'stats' => $payload['stats'],
-            'abyipSchedule' => $payload['abyipSchedule'],
-            'abyipSchedules' => $payload['abyipSchedules'],
-            'canCreateAbyipSchedule' => $payload['canCreateAbyipSchedule'],
+            'abyipSchedule' => $this->scheduleService->currentSchedule(),
+            'abyipSchedules' => $this->scheduleService->listSchedules()->values()->all(),
+            'canCreateAbyipSchedule' => $this->scheduleService->canCreateForCurrentYear(),
         ]);
     }
 
@@ -139,6 +138,7 @@ class BarangayMonitoringController extends Controller
         }
 
         app(SkFedPageCache::class)->bump('barangay.monitoring.index');
+        $this->invalidateOfficialsAbyipCaches();
 
         return response()->json([
             'message' => 'ABYIP submission schedule created.',
@@ -158,6 +158,7 @@ class BarangayMonitoringController extends Controller
         }
 
         app(SkFedPageCache::class)->bump('barangay.monitoring.index');
+        $this->invalidateOfficialsAbyipCaches();
 
         return response()->json([
             'message' => 'ABYIP submission schedule updated.',
@@ -187,6 +188,7 @@ class BarangayMonitoringController extends Controller
         }
 
         app(SkFedPageCache::class)->bump('barangay.monitoring.index');
+        $this->invalidateOfficialsAbyipCaches();
 
         return response()->json([
             'message' => 'ABYIP submission deadline extended.',
@@ -206,6 +208,7 @@ class BarangayMonitoringController extends Controller
         }
 
         app(SkFedPageCache::class)->bump('barangay.monitoring.index');
+        $this->invalidateOfficialsAbyipCaches();
 
         return response()->json([
             'message' => 'ABYIP resubmission is now allowed for barangays that have not submitted.',
@@ -229,6 +232,7 @@ class BarangayMonitoringController extends Controller
         }
 
         app(SkFedPageCache::class)->bump('barangay.monitoring.index');
+        $this->invalidateOfficialsAbyipCaches();
 
         return response()->json([
             'message' => 'ABYIP submission schedule cancelled.',
@@ -248,10 +252,24 @@ class BarangayMonitoringController extends Controller
         }
 
         app(SkFedPageCache::class)->bump('barangay.monitoring.index');
+        $this->invalidateOfficialsAbyipCaches();
 
         return response()->json([
             'message' => 'ABYIP submission schedule deleted.',
         ]);
+    }
+
+    /**
+     * Shared Redis/file cache with SK Officials — bump ABYIP page payloads after schedule changes.
+     */
+    private function invalidateOfficialsAbyipCaches(): void
+    {
+        try {
+            $key = 'skoff:pagever:abyip:global';
+            Cache::forever($key, ((int) Cache::get($key, 1)) + 1);
+        } catch (\Throwable) {
+            // Cache store may be unavailable in local/dev; schedule reads are still live.
+        }
     }
 
     private function buildStats(array $barangays): array

@@ -86,8 +86,8 @@ class MessageService
 
         $this->conversations->assertCanMessagePeer($conversation, $user);
 
+        // Preserve spaces in the body; only use trim for the empty-body check below.
         $body = str_replace(["\r\n", "\r"], "\n", $body);
-        $body = trim($body);
         $max = (int) config('communications.message_max_length', 1000);
 
         if (mb_strlen($body) > $max) {
@@ -118,7 +118,7 @@ class MessageService
                 abort(503, $e->getMessage());
             }
             $messageType = $hasImage && ! $hasFile ? 'image' : 'file';
-        } elseif ($body === '') {
+        } elseif (trim($body) === '') {
             abort(422, 'Message body is required.');
         }
 
@@ -224,9 +224,8 @@ class MessageService
         abort_if($message->message_type !== 'text', 422, 'Only text messages can be edited.');
 
         $body = str_replace(["\r\n", "\r"], "\n", $body);
-        $body = trim($body);
         $max = (int) config('communications.message_max_length', 1000);
-        if ($body === '') {
+        if (trim($body) === '') {
             abort(422, 'Message body is required.');
         }
         if (mb_strlen($body) > $max) {

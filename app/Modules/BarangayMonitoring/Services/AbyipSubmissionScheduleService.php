@@ -68,7 +68,10 @@ class AbyipSubmissionScheduleService
 
         $year = (int) date('Y');
 
-        return ! AbyipSubmissionSchedule::query()->where('fiscal_year', $year)->exists();
+        return ! AbyipSubmissionSchedule::query()
+            ->where('fiscal_year', $year)
+            ->where('status', '!=', AbyipSubmissionSchedule::STATUS_CANCELLED)
+            ->exists();
     }
 
     /**
@@ -81,6 +84,7 @@ class AbyipSubmissionScheduleService
 
         $validated = $this->validateSchedulePayload($data);
         $this->assertNoDuplicateYear($validated['fiscal_year']);
+        $this->purgeCancelledSchedulesForYear($validated['fiscal_year']);
 
         return DB::transaction(function () use ($user, $validated) {
             $schedule = AbyipSubmissionSchedule::query()->create($this->existingScheduleAttributes([
@@ -333,7 +337,30 @@ class AbyipSubmissionScheduleService
     {
         $this->assertTableExists();
 
-        return AbyipSubmissionSchedule::query()->findOrFail($id);
+        $schedule = AbyipSubmissionSchedule::query()->find($id);
+
+        if ($schedule === null) {
+            throw ValidationException::withMessages([
+                'schedule' => ['This ABYIP submission schedule no longer exists. Refresh the page, then create or select a current schedule.'],
+            ]);
+        }
+
+        return $schedule;
+    }
+
+    private function purgeCancelledSchedulesForYear(int $fiscalYear): void
+    {
+        $cancelled = AbyipSubmissionSchedule::query()
+            ->where('fiscal_year', $fiscalYear)
+            ->where('status', AbyipSubmissionSchedule::STATUS_CANCELLED)
+            ->get();
+
+        foreach ($cancelled as $schedule) {
+            if ($this->historyTableExists()) {
+                $schedule->histories()->delete();
+            }
+            $schedule->delete();
+        }
     }
 
     /**
@@ -364,7 +391,9 @@ class AbyipSubmissionScheduleService
 
     private function assertNoDuplicateYear(int $fiscalYear, int|string|null $exceptId = null): void
     {
-        $query = AbyipSubmissionSchedule::query()->where('fiscal_year', $fiscalYear);
+        $query = AbyipSubmissionSchedule::query()
+            ->where('fiscal_year', $fiscalYear)
+            ->where('status', '!=', AbyipSubmissionSchedule::STATUS_CANCELLED);
 
         if ($exceptId !== null) {
             $query->where('id', '!=', $exceptId);

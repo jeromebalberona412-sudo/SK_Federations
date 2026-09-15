@@ -4,6 +4,7 @@
 let currentFilter = 'all';
 let feedSearch = '';
 let editingPostId = null;
+let composeAudienceSnapshot = [];
 let composeSubmitInFlight = false;
 let pendingFiles = [];
 let existingImages = [];
@@ -1857,6 +1858,7 @@ function postMatchesView(post) {
 function applyFeedView() {
     var container = document.getElementById('feed-posts');
     var empty = document.getElementById('feed-empty');
+    var endEl = document.getElementById('feedEndState');
     if (!container) return;
 
     var cards = container.querySelectorAll('.post-card[data-post-id]');
@@ -1874,6 +1876,11 @@ function applyFeedView() {
         empty.hidden = visible > 0 || (cards.length === 0 && isLoading);
         if (cards.length === 0 && !isLoading) empty.hidden = false;
         if (visible > 0) empty.hidden = true;
+    }
+
+    if (endEl) {
+        // Single-page feed: show end label once posts are loaded and at least one is visible.
+        endEl.hidden = !(visible > 0 && !isLoading);
     }
 }
 
@@ -2095,19 +2102,36 @@ function submitPost() {
     var body = media ? media.normalizePostBody(bodyEl ? bodyEl.value : '') : String(bodyEl && bodyEl.value || '').trim();
     var hasImages = totalSelectedImages() > 0;
     var type = document.getElementById('compose-type').value;
+    var isDriveFolderPost = media && media.isDriveFolderMethodSelected && media.isDriveFolderMethodSelected();
 
     if (type === 'photo' && media) {
         var methodWrap = document.getElementById('compose-video-method-wrap');
         var photoHasVideos = (methodWrap && !methodWrap.hidden)
             || media.readyUploadedVideos().length
-            || media.hasUploadingVideos();
+            || media.hasUploadingVideos()
+            || (media.hasSelectedLocalVideos && media.hasSelectedLocalVideos());
         if (photoHasVideos) {
             notifyFeed('Photo posts are for images only. Remove videos to continue.', 'error');
             return;
         }
     }
 
-    var linkPayload = media ? media.resolveComposeLinkPayload() : { link: null, linkKind: null, error: null };
+    if (isDriveFolderPost && type === 'photo') {
+        notifyFeed('Photo posts are for images only. Choose another post type for videos.', 'error');
+        return;
+    }
+
+    if (isDriveFolderPost) {
+        var folderReadyError = media.assertDriveFolderReady ? media.assertDriveFolderReady() : '';
+        if (folderReadyError) {
+            notifyFeed(folderReadyError, 'error');
+            return;
+        }
+    }
+
+    var linkPayload = (!isDriveFolderPost && media)
+        ? media.resolveComposeLinkPayload()
+        : { link: null, linkKind: null, error: null };
     if (linkPayload.error) {
         if (media) {
             media.setComposeVideoError(linkPayload.error);
@@ -2120,8 +2144,10 @@ function submitPost() {
     if (media) media.setComposeVideoError('');
 
     var hasVideos = media && (
-        media.readyUploadedVideos().length
+        isDriveFolderPost
+        || media.readyUploadedVideos().length
         || media.hasUploadingVideos()
+        || (media.hasSelectedLocalVideos && media.hasSelectedLocalVideos())
         || Boolean(linkPayload.link)
     );
     var allowEmptyBody = hasImages || Boolean(hasVideos);
@@ -2151,38 +2177,84 @@ function submitPost() {
 
     var linkVal = linkPayload.link || '';
     var linkKind = linkPayload.linkKind || '';
-    var readyVideos = media ? media.readyUploadedVideos() : [];
-    var uploadingIds = media ? media.getPendingUploadIds() : [];
     var editId = resolveEditingPostId();
 
-    var fd = new FormData();
-    fd.append('type', type);
-    fd.append('body', body);
-    if (type === 'update') fd.append('title', titleVal);
-    else if (titleVal) fd.append('title', titleVal);
-    fd.append('link_url', linkVal);
-    if (linkKind) fd.append('link_kind', linkKind);
-    pendingFiles.forEach(function (file) { fd.append('images[]', file); });
-    removedImageIds.forEach(function (imageId) { fd.append('removed_image_ids[]', imageId); });
-    if (media) {
-        media.appendUploadedVideosToFormData(fd, readyVideos);
-        if (editId !== null) media.appendRemovedVideoIds(fd);
-    }
-    if (editId === null) {
-        var emailNotify = document.getElementById('compose-email-notify');
-        fd.append('email_notifications_enabled', emailNotify && emailNotify.checked ? '1' : '0');
-    }
     var targets = getComposeAudienceTargets();
     if (!targets.length) {
         notifyFeed('Select at least one audience target.', 'error');
         return;
     }
-    targets.forEach(function (target) {
-        fd.append('notify_targets[]', target);
-    });
-    fd.append('visibility', targets.indexOf('public') >= 0 ? 'public' : 'federation');
 
-    savePostForm(fd, uploadingIds, editId);
+    if (isDriveFolderPost && editId !== null) {
+        notifyFeed('Drive folder posts cannot be edited this way. Create a new post instead.', 'error');
+        return;
+    }
+
+    composeSubmitInFlight = true;
+    setComposePostLoading(true, editId !== null ? 'Saving...' : 'Posting...');
+
+    if (isDriveFolderPost) {
+        var emailNotify = document.getElementById('compose-email-notify');
+        media.publishGoogleDriveFolderPost({
+            type: type,
+            title: titleVal,
+            body: body,
+            emailNotificationsEnabled: Boolean(emailNotify && emailNotify.checked),
+            notifyTargets: targets,
+        }).then(function (saved) {
+            if (!saved || !saved.id) throw new Error('Invalid response from server.');
+            if (window.SkLocalCache) window.SkLocalCache.clearByPrefix('sk_fed_community_feed_v1_');
+            closeComposeModal();
+            if (saved.email_notifications_queued) {
+                notifyFeed(saved.message || 'Post published. Email notifications queued for selected targets.');
+            } else {
+                notifyFeed(saved.message || 'Post created successfully.');
+            }
+            renderPosts(true);
+        }).catch(function (err) {
+            notifyFeed(err && err.message ? err.message : 'Unable to publish Google Drive folder videos.', 'error');
+        }).finally(function () {
+            composeSubmitInFlight = false;
+            setComposePostLoading(false);
+        });
+        return;
+    }
+
+    var uploadPromise = (media && media.uploadReadyVideosBeforePost)
+        ? media.uploadReadyVideosBeforePost()
+        : Promise.resolve(media ? media.readyUploadedVideos() : []);
+
+    uploadPromise.then(function (readyVideos) {
+        if (media && media.hasFailedVideoUploads && media.hasFailedVideoUploads()) {
+            throw new Error('One or more videos failed to upload. Remove or re-add them, then try again.');
+        }
+        var fd = new FormData();
+        fd.append('type', type);
+        fd.append('body', body);
+        if (type === 'update') fd.append('title', titleVal);
+        else if (titleVal) fd.append('title', titleVal);
+        fd.append('link_url', linkVal);
+        if (linkKind) fd.append('link_kind', linkKind);
+        pendingFiles.forEach(function (file) { fd.append('images[]', file); });
+        removedImageIds.forEach(function (imageId) { fd.append('removed_image_ids[]', imageId); });
+        if (media) {
+            media.appendUploadedVideosToFormData(fd, readyVideos || []);
+            if (editId !== null) media.appendRemovedVideoIds(fd);
+        }
+        if (editId === null) {
+            var emailNotifyEl = document.getElementById('compose-email-notify');
+            fd.append('email_notifications_enabled', emailNotifyEl && emailNotifyEl.checked ? '1' : '0');
+        }
+        targets.forEach(function (target) {
+            fd.append('notify_targets[]', target);
+        });
+        fd.append('visibility', targets.indexOf('public') >= 0 ? 'public' : 'federation');
+        return savePostForm(fd, [], editId);
+    }).catch(function (err) {
+        composeSubmitInFlight = false;
+        setComposePostLoading(false);
+        notifyFeed(err && err.message ? err.message : 'Unable to upload videos. Please try again.', 'error');
+    });
 }
 
 function savePostForm(formData, uploadingIds, editId) {
@@ -2292,6 +2364,7 @@ function openComposeModal(type) {
     if (emailWrap) emailWrap.hidden = false;
     if (emailNotify) emailNotify.checked = true;
     setComposeAudienceTargets([]);
+    setComposeAudienceMenuOpen(false);
     updateComposeEmailNotifyHelp();
     var modal = document.getElementById('composeModal');
     if (!modal) return;
@@ -2378,9 +2451,35 @@ function syncComposeAudienceToggleLabel() {
 function setComposeAudienceMenuOpen(open) {
     var menu = document.getElementById('compose-audience-menu');
     var btn = document.getElementById('compose-audience-toggle');
+    var modal = document.getElementById('composeModal');
     if (!menu || !btn) return;
-    menu.hidden = !open;
-    btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+    if (open) {
+        composeAudienceSnapshot = getComposeAudienceTargets();
+        menu.hidden = false;
+        btn.setAttribute('aria-expanded', 'true');
+        if (modal) modal.classList.add('compose-audience-open');
+        return;
+    }
+    menu.hidden = true;
+    btn.setAttribute('aria-expanded', 'false');
+    if (modal) modal.classList.remove('compose-audience-open');
+}
+
+function cancelComposeAudienceMenu() {
+    setComposeAudienceTargets(composeAudienceSnapshot || []);
+    setComposeAudienceMenuOpen(false);
+}
+
+function confirmComposeAudienceMenu() {
+    var targets = getComposeAudienceTargets();
+    if (!targets.length) {
+        notifyFeed('Select at least one audience target.', 'error');
+        return;
+    }
+    composeAudienceSnapshot = targets.slice();
+    syncComposeAudienceToggleLabel();
+    updateComposeEmailNotifyHelp();
+    setComposeAudienceMenuOpen(false);
 }
 
 function updateComposeEmailNotifyHelp() {
@@ -2401,6 +2500,7 @@ function closeComposeModal() {
         modal.classList.remove('active', 'compose-maximized');
         modal.setAttribute('aria-hidden', 'true');
     }
+    setComposeAudienceMenuOpen(false);
     editingPostId = null;
     pendingFiles = [];
     existingImages = [];
@@ -2631,6 +2731,7 @@ document.addEventListener('DOMContentLoaded', function() {
     var audienceToggle = document.getElementById('compose-audience-toggle');
     var audienceMenu = document.getElementById('compose-audience-menu');
     if (audienceToggle && audienceMenu) {
+        setComposeAudienceMenuOpen(false);
         audienceToggle.addEventListener('click', function (e) {
             e.preventDefault();
             e.stopPropagation();
@@ -2641,10 +2742,24 @@ document.addEventListener('DOMContentLoaded', function() {
                 onComposeAudienceChange(input);
             });
         });
+        document.getElementById('compose-audience-ok')?.addEventListener('click', function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            confirmComposeAudienceMenu();
+        });
+        document.getElementById('compose-audience-cancel')?.addEventListener('click', function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            cancelComposeAudienceMenu();
+        });
         document.addEventListener('click', function (e) {
             var wrap = document.getElementById('compose-audience-wrap');
             if (!wrap || wrap.contains(e.target)) return;
-            setComposeAudienceMenuOpen(false);
+            if (audienceMenu.hidden) return;
+            cancelComposeAudienceMenu();
+        });
+        document.addEventListener('keydown', function (e) {
+            if (e.key === 'Escape' && !audienceMenu.hidden) cancelComposeAudienceMenu();
         });
         syncComposeAudienceToggleLabel();
         updateComposeEmailNotifyHelp();

@@ -58,6 +58,11 @@ it('registers archive management routes in sk federation', function () {
     expect(Route::has('deleted-sk-officials'))->toBeTrue();
     expect(Route::has('archived.deleted-posts'))->toBeTrue();
     expect(Route::has('deleted-posts'))->toBeTrue();
+    expect(Route::has('archived.rejected-abyip'))->toBeTrue();
+    expect(Route::has('archived.rejected-abyip.data'))->toBeTrue();
+    expect(Route::has('archived.rejected-abyip.show'))->toBeTrue();
+    expect(Route::has('archived.rejected-abyip.restore'))->toBeTrue();
+    expect(Route::has('archived.rejected-abyip.destroy'))->toBeTrue();
     expect(Route::has('archived.sk-federation-records'))->toBeTrue();
     expect(Route::has('sk-federation-records'))->toBeTrue();
     expect(Route::has('archived.sk-officials-records'))->toBeTrue();

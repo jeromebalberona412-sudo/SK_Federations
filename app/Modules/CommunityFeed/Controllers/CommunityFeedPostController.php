@@ -1439,12 +1439,12 @@ class CommunityFeedPostController extends Controller
 
     private function maxVideoCount(): int
     {
-        return max(1, (int) config('services.cloudinary.community_video_max_count', 5));
+        return max(1, (int) config('services.cloudinary.community_video_max_count', 30));
     }
 
     private function maxVideoKilobytes(): int
     {
-        $bytes = (int) config('services.cloudinary.community_video_max_bytes', 262144000);
+        $bytes = (int) config('services.cloudinary.community_video_max_bytes', 524288000);
 
         return max(1, (int) floor($bytes / 1024));
     }
@@ -1457,7 +1457,7 @@ class CommunityFeedPostController extends Controller
     /**
      * @return list<string>
      */
-    private function normalizeNotifyTargets(mixed $raw, mixed $legacyVisibility = null): array
+    public function normalizeNotifyTargets(mixed $raw, mixed $legacyVisibility = null): array
     {
         $allowed = Announcement::NOTIFY_TARGET_OPTIONS;
         $targets = [];
@@ -1489,7 +1489,7 @@ class CommunityFeedPostController extends Controller
         return Announcement::expandNotifyTargets($targets);
     }
 
-    private function dispatchFederationPostNotifications(int $postId, int $authorUserId, bool $sendEmail): void
+    public function dispatchFederationPostNotifications(int $postId, int $authorUserId, bool $sendEmail): void
     {
         dispatch(function () use ($postId, $authorUserId, $sendEmail): void {
             $post = Announcement::query()->find($postId);

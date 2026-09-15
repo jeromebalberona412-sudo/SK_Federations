@@ -2,6 +2,8 @@
 
 namespace App\Modules\Communications\Services;
 
+use App\Modules\Accounts\Models\Barangay;
+use App\Modules\Authentication\Services\BootstrapSkFedAdminService;
 use App\Modules\Communications\Models\Conversation;
 use App\Modules\Communications\Models\ConversationParticipant;
 use App\Modules\Communications\Models\Message;
@@ -13,6 +15,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Str;
 
 class ConversationService
 {
@@ -208,10 +211,14 @@ class ConversationService
             $other = $conversation->participants
                 ->first(fn (ConversationParticipant $p) => ! ((int) $p->user_id === $userId && $p->user_type === $userType));
 
+            if ($other?->user && $this->isHiddenFederationAdministrator($other->user)) {
+                return null;
+            }
+
             $payload['other_user'] = $this->serializeUser($other?->user, $other?->user_type);
 
             return $payload;
-        });
+        })->filter()->values();
 
         if ($search !== null && trim($search) !== '') {
             $q = mb_strtolower(trim($search));
@@ -246,7 +253,7 @@ class ConversationService
      * Header Chats popover: existing conversations first, then all messageable
      * SK Officials and SK Federation members (even when no conversation exists yet).
      *
-     * @return \Illuminate\Support\Collection<int, array<string, mixed>>
+     * @return Collection<int, array<string, mixed>>
      */
     public function headerInboxForUser(Authenticatable $user): Collection
     {
@@ -554,7 +561,7 @@ class ConversationService
      */
     public function barangayOptions(): Collection
     {
-        $barangayClass = \App\Modules\Accounts\Models\Barangay::class;
+        $barangayClass = Barangay::class;
         if (! class_exists($barangayClass)) {
             return collect();
         }
@@ -582,6 +589,11 @@ class ConversationService
         }
 
         if (strtoupper((string) $to->status) !== User::STATUS_ACTIVE) {
+            return false;
+        }
+
+        // Never surface the bootstrap SK Federation Administrator in chats.
+        if ($this->isHiddenFederationAdministrator($to)) {
             return false;
         }
 
@@ -641,6 +653,36 @@ class ConversationService
         if (! $peer || ! $this->canMessage($user, $peer)) {
             abort(403, 'You are not allowed to message this account.');
         }
+    }
+
+    /**
+     * Hide the bootstrap SK Federation Administrator from chats / search / directory.
+     * Matches email, exact/partial name, and bootstrap-admin flag.
+     */
+    public function isHiddenFederationAdministrator(User $user): bool
+    {
+        if (app(BootstrapSkFedAdminService::class)->isBootstrapAdmin($user)) {
+            return true;
+        }
+
+        $email = Str::lower(trim((string) ($user->email ?? '')));
+        if ($email === BootstrapSkFedAdminService::bootstrapEmailNormalized()) {
+            return true;
+        }
+
+        $name = mb_strtolower(trim((string) ($user->name ?? '')), 'UTF-8');
+        if ($name === 'sk federation administrator') {
+            return true;
+        }
+
+        // Catch renamed variants still used as the portal admin account.
+        if (str_contains($name, 'federation administrator') || str_contains($name, 'sk federation admin')) {
+            return true;
+        }
+
+        $role = Str::lower(trim((string) ($user->role ?? '')));
+
+        return $role === 'admin' && str_contains($name, 'administrator');
     }
 
     public function isSearchableUser(User $user, ?Authenticatable $viewer = null): bool

@@ -16,6 +16,7 @@
     var videoLightboxItems = [];
     var videoLightboxIndex = 0;
     var composeTitleErrorTimer = null;
+    var composeDriveFolderConnected = false;
 
     function escapeHtml(v) {
         return String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -415,7 +416,7 @@
             var el = inner.querySelector('video');
             if (el) el.addEventListener('play', function () { stopAllFeedMediaExcept(tile); });
         } else if (src) {
-            inner.innerHTML = '<iframe src="' + escapeHtml(src) + '" title="Google Drive video ' + (index + 1) + '" allow="autoplay; fullscreen" allowfullscreen referrerpolicy="no-referrer-when-downgrade"></iframe>';
+            inner.innerHTML = '<iframe src="' + escapeHtml(src) + '" title="Google Drive video ' + (index + 1) + '" allow="autoplay; fullscreen" referrerpolicy="no-referrer-when-downgrade"></iframe>';
         } else {
             inner.innerHTML = tile.dataset.posterHtml || '';
             tile.dataset.playing = '0';
@@ -432,7 +433,7 @@
         wrap.dataset.playing = '1';
         wrap.classList.add('is-playing');
         frame.classList.remove('cf-drive-video-poster');
-        frame.innerHTML = '<iframe src="' + previewSrc + '" title="Google Drive video" allow="autoplay; fullscreen" allowfullscreen referrerpolicy="no-referrer-when-downgrade"></iframe>';
+        frame.innerHTML = '<iframe src="' + previewSrc + '" title="Google Drive video" allow="autoplay; fullscreen" referrerpolicy="no-referrer-when-downgrade"></iframe>';
     }
 
     function closeVideoLightbox() {
@@ -462,7 +463,7 @@
         if (isCloud && src) {
             frame.innerHTML = '<video src="' + escapeHtml(src) + '" controls playsinline autoplay preload="metadata" controlslist="nodownload"></video>';
         } else if (src) {
-            frame.innerHTML = '<iframe src="' + escapeHtml(src) + '" title="Video ' + (index + 1) + '" allow="autoplay; fullscreen" allowfullscreen referrerpolicy="no-referrer-when-downgrade"></iframe>';
+            frame.innerHTML = '<iframe src="' + escapeHtml(src) + '" title="Video ' + (index + 1) + '" allow="autoplay; fullscreen" referrerpolicy="no-referrer-when-downgrade"></iframe>';
         } else {
             frame.innerHTML = '<p style="color:#fff;text-align:center;padding:24px;">Video unavailable.</p>';
         }
@@ -618,6 +619,165 @@
         updateComposeDriveRemoveVisibility();
     }
 
+    function setComposeDriveFolderError(message) {
+        var el = document.getElementById('compose-drive-folder-error');
+        if (!el) return;
+        if (message) {
+            el.textContent = message;
+            el.hidden = false;
+        } else {
+            el.textContent = '';
+            el.hidden = true;
+        }
+    }
+
+    function setComposeDriveFolderStatus(message) {
+        var el = document.getElementById('compose-drive-folder-status');
+        if (!el) return;
+        if (message) {
+            el.textContent = message;
+            el.hidden = false;
+        } else {
+            el.textContent = '';
+            el.hidden = true;
+        }
+    }
+
+    function clearComposeDriveFolder(resetConnected) {
+        var input = document.getElementById('compose-drive-folder-input');
+        if (input) input.value = '';
+        setComposeDriveFolderError('');
+        setComposeDriveFolderStatus('');
+        if (resetConnected !== false) composeDriveFolderConnected = false;
+    }
+
+    function loadDriveFolderConfig() {
+        return fetch('/api/community-feed/google-drive-folder', {
+            headers: {
+                Accept: 'application/json',
+                'X-Requested-With': 'XMLHttpRequest',
+                'X-CSRF-TOKEN': csrfToken(),
+            },
+            credentials: 'same-origin',
+        }).then(function (res) {
+            if (!res.ok) return null;
+            return res.json();
+        }).then(function (data) {
+            if (!data) return;
+            var folder = data.folder;
+            var input = document.getElementById('compose-drive-folder-input');
+            if (folder && folder.folder_url && input && !input.value) {
+                input.value = folder.folder_url;
+            }
+            if (folder && folder.folder_url) {
+                composeDriveFolderConnected = true;
+            }
+            if (folder && folder.last_sync_message) {
+                setComposeDriveFolderStatus(folder.last_sync_message);
+            }
+        }).catch(function () { /* optional */ });
+    }
+
+    function syncGoogleDriveFolder() {
+        var input = document.getElementById('compose-drive-folder-input');
+        var btn = document.getElementById('compose-drive-folder-sync-btn');
+        var folderUrl = String((input && input.value) || '').trim();
+        setComposeDriveFolderError('');
+        if (!folderUrl || !/drive\.google\.com\/drive\/folders\//i.test(folderUrl)) {
+            setComposeDriveFolderError('Please enter a valid Google Drive folder URL.');
+            notifyFeed('Please enter a valid Google Drive folder URL.', 'error');
+            if (input) input.focus();
+            return Promise.resolve(false);
+        }
+        if (btn) {
+            btn.disabled = true;
+            btn.textContent = 'Connecting…';
+        }
+        setComposeDriveFolderStatus('Connecting folder (not posting yet)…');
+        return fetch('/api/community-feed/google-drive-folder', {
+            method: 'POST',
+            headers: {
+                'X-CSRF-TOKEN': csrfToken(),
+                Accept: 'application/json',
+                'Content-Type': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest',
+            },
+            credentials: 'same-origin',
+            body: JSON.stringify({ folder_url: folderUrl, sync_now: false }),
+        }).then(function (res) {
+            return res.json().catch(function () { return {}; }).then(function (data) {
+                if (!res.ok) {
+                    throw new Error(data.message || (data.errors && data.errors.folder_url && data.errors.folder_url[0]) || 'Unable to connect Google Drive folder.');
+                }
+                composeDriveFolderConnected = true;
+                setComposeDriveFolderStatus(data.message || 'Folder connected. Write your caption and click Post.');
+                notifyFeed(data.message || 'Folder connected. Click Post to publish.');
+                return true;
+            });
+        }).catch(function (err) {
+            composeDriveFolderConnected = false;
+            var message = (err && err.message) || 'Unable to connect Google Drive folder.';
+            setComposeDriveFolderError(message);
+            notifyFeed(message, 'error');
+            return false;
+        }).finally(function () {
+            if (btn) {
+                btn.disabled = false;
+                btn.textContent = 'Save / Connect Folder';
+            }
+        });
+    }
+
+    function publishGoogleDriveFolderPost(options) {
+        options = options || {};
+        var folderUrl = String(((document.getElementById('compose-drive-folder-input') || {}).value) || '').trim();
+        var payload = {
+            type: options.type,
+            title: options.type === 'update' ? (options.title || '') : '',
+            body: options.body,
+            email_notifications_enabled: options.emailNotificationsEnabled ? 1 : 0,
+            folder_url: folderUrl || null,
+            notify_targets: Array.isArray(options.notifyTargets) ? options.notifyTargets : [],
+        };
+        return fetch('/api/community-feed/google-drive-folder/publish', {
+            method: 'POST',
+            headers: {
+                'X-CSRF-TOKEN': csrfToken(),
+                Accept: 'application/json',
+                'Content-Type': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest',
+            },
+            credentials: 'same-origin',
+            body: JSON.stringify(payload),
+        }).then(function (res) {
+            return res.json().catch(function () { return {}; }).then(function (data) {
+                if (!res.ok) {
+                    throw new Error(data.message || (data.errors && Object.values(data.errors).flat().join(' ')) || 'Unable to publish Google Drive folder videos.');
+                }
+                return data;
+            });
+        });
+    }
+
+    function isDriveFolderMethodSelected() {
+        var methodWrap = document.getElementById('compose-video-method-wrap');
+        var methodWrapOpen = methodWrap && !methodWrap.hidden;
+        return methodWrapOpen && getSelectedVideoMethod() === 'drive_folder';
+    }
+
+    function assertDriveFolderReady() {
+        var folderUrl = String(((document.getElementById('compose-drive-folder-input') || {}).value) || '').trim();
+        if (!folderUrl) {
+            setComposeDriveFolderError('Please enter a Google Drive folder URL and click Save / Connect Folder.');
+            return 'Connect a Google Drive folder first.';
+        }
+        if (!composeDriveFolderConnected) {
+            setComposeDriveFolderError('Click Save / Connect Folder first, then click Post.');
+            return 'Click Save / Connect Folder first, then click Post.';
+        }
+        return '';
+    }
+
     function updateComposeDriveRemoveVisibility() {
         var btn = document.getElementById('compose-remove-video-btn');
         var input = document.getElementById('compose-video-input');
@@ -641,6 +801,7 @@
         renderComposeVideosPreview();
         setComposeVideoUploadError('');
         clearComposeDriveVideo();
+        clearComposeDriveFolder(true);
         if (hideWrap !== false) {
             var wrap = document.getElementById('compose-video-method-wrap');
             if (wrap) wrap.hidden = true;
@@ -648,11 +809,28 @@
     }
 
     function videoMaxBytes() {
-        return Number((global.CommunityFeedConfig && global.CommunityFeedConfig.communityVideoMaxBytes) || 262144000);
+        return Number((global.CommunityFeedConfig && global.CommunityFeedConfig.communityVideoMaxBytes) || 524288000);
     }
 
     function videoMaxCount() {
-        return Number((global.CommunityFeedConfig && global.CommunityFeedConfig.communityVideoMaxCount) || 5);
+        return Number((global.CommunityFeedConfig && global.CommunityFeedConfig.communityVideoMaxCount) || 30);
+    }
+
+    function videoFileFingerprint(file) {
+        var name = String((file && file.name) || '').trim().toLowerCase();
+        var size = Number(file && file.size) || 0;
+        var modified = Number(file && file.lastModified) || 0;
+        return name + '|' + size + '|' + modified;
+    }
+
+    function isDuplicateComposeVideo(file, extraKeys) {
+        var key = videoFileFingerprint(file);
+        if (!key || key === '|0|0') return false;
+        if (extraKeys && typeof extraKeys.has === 'function' && extraKeys.has(key)) return true;
+        return pendingVideoUploads.some(function (item) {
+            if (!item || !item.file) return false;
+            return videoFileFingerprint(item.file) === key;
+        });
     }
 
     function isAllowedVideoFile(file) {
@@ -675,9 +853,27 @@
         });
     }
 
+    function hasLocalVideosPendingUpload() {
+        return pendingVideoUploads.some(function (item) {
+            return item.status === 'ready' && item.file;
+        });
+    }
+
     function hasUploadingVideos() {
         return pendingVideoUploads.some(function (item) {
-            return item.status === 'uploading' || item.status === 'queued';
+            return item.status === 'uploading';
+        });
+    }
+
+    function hasFailedVideoUploads() {
+        return pendingVideoUploads.some(function (item) {
+            return item.status === 'error';
+        });
+    }
+
+    function hasSelectedLocalVideos() {
+        return pendingVideoUploads.some(function (item) {
+            return item.status === 'ready' || item.status === 'uploading' || item.status === 'done' || item.status === 'error';
         });
     }
 
@@ -712,7 +908,7 @@
         var remaining = [];
         attachVideosAfterPostQueue.forEach(function (job) {
             var items = pendingVideoUploads.filter(function (item) { return job.uploadIds.indexOf(item.id) >= 0; });
-            var stillPending = items.some(function (item) { return item.status === 'uploading' || item.status === 'queued'; });
+            var stillPending = items.some(function (item) { return item.status === 'uploading'; });
             if (stillPending) { remaining.push(job); return; }
             var ready = items.filter(function (item) { return item.status === 'done' && item.result; }).map(function (item) {
                 return {
@@ -765,9 +961,19 @@
         });
         pendingVideoUploads.forEach(function (upload) {
             var item = document.createElement('div');
-            item.className = 'compose-video-card is-' + (upload.status === 'done' ? 'done' : (upload.status === 'error' ? 'error' : 'uploading'));
+            var isReady = upload.status === 'ready';
+            var isUploading = upload.status === 'uploading';
+            var isDone = upload.status === 'done';
+            var isError = upload.status === 'error';
+            item.className = 'compose-video-card is-' + (isDone ? 'done' : (isError ? 'error' : (isReady ? 'ready' : 'uploading')));
             var previewSrc = upload.previewUrl || (upload.result && upload.result.video_url) || '';
-            var statusText = upload.status === 'done' ? 'Ready' : (upload.status === 'error' ? (upload.error || 'Failed') : 'Uploading ' + Math.max(0, Math.min(99, Number(upload.progress) || 0)) + '%');
+            var statusText = isDone
+                ? 'Uploaded'
+                : (isError
+                    ? (upload.error || 'Failed')
+                    : (isReady
+                        ? 'Selected'
+                        : ('Uploading ' + Math.max(0, Math.min(99, Number(upload.progress) || 0)) + '%')));
             item.innerHTML = '<div class="compose-video-card__media">' + (previewSrc ? '<video src="' + escapeHtml(previewSrc) + '" preload="metadata" muted playsinline></video>' : '<div class="compose-video-card__placeholder">Video</div>')
                 + '<div class="compose-video-card__overlay" aria-hidden="true">' + escapeHtml(statusText) + '</div>'
                 + '<button type="button" class="compose-video-card__remove" aria-label="Remove video">&times;</button></div>'
@@ -775,7 +981,9 @@
             item.querySelector('.compose-video-card__remove').addEventListener('click', function (e) {
                 e.preventDefault(); e.stopPropagation();
                 try { if (upload.xhr) upload.xhr.abort(); } catch (_) {}
-                if (upload.previewUrl) { try { URL.revokeObjectURL(upload.previewUrl); } catch (_) {} }
+                if (upload.previewUrl && String(upload.previewUrl).indexOf('blob:') === 0) {
+                    try { URL.revokeObjectURL(upload.previewUrl); } catch (_) {}
+                }
                 pendingVideoUploads = pendingVideoUploads.filter(function (v) { return v.id !== upload.id; });
                 renderComposeVideosPreview();
             });
@@ -791,75 +999,106 @@
     }
 
     function startPendingVideoUpload(item) {
-        ensureVideoUploadUnloadGuard();
-        item.status = 'uploading';
-        item.progress = 0;
-        if (!item.previewUrl && item.file) {
-            try { item.previewUrl = URL.createObjectURL(item.file); } catch (_) { item.previewUrl = ''; }
-        }
-        renderComposeVideosPreview();
-        var cloudUrl = cloudinaryVideoUploadUrl();
-        var preset = String((global.CommunityFeedConfig && global.CommunityFeedConfig.communityVideoPreset) || 'SK_Federations_community_video').trim();
-        if (!cloudUrl || !preset) {
-            item.status = 'error';
-            item.error = 'Cloudinary is not configured.';
-            setComposeVideoUploadError(item.error);
-            notifyFeed(item.error, 'error');
-            renderComposeVideosPreview();
-            return;
-        }
-        notifyFeed('Uploading ' + item.name + '…', 'success');
-        var fd = new FormData();
-        fd.append('file', item.file, item.name);
-        fd.append('upload_preset', preset);
-        var xhr = new XMLHttpRequest();
-        item.xhr = xhr;
-        xhr.open('POST', cloudUrl);
-        xhr.upload.onprogress = function (event) {
-            if (!event.lengthComputable) return;
-            item.progress = Math.round((event.loaded / event.total) * 100);
-            renderComposeVideosPreview();
-        };
-        xhr.onload = function () {
-            var payload = {};
-            try { payload = JSON.parse(xhr.responseText || '{}'); } catch (_) { payload = {}; }
-            var publicId = String(payload.public_id || '');
-            var videoUrl = String(payload.secure_url || payload.url || '');
-            if (xhr.status >= 200 && xhr.status < 300 && publicId && videoUrl) {
-                item.status = 'done';
-                item.progress = 100;
-                item.result = {
-                    public_id: publicId,
-                    video_url: videoUrl,
-                    bytes: payload.bytes != null ? payload.bytes : item.file.size,
-                    mime_type: payload.format ? 'video/' + String(payload.format).toLowerCase() : (item.file.type || 'video/mp4'),
-                };
-                if (item.previewUrl) { try { URL.revokeObjectURL(item.previewUrl); } catch (_) {} }
-                item.previewUrl = videoUrl;
-                setComposeVideoUploadError('');
-                notifyFeed(item.name + ' uploaded. You can post anytime.');
-                maybeFlushAttachVideosQueue();
-            } else {
-                item.status = 'error';
-                item.error = (payload.error && payload.error.message) || payload.message || 'The video failed to upload.';
-                setComposeVideoUploadError(item.error);
-                notifyFeed(item.error, 'error');
+        return new Promise(function (resolve) {
+            ensureVideoUploadUnloadGuard();
+            item.status = 'uploading';
+            item.progress = 0;
+            item.error = null;
+            if (!item.previewUrl && item.file) {
+                try { item.previewUrl = URL.createObjectURL(item.file); } catch (_) { item.previewUrl = ''; }
             }
             renderComposeVideosPreview();
-        };
-        xhr.onerror = function () {
-            item.status = 'error';
-            item.error = 'The video failed to upload.';
-            setComposeVideoUploadError(item.error);
-            notifyFeed(item.error, 'error');
-            renderComposeVideosPreview();
-        };
-        xhr.onabort = function () {
-            item.status = 'error';
-            item.error = 'Upload cancelled.';
-            renderComposeVideosPreview();
-        };
-        xhr.send(fd);
+            var cloudUrl = cloudinaryVideoUploadUrl();
+            var preset = String((global.CommunityFeedConfig && global.CommunityFeedConfig.communityVideoPreset) || 'SK_Federations_community_video').trim();
+            if (!cloudUrl || !preset) {
+                item.status = 'error';
+                item.error = 'Cloudinary is not configured.';
+                setComposeVideoUploadError(item.error);
+                notifyFeed(item.error, 'error');
+                renderComposeVideosPreview();
+                resolve(false);
+                return;
+            }
+            var fd = new FormData();
+            fd.append('file', item.file, item.name);
+            fd.append('upload_preset', preset);
+            var xhr = new XMLHttpRequest();
+            item.xhr = xhr;
+            xhr.open('POST', cloudUrl);
+            xhr.upload.onprogress = function (event) {
+                if (!event.lengthComputable) return;
+                item.progress = Math.round((event.loaded / event.total) * 100);
+                renderComposeVideosPreview();
+            };
+            xhr.onload = function () {
+                var payload = {};
+                try { payload = JSON.parse(xhr.responseText || '{}'); } catch (_) { payload = {}; }
+                var publicId = String(payload.public_id || '');
+                var videoUrl = String(payload.secure_url || payload.url || '');
+                if (xhr.status >= 200 && xhr.status < 300 && publicId && videoUrl) {
+                    item.status = 'done';
+                    item.progress = 100;
+                    item.result = {
+                        public_id: publicId,
+                        video_url: videoUrl,
+                        bytes: payload.bytes != null ? payload.bytes : item.file.size,
+                        mime_type: payload.format ? 'video/' + String(payload.format).toLowerCase() : (item.file.type || 'video/mp4'),
+                    };
+                    if (item.previewUrl && String(item.previewUrl).indexOf('blob:') === 0) {
+                        try { URL.revokeObjectURL(item.previewUrl); } catch (_) {}
+                    }
+                    item.previewUrl = videoUrl;
+                    setComposeVideoUploadError('');
+                    resolve(true);
+                } else {
+                    item.status = 'error';
+                    item.error = (payload.error && payload.error.message) || payload.message || 'The video failed to upload.';
+                    setComposeVideoUploadError(item.error);
+                    notifyFeed(item.error, 'error');
+                    resolve(false);
+                }
+                renderComposeVideosPreview();
+                maybeFlushAttachVideosQueue();
+            };
+            xhr.onerror = function () {
+                item.status = 'error';
+                item.error = 'The video failed to upload.';
+                setComposeVideoUploadError(item.error);
+                notifyFeed(item.error, 'error');
+                renderComposeVideosPreview();
+                resolve(false);
+            };
+            xhr.onabort = function () {
+                item.status = 'ready';
+                item.error = null;
+                item.progress = 0;
+                renderComposeVideosPreview();
+                resolve(false);
+            };
+            xhr.send(fd);
+        });
+    }
+
+    function uploadReadyVideosBeforePost() {
+        var locals = pendingVideoUploads.filter(function (item) {
+            return item.status === 'ready' && item.file;
+        });
+        if (!locals.length) {
+            return Promise.resolve(readyUploadedVideos());
+        }
+        notifyFeed('Uploading ' + locals.length + ' video' + (locals.length > 1 ? 's' : '') + '…');
+        var chain = Promise.resolve(true);
+        locals.forEach(function (item) {
+            chain = chain.then(function () {
+                return startPendingVideoUpload(item);
+            });
+        });
+        return chain.then(function () {
+            if (hasFailedVideoUploads()) {
+                throw new Error('One or more videos failed to upload. Remove or re-add them, then try again.');
+            }
+            return readyUploadedVideos();
+        });
     }
 
     function handleComposeVideoFiles(fileList) {
@@ -870,18 +1109,49 @@
         var maxCount = videoMaxCount();
         var room = Math.max(0, maxCount - existingVideos.length - pendingVideoUploads.length);
         var accepted = [];
-        incoming.forEach(function (file) {
-            if (accepted.length >= room) return;
+        var seenKeys = {};
+        pendingVideoUploads.forEach(function (item) {
+            if (!item || !item.file) return;
+            seenKeys[videoFileFingerprint(item.file)] = true;
+        });
+        var rejectedDuplicate = false;
+        var rejectedType = false;
+        var rejectedSize = false;
+        var rejectedLimit = false;
+
+        for (var i = 0; i < incoming.length; i++) {
+            var file = incoming[i];
+            if (accepted.length >= room) {
+                rejectedLimit = true;
+                break;
+            }
             if (!isAllowedVideoFile(file)) {
-                setComposeVideoUploadError('Allowed formats: MP4, WebM, MOV.');
-                return;
+                rejectedType = true;
+                continue;
             }
             if (file.size > maxBytes) {
-                setComposeVideoUploadError('Each video must be 250 MB or smaller.');
-                return;
+                rejectedSize = true;
+                continue;
             }
+            var key = videoFileFingerprint(file);
+            if (seenKeys[key] || isDuplicateComposeVideo(file)) {
+                rejectedDuplicate = true;
+                continue;
+            }
+            if (key && key !== '|0|0') seenKeys[key] = true;
             accepted.push(file);
-        });
+        }
+
+        if (rejectedDuplicate) {
+            setComposeVideoUploadError('That video is already selected. Choose a different file.');
+        } else if (rejectedType) {
+            setComposeVideoUploadError('Allowed formats: MP4, WebM, MOV.');
+        } else if (rejectedSize) {
+            setComposeVideoUploadError('Each video must be 500 MB or smaller.');
+        } else if (rejectedLimit) {
+            setComposeVideoUploadError('You can add up to ' + maxCount + ' videos per post.');
+        }
+
         accepted.forEach(function (file) {
             var previewUrl = '';
             try { previewUrl = URL.createObjectURL(file); } catch (_) { previewUrl = ''; }
@@ -889,15 +1159,15 @@
                 id: 'vu_' + Date.now() + '_' + (++videoUploadSeq),
                 file: file,
                 name: file.name,
-                status: 'queued',
+                status: 'ready',
                 progress: 0,
                 result: null,
                 xhr: null,
                 error: null,
                 previewUrl: previewUrl,
+                fingerprint: videoFileFingerprint(file),
             };
             pendingVideoUploads.push(item);
-            startPendingVideoUpload(item);
         });
         renderComposeVideosPreview();
     }
@@ -911,13 +1181,26 @@
         var method = getSelectedVideoMethod();
         var uploadPanel = document.getElementById('compose-video-upload-panel');
         var drivePanel = document.getElementById('compose-video-drive-panel');
+        var folderPanel = document.getElementById('compose-video-folder-panel');
         if (uploadPanel) uploadPanel.hidden = method !== 'upload';
         if (drivePanel) drivePanel.hidden = method !== 'drive';
-        if (method === 'upload') clearComposeDriveVideo();
+        if (folderPanel) folderPanel.hidden = method !== 'drive_folder';
+        if (method === 'upload') {
+            clearComposeDriveVideo();
+            setComposeDriveFolderError('');
+        }
         if (method === 'drive') {
             pendingVideoUploads.forEach(function (item) { try { if (item.xhr) item.xhr.abort(); } catch (_) {} });
             pendingVideoUploads = [];
             renderComposeVideosPreview();
+            setComposeDriveFolderError('');
+        }
+        if (method === 'drive_folder') {
+            pendingVideoUploads.forEach(function (item) { try { if (item.xhr) item.xhr.abort(); } catch (_) {} });
+            pendingVideoUploads = [];
+            renderComposeVideosPreview();
+            clearComposeDriveVideo();
+            loadDriveFolderConfig();
         }
     }
 
@@ -1007,6 +1290,16 @@
                 updateComposeDriveRemoveVisibility();
             });
         }
+        var folderInput = document.getElementById('compose-drive-folder-input');
+        if (folderInput) {
+            folderInput.addEventListener('input', function () {
+                composeDriveFolderConnected = false;
+                setComposeDriveFolderError('');
+            });
+        }
+        document.getElementById('compose-drive-folder-sync-btn')?.addEventListener('click', function () {
+            syncGoogleDriveFolder();
+        });
         var typeSelect = document.getElementById('compose-type');
         if (typeSelect) typeSelect.addEventListener('change', updateComposeTitleUi);
         var titleInput = document.getElementById('compose-title');
@@ -1020,7 +1313,7 @@
 
     function getPendingUploadIds() {
         return pendingVideoUploads.filter(function (item) {
-            return item.status === 'uploading' || item.status === 'queued';
+            return item.status === 'uploading';
         }).map(function (item) { return item.id; });
     }
 
@@ -1046,19 +1339,29 @@
         fillEditPostVideos: fillEditPostVideos,
         resolveComposeLinkPayload: resolveComposeLinkPayload,
         readyUploadedVideos: readyUploadedVideos,
+        uploadReadyVideosBeforePost: uploadReadyVideosBeforePost,
         appendUploadedVideosToFormData: appendUploadedVideosToFormData,
         queueAttachVideosToPost: queueAttachVideosToPost,
         hasUploadingVideos: hasUploadingVideos,
+        hasLocalVideosPendingUpload: hasLocalVideosPendingUpload,
+        hasFailedVideoUploads: hasFailedVideoUploads,
+        hasSelectedLocalVideos: hasSelectedLocalVideos,
         getPendingUploadIds: getPendingUploadIds,
         appendRemovedVideoIds: appendRemovedVideoIds,
         parseGoogleDriveVideoUrl: parseGoogleDriveVideoUrl,
         bindComposeMediaEvents: bindComposeMediaEvents,
         toggleVideoMethodPanel: toggleVideoMethodPanel,
         clearComposeDriveVideo: clearComposeDriveVideo,
+        clearComposeDriveFolder: clearComposeDriveFolder,
         clearComposeVideos: clearComposeVideos,
         setComposeTitleError: setComposeTitleError,
         setComposeBodyError: setComposeBodyError,
         setComposeVideoError: setComposeVideoError,
+        setComposeDriveFolderError: setComposeDriveFolderError,
+        isDriveFolderMethodSelected: isDriveFolderMethodSelected,
+        assertDriveFolderReady: assertDriveFolderReady,
+        publishGoogleDriveFolderPost: publishGoogleDriveFolderPost,
+        syncGoogleDriveFolder: syncGoogleDriveFolder,
         stopAllFeedMediaExcept: stopAllFeedMediaExcept,
         driveThumbnailUrl: driveThumbnailUrl,
         videoPreviewSrc: videoPreviewSrc,

@@ -290,6 +290,11 @@ window.AccountsDeleteModal = (function () {
         modal.setAttribute('aria-hidden', 'true');
 
         input?.addEventListener('input', updateConfirmState);
+        input?.addEventListener('keyup', updateConfirmState);
+        input?.addEventListener('paste', () => {
+            window.setTimeout(updateConfirmState, 0);
+        });
+        input?.addEventListener('change', updateConfirmState);
         confirmBtn?.addEventListener('click', confirmDelete);
         cancelBtn?.addEventListener('click', closeModal);
 
@@ -4275,11 +4280,11 @@ function validateBatchAccountRow(row, rowNumber, role, seenEmails, seenFingerpri
         if (data.date_of_birth >= today) {
             errors.push({ row: rowNumber, field: 'date_of_birth', error: 'Birthdate must be before today.' });
         } else {
-            const classification = classifySkBirthdate(data.date_of_birth, data.term_start);
+            const classification = classifySkBirthdate(data.date_of_birth, null);
             if (classification === 'under') {
-                errors.push({ row: rowNumber, field: 'date_of_birth', error: getSkUnderAgeMessage(data.term_start) });
+                errors.push({ row: rowNumber, field: 'date_of_birth', error: getSkUnderAgeMessage(null) });
             } else if (classification === 'over') {
-                errors.push({ row: rowNumber, field: 'date_of_birth', error: getSkOverAgeMessage(data.term_start) });
+                errors.push({ row: rowNumber, field: 'date_of_birth', error: getSkOverAgeMessage(null) });
             }
         }
     }
@@ -5198,19 +5203,37 @@ function initBatchUploadPanel(prefix, role) {
             els.confirmBtn.disabled = true;
 
             try {
+                const token = csrfToken();
+                if (!token) {
+                    hideLoadingOverlay();
+                    alert('Session expired. Please refresh the page and try again.');
+                    els.confirmBtn.disabled = false;
+                    return;
+                }
+
                 const response = await fetch('/accounts/batch', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
-                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
+                        'X-CSRF-TOKEN': token,
+                        'X-Requested-With': 'XMLHttpRequest',
                         'Accept': 'application/json',
                     },
+                    credentials: 'same-origin',
                     body: JSON.stringify({
+                        _token: token,
                         role,
                         headers: state.parsedHeaders,
                         accounts: state.mappedAccounts,
                     }),
                 });
+
+                if (response.status === 419) {
+                    hideLoadingOverlay();
+                    alert('Session expired (CSRF). Please refresh the page and try again.');
+                    els.confirmBtn.disabled = false;
+                    return;
+                }
 
                 const data = await response.json().catch(() => ({}));
 

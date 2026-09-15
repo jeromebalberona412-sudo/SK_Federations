@@ -201,7 +201,7 @@ import { createClient } from '@supabase/supabase-js';
                 window.refreshMessagesPopover();
             }
             refreshUnread();
-        }, 350);
+        }, 0);
     }
 
     function normalizeRealtimeMessage(row) {

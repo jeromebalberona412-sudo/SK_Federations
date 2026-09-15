@@ -174,7 +174,6 @@
                         <td data-label="Actions" class="bm-col-actions">
                             <div class="bm-row-actions">
                                 @php $reportStatus = strtolower($report['status'] ?? 'pending'); @endphp
-                                @if(in_array($reportStatus, ['pending', 'approved'], true))
                                 <div class="bm-actions-menu row-actions-menu" data-report-id="{{ $report['id'] }}" data-report-status="{{ $reportStatus }}">
                                     <button type="button" class="bm-actions-toggle row-actions-trigger" aria-label="More actions" aria-haspopup="true" aria-expanded="false">
                                         <i class="fas fa-ellipsis-h" aria-hidden="true"></i>
@@ -201,12 +200,6 @@
                                         @endif
                                     </div>
                                 </div>
-                                @else
-                                <button type="button" class="bm-actions-item row-actions-item row-actions-item-view bm-view-btn" data-abyip-view="{{ $report['id'] }}">
-                                    <i class="fas fa-eye" aria-hidden="true"></i>
-                                    <span>View</span>
-                                </button>
-                                @endif
                             </div>
                         </td>
                     </tr>
@@ -328,10 +321,20 @@
         </div>
         <div class="view-modal-body">
             <div class="rejection-form" id="rejectForm">
-                <p class="form-help">Type <strong>Confirm</strong> below, then select a rejection reason.</p>
+                <p class="form-help">Type <strong>REJECT</strong> below, then select a rejection reason.</p>
                 <div class="form-group">
                     <label for="abyipRejectConfirm">Confirmation <span class="required">*</span></label>
-                    <input type="text" id="abyipRejectConfirm" class="form-control" maxlength="20" placeholder="Confirm" autocomplete="off">
+                    <input
+                        type="text"
+                        id="abyipRejectConfirm"
+                        class="form-control"
+                        maxlength="6"
+                        placeholder="REJECT"
+                        autocomplete="off"
+                        spellcheck="false"
+                        autocapitalize="characters"
+                        inputmode="text"
+                    >
                     <span class="error-message" id="rejectConfirmError"></span>
                 </div>
                 <div class="form-group">
@@ -363,10 +366,20 @@
         </div>
         <div class="bm-kk-modal-body bm-kk-modal-body--form">
             <div class="rejection-form" id="revokeForm">
-                <p class="form-help">Type <strong>Confirm</strong> below to continue. The submission will return to <strong>Pending</strong> status.</p>
+                <p class="form-help">Type <strong>REVOKE</strong> below to continue. The submission will return to <strong>Pending</strong> status.</p>
                 <div class="form-group">
                     <label for="abyipRevokeConfirm">Confirmation <span class="required">*</span></label>
-                    <input type="text" id="abyipRevokeConfirm" class="form-control" maxlength="20" placeholder="Confirm" autocomplete="off">
+                    <input
+                        type="text"
+                        id="abyipRevokeConfirm"
+                        class="form-control"
+                        maxlength="6"
+                        placeholder="REVOKE"
+                        autocomplete="off"
+                        spellcheck="false"
+                        autocapitalize="characters"
+                        inputmode="text"
+                    >
                     <span class="error-message" id="revokeConfirmError"></span>
                 </div>
                 <div class="form-group">

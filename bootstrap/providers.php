@@ -17,10 +17,11 @@ use App\Modules\KabataanMonitoring\Providers\KabataanMonitoringServiceProvider;
 use App\Modules\Layout\Providers\LayoutServiceProvider;
 use App\Modules\Notifications\Providers\NotificationsServiceProvider;
 use App\Modules\Profile\Providers\ProfileServiceProvider;
+use App\Modules\Rejected_Abyip\Providers\RejectedAbyipServiceProvider;
 use App\Modules\Reports\Providers\ReportsServiceProvider;
+use App\Modules\Shared\Providers\SharedServiceProvider;
 use App\Modules\SK_Federation_Records\Providers\SkFederationRecordsServiceProvider;
 use App\Modules\SK_Officials_Records\Providers\SkOfficialsRecordsServiceProvider;
-use App\Modules\Shared\Providers\SharedServiceProvider;
 use App\Modules\Turnover\Providers\TurnoverServiceProvider;
 use App\Modules\Tutorial_Guide\Providers\TutorialGuideServiceProvider;
 use App\Providers\AppServiceProvider;
@@ -45,6 +46,7 @@ return [
     AuditLogServiceProvider::class,
     DeletedPostsServiceProvider::class,
     DeletedSkOfficialsServiceProvider::class,
+    RejectedAbyipServiceProvider::class,
     SkOfficialsRecordsServiceProvider::class,
     SkFederationRecordsServiceProvider::class,
     DeletedCalendarNotesServiceProvider::class,

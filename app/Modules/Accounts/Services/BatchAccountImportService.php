@@ -376,8 +376,8 @@ class BatchAccountImportService
                 if ($dob->isFuture() || $dob->greaterThanOrEqualTo(Carbon::today())) {
                     $errors[] = 'Birthdate must be before today.';
                 } else {
-                    $referenceDate = ! empty($data['term_start']) ? (string) $data['term_start'] : null;
-                    $birthdateError = SkOfficialTermDates::birthdateErrorFor($dob, $referenceDate);
+                    // Age eligibility is as of today (not term_start), so 18+ today always passes.
+                    $birthdateError = SkOfficialTermDates::birthdateErrorFor($dob, null);
                     if ($birthdateError !== null) {
                         $errors[] = $birthdateError;
                     }

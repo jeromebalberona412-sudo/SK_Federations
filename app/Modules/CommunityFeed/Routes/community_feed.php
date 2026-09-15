@@ -1,6 +1,7 @@
 <?php
 
 use App\Modules\CommunityFeed\Controllers\CommunityFeedController;
+use App\Modules\CommunityFeed\Controllers\CommunityFeedGoogleDriveFolderController;
 use App\Modules\CommunityFeed\Controllers\CommunityFeedPostController;
 use Illuminate\Support\Facades\Route;
 
@@ -55,6 +56,14 @@ Route::middleware(['auth', 'session.timeout', 'verified', 'single.session', 'sk_
             Route::post('/', [CommunityFeedPostController::class, 'store'])->name('api.community-feed.store');
             Route::post('/upload-image', [CommunityFeedPostController::class, 'uploadImage'])->name('api.community-feed.upload-image');
             Route::post('/upload-video', [CommunityFeedPostController::class, 'uploadVideo'])->name('api.community-feed.upload-video');
+            Route::get('/google-drive-folder', [CommunityFeedGoogleDriveFolderController::class, 'show'])
+                ->name('api.community-feed.google-drive-folder.show');
+            Route::post('/google-drive-folder', [CommunityFeedGoogleDriveFolderController::class, 'store'])
+                ->name('api.community-feed.google-drive-folder.store');
+            Route::post('/google-drive-folder/publish', [CommunityFeedGoogleDriveFolderController::class, 'publish'])
+                ->name('api.community-feed.google-drive-folder.publish');
+            Route::post('/google-drive-folder/sync', [CommunityFeedGoogleDriveFolderController::class, 'sync'])
+                ->name('api.community-feed.google-drive-folder.sync');
             Route::get('/{id}', [CommunityFeedPostController::class, 'show'])->whereNumber('id')->name('api.community-feed.show');
             Route::put('/{id}', [CommunityFeedPostController::class, 'update'])->whereNumber('id')->name('api.community-feed.update');
             Route::delete('/{id}', [CommunityFeedPostController::class, 'destroy'])->whereNumber('id')->name('api.community-feed.destroy');

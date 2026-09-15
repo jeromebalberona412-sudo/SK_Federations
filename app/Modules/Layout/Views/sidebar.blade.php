@@ -1,5 +1,5 @@
 @php
-    $archiveManagementOpen = request()->routeIs('archived.*', 'deleted-calendar-notes*', 'deleted-posts*', 'deleted-sk-officials*', 'sk-officials-records*', 'sk-federation-records*');
+    $archiveManagementOpen = request()->routeIs('archived.*', 'archived.rejected-abyip*', 'deleted-calendar-notes*', 'deleted-posts*', 'deleted-sk-officials*', 'sk-officials-records*', 'sk-federation-records*');
     $accountsOpen = request()->routeIs('accounts.*');
     $isFederationAccountsActive = request()->routeIs('accounts.federation.index') || (request()->routeIs('accounts.manage') && (request('account_type', 'sk_federation') === 'sk_federation'));
     $isOfficialsAccountsActive = request()->routeIs('accounts.officials.index');
@@ -74,6 +74,11 @@
             @if (\Illuminate\Support\Facades\Route::has('archived.deleted-posts'))
             <a href="{{ route('archived.deleted-posts') }}" class="menu-item submenu-item submenu-item--plain {{ request()->routeIs('archived.deleted-posts*') ? 'active' : '' }}" data-no-loading>
                 <span>Deleted Posts</span>
+            </a>
+            @endif
+            @if (\Illuminate\Support\Facades\Route::has('archived.rejected-abyip'))
+            <a href="{{ route('archived.rejected-abyip') }}" class="menu-item submenu-item submenu-item--plain {{ request()->routeIs('archived.rejected-abyip*') ? 'active' : '' }}" data-no-loading>
+                <span>Rejected ABYIP</span>
             </a>
             @endif
             @if (\Illuminate\Support\Facades\Route::has('deleted-calendar-notes'))

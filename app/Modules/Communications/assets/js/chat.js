@@ -245,9 +245,20 @@
         root.classList.toggle('is-thread-open', !!open);
     }
 
+    function isHiddenAdminPeer(peer) {
+        if (!peer || peer.is_group) return false;
+        var name = String(peer.name || '').toLowerCase().trim();
+        return name === 'sk federation administrator'
+            || name.indexOf('federation administrator') !== -1
+            || name.indexOf('sk federation admin') !== -1;
+    }
+
     function renderConversations(filter) {
         var q = String(filter || '').trim().toLowerCase();
-        var items = state.conversations;
+        var items = state.conversations.filter(function (c) {
+            if (c.conversation_type === 'group' || c.is_default_group) return true;
+            return !isHiddenAdminPeer(c.other_user || {});
+        });
         if (q) {
             items = items.filter(function (c) {
                 var label = (c.other_user && c.other_user.name) || c.name || '';
@@ -1722,6 +1733,11 @@
 
             return Comms.api(Comms.route(routes.read, id), { method: 'POST', body: '{}' });
         }).then(function () {
+            if (window.CommsRealtime && typeof window.CommsRealtime.refreshUnread === 'function') {
+                window.CommsRealtime.refreshUnread();
+            } else if (typeof window.refreshMessagesUnreadBadge === 'function') {
+                window.refreshMessagesUnreadBadge();
+            }
             if (!opts.skipReloadList) {
                 return loadConversations();
             }

@@ -3,11 +3,15 @@
 namespace App\Modules\Communications\Services;
 
 use App\Modules\Accounts\Models\OfficialProfile;
+use App\Modules\Authentication\Services\BootstrapSkFedAdminService;
 use App\Modules\Authentication\Services\TenantContextService;
 use App\Modules\Communications\Models\Conversation;
 use App\Modules\Communications\Models\ConversationParticipant;
 use App\Modules\Shared\Models\User;
+use App\Services\CloudinaryService;
+use App\Services\CommunityFeedAvatarService;
 use Illuminate\Contracts\Auth\Authenticatable;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -281,7 +285,7 @@ class DefaultGroupChatService
             ->pluck('id')
             ->map(fn ($id) => (int) $id);
 
-        // SK Federation portal admins also see the Officials GC in Communications.
+        // SK Federation portal members (exclude bootstrap Administrator account).
         $federationAdminIds = User::query()
             ->where('tenant_id', $tenantId)
             ->where('role', User::ROLE_SK_FED)
@@ -290,6 +294,8 @@ class DefaultGroupChatService
                 User::STATUS_ACTIVE,
                 User::STATUS_PENDING_APPROVAL,
             ])
+            ->whereRaw('LOWER(email) != ?', [BootstrapSkFedAdminService::bootstrapEmailNormalized()])
+            ->whereRaw('LOWER(TRIM(name)) != ?', ['sk federation administrator'])
             ->pluck('id')
             ->map(fn ($id) => (int) $id);
 
@@ -506,7 +512,7 @@ class DefaultGroupChatService
         return $conversation->fresh();
     }
 
-    public function updateAvatar(Conversation $conversation, Authenticatable $user, \Illuminate\Http\UploadedFile $file): Conversation
+    public function updateAvatar(Conversation $conversation, Authenticatable $user, UploadedFile $file): Conversation
     {
         if (! $this->canChangeAvatar($conversation, $user)) {
             abort(403, 'Only the SK Federation President can change this group photo.');
@@ -516,7 +522,7 @@ class DefaultGroupChatService
             abort(422, 'Only default group chats support a custom photo.');
         }
 
-        $cloudinary = app(\App\Services\CloudinaryService::class);
+        $cloudinary = app(CloudinaryService::class);
         if (! $cloudinary->isConfigured()) {
             abort(503, 'Image upload is not configured.');
         }
@@ -591,7 +597,7 @@ class DefaultGroupChatService
     {
         $conversation->loadMissing(['participants.user.officialProfile', 'participants.user.barangay']);
 
-        $avatars = app(\App\Services\CommunityFeedAvatarService::class);
+        $avatars = app(CommunityFeedAvatarService::class);
         $rankMap = $this->federationPositionRankMap();
         $isFederationGroup = $conversation->default_group_type === self::TYPE_SK_FEDERATIONS;
 

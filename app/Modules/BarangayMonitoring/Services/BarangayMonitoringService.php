@@ -5,6 +5,7 @@ namespace App\Modules\BarangayMonitoring\Services;
 use App\Models\Abyip;
 use App\Models\ReportManagement;
 use App\Modules\Profile\Models\Barangay;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Schema;
 
 class BarangayMonitoringService
@@ -73,17 +74,12 @@ class BarangayMonitoringService
             ->documents()
             ->with(['creator:id,name', 'creator.officialProfile:id,user_id,position'])
             ->where('barangay_id', $barangayId)
+            ->where(function ($query) {
+                $query->whereNull('status')
+                    ->orWhere('status', '!=', Abyip::STATUS_REJECTED);
+            })
             ->orderByDesc('created_at')
-            ->select([
-                'id',
-                'barangay_id',
-                'document_title',
-                'fiscal_year',
-                'status',
-                'rejection_reason',
-                'created_by',
-                'created_at',
-            ])
+            ->select($this->abyipDocumentListColumns())
             ->selectRaw("(CASE WHEN pdf_data IS NOT NULL AND pdf_data <> '' THEN 1 ELSE 0 END) as has_pdf_flag")
             ->get()
             ->map(fn (Abyip $document) => [
@@ -96,7 +92,9 @@ class BarangayMonitoringService
                 'submitted_by' => $document->creator?->name ?? 'N/A',
                 'submitted_by_role' => $this->formatOfficialPosition($document->creator?->officialProfile?->position),
                 'status' => strtolower((string) ($document->status ?? Abyip::STATUS_PENDING)),
-                'rejection_reason' => $document->rejection_reason,
+                'rejection_reason' => Schema::hasColumn('abyip', 'rejection_reason')
+                    ? $document->rejection_reason
+                    : null,
                 'has_pdf' => (bool) ($document->has_pdf_flag ?? false),
                 'file' => (bool) ($document->has_pdf_flag ?? false) ? url('/api/barangay-abyip/'.$document->id.'/file') : null,
                 'file_url' => (bool) ($document->has_pdf_flag ?? false) ? url('/api/barangay-abyip/'.$document->id.'/file') : null,
@@ -168,16 +166,7 @@ class BarangayMonitoringService
             ->with(['creator:id,name', 'creator.officialProfile:id,user_id,position'])
             ->whereIn('barangay_id', $ids)
             ->orderByDesc('created_at')
-            ->get([
-                'id',
-                'barangay_id',
-                'document_title',
-                'fiscal_year',
-                'status',
-                'rejection_reason',
-                'created_by',
-                'created_at',
-            ]);
+            ->get($this->abyipDocumentListColumns());
 
         $byBarangay = [];
         foreach ($documents as $document) {
@@ -350,7 +339,7 @@ class BarangayMonitoringService
     }
 
     /**
-     * @param  \Illuminate\Database\Eloquent\Builder<\App\Models\Abyip>  $query
+     * @param  Builder<Abyip>  $query
      */
     private function applyDashboardAbyipFilters($query, ?string $dateFrom, ?string $dateTo): void
     {
@@ -490,5 +479,30 @@ class BarangayMonitoringService
         $termStart = $base + (int) (floor($offset / 3) * 3);
 
         return $termStart.'-'.($termStart + 2);
+    }
+
+    /**
+     * Columns used by barangay-monitoring ABYIP listings.
+     * Omits rejection_reason when the production schema has not been migrated yet.
+     *
+     * @return list<string>
+     */
+    private function abyipDocumentListColumns(): array
+    {
+        $columns = [
+            'id',
+            'barangay_id',
+            'document_title',
+            'fiscal_year',
+            'status',
+            'created_by',
+            'created_at',
+        ];
+
+        if (Schema::hasColumn('abyip', 'rejection_reason')) {
+            $columns[] = 'rejection_reason';
+        }
+
+        return $columns;
     }
 }

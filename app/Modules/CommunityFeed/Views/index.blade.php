@@ -15,7 +15,7 @@
         'app/Modules/CommunityFeed/assets/css/community-feed.css',
         'app/Modules/CommunityFeed/assets/css/community-feed-comment-preview.css',
     ])
-    <link rel="preload" href="{{ url('/sounds/reactions_ux.mp3') }}" as="audio" type="audio/mpeg">
+    <link rel="preload" href="{{ url('/sounds/reactions_ux.mp3') }}" as="fetch" type="audio/mpeg" crossorigin="anonymous">
 @endpush
 
 @section('content')
@@ -64,7 +64,9 @@
                 {{-- Compose Post --}}
                 <div class="post-card compose-card">
                     <div class="compose-row">
-                        <img src="{{ $avatar }}" alt="Avatar" class="post-avatar">
+                        <a href="{{ route('sk-fed-profile') }}" class="compose-avatar-link" aria-label="Open SK Federation profile" data-no-loading>
+                            <img src="{{ $avatar }}" alt="Avatar" class="post-avatar">
+                        </a>
                         <button type="button" class="compose-trigger" data-compose-open>
                             What's happening in your barangay?
                         </button>
@@ -111,6 +113,10 @@
                 {{-- Feed Posts --}}
                 <div id="feed-empty" class="post-card feed-empty-card" hidden>No posts found.</div>
                 <div id="feed-posts"></div>
+                <div id="feedEndState" class="feed-end-state" hidden>
+                    <p class="feed-end-state__text">No more posts</p>
+                </div>
+                <div id="feedInfiniteSentinel" class="feed-infinite-sentinel" aria-hidden="true"></div>
             </div>
 
             {{-- ── RIGHT: Barangay SK Profiles Sidebar ── --}}
@@ -176,35 +182,41 @@
                                 <i class="fas fa-chevron-down compose-audience-chevron" aria-hidden="true"></i>
                             </button>
                             <div class="compose-audience-menu" id="compose-audience-menu" hidden role="listbox" aria-multiselectable="true" aria-label="Select who to notify">
-                                <p class="compose-audience-hint">Select one or more. These control who gets the notification bell. Email is optional via the checkbox below. Public also makes the post shareable and selects all audiences.</p>
-                                <label class="compose-audience-option">
-                                    <input type="checkbox" name="compose-audience" value="public">
-                                    <span>
-                                        <strong>Public</strong>
-                                        <small>Shareable post. Selects Federation, SK Officials, and Kabataan. Bell notifications always send.</small>
-                                    </span>
-                                </label>
-                                <label class="compose-audience-option">
-                                    <input type="checkbox" name="compose-audience" value="federation">
-                                    <span>
-                                        <strong>Federation</strong>
-                                        <small>Federation portal users only (not publicly shareable unless Public is also selected).</small>
-                                    </span>
-                                </label>
-                                <label class="compose-audience-option">
-                                    <input type="checkbox" name="compose-audience" value="officials">
-                                    <span>
-                                        <strong>SK Officials</strong>
-                                        <small>All SK Officials across Santa Cruz barangays.</small>
-                                    </span>
-                                </label>
-                                <label class="compose-audience-option">
-                                    <input type="checkbox" name="compose-audience" value="kabataan">
-                                    <span>
-                                        <strong>Kabataan</strong>
-                                        <small>All eligible Kabataan members across Santa Cruz.</small>
-                                    </span>
-                                </label>
+                                <p class="compose-audience-hint">Pick who gets the bell notification. Public also selects everyone and makes the post shareable. Email is optional below.</p>
+                                <div class="compose-audience-options">
+                                    <label class="compose-audience-option">
+                                        <input type="checkbox" name="compose-audience" value="public">
+                                        <span>
+                                            <strong>Public</strong>
+                                            <small>Shareable post. Selects Federation, SK Officials, and Kabataan. Bell notifications always send.</small>
+                                        </span>
+                                    </label>
+                                    <label class="compose-audience-option">
+                                        <input type="checkbox" name="compose-audience" value="federation">
+                                        <span>
+                                            <strong>Federation</strong>
+                                            <small>Federation portal users only (not publicly shareable unless Public is also selected).</small>
+                                        </span>
+                                    </label>
+                                    <label class="compose-audience-option">
+                                        <input type="checkbox" name="compose-audience" value="officials">
+                                        <span>
+                                            <strong>SK Officials</strong>
+                                            <small>All SK Officials across Santa Cruz barangays.</small>
+                                        </span>
+                                    </label>
+                                    <label class="compose-audience-option">
+                                        <input type="checkbox" name="compose-audience" value="kabataan">
+                                        <span>
+                                            <strong>Kabataan</strong>
+                                            <small>All eligible Kabataan members across Santa Cruz.</small>
+                                        </span>
+                                    </label>
+                                </div>
+                                <div class="compose-audience-actions">
+                                    <button type="button" class="btn-secondary compose-audience-cancel" id="compose-audience-cancel">Cancel</button>
+                                    <button type="button" class="btn-primary compose-audience-ok" id="compose-audience-ok">OK</button>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -246,38 +258,83 @@
                 <p id="compose-images-meta" class="compose-images-meta"></p>
                 <div id="compose-images-preview" class="compose-images-preview"></div>
                 <div id="compose-video-method-wrap" class="compose-video-method-wrap" hidden>
-                    <p class="compose-media-label">Video Upload Method</p>
                     <div class="compose-video-method-list" role="radiogroup" aria-label="Video upload method">
                         <label class="compose-video-method-option">
                             <input type="radio" name="compose-video-method" value="upload" checked>
-                            <span><strong>Upload Video</strong><small>Upload the video directly to SK OnePortal.</small></span>
+                            <span>
+                                <strong>Upload Video</strong>
+                                <small>Select files from this device. Uploading starts only when you click Post.</small>
+                            </span>
                         </label>
                         <label class="compose-video-method-option">
                             <input type="radio" name="compose-video-method" value="drive">
-                            <span><strong>Use Google Drive Link</strong><small>Paste one Google Drive video file link.</small></span>
+                            <span>
+                                <strong>Use Google Drive Link</strong>
+                                <small>Paste <strong>1 specific video</strong> file link. Anyone with access to this Drive video can watch it.</small>
+                            </span>
+                        </label>
+                        <label class="compose-video-method-option">
+                            <input type="radio" name="compose-video-method" value="drive_folder">
+                            <span>
+                                <strong>Use Google Drive Folder (Recommended)</strong>
+                                <small>Connect a folder (oldest 50 videos) and post them together in one grid. Anyone with access to this Drive folder can watch the videos.</small>
+                            </span>
                         </label>
                     </div>
                     <div id="compose-video-upload-panel" class="compose-video-upload-panel">
-                        <label class="compose-attach-btn" for="compose-video-input-file">
-                            <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path d="M2 6a2 2 0 012-2h6a2 2 0 012 2v8a2 2 0 01-2 2H4a2 2 0 01-2-2V6zm12.553 1.106A1 1 0 0014 8v4a1 1 0 00.553.894l2 1A1 1 0 0018 13V7a1 1 0 00-1.447-.894l-2 1z"/></svg>
-                            Choose videos
+                        <label class="compose-video-dropzone" for="compose-video-input-file">
+                            <span class="compose-video-dropzone__icon" aria-hidden="true">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M12 16V4"/>
+                                    <path d="M8 8l4-4 4 4"/>
+                                    <rect x="3" y="14" width="18" height="6" rx="2"/>
+                                </svg>
+                            </span>
+                            <span class="compose-video-dropzone__title">Select video files</span>
+                            <span class="compose-video-dropzone__hint">Click to browse · Preview only until you click Post</span>
+                            <span class="compose-video-dropzone__specs">
+                                <span>MP4 · WebM · MOV</span>
+                                <span>Max 500 MB each</span>
+                                <span>Up to 30 videos</span>
+                            </span>
                         </label>
                         <input type="file" id="compose-video-input-file" accept="video/mp4,video/webm,video/quicktime,.mp4,.webm,.mov" multiple hidden>
-                        <p class="compose-video-help">Maximum video size: 250 MB<br>Allowed: MP4, WebM, MOV<br>Up to 5 videos</p>
                         <p id="compose-videos-meta" class="compose-images-meta"></p>
                         <div id="compose-videos-preview" class="compose-videos-preview"></div>
                         <p id="compose-video-upload-error" class="compose-field-error" role="alert" hidden></p>
                     </div>
                     <div id="compose-video-drive-panel" class="compose-video-input-wrap" hidden>
                         <label class="compose-media-label" for="compose-video-input">Google Drive Video Link</label>
-                        <input type="url" id="compose-video-input" class="compose-link-field" placeholder="Paste Google Drive video link here" autocomplete="off" inputmode="url" aria-describedby="compose-video-help compose-video-share-help compose-video-error">
-                        <p id="compose-video-help" class="compose-video-help">For <strong>1 specific video</strong> only (single file link, not a folder).</p>
+                        <input type="url" id="compose-video-input" class="compose-link-field" placeholder="Paste one Google Drive video file link" autocomplete="off" inputmode="url" aria-describedby="compose-video-help compose-video-share-help compose-video-error">
+                        <p id="compose-video-help" class="compose-video-help">Paste <strong>1 specific video</strong> file link (not a folder).</p>
                         <p id="compose-video-share-help" class="compose-video-help compose-video-share-help">
                             <strong>Sharing required:</strong> In Google Drive, open the file → Share → set access to
                             <em>“Anyone with the link”</em> (Viewer). Otherwise people who see this post cannot play the video.
                         </p>
                         <p id="compose-video-error" class="compose-field-error" role="alert" hidden></p>
                         <button type="button" class="compose-remove-video-btn" id="compose-remove-video-btn" hidden onclick="clearComposeDriveVideo()">Remove Drive link</button>
+                    </div>
+                    <div id="compose-video-folder-panel" class="compose-video-input-wrap" hidden>
+                        <label class="compose-media-label" for="compose-drive-folder-input">Google Drive Video Folder</label>
+                        <input
+                            type="url"
+                            id="compose-drive-folder-input"
+                            class="compose-link-field"
+                            placeholder="https://drive.google.com/drive/folders/..."
+                            autocomplete="off"
+                            inputmode="url"
+                            aria-describedby="compose-drive-folder-help compose-drive-folder-error"
+                        >
+                        <p id="compose-drive-folder-help" class="compose-video-help">
+                            Connect a folder (oldest 50 videos) and post them together in one grid.<br>
+                            Anyone with this Drive folder access can watch the videos — set folder sharing accordingly.<br>
+                            Click <strong>Save / Connect Folder</strong> first, then write your caption and click <strong>Post</strong>.
+                        </p>
+                        <p id="compose-drive-folder-status" class="compose-images-meta" hidden></p>
+                        <p id="compose-drive-folder-error" class="compose-field-error" role="alert" hidden></p>
+                        <div class="compose-folder-actions">
+                            <button type="button" class="btn-primary" id="compose-drive-folder-sync-btn">Save / Connect Folder</button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -467,8 +524,8 @@
             prohibitedWords: window.__skProhibitedWords,
             cloudinaryCloudName: @json(config('services.cloudinary.cloud_name')),
             communityVideoPreset: @json(config('services.cloudinary.community_video_upload_preset')),
-            communityVideoMaxBytes: @json((int) config('services.cloudinary.community_video_max_bytes', 262144000)),
-            communityVideoMaxCount: @json((int) config('services.cloudinary.community_video_max_count', 5)),
+            communityVideoMaxBytes: @json((int) config('services.cloudinary.community_video_max_bytes', 524288000)),
+            communityVideoMaxCount: @json((int) config('services.cloudinary.community_video_max_count', 30)),
         };
         window.CommentPreviewConfig = {
             post: @json($commentPreviewPost ?? null),

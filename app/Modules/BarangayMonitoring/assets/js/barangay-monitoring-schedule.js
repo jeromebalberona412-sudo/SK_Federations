@@ -283,7 +283,14 @@
         });
 
         if (!response.ok) {
-            throw new Error(extractErrorMessage(payload));
+            const message = extractErrorMessage(payload);
+            const missingSchedule = /no longer exists|no query results for model/i.test(message);
+            if (missingSchedule) {
+                alert(message + '\n\nThe page will refresh so you can create a new schedule.');
+                window.location.reload();
+                return;
+            }
+            throw new Error(message);
         }
 
         return payload;
@@ -313,6 +320,12 @@
         document.getElementById('scheduleDeadline').value = mode === 'edit'
             ? (schedule.deadline_raw || '')
             : defaults.end;
+        const allowLateInput = document.getElementById('scheduleAllowLate');
+        if (allowLateInput) {
+            allowLateInput.checked = mode === 'edit'
+                ? Boolean(schedule.allow_late_extension)
+                : false;
+        }
 
         const startValue = document.getElementById('scheduleDateStart')?.value || bounds.today;
         const deadlineInput = document.getElementById('scheduleDeadline');
@@ -352,7 +365,7 @@
             title: title,
             date_start: dateStart,
             deadline: deadline,
-            allow_late_extension: false,
+            allow_late_extension: Boolean(document.getElementById('scheduleAllowLate')?.checked),
         };
 
         if (saveBtn) {
@@ -415,6 +428,93 @@
                 confirmBtn.disabled = false;
                 confirmBtn.textContent = 'Yes, Cancel Schedule';
             }
+            throw error;
+        }
+    }
+
+    function openExtendScheduleModal() {
+        const schedule = config.currentSchedule || {};
+        if (!schedule.id) return;
+        const modal = document.getElementById('extendModal');
+        const idInput = document.getElementById('extendScheduleId');
+        const deadlineInput = document.getElementById('extendNewDeadline');
+        const bounds = currentYearBounds();
+        if (idInput) idInput.value = String(schedule.id);
+        if (deadlineInput) {
+            const current = schedule.deadline_raw || bounds.yearEnd;
+            deadlineInput.min = bounds.today;
+            deadlineInput.max = bounds.yearEnd;
+            deadlineInput.value = current < bounds.today ? bounds.today : current;
+        }
+        closeScheduleViewModal();
+        if (modal) modal.hidden = false;
+    }
+
+    async function saveExtendSchedule() {
+        const scheduleId = document.getElementById('extendScheduleId')?.value
+            || config.currentSchedule?.id;
+        const newDeadline = document.getElementById('extendNewDeadline')?.value;
+        if (!scheduleId || !newDeadline) {
+            alert('Please choose a new deadline.');
+            return;
+        }
+
+        const saveBtn = document.getElementById('extendSaveBtn');
+        if (saveBtn) {
+            saveBtn.disabled = true;
+            saveBtn.textContent = 'Saving...';
+        }
+        if (typeof window.showLoading === 'function') {
+            window.showLoading('Extending Deadline', 'Please wait...');
+        }
+
+        try {
+            const url = (config.extendUrl || (config.updateUrl + '/__ID__/extend'))
+                .replace('__ID__', scheduleId);
+            await apiRequest(url, 'POST', {
+                new_deadline: newDeadline,
+                reason: 'Deadline extended for barangays that have not submitted.',
+            });
+            closeModals();
+            await finishScheduleAction('ABYIP submission deadline extended.');
+        } catch (error) {
+            if (typeof window.hideLoading === 'function') {
+                window.hideLoading();
+            }
+            if (saveBtn) {
+                saveBtn.disabled = false;
+                saveBtn.textContent = 'Extend Deadline';
+            }
+            throw error;
+        }
+    }
+
+    async function allowScheduleResubmission() {
+        const schedule = config.currentSchedule || {};
+        if (!schedule.id) return;
+
+        const confirmed = window.confirm(
+            'Allow late ABYIP resubmission for barangays that have not submitted yet? SK Officials will be able to upload after the deadline.'
+        );
+        if (!confirmed) return;
+
+        const btn = document.getElementById('btnAllowScheduleResubmission');
+        if (btn) btn.disabled = true;
+        if (typeof window.showLoading === 'function') {
+            window.showLoading('Allowing Resubmission', 'Please wait...');
+        }
+
+        try {
+            const url = (config.allowResubmissionUrl || (config.updateUrl + '/__ID__/allow-resubmission'))
+                .replace('__ID__', schedule.id);
+            await apiRequest(url, 'POST', {});
+            closeScheduleViewModal();
+            await finishScheduleAction('ABYIP resubmission is now allowed for barangays that have not submitted.');
+        } catch (error) {
+            if (typeof window.hideLoading === 'function') {
+                window.hideLoading();
+            }
+            if (btn) btn.disabled = false;
             throw error;
         }
     }
@@ -494,6 +594,22 @@
             closeScheduleHistoryModal();
             closeScheduleViewModal();
             openScheduleModal('edit');
+        });
+
+        document.getElementById('btnExtendSchedule')?.addEventListener('click', function () {
+            openExtendScheduleModal();
+        });
+
+        document.getElementById('btnAllowScheduleResubmission')?.addEventListener('click', function () {
+            allowScheduleResubmission().catch(function (error) {
+                alert(error.message);
+            });
+        });
+
+        document.getElementById('extendSaveBtn')?.addEventListener('click', function () {
+            saveExtendSchedule().catch(function (error) {
+                alert(error.message);
+            });
         });
 
         document.getElementById('scheduleDateStart')?.addEventListener('change', function () {

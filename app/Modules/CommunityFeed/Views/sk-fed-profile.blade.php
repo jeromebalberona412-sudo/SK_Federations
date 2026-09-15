@@ -11,7 +11,7 @@
         'app/Modules/CommunityFeed/assets/css/community-feed.css',
         'app/Modules/CommunityFeed/assets/css/community-feed-comment-preview.css',
     ])
-    <link rel="preload" href="{{ url('/sounds/reactions_ux.mp3') }}" as="audio" type="audio/mpeg">
+    <link rel="preload" href="{{ url('/sounds/reactions_ux.mp3') }}" as="fetch" type="audio/mpeg" crossorigin="anonymous">
 @endpush
 
 @section('content')
@@ -93,19 +93,81 @@
 
 <div id="feedToast" class="feed-toast" role="status" aria-live="polite"></div>
 
+<div id="imageLightbox" class="image-lightbox" aria-hidden="true">
+    <button type="button" id="lightboxClose" class="lightbox-close" aria-label="Close">&times;</button>
+    <div class="lightbox-toolbar">
+        <button type="button" id="lightboxZoomOut" class="lightbox-tool-btn" aria-label="Zoom out">−</button>
+        <span id="lightboxZoomLevel" class="lightbox-zoom-level">100%</span>
+        <button type="button" id="lightboxZoomIn" class="lightbox-tool-btn" aria-label="Zoom in">+</button>
+        <button type="button" id="lightboxZoomReset" class="lightbox-tool-btn lightbox-reset-btn" aria-label="Reset zoom">Reset</button>
+    </div>
+    <button type="button" id="lightboxPrev" class="lightbox-nav lightbox-prev" aria-label="Previous">&#10094;</button>
+    <div class="lightbox-viewport" id="lightboxViewport">
+        <img id="lightboxImage" src="" alt="Full size photo" draggable="false">
+    </div>
+    <button type="button" id="lightboxNext" class="lightbox-nav lightbox-next" aria-label="Next">&#10095;</button>
+    <div id="lightboxCounter" class="lightbox-counter"></div>
+</div>
+
 <div id="videoLightbox" class="image-lightbox video-lightbox" aria-hidden="true">
     <button type="button" id="videoLightboxClose" class="lightbox-close" aria-label="Close">&times;</button>
-    <div class="lightbox-stage">
-        <video id="videoLightboxPlayer" controls playsinline></video>
+    <button type="button" id="videoLightboxPrev" class="lightbox-nav lightbox-prev" aria-label="Previous video">&#10094;</button>
+    <div class="lightbox-viewport video-lightbox-viewport" id="videoLightboxViewport">
+        <div id="videoLightboxFrame" class="video-lightbox-frame"></div>
+    </div>
+    <button type="button" id="videoLightboxNext" class="lightbox-nav lightbox-next" aria-label="Next video">&#10095;</button>
+    <div id="videoLightboxCounter" class="lightbox-counter"></div>
+</div>
+
+<div id="reactionViewerModal" class="reaction-viewer" aria-hidden="true">
+    <div class="reaction-viewer-overlay" onclick="closeReactionViewer()"></div>
+    <div class="reaction-viewer-panel" role="dialog" aria-label="People who reacted">
+        <div class="reaction-viewer-header">
+            <div class="reaction-viewer-tabs" id="reactionViewerTabs"></div>
+            <button type="button" class="reaction-viewer-close" onclick="closeReactionViewer()" aria-label="Close">&times;</button>
+        </div>
+        <div class="reaction-viewer-list" id="reactionViewerList"></div>
     </div>
 </div>
 
-<div id="imageLightbox" class="image-lightbox" aria-hidden="true">
-    <button type="button" id="imageLightboxClose" class="lightbox-close" aria-label="Close">&times;</button>
-    <button type="button" id="imageLightboxPrev" class="lightbox-nav lightbox-prev" aria-label="Previous">‹</button>
-    <div class="lightbox-stage"><img id="imageLightboxImg" src="" alt=""></div>
-    <button type="button" id="imageLightboxNext" class="lightbox-nav lightbox-next" aria-label="Next">›</button>
-    <div class="lightbox-counter" id="imageLightboxCounter"></div>
+<div id="editCommentModal" class="program-modal comment-action-modal">
+    <div class="modal-overlay" onclick="closeEditCommentModal()"></div>
+    <div class="modal-container" style="max-width:440px;">
+        <div class="modal-header">
+            <h2>Edit Comment</h2>
+            <button type="button" class="modal-close" onclick="closeEditCommentModal()" aria-label="Close">
+                <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"/></svg>
+            </button>
+        </div>
+        <div class="modal-body">
+            <textarea id="editCommentBody" class="edit-comment-textarea" maxlength="2000" placeholder="Write a comment..."></textarea>
+        </div>
+        <div class="modal-footer-btns">
+            <button type="button" class="btn-secondary" onclick="closeEditCommentModal()">Cancel</button>
+            <button type="button" class="btn-primary" id="confirmEditCommentBtn" onclick="confirmEditComment()">Save</button>
+        </div>
+    </div>
+</div>
+
+<div id="deleteCommentModal" class="program-modal comment-action-modal">
+    <div class="modal-overlay" onclick="closeDeleteCommentModal()"></div>
+    <div class="modal-container" style="max-width:440px;">
+        <div class="modal-header">
+            <h2>Delete Comment</h2>
+            <button type="button" class="modal-close" onclick="closeDeleteCommentModal()" aria-label="Close">
+                <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"/></svg>
+            </button>
+        </div>
+        <div class="modal-body">
+            <p style="font-size:14px;color:#555;line-height:1.65;margin:0;">
+                Delete this comment? This cannot be undone.
+            </p>
+        </div>
+        <div class="modal-footer-btns">
+            <button type="button" class="btn-secondary" onclick="closeDeleteCommentModal()">Cancel</button>
+            <button type="button" class="btn-danger" id="confirmDeleteCommentBtn" onclick="confirmDeleteComment()">Delete</button>
+        </div>
+    </div>
 </div>
 
 @include('community_feed::comment-preview')
@@ -124,8 +186,8 @@
             prohibitedWords: window.__skProhibitedWords,
             cloudinaryCloudName: @json(config('services.cloudinary.cloud_name')),
             communityVideoPreset: @json(config('services.cloudinary.community_video_upload_preset')),
-            communityVideoMaxBytes: @json((int) config('services.cloudinary.community_video_max_bytes', 262144000)),
-            communityVideoMaxCount: @json((int) config('services.cloudinary.community_video_max_count', 5)),
+            communityVideoMaxBytes: @json((int) config('services.cloudinary.community_video_max_bytes', 524288000)),
+            communityVideoMaxCount: @json((int) config('services.cloudinary.community_video_max_count', 30)),
         };
         window.CommentPreviewConfig = {
             post: @json($commentPreviewPost ?? null),
