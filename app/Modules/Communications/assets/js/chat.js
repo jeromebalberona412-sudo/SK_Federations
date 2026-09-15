@@ -96,7 +96,8 @@
         groupModalBody: document.getElementById('commsGroupModalBody'),
         renameModal: document.getElementById('commsRenameModal'),
         renameForm: document.getElementById('commsRenameForm'),
-        renameInput: document.getElementById('commsRenameInput')
+        renameInput: document.getElementById('commsRenameInput'),
+        renameSubmit: document.getElementById('commsRenameSubmit')
     };
 
     function isGroupConversation(conversation) {
@@ -148,8 +149,9 @@
                     memberAvatarHtml(m) +
                     '<div class="comms-group-member-main">' +
                     '<div class="comms-group-member-name">' + Comms.escapeHtml(mName) + '</div>' +
-                    '<div class="comms-group-member-meta">' + Comms.escapeHtml(role) +
-                    (position ? (' · ' + Comms.escapeHtml(String(position))) : '') +
+                    '<div class="comms-group-member-meta">' +
+                    (position ? Comms.escapeHtml(String(position)) : Comms.escapeHtml(role)) +
+                    (position && role === 'Admin' ? ' · Admin' : '') +
                     '</div></div>';
                 if (mode === 'call' && Number(m.id) !== Number(state.currentUserId)) {
                     html += '<div class="comms-group-member-actions">' +
@@ -2468,11 +2470,17 @@
         els.renameForm.addEventListener('submit', function (e) {
             e.preventDefault();
             if (!state.activeId || !routes.renameConversation || !els.renameInput) return;
+            if (els.renameSubmit && els.renameSubmit.disabled) return;
             var name = String(els.renameInput.value || '').trim();
             if (!name) {
                 Comms.showToast('Group name is required.', 'error');
                 return;
             }
+            if (els.renameSubmit) {
+                els.renameSubmit.disabled = true;
+                els.renameSubmit.textContent = 'Saving...';
+            }
+            if (els.renameInput) els.renameInput.disabled = true;
             Comms.api(Comms.route(routes.renameConversation, state.activeId), {
                 method: 'PATCH',
                 body: JSON.stringify({ name: name }),
@@ -2487,6 +2495,12 @@
                 Comms.showToast('Group renamed.', 'success');
             }).catch(function (err) {
                 Comms.showToast(err.message || 'Unable to rename group.', 'error');
+            }).finally(function () {
+                if (els.renameSubmit) {
+                    els.renameSubmit.disabled = false;
+                    els.renameSubmit.textContent = 'Save';
+                }
+                if (els.renameInput) els.renameInput.disabled = false;
             });
         });
     }

@@ -5,7 +5,7 @@ namespace App\Modules\Communications\Policies;
 use App\Modules\Communications\Models\Conversation;
 use App\Modules\Communications\Services\ConversationService;
 use App\Modules\Communications\Services\DefaultGroupChatService;
-use Illuminate\Contracts\Auth\Authenticatable;
+use App\Modules\Shared\Models\User;
 
 class ConversationPolicy
 {
@@ -14,27 +14,27 @@ class ConversationPolicy
         protected DefaultGroupChatService $defaultGroups,
     ) {}
 
-    public function rename(Authenticatable $user, Conversation $conversation): bool
+    public function rename(User $user, Conversation $conversation): bool
     {
         return $this->defaultGroups->canRename($conversation, $user);
     }
 
-    public function updateAvatar(Authenticatable $user, Conversation $conversation): bool
+    public function updateAvatar(User $user, Conversation $conversation): bool
     {
         return $this->defaultGroups->canChangeAvatar($conversation, $user);
     }
 
-    public function view(Authenticatable $user, Conversation $conversation): bool
+    public function view(User $user, Conversation $conversation): bool
     {
         return $this->conversations->isParticipant($conversation, $user);
     }
 
-    public function send(Authenticatable $user, Conversation $conversation): bool
+    public function send(User $user, Conversation $conversation): bool
     {
         return $this->conversations->isParticipant($conversation, $user);
     }
 
-    public function call(Authenticatable $user, Conversation $conversation): bool
+    public function call(User $user, Conversation $conversation): bool
     {
         return $this->conversations->isParticipant($conversation, $user);
     }

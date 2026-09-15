@@ -58,13 +58,22 @@ class CommunityFeedAvatarService
     }
 
     /**
-     * Personal profile photo for member lists / DM identity (not barangay/federation org logos).
+     * Personal or org identity photo for group member lists.
+     * Prefer uploaded profile photo; else barangay logo for SK Officials.
      */
-    public function resolvePersonalPhoto(?User $user, ?string $fallbackName = null): string
+    public function resolveMemberListPhoto(?User $user, ?string $userType = null, ?string $fallbackName = null): string
     {
         $photo = $this->absoluteProfilePhoto($user);
         if ($photo) {
             return $photo;
+        }
+
+        $type = $userType ?? $user?->role;
+        if (($type === 'sk_official' || $user?->role === User::ROLE_SK_OFFICIAL) && $user?->barangay_id) {
+            $logo = $this->barangayLogos->resolve((int) $user->barangay_id);
+            if ($logo) {
+                return $logo;
+            }
         }
 
         return $this->uiAvatar($user?->name ?? $fallbackName ?? 'Member');

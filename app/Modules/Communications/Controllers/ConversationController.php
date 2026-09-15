@@ -66,7 +66,12 @@ class ConversationController extends Controller
 
     public function rename(Request $request, Conversation $conversation): JsonResponse
     {
-        Gate::authorize('rename', $conversation);
+        $user = Auth::user();
+        if (! $user || ! $this->defaultGroups->canRename($conversation, $user)) {
+            return response()->json([
+                'message' => 'Only the SK Federation President or Vice President can rename this group.',
+            ], 403);
+        }
 
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:120'],
@@ -74,18 +79,23 @@ class ConversationController extends Controller
 
         $conversation = $this->defaultGroups->rename(
             $conversation,
-            Auth::user(),
+            $user,
             (string) $validated['name']
         );
 
         return response()->json([
-            'conversation' => $this->conversations->showPayload($conversation, Auth::user()),
+            'conversation' => $this->conversations->showPayload($conversation, $user),
         ]);
     }
 
     public function updateAvatar(Request $request, Conversation $conversation): JsonResponse
     {
-        Gate::authorize('updateAvatar', $conversation);
+        $user = Auth::user();
+        if (! $user || ! $this->defaultGroups->canChangeAvatar($conversation, $user)) {
+            return response()->json([
+                'message' => 'Only the SK Federation President can change this group photo.',
+            ], 403);
+        }
 
         $validated = $request->validate([
             'avatar' => [
@@ -100,12 +110,12 @@ class ConversationController extends Controller
 
         $conversation = $this->defaultGroups->updateAvatar(
             $conversation,
-            Auth::user(),
+            $user,
             $validated['avatar']
         );
 
         return response()->json([
-            'conversation' => $this->conversations->showPayload($conversation, Auth::user()),
+            'conversation' => $this->conversations->showPayload($conversation, $user),
         ]);
     }
 

@@ -3336,6 +3336,11 @@ body.comms-officials-page .main-content {
     gap: 0.5rem;
     margin-top: 1rem;
 }
+.comms-modal-actions .comms-btn-primary:disabled,
+.comms-modal-actions .comms-btn-secondary:disabled {
+    opacity: 0.7;
+    cursor: wait;
+}
 .comms-btn-primary,
 .comms-btn-secondary {
     border-radius: 0.5rem;
