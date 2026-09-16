@@ -3,6 +3,7 @@
 namespace App\Modules\KabataanMonitoring\Services;
 
 use App\Models\KabataanRegistration;
+use App\Modules\Accounts\Support\PortalAppUrl;
 use App\Modules\AuditLog\Contracts\AuditLogInterface;
 use App\Modules\KabataanMonitoring\Notifications\KabataanAccountInviteNotification;
 use App\Modules\Shared\Models\User;
@@ -273,12 +274,15 @@ class KkProfilingFederationUpdateService
             return 'The profile was saved, but there is no email address to send to.';
         }
 
-        $base = rtrim((string) config('services.kabataan_app_url'), '/');
+        $base = PortalAppUrl::kabataan();
         if ($base === '') {
             return 'The profile was saved, but the Kabataan activation URL is not configured.';
         }
 
-        $activationUrl = $base.'/kkprofiling/account-invite/'.$registration->id.'/'.$plainToken;
+        $activationUrl = PortalAppUrl::join(
+            $base,
+            'kkprofiling/account-invite/'.$registration->id.'/'.$plainToken
+        );
 
         try {
             Notification::route('mail', $email)

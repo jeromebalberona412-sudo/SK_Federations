@@ -2,6 +2,7 @@
 
 namespace App\Modules\CommunityFeed\Notifications;
 
+use App\Modules\Accounts\Support\PortalAppUrl;
 use App\Modules\Shared\Models\Announcement;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
@@ -51,7 +52,7 @@ class FederationCommunityFeedPostPublishedNotification extends Notification
         }
 
         return $message
-            ->action('Open Community Feed post', $this->postUrl)
+            ->action('Open Community Feed post', PortalAppUrl::mailLink($this->postUrl))
             ->line('You are receiving this because you have an active SK OnePortal account.');
     }
 }

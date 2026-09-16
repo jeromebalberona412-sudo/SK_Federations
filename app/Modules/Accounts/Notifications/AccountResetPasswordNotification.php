@@ -35,7 +35,7 @@ class AccountResetPasswordNotification extends Notification
             : 'reset-password/'.$this->token;
 
         try {
-            $actionUrl = PortalAppUrl::join($this->baseUrl, $path, ['email' => $email]);
+            $actionUrl = PortalAppUrl::join(PortalAppUrl::publicBase($this->baseUrl), $path, ['email' => $email]);
         } catch (InvalidArgumentException $exception) {
             report($exception);
             throw $exception;

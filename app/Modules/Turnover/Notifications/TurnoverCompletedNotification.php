@@ -2,9 +2,11 @@
 
 namespace App\Modules\Turnover\Notifications;
 
+use App\Modules\Accounts\Support\PortalAppUrl;
 use Illuminate\Bus\Queueable;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
+use Illuminate\Support\Facades\Log;
 
 class TurnoverCompletedNotification extends Notification
 {
@@ -12,8 +14,7 @@ class TurnoverCompletedNotification extends Notification
 
     public function __construct(
         public string $portalUrl,
-    ) {
-    }
+    ) {}
 
     /**
      * @return array<int, string>
@@ -25,7 +26,9 @@ class TurnoverCompletedNotification extends Notification
 
     public function toMail(object $notifiable): MailMessage
     {
-        \Illuminate\Support\Facades\Log::info('Building turnover completed email', [
+        $loginUrl = PortalAppUrl::join(PortalAppUrl::publicBase($this->portalUrl), '/login');
+
+        Log::info('Building turnover completed email', [
             'user_id' => method_exists($notifiable, 'getKey') ? $notifiable->getKey() : null,
             'email' => isset($notifiable->email) ? $notifiable->email : 'unknown',
             'type' => 'turnover_completed',
@@ -36,7 +39,7 @@ class TurnoverCompletedNotification extends Notification
             ->greeting('Hello!')
             ->line('The previous Federation Officers have completed the turnover.')
             ->line('Your administrative account is now active.')
-            ->action('Login to SK One Portal', $this->portalUrl.'/login')
+            ->action('Login to SK One Portal', $loginUrl)
             ->line('Thank you for your service to the SK Federation.');
     }
 }

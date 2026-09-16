@@ -27,7 +27,7 @@ class FederationPositionAssignedNotification extends Notification
     public function toMail(object $notifiable): MailMessage
     {
         $position = $this->federationPosition;
-        $portalUrl = PortalAppUrl::normalize($this->portalUrl) ?: PortalAppUrl::selfApp();
+        $portalUrl = PortalAppUrl::publicBase($this->portalUrl);
         $sentAt = now()->timezone(config('app.timezone', 'Asia/Manila'))->format('M j, Y g:i A');
 
         return (new MailMessage)

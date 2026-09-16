@@ -108,7 +108,7 @@ class FederationCommunityFeedBroadcastService
                     $recipient['name'],
                     $recipient['user_id'],
                     null,
-                    url('/community-feed/comments/'.(int) $post->id),
+                    $this->buildFederationPostUrl((int) $post->id),
                 );
             }
         }
@@ -502,19 +502,22 @@ class FederationCommunityFeedBroadcastService
         }
     }
 
+    private function buildFederationPostUrl(int $postId): string
+    {
+        return PortalAppUrl::join(
+            PortalAppUrl::selfApp(),
+            '/community-feed/comments/'.$postId
+        );
+    }
+
     private function buildKabataanPostUrl(int $postId): string
     {
-        $base = PortalAppUrl::preferAbsolute([
-            config('services.kabataan_app_url'),
-            config('app.public_url'),
-        ]) ?? '';
+        $base = PortalAppUrl::kabataan();
 
         if ($base === '') {
             Log::warning('KABATAAN_APP_URL is missing or localhost; Federation→Kabataan email links may be wrong in production.');
 
-            $fallback = PortalAppUrl::selfApp();
-
-            return PortalAppUrl::join($fallback, '/dashboard/comments/'.$postId);
+            return PortalAppUrl::join(PortalAppUrl::selfApp(), '/dashboard/comments/'.$postId);
         }
 
         return PortalAppUrl::join($base, '/dashboard/comments/'.$postId);
@@ -522,18 +525,13 @@ class FederationCommunityFeedBroadcastService
 
     private function buildOfficialsPostUrl(int $postId): string
     {
-        $base = PortalAppUrl::preferAbsolute([
-            config('services.sk_officials_app_url'),
-        ]) ?? '';
+        $base = PortalAppUrl::officials() ?? '';
         $path = '/community-feed/comments/'.$postId;
 
         if ($base === '') {
             Log::warning('SK_OFFICIALS_APP_URL is empty or localhost; Federation→Officials email links may open the wrong app.');
 
-            return PortalAppUrl::join(
-                PortalAppUrl::selfApp(),
-                $path
-            );
+            return PortalAppUrl::join(PortalAppUrl::selfApp(), $path);
         }
 
         return PortalAppUrl::join($base, $path);

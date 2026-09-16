@@ -18,12 +18,18 @@ final class PortalAppUrl
 {
     public static function officials(): ?string
     {
-        return self::normalize(config('services.sk_officials_app_url'));
+        return self::preferAbsolute([
+            config('services.sk_officials_app_url'),
+        ]);
     }
 
     public static function federation(): ?string
     {
-        return self::normalize(config('services.sk_fed_app_url') ?: config('app.url'));
+        return self::preferAbsolute([
+            config('services.sk_fed_app_url'),
+            config('app.public_url'),
+            config('app.url'),
+        ]);
     }
 
     public static function officialsOrFail(): string
@@ -84,7 +90,6 @@ final class PortalAppUrl
     {
         return self::preferAbsolute([
             config('services.kabataan_app_url'),
-            config('app.public_url'),
         ]) ?? '';
     }
 
@@ -107,10 +112,60 @@ final class PortalAppUrl
             }
         }
 
-        return self::preferAbsolute($candidates)
-            ?? (app()->environment('local', 'testing')
-                ? rtrim((string) config('app.url'), '/')
-                : rtrim((string) (config('app.public_url') ?: config('app.url')), '/'));
+        $preferred = self::preferAbsolute($candidates);
+        if ($preferred !== null) {
+            return $preferred;
+        }
+
+        if (app()->environment('local', 'testing')) {
+            return rtrim((string) config('app.url'), '/');
+        }
+
+        return '';
+    }
+
+    /**
+     * Use $url when it is a real public host; otherwise this app's public base.
+     * Production never falls back to localhost.
+     */
+    public static function publicBase(?string $url = null): string
+    {
+        $self = self::selfApp();
+
+        return self::preferAbsolute([$url, $self]) ?? $self;
+    }
+
+    /**
+     * Keep a public absolute link as-is. Rewrite localhost/127.0.0.1 to this app's domain.
+     */
+    public static function mailLink(string $url): string
+    {
+        $value = trim($url);
+        if ($value === '') {
+            return self::selfApp();
+        }
+
+        if (! preg_match('#^https?://#i', $value) && ! str_starts_with($value, '//')) {
+            $base = self::selfApp();
+
+            return $base === '' ? '/'.ltrim($value, '/') : self::join($base, $value);
+        }
+
+        if (! self::isLoopback($value)) {
+            return $value;
+        }
+
+        $public = self::selfApp();
+        if ($public === '' || self::isLoopback($public)) {
+            return $value;
+        }
+
+        $path = parse_url($value, PHP_URL_PATH);
+        $path = is_string($path) && $path !== '' ? $path : '/';
+        $query = parse_url($value, PHP_URL_QUERY);
+        $suffix = is_string($query) && $query !== '' ? $path.'?'.$query : $path;
+
+        return self::join($public, $suffix);
     }
 
     public static function isLoopback(?string $url): bool

@@ -85,7 +85,7 @@ class TurnoverService
                 SkFederationsNotificationService::CATEGORY_GENERAL,
                 'Federation Turnover Started',
                 'You have started the federation turnover process. Register the incoming officers to continue.',
-                route('dashboard'),
+                '/dashboard',
             );
 
             return $turnover;

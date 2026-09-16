@@ -3,6 +3,7 @@
 uses(Tests\TestCase::class);
 
 use App\Modules\Accounts\Support\PortalAppUrl;
+use Tests\TestCase;
 
 it('prefers non-loopback urls and never returns localhost in production', function () {
     app()->detectEnvironment(fn () => 'production');
@@ -15,6 +16,7 @@ it('prefers non-loopback urls and never returns localhost in production', functi
     ]);
 
     expect(PortalAppUrl::selfApp())->toBe('https://federation.example.com');
+    expect(PortalAppUrl::kabataan())->toBe('');
     expect(PortalAppUrl::preferAbsolute([
         config('services.kabataan_app_url'),
     ]))->toBeNull();
@@ -27,4 +29,34 @@ it('joins portal paths without leaking localhost', function () {
     $url = PortalAppUrl::join('https://kabataan.example.com', '/dashboard/comments/55');
 
     expect($url)->toBe('https://kabataan.example.com/dashboard/comments/55');
+});
+
+it('rewrites localhost mail links to the public federation domain', function () {
+    config([
+        'app.url' => 'http://localhost:8001',
+        'app.public_url' => 'https://federation.example.com',
+        'services.sk_fed_app_url' => 'https://federation.example.com',
+    ]);
+
+    expect(PortalAppUrl::selfApp())->toBe('https://federation.example.com')
+        ->and(PortalAppUrl::publicBase('http://localhost:8001'))->toBe('https://federation.example.com')
+        ->and(PortalAppUrl::mailLink('http://127.0.0.1:8001/reset-password/demo-token?email=a%40b.com'))
+        ->toBe('https://federation.example.com/reset-password/demo-token?email=a%40b.com')
+        ->and(PortalAppUrl::mailLink('/login'))->toBe('https://federation.example.com/login')
+        ->and(PortalAppUrl::mailLink('https://kabataan.example.com/dashboard/comments/9'))
+        ->toBe('https://kabataan.example.com/dashboard/comments/9');
+});
+
+it('does not treat an officials portal url as the federation host', function () {
+    config([
+        'app.url' => 'https://federation.example.com',
+        'app.public_url' => 'https://federation.example.com',
+        'services.sk_fed_app_url' => 'https://federation.example.com',
+        'services.sk_officials_app_url' => 'https://officials.example.com',
+    ]);
+
+    expect(PortalAppUrl::publicBase('https://officials.example.com'))
+        ->toBe('https://officials.example.com')
+        ->and(PortalAppUrl::officials())->toBe('https://officials.example.com')
+        ->and(PortalAppUrl::federation())->toBe('https://federation.example.com');
 });

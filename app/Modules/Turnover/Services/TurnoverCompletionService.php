@@ -4,6 +4,7 @@ namespace App\Modules\Turnover\Services;
 
 use App\Modules\Accounts\Models\OfficialTerm;
 use App\Modules\Accounts\Services\ChairpersonFederationSyncService;
+use App\Modules\Accounts\Support\PortalAppUrl;
 use App\Modules\AuditLog\Contracts\AuditLogInterface;
 use App\Modules\Shared\Models\User;
 use App\Modules\SK_Federation_Records\Services\SkFederationRecordsService;
@@ -205,7 +206,7 @@ class TurnoverCompletionService
             ]);
 
         try {
-            $user->notify(new TurnoverCompletedNotification(rtrim((string) config('app.url'), '/')));
+            $user->notify(new TurnoverCompletedNotification(PortalAppUrl::selfApp()));
         } catch (\Throwable $exception) {
             Log::warning('Failed to send turnover completion email.', [
                 'user_id' => $user->id,
@@ -218,7 +219,7 @@ class TurnoverCompletionService
             SkFederationsNotificationService::CATEGORY_GENERAL,
             'Federation Turnover Completed',
             'Your administrative account is now active. You may now login to SK One Portal.',
-            route('dashboard'),
+            '/dashboard',
         );
     }
 
@@ -243,7 +244,7 @@ class TurnoverCompletionService
                 SkFederationsNotificationService::CATEGORY_GENERAL,
                 'Federation Turnover Completed',
                 'Your term has ended. Your account has been archived. Thank you for your service.',
-                route('login'),
+                '/login',
             );
         }
     }

@@ -29,6 +29,32 @@ test('federation community feed notification uses federation subject', function 
         ->and($mail->actionUrl)->toBe('https://kabataan.test/dashboard/comments/1');
 });
 
+test('federation community feed emails rewrite localhost to the live domain', function () {
+    config([
+        'app.url' => 'http://localhost:8001',
+        'app.public_url' => 'https://federation.example.com',
+        'services.sk_fed_app_url' => 'https://federation.example.com',
+    ]);
+
+    $post = new Announcement([
+        'type' => 'announcement',
+        'title' => 'Town hall',
+        'body' => 'See you there',
+    ]);
+    $post->created_at = now();
+
+    $notification = new FederationCommunityFeedPostPublishedNotification(
+        $post,
+        'Juan Dela Cruz',
+        'http://localhost:8001/community-feed/comments/77',
+    );
+
+    $mail = $notification->toMail(new stdClass);
+
+    expect($mail->actionUrl)->toBe('https://federation.example.com/community-feed/comments/77')
+        ->and($mail->actionUrl)->not->toContain('localhost');
+});
+
 test('notify federation community feed post job is queueable', function () {
     Queue::fake();
 

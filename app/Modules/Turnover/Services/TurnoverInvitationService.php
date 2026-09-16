@@ -2,6 +2,7 @@
 
 namespace App\Modules\Turnover\Services;
 
+use App\Modules\Accounts\Support\PortalAppUrl;
 use App\Modules\Shared\Models\User;
 use App\Modules\Turnover\Models\FederationTurnoverRegistration;
 use App\Modules\Turnover\Notifications\TurnoverAccountSetupNotification;
@@ -21,7 +22,7 @@ class TurnoverInvitationService
                 ->delete();
 
             $token = Password::broker()->createToken($user);
-            $baseUrl = rtrim((string) config('app.url'), '/');
+            $baseUrl = PortalAppUrl::selfApp();
 
             Notification::sendNow(
                 $user,

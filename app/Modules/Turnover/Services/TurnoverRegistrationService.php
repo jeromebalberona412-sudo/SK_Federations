@@ -2,7 +2,6 @@
 
 namespace App\Modules\Turnover\Services;
 
-use App\Modules\Accounts\Models\OfficialProfile;
 use App\Modules\Accounts\Models\OfficialTerm;
 use App\Modules\Accounts\Services\AccountService;
 use App\Modules\Accounts\Services\SkOfficialRosterLimitsService;
@@ -10,11 +9,9 @@ use App\Modules\AuditLog\Contracts\AuditLogInterface;
 use App\Modules\Shared\Models\User;
 use App\Modules\Turnover\Models\FederationTurnover;
 use App\Modules\Turnover\Models\FederationTurnoverRegistration;
-use App\Modules\Turnover\Notifications\TurnoverAccountSetupNotification;
 use App\Services\SkFederationsNotificationService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
 
 class TurnoverRegistrationService
@@ -26,8 +23,7 @@ class TurnoverRegistrationService
         private readonly FederationTermDetectionService $termDetectionService,
         private readonly AuditLogInterface $auditLog,
         private readonly SkFederationsNotificationService $notificationService,
-    ) {
-    }
+    ) {}
 
     /**
      * @param  array<string, mixed>  $presidentData
@@ -82,7 +78,7 @@ class TurnoverRegistrationService
                         SkFederationsNotificationService::CATEGORY_GENERAL,
                         'Incoming Officers Registered',
                         'Incoming Federation President and Vice President have been registered. Account setup emails have been sent where needed.',
-                        route('dashboard'),
+                        '/dashboard',
                     );
                 }
             }
@@ -374,7 +370,7 @@ class TurnoverRegistrationService
                         SkFederationsNotificationService::CATEGORY_GENERAL,
                         'Complete Federation Turnover',
                         'Both incoming Federation Officers have completed account setup. You may now transfer administrative access.',
-                        route('dashboard'),
+                        '/dashboard',
                     );
                 }
             }

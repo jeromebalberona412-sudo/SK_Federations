@@ -5,7 +5,12 @@ use App\Modules\Accounts\Notifications\FederationPositionAssignedNotification;
 use App\Modules\Accounts\Services\AccountSetupService;
 use App\Modules\Accounts\Support\PortalAppUrl;
 use App\Modules\Authentication\Notifications\SkFedResetPasswordNotification;
+use App\Modules\KabataanMonitoring\Notifications\KabataanAccountInviteNotification;
+use App\Modules\Profile\Notifications\EmailChangeVerificationNotification;
+use App\Modules\Profile\Notifications\PasswordChangeVerificationNotification;
 use App\Modules\Shared\Models\User;
+use App\Modules\Turnover\Notifications\TurnoverAccountSetupNotification;
+use App\Modules\Turnover\Notifications\TurnoverCompletedNotification;
 use Illuminate\Support\Facades\Notification;
 
 it('prepends https to bare hostnames so they are not treated as paths', function () {
@@ -114,4 +119,137 @@ it('puts an absolute activation link into the setup email notification', functio
     expect($mail->actionUrl)->toBe(
         'https://skoneportal-com-739030.hostingersite.com/activate-account/demo-token?email=official%40example.com'
     );
+});
+
+function configureLiveFederationDomain(): void
+{
+    config([
+        'app.url' => 'http://localhost:8001',
+        'app.public_url' => 'https://federation.example.com',
+        'services.sk_fed_app_url' => 'https://federation.example.com',
+        'services.sk_officials_app_url' => 'https://officials.example.com',
+        'services.kabataan_app_url' => 'https://kabataan.example.com',
+    ]);
+}
+
+it('does not put localhost into password reset emails when a public domain is configured', function () {
+    configureLiveFederationDomain();
+
+    $user = new User([
+        'email' => 'fed@example.com',
+        'name' => 'Fed User',
+    ]);
+
+    $mail = (new SkFedResetPasswordNotification('demo-token'))->toMail($user);
+
+    expect($mail->actionUrl)
+        ->toStartWith('https://federation.example.com/')
+        ->and($mail->actionUrl)->toContain('demo-token')
+        ->and($mail->actionUrl)->not->toContain('localhost')
+        ->and($mail->actionUrl)->not->toContain('127.0.0.1');
+});
+
+it('rewrites localhost account setup bases to the live portal domain', function () {
+    configureLiveFederationDomain();
+
+    $user = new User([
+        'email' => 'fed@example.com',
+        'name' => 'Fed User',
+    ]);
+
+    $mail = (new AccountResetPasswordNotification(
+        'demo-token',
+        'http://localhost:8001',
+        'SK Federation',
+        false,
+    ))->toMail($user);
+
+    expect($mail->actionUrl)
+        ->toStartWith('https://federation.example.com/reset-password/demo-token')
+        ->and($mail->actionUrl)->not->toContain('localhost');
+});
+
+it('puts the live federation domain in turnover setup emails', function () {
+    configureLiveFederationDomain();
+
+    $user = new User([
+        'email' => 'incoming@example.com',
+        'name' => 'Incoming Chair',
+    ]);
+
+    $mail = (new TurnoverAccountSetupNotification(
+        'demo-token',
+        'http://localhost:8001',
+        'President',
+    ))->toMail($user);
+
+    expect($mail->actionUrl)
+        ->toStartWith('https://federation.example.com/reset-password/demo-token')
+        ->and($mail->actionUrl)->toContain('email=incoming%40example.com')
+        ->and($mail->actionUrl)->not->toContain('localhost');
+});
+
+it('puts the live federation domain in turnover completed emails', function () {
+    configureLiveFederationDomain();
+
+    $user = new User([
+        'email' => 'incoming@example.com',
+        'name' => 'Incoming Chair',
+    ]);
+
+    $mail = (new TurnoverCompletedNotification(
+        'http://127.0.0.1:8001'
+    ))->toMail($user);
+
+    expect($mail->actionUrl)->toBe('https://federation.example.com/login')
+        ->and($mail->actionUrl)->not->toContain('localhost')
+        ->and($mail->actionUrl)->not->toContain('127.0.0.1');
+});
+
+it('puts the live kabataan domain in account invite emails', function () {
+    configureLiveFederationDomain();
+
+    $mail = (new KabataanAccountInviteNotification(
+        'Juan Dela Cruz',
+        PortalAppUrl::join(PortalAppUrl::kabataan(), 'kkprofiling/account-invite/12/plain-token'),
+    ))->toMail(new User(['email' => 'youth@example.com']));
+
+    expect($mail->actionUrl)
+        ->toBe('https://kabataan.example.com/kkprofiling/account-invite/12/plain-token')
+        ->and($mail->actionUrl)->not->toContain('localhost');
+});
+
+it('puts the live federation domain in email-change confirmation emails', function () {
+    configureLiveFederationDomain();
+
+    $user = new User([
+        'email' => 'old@example.com',
+        'pending_email' => 'new@example.com',
+        'name' => 'Fed User',
+    ]);
+    $user->id = 15;
+
+    $mail = (new EmailChangeVerificationNotification($user, 'plain-token'))
+        ->toMail($user);
+
+    expect($mail->actionUrl)
+        ->toStartWith('https://federation.example.com/change-email/confirm/15/plain-token')
+        ->and($mail->actionUrl)->not->toContain('localhost');
+});
+
+it('puts the live federation domain in password-change confirmation emails', function () {
+    configureLiveFederationDomain();
+
+    $user = new User([
+        'email' => 'fed@example.com',
+        'name' => 'Fed User',
+    ]);
+    $user->id = 16;
+
+    $mail = (new PasswordChangeVerificationNotification('plain-token'))
+        ->toMail($user);
+
+    expect($mail->actionUrl)
+        ->toStartWith('https://federation.example.com/change-password/confirm/16/plain-token')
+        ->and($mail->actionUrl)->not->toContain('localhost');
 });

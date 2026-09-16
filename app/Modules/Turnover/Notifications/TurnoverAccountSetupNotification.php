@@ -2,9 +2,11 @@
 
 namespace App\Modules\Turnover\Notifications;
 
+use App\Modules\Accounts\Support\PortalAppUrl;
 use Illuminate\Bus\Queueable;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
+use Illuminate\Support\Facades\Log;
 
 class TurnoverAccountSetupNotification extends Notification
 {
@@ -14,8 +16,7 @@ class TurnoverAccountSetupNotification extends Notification
         public string $token,
         public string $baseUrl,
         public string $position,
-    ) {
-    }
+    ) {}
 
     /**
      * @return array<int, string>
@@ -27,14 +28,17 @@ class TurnoverAccountSetupNotification extends Notification
 
     public function toMail(object $notifiable): MailMessage
     {
-        $baseUrl = rtrim($this->baseUrl, '/');
-        $email = urlencode((string) $notifiable->getEmailForPasswordReset());
-        $setupUrl = "{$baseUrl}/reset-password/{$this->token}?email={$email}";
+        $email = (string) $notifiable->getEmailForPasswordReset();
+        $setupUrl = PortalAppUrl::join(
+            PortalAppUrl::publicBase($this->baseUrl),
+            'reset-password/'.$this->token,
+            ['email' => $email]
+        );
         $expiryHours = max(1, (int) round((int) config('turnover.invitation_expire_minutes', 1440) / 60));
 
-        \Illuminate\Support\Facades\Log::info('Building turnover account setup email', [
+        Log::info('Building turnover account setup email', [
             'user_id' => method_exists($notifiable, 'getKey') ? $notifiable->getKey() : null,
-            'email' => $notifiable->getEmailForPasswordReset(),
+            'email' => $email,
             'position' => $this->position,
             'type' => 'turnover_account_setup',
         ]);

@@ -2,16 +2,18 @@
 
 namespace App\Modules\Authentication\Services;
 
+use App\Modules\Accounts\Support\PortalAppUrl;
 use App\Modules\Shared\Models\User;
 use App\Modules\Turnover\Models\FederationTurnoverRegistration;
 use App\Modules\Turnover\Notifications\TurnoverForgotPasswordSetupNotification;
-use Illuminate\Auth\Passwords\PasswordBroker as LaravelPasswordBroker;
 use Illuminate\Auth\Events\PasswordReset;
+use Illuminate\Auth\Passwords\PasswordBroker as LaravelPasswordBroker;
 use Illuminate\Contracts\Auth\CanResetPassword as CanResetPasswordContract;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Password;
 use Illuminate\Support\Facades\Schema;
@@ -90,13 +92,13 @@ class PasswordResetService
 
                     $notifiable->sendPasswordResetNotification($token);
                 } catch (\Throwable $e) {
-                    \Illuminate\Support\Facades\Log::error('Password reset email failed to send', [
+                    Log::error('Password reset email failed to send', [
                         'user_id' => $notifiable->getKey(),
                         'email' => $notifiable->email,
                         'exception' => $e->getMessage(),
                         'exception_class' => get_class($e),
                     ]);
-                    
+
                     // Re-throw only if it's NOT an SMTP transport exception
                     // SMTP failures should not block password reset token creation
                     if (! str_contains(get_class($e), 'TransportException')) {
@@ -165,7 +167,7 @@ class PasswordResetService
             $this->throwInvalidResetLink();
         }
 
-            if (! $this->broker()->tokenExists($user, $token)) {
+        if (! $this->broker()->tokenExists($user, $token)) {
             $reason = $this->resolveInvalidTokenReason($normalizedEmail);
 
             $this->logResetFailure(
@@ -207,7 +209,7 @@ class PasswordResetService
         // for PostgreSQL to avoid datatype mismatch errors.
         try {
             if ($this->usersTableHasColumn('must_change_password')) {
-                \App\Modules\Shared\Models\User::query()
+                User::query()
                     ->whereKey($user->getKey())
                     ->update(['must_change_password' => \DB::raw("'false'::boolean")]);
             }
@@ -300,7 +302,7 @@ class PasswordResetService
             $user,
             new TurnoverForgotPasswordSetupNotification(
                 $token,
-                rtrim((string) config('app.url'), '/'),
+                PortalAppUrl::selfApp(),
                 $registration?->position ?? 'Federation Officer',
             ),
         );
