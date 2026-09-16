@@ -292,11 +292,22 @@ class AccountSetupService
             return;
         }
 
-        // Fail fast if mail target cannot be resolved for the batch role.
-        $sample = $jobs[0];
-        $probe = User::query()->find((int) ($sample['user_id'] ?? 0));
-        if ($probe) {
-            $this->resolveSetupTarget($probe, $sample['role'] ?? $probe->role);
+        // Fail soft if mail target cannot be resolved — accounts are already created.
+        try {
+            $sample = $jobs[0];
+            $probe = User::query()->find((int) ($sample['user_id'] ?? 0));
+            if ($probe) {
+                $this->resolveSetupTarget($probe, $sample['role'] ?? $probe->role);
+            }
+        } catch (\Throwable $exception) {
+            report($exception);
+            Log::error('Batch setup email target could not be resolved', [
+                'operation' => 'batch_queue_setup_emails',
+                'exception' => $exception::class,
+                'message' => $exception->getMessage(),
+            ]);
+
+            return;
         }
 
         app()->terminating(function () use ($jobs): void {

@@ -9,7 +9,7 @@
     <meta http-equiv="Expires" content="0">
     <title>Password Reset Successful</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    @vite(['app/Modules/Authentication/assets/css/style.css'])
+    @vite(['app/Modules/Authentication/assets/css/auth-base.css'])
     <link rel="stylesheet" href="{{ url('/shared/css/loading.css') }}">
     <style>
         .check-wrap {
@@ -130,12 +130,12 @@
             font-size: 16px;
             font-weight: 600;
             color: white;
-            background: linear-gradient(135deg, #213F99 0%, #d0242b 100%);
+            background: linear-gradient(90deg, #213F99 0%, #1E6ED8 100%);
             border: none;
-            border-radius: 8px;
+            border-radius: 10px;
             cursor: pointer;
-            transition: all 0.3s ease;
-            box-shadow: 0 4px 12px rgba(33, 63, 153, 0.3);
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+            box-shadow: 0 4px 12px rgba(33, 63, 153, 0.28);
             text-decoration: none;
             display: inline-flex;
             align-items: center;
@@ -144,10 +144,12 @@
             animation: fadeIn 0.6s 0.6s ease-in backwards;
         }
 
-        .back-to-login-btn:hover {
+        .back-to-login-btn:hover,
+        .back-to-login-btn:focus-visible {
             transform: translateY(-2px);
-            box-shadow: 0 8px 20px rgba(33, 63, 153, 0.4);
+            box-shadow: 0 8px 20px rgba(30, 110, 216, 0.35);
             color: white;
+            outline: none;
         }
 
         .back-to-login-btn svg {
@@ -233,7 +235,6 @@
     </script>
 
     <div class="login-page">
-        {{-- Background --}}
         <div class="bg-wrapper">
             <div class="bg-image"></div>
             <div class="gradient-overlay"></div>
@@ -245,16 +246,28 @@
         </div>
 
         <div class="login-container">
-            {{-- LEFT: Logo --}}
+            {{-- LEFT: same dual-logo branding as login --}}
             <div class="logo-container">
-                <div class="logo-glow-wrapper">
-                    <img src="{{ url('/modules/authentication/images/Sk_Fed_logo.png') }}" alt="SK Federations Logo" class="large-logo">
+                <div class="collab-logo-wrapper">
+                    <div class="logo-glow-wrapper logo-left">
+                        <img src="{{ asset('Images/SK_OnePortal_logo.png') }}"
+                             alt="SK OnePortal Logo"
+                             class="collab-logo"
+                             width="210"
+                             height="210">
+                    </div>
+                    <div class="logo-glow-wrapper logo-right">
+                        <img src="{{ asset('Images/SK_Federations_logo.jpg') }}"
+                             alt="SK Federations Logo"
+                             class="collab-logo"
+                             width="210"
+                             height="210">
+                    </div>
                 </div>
                 <h1 class="brand-title">SK Federation</h1>
                 <p class="brand-subtitle">Santa Cruz Youth Leadership Portal</p>
             </div>
 
-            {{-- RIGHT: Content Card --}}
             <div class="login-form-container">
                 <div class="login-card-inner">
                     <div class="success-container">
@@ -264,7 +277,7 @@
                         <h2>Success!</h2>
                         <p>Your password has been updated successfully. Please log in again.</p>
                         <a href="{{ route('login', [], false) }}" class="back-to-login-btn">
-                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                                 <path d="M19 12H5M12 19l-7-7 7-7"/>
                             </svg>
                             <span>Back to Login</span>
@@ -278,7 +291,6 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="{{ url('/shared/js/loading.js') }}"></script>
     <script>
-        // Show loading on back to login button click
         document.querySelector('.back-to-login-btn').addEventListener('click', function(e) {
             e.preventDefault();
             LoadingScreen.show('Redirecting', 'Taking you to login...');
@@ -287,7 +299,6 @@
             }, 500);
         });
 
-        // Auto-redirect to login after 5 seconds
         setTimeout(function() {
             LoadingScreen.show('Redirecting', 'Taking you to login...');
             setTimeout(() => {

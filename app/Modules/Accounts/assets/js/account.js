@@ -5240,15 +5240,28 @@ function initBatchUploadPanel(prefix, role) {
                 if (!response.ok || !data.success) {
                     hideLoadingOverlay();
                     const errors = data.validation_errors || data.failed || [];
-                    if (errors.length > 0) {
-                        state.validationErrors = errors.map((item) => ({
-                            row: item.row,
-                            error: item.error || item.message,
-                        }));
-                        renderBatchErrorReport(state.validationErrors);
-                        revalidateBatchState();
+                    try {
+                        if (errors.length > 0) {
+                            state.validationErrors = errors.map((item) => ({
+                                row: item.row,
+                                error: item.error || item.message,
+                            }));
+                            renderBatchErrorReport(state.validationErrors);
+                            revalidateBatchState();
+                        }
+                    } catch (_renderError) {
+                        // Keep the server message even if table re-render fails.
                     }
-                    alert(data.message || 'Batch account creation failed.');
+
+                    const laravelErrors = data.errors
+                        ? Object.values(data.errors).flat().filter(Boolean)
+                        : [];
+                    const message = data.message
+                        || laravelErrors[0]
+                        || (response.status >= 500
+                            ? 'Server error while importing accounts. Please try again.'
+                            : 'Batch account creation failed.');
+                    alert(message);
                     els.confirmBtn.disabled = false;
                     return;
                 }
@@ -5276,7 +5289,12 @@ function initBatchUploadPanel(prefix, role) {
             } catch (error) {
                 hideLoadingOverlay();
                 els.confirmBtn.disabled = false;
-                alert('Unable to create accounts from the uploaded file. Please try again.');
+                const detail = (error && error.message) ? String(error.message) : '';
+                alert(
+                    detail && detail !== 'Failed to fetch'
+                        ? `Unable to create accounts from the uploaded file. ${detail}`
+                        : 'Unable to create accounts from the uploaded file. Please check your connection and try again.'
+                );
             }
         });
     }
@@ -5725,6 +5743,10 @@ document.addEventListener('DOMContentLoaded', function () {
             const payload = {};
             for (const [k, v] of formData.entries()) { if (k !== '_token') payload[k] = v; }
             payload.term_status = payload.term_status || (payload.status === 'INACTIVE' ? 'INACTIVE' : 'ACTIVE');
+            // Keep suffix=__other__ + suffix_other for the server (resolves into stored suffix).
+            if (payload.suffix === '__other__') {
+                payload.suffix_other = String(payload.suffix_other || '').trim().toUpperCase();
+            }
 
             showLoadingOverlay('Creating account', 'Please wait while we set up the account...');
             const createBtn = getCreateAccountSubmitButton(officialsForm);
@@ -5824,6 +5846,9 @@ document.addEventListener('DOMContentLoaded', function () {
             const payload = {};
             for (const [k, v] of formData.entries()) { if (k !== '_token') payload[k] = v; }
             payload.term_status = payload.term_status || (payload.status === 'INACTIVE' ? 'INACTIVE' : 'ACTIVE');
+            if (payload.suffix === '__other__') {
+                payload.suffix_other = String(payload.suffix_other || '').trim().toUpperCase();
+            }
 
             showLoadingOverlay('Creating account', 'Please wait while we set up the account...');
             const createBtn = getCreateAccountSubmitButton(fedForm);
@@ -5895,6 +5920,9 @@ document.addEventListener('DOMContentLoaded', function () {
             const formData = new FormData(form);
             const payload = {};
             for (const [k, v] of formData.entries()) { if (k !== '_token') payload[k] = v; }
+            if (payload.suffix === '__other__') {
+                payload.suffix_other = String(payload.suffix_other || '').trim().toUpperCase();
+            }
             if (form.id === 'editSkOfficialsForm') {
                 ['date_of_birth', 'term_start', 'term_end'].forEach((field) => {
                     if (payload[field]) {

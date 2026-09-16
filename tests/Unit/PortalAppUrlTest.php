@@ -76,6 +76,21 @@ it('does not treat an officials portal url as the federation host', function () 
         ->and(PortalAppUrl::federation())->toBe('https://federation.example.com');
 });
 
+it('rewrites retired hostinger officials urls to the canonical skofficials domain', function () {
+    config([
+        'services.sk_officials_app_url' => 'https://skoneportal-com-739030.hostingersite.com',
+        'services.sk_fed_app_url' => 'https://skfederations.skoneportal.com',
+        'app.url' => 'https://skfederations.skoneportal.com',
+    ]);
+
+    expect(PortalAppUrl::officials())->toBe('https://skofficials.skoneportal.com')
+        ->and(PortalAppUrl::publicBase('https://skoneportal-com-739030.hostingersite.com'))
+        ->toBe('https://skofficials.skoneportal.com')
+        ->and(PortalAppUrl::join(PortalAppUrl::officialsOrFail(), 'activate-account/demo-token', [
+            'email' => 'a@b.com',
+        ]))->toStartWith('https://skofficials.skoneportal.com/activate-account/');
+});
+
 it('falls back to the current public request host when portal urls are missing', function () {
     app()->detectEnvironment(fn () => 'production');
     config([

@@ -365,7 +365,7 @@ class BatchAccountImportService
         }
 
         if ($strictDemographics) {
-            if ($data['sex'] === null || trim((string) ($data['sex_input'] ?? '')) !== $data['sex']) {
+            if ($data['sex'] === null) {
                 $errors[] = 'Sex must be exactly Male or Female.';
             }
 
@@ -659,8 +659,13 @@ class BatchAccountImportService
         }
 
         $trimmed = trim($value);
+        $lower = Str::lower($trimmed);
 
-        return in_array($trimmed, ['Male', 'Female'], true) ? $trimmed : null;
+        return match ($lower) {
+            'male', 'm' => 'Male',
+            'female', 'f' => 'Female',
+            default => in_array($trimmed, ['Male', 'Female'], true) ? $trimmed : null,
+        };
     }
 
     private function parseDate(mixed $value): ?string

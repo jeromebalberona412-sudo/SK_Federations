@@ -16,11 +16,22 @@ use Illuminate\Support\Facades\URL;
  */
 final class PortalAppUrl
 {
+    /**
+     * Canonical SK Officials portal (replaces retired Hostinger provisional hosts).
+     */
+    public const CANONICAL_OFFICIALS_URL = 'https://skofficials.skoneportal.com';
+
     public static function officials(): ?string
     {
-        return self::preferAbsolute([
+        $url = self::preferAbsolute([
             config('services.sk_officials_app_url'),
         ]);
+
+        if ($url !== null && self::isDeprecatedOfficialsHost($url)) {
+            return self::CANONICAL_OFFICIALS_URL;
+        }
+
+        return $url;
     }
 
     public static function federation(): ?string
@@ -156,6 +167,10 @@ final class PortalAppUrl
      */
     public static function publicBase(?string $url = null): string
     {
+        if (is_string($url) && self::isDeprecatedOfficialsHost($url)) {
+            $url = self::CANONICAL_OFFICIALS_URL;
+        }
+
         $self = self::selfApp();
 
         return self::preferAbsolute([$url, $self]) ?? $self;
@@ -222,6 +237,22 @@ final class PortalAppUrl
         }
 
         return false;
+    }
+
+    /**
+     * Retired Hostinger provisional Officials hosts must not appear in activation emails.
+     */
+    public static function isDeprecatedOfficialsHost(?string $url): bool
+    {
+        $host = strtolower((string) parse_url((string) $url, PHP_URL_HOST));
+        $host = trim($host, '[]');
+
+        if ($host === '') {
+            return false;
+        }
+
+        return str_contains($host, 'hostingersite.com')
+            || str_contains($host, 'skoneportal-com-739030');
     }
 
     /**

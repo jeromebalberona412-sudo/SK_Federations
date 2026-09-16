@@ -27,10 +27,7 @@ class StoreAccountRequest extends FormRequest
         if ($suffix === 'NONE' || $suffix === 'None') {
             $this->merge(['suffix' => 'NONE']);
         } elseif ($suffix === '__other__') {
-            $other = trim((string) $this->input('suffix_other', ''));
-            if ($other !== '') {
-                $this->merge(['suffix' => mb_strtoupper($other, 'UTF-8')]);
-            }
+            // Keep __other__ so Rule::in passes; resolve to suffix_other in validated().
         } elseif ($suffix === '') {
             $this->merge(['suffix' => null]);
         }
@@ -147,7 +144,7 @@ class StoreAccountRequest extends FormRequest
                 'nullable',
                 'string',
                 'min:1',
-                'max:5',
+                'max:'.($isOfficial ? 5 : 10),
                 'regex:/^\S+$/u',
             ],
             'sex' => [$requiresDemographics ? 'required' : 'nullable', Rule::in(['Male', 'Female']), 'not_in:'],
