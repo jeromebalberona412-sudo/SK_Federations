@@ -44,6 +44,36 @@ class ParticipantTypeResolver
         };
     }
 
+    public function canonicalType(?string $type): ?string
+    {
+        if ($type === null || $type === '') {
+            return null;
+        }
+
+        return $this->normalizeSearchRole($type) ?? strtolower(trim($type));
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function equivalentTypes(?string $type): array
+    {
+        $canonical = $this->canonicalType($type);
+        if ($canonical === self::KABATAAN) {
+            return [self::KABATAAN, 'user'];
+        }
+
+        return $canonical ? [$canonical] : [];
+    }
+
+    public function typesMatch(?string $a, ?string $b): bool
+    {
+        $left = $this->canonicalType($a);
+        $right = $this->canonicalType($b);
+
+        return $left !== null && $right !== null && $left === $right;
+    }
+
     public function label(string $type): string
     {
         return match ($type) {

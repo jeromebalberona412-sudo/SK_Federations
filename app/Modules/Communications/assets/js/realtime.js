@@ -21,6 +21,7 @@ import { createClient } from '@supabase/supabase-js';
     var inboxChannel = null;
     var callChannel = null;
     var callChannelId = null;
+    var pendingSignals = [];
     var typingTimers = Object.create(null);
     var lastTypingSent = 0;
     var activeConversationId = null;
@@ -338,18 +339,39 @@ import { createClient } from '@supabase/supabase-js';
         var root = getRoot();
         if (!root) return false;
         var myId = Number(root.dataset.currentUserId || 0);
-        var myType = String(root.dataset.portalUserType || '');
+        var myType = String(root.dataset.portalUserType || '').toLowerCase().trim();
         if (Number(payload.from_user_id) !== myId) return false;
-        if (payload.from_user_type && String(payload.from_user_type) !== myType) return false;
-        return true;
+        var fromType = String(payload.from_user_type || '').toLowerCase().trim();
+        if (!fromType || !myType) return true;
+        if (fromType === myType) return true;
+        var kab = { kabataan: 1, user: 1 };
+        return !!(kab[fromType] && kab[myType]);
+    }
+
+    function deliverSignal(payload) {
+        if (!payload) return;
+        if (window.CommsWebRTC && typeof window.CommsWebRTC.handleSignal === 'function') {
+            window.CommsWebRTC.handleSignal(payload);
+            return;
+        }
+        pendingSignals.push(payload);
+        if (pendingSignals.length > 40) pendingSignals = pendingSignals.slice(-40);
+    }
+
+    function flushPendingSignals() {
+        if (!pendingSignals.length) return;
+        if (!window.CommsWebRTC || typeof window.CommsWebRTC.handleSignal !== 'function') return;
+        var queued = pendingSignals.slice();
+        pendingSignals = [];
+        queued.forEach(function (payload) {
+            try { window.CommsWebRTC.handleSignal(payload); } catch (e) { /* ignore */ }
+        });
     }
 
     function handleIncomingSignal(raw) {
         var payload = unwrapBroadcast(raw);
         if (!payload || isOwnSignal(payload)) return;
-        if (window.CommsWebRTC && typeof window.CommsWebRTC.handleSignal === 'function') {
-            window.CommsWebRTC.handleSignal(payload);
-        }
+        deliverSignal(payload);
     }
 
     function subscribeConversation(conversationId) {
@@ -780,7 +802,8 @@ import { createClient } from '@supabase/supabase-js';
         stopTyping: stopTyping,
         broadcastSignal: broadcastSignal,
         broadcastMessage: broadcastMessage,
-        refreshUnread: refreshUnread
+        refreshUnread: refreshUnread,
+        flushPendingSignals: flushPendingSignals
     };
 
     window.addEventListener('pagehide', function () {

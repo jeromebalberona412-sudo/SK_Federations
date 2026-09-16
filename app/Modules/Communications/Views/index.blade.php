@@ -62,6 +62,10 @@
                 </div>
 
                 @if(($portalUserType ?? '') === 'sk_fed')
+                    <div class="comms-call-prompt" role="note">
+                        <strong>Voice &amp; video calls</strong>
+                        <p>You can call Kabataan and SK Officials from any barangay. Use the tabs below and filter by barangay. Group chats (SK Officials GC / SK Federations GC) stay separate for messaging.</p>
+                    </div>
                     <div class="comms-filter-bar" id="commsFilterBar" role="tablist" aria-label="Directory filters">
                         <button type="button" class="comms-filter-btn is-active" data-filter="conversations">Chats</button>
                         <button type="button" class="comms-filter-btn" data-filter="officials">SK Officials</button>
@@ -100,7 +104,7 @@
         <section class="comms-thread" id="commsThread" aria-live="polite">
             <div class="comms-thread-empty" id="commsThreadEmpty">
                 <h2>Your messages</h2>
-                <p>Select a conversation or search for a person to start chatting.</p>
+                <p>Select a chat, or open <strong>Kabataan</strong> / <strong>SK Officials</strong> to message or call anyone by barangay. Group chats (SK Officials GC and SK Federations GC) remain available under Chats.</p>
             </div>
 
             <div class="comms-thread-active" id="commsThreadActive" hidden>

@@ -13,7 +13,7 @@ class DirectoryController extends Controller
     public function __invoke(Request $request, ConversationService $conversations): JsonResponse
     {
         $validated = $request->validate([
-            'filter' => ['nullable', 'string', 'in:chairpersons,officials,federation'],
+            'filter' => ['nullable', 'string', 'in:chairpersons,officials,federation,kabataan'],
             'barangay_id' => ['nullable', 'integer'],
         ]);
 

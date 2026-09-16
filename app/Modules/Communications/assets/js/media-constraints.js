@@ -1,7 +1,6 @@
 /**
  * Shared getUserMedia constraints for Communications voice/video.
- * Mobile front cameras often digitally crop at high ideals (1280+) — keep
- * modest ideals and reset zoom when the device exposes it.
+ * Prefer sharper open-cam quality while keeping mobile framing natural.
  */
 
 export function isCoarsePointerMobile() {
@@ -22,22 +21,21 @@ export function audioConstraints() {
 }
 
 /**
- * Natural framing for self/group video (avoid tight crop / ultra-wide stretch).
+ * Higher-quality framing for self/group video.
  */
 export function videoConstraints() {
     var mobile = isCoarsePointerMobile();
 
     return {
         facingMode: { ideal: 'user' },
-        // Prefer 4:3 on phones (native front-cam), 16:9 on desktop.
         aspectRatio: { ideal: mobile ? 4 / 3 : 16 / 9 },
         width: mobile
-            ? { ideal: 640, min: 320, max: 960 }
-            : { ideal: 960, min: 480, max: 1280 },
+            ? { ideal: 960, min: 480, max: 1280 }
+            : { ideal: 1280, min: 640, max: 1920 },
         height: mobile
-            ? { ideal: 480, min: 240, max: 720 }
-            : { ideal: 540, min: 270, max: 720 },
-        frameRate: { ideal: mobile ? 24 : 30, max: 30 }
+            ? { ideal: 720, min: 360, max: 960 }
+            : { ideal: 720, min: 360, max: 1080 },
+        frameRate: { ideal: mobile ? 28 : 30, max: 30 }
     };
 }
 
@@ -57,7 +55,7 @@ export function videoOnlyConstraints() {
 
 /**
  * If the track supports zoom, pin it to the minimum (usually 1x) so mobile
- * does not start in a cropped / zoomed mode.
+ * does not start in a cropped / zoomed mode. Prefer sharper ideals when available.
  */
 export async function applyNaturalCameraFraming(track) {
     if (!track || typeof track.getCapabilities !== 'function' || typeof track.applyConstraints !== 'function') {
@@ -67,6 +65,7 @@ export async function applyNaturalCameraFraming(track) {
     try {
         var caps = track.getCapabilities() || {};
         var next = {};
+        var mobile = isCoarsePointerMobile();
 
         if (caps.facingMode && caps.facingMode.indexOf('user') !== -1) {
             next.facingMode = 'user';
@@ -78,10 +77,12 @@ export async function applyNaturalCameraFraming(track) {
         }
 
         if (caps.width && caps.height) {
-            // Soft preference only — do not force exact size (breaks some devices).
-            var mobile = isCoarsePointerMobile();
-            next.width = { ideal: mobile ? 640 : 960 };
-            next.height = { ideal: mobile ? 480 : 540 };
+            next.width = { ideal: mobile ? 960 : 1280 };
+            next.height = { ideal: mobile ? 720 : 720 };
+        }
+
+        if (caps.frameRate) {
+            next.frameRate = { ideal: mobile ? 28 : 30 };
         }
 
         if (Object.keys(next).length) {

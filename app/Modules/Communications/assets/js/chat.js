@@ -1428,7 +1428,7 @@
         var convFilterWrap = document.querySelector('.comms-search-wrap--filter');
         if (convFilterWrap) convFilterWrap.hidden = false;
         if (els.barangayFilter) {
-            var showBarangay = mode === 'officials' || mode === 'chairpersons';
+            var showBarangay = mode === 'officials' || mode === 'chairpersons' || mode === 'kabataan';
             els.barangayFilter.hidden = !showBarangay;
             var barangayWrap = document.getElementById('commsBarangayWrap');
             if (barangayWrap) barangayWrap.hidden = !showBarangay;
@@ -1482,7 +1482,10 @@
         }).filter(function (g) { return (g.users || []).length > 0; });
 
         if (!filtered.length) {
-            els.directoryList.innerHTML = '<div class="comms-empty"><p>No people found for this filter.</p></div>';
+            var emptyHint = (state.directoryFilter === 'kabataan')
+                ? 'No Kabataan found for this barangay filter.'
+                : 'No people found for this filter.';
+            els.directoryList.innerHTML = '<div class="comms-empty"><p>' + emptyHint + '</p></div>';
             return;
         }
         els.directoryList.innerHTML = filtered.map(function (group) {

@@ -27,7 +27,7 @@ class CallService
             abort(403);
         }
 
-        $this->conversations->assertCanMessagePeer($conversation, $caller);
+        $this->conversations->assertCanCallPeer($conversation, $caller);
 
         $callType = strtolower(trim($callType));
         if (! in_array($callType, [Call::TYPE_VOICE, Call::TYPE_VIDEO], true)) {

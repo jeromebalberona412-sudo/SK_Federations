@@ -251,14 +251,15 @@ import {
     }
 
     function playToneBurst(ctx, freqs, when, duration, volume) {
+        var level = Math.max(0.01, Math.min(Number(volume) || 0.14, 0.2));
         freqs.forEach(function (freq) {
             var osc = ctx.createOscillator();
             var gain = ctx.createGain();
             osc.type = 'sine';
             osc.frequency.value = freq;
             gain.gain.setValueAtTime(0.0001, when);
-            gain.gain.exponentialRampToValueAtTime(volume, when + 0.02);
-            gain.gain.setValueAtTime(volume, when + Math.max(0.05, duration - 0.05));
+            gain.gain.exponentialRampToValueAtTime(level, when + 0.03);
+            gain.gain.setValueAtTime(level, when + Math.max(0.06, duration - 0.08));
             gain.gain.exponentialRampToValueAtTime(0.0001, when + duration);
             osc.connect(gain);
             gain.connect(ctx.destination);
@@ -289,15 +290,15 @@ import {
             if (!ringCtx) return;
             var now = ringCtx.currentTime;
             if (incoming) {
-                playToneBurst(ringCtx, [440, 480], now, 0.4, 0.14);
-                playToneBurst(ringCtx, [440, 480], now + 0.55, 0.4, 0.14);
+                playToneBurst(ringCtx, [440, 480], now, 0.42, 0.14);
+                playToneBurst(ringCtx, [440, 480], now + 0.52, 0.42, 0.14);
             } else {
-                playToneBurst(ringCtx, [440, 480], now, 1.4, 0.09);
+                playToneBurst(ringCtx, [440, 480], now, 1.15, 0.11);
             }
         }
 
         scheduleCycle();
-        ringTimer = setInterval(scheduleCycle, incoming ? 2200 : 4000);
+        ringTimer = setInterval(scheduleCycle, incoming ? 2800 : 3600);
     }
 
     function armRingTimeout() {
@@ -1559,4 +1560,8 @@ import {
         __showEnded: showCallEnded,
         __startTimer: startTimer
     };
+
+    if (window.CommsRealtime && typeof window.CommsRealtime.flushPendingSignals === 'function') {
+        window.CommsRealtime.flushPendingSignals();
+    }
 })();

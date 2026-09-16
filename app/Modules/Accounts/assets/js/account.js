@@ -4,6 +4,11 @@
 //         view modal, pagination, batch upload, bulk actions
 // =============================================================
 
+/** Module-level CSRF helper (batch upload + other fetch calls). */
+function csrfToken() {
+    return document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') ?? '';
+}
+
 // ── Alpine.js accounts page state (selection + bulk bar only) ───
 window.accountsPage = function () {
     return {
@@ -89,10 +94,6 @@ window.AccountsDeleteModal = (function () {
             confirmBtn: document.getElementById('deleteModalConfirmBtn'),
             cancelBtn: document.getElementById('deleteModalCancelBtn'),
         };
-    }
-
-    function csrfToken() {
-        return document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') ?? '';
     }
 
     function setModalLoading(isLoading) {

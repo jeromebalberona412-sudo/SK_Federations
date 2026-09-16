@@ -3064,6 +3064,30 @@ body.comms-officials-page .main-content {
 }
 
 /* Federations directory filters — wrap, never side-scroll */
+.comms-call-prompt {
+    margin: 0 0 0.65rem;
+    padding: 0.7rem 0.85rem;
+    border-radius: 10px;
+    background: linear-gradient(135deg, #e8f1fb 0%, #f0f7ff 100%);
+    border: 1px solid #c7dbf5;
+    color: #0f172a;
+}
+
+.comms-call-prompt strong {
+    display: block;
+    font-size: 0.82rem;
+    font-weight: 800;
+    color: #0450a8;
+    margin-bottom: 0.2rem;
+}
+
+.comms-call-prompt p {
+    margin: 0;
+    font-size: 0.75rem;
+    line-height: 1.4;
+    color: #334155;
+}
+
 .comms-filter-bar {
     display: flex;
     flex-wrap: wrap;

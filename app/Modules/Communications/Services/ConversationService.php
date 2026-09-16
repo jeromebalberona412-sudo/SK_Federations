@@ -464,14 +464,14 @@ class ConversationService
 
     /**
      * Federations directory listing for quick message/call.
-     * Filters: chairpersons | officials | federation
+     * Filters: chairpersons | officials | federation | kabataan
      *
      * @return array{users: Collection, groups: array<int, array{title: string, users: array}>}
      */
     public function directory(Authenticatable $authUser, string $filter = 'officials', ?int $barangayId = null): array
     {
         $filter = strtolower(trim($filter));
-        if (! in_array($filter, ['chairpersons', 'officials', 'federation'], true)) {
+        if (! in_array($filter, ['chairpersons', 'officials', 'federation', 'kabataan'], true)) {
             $filter = 'officials';
         }
 
@@ -519,6 +519,13 @@ class ConversationService
                     });
                 });
             });
+        } elseif ($filter === 'kabataan') {
+            // Kabataan / youth accounts across Santa Cruz (optionally by barangay).
+            $query->whereIn('role', ['kabataan', User::ROLE_USER]);
+
+            if ($barangayId) {
+                $query->where('barangay_id', $barangayId);
+            }
         } else {
             // All SK Officials across Santa Cruz (optionally by barangay / chairperson).
             $query->where('role', User::ROLE_SK_OFFICIAL);
@@ -546,7 +553,7 @@ class ConversationService
         $mapped = $users->map(fn (User $user) => $this->serializeUser($user, $this->types->fromUser($user)));
 
         $groups = [];
-        if ($filter === 'officials' || $filter === 'chairpersons') {
+        if (in_array($filter, ['officials', 'chairpersons', 'kabataan'], true)) {
             $grouped = $mapped->groupBy(fn (array $row) => $row['barangay_name'] ?: 'No barangay');
             foreach ($grouped->sortKeys() as $title => $rows) {
                 $groups[] = [
@@ -627,9 +634,7 @@ class ConversationService
                 default => false,
             },
             ParticipantTypeResolver::SK_FED => in_array($toType, [
-                ParticipantTypeResolver::KABATAAN,
                 ParticipantTypeResolver::SK_OFFICIAL,
-                ParticipantTypeResolver::SK_FED,
             ], true),
             default => false,
         };
@@ -662,6 +667,85 @@ class ConversationService
         if (! $peer || ! $this->canMessage($user, $peer)) {
             abort(403, 'You are not allowed to message this account.');
         }
+    }
+
+    public function assertCanCallPeer(Conversation $conversation, Authenticatable $user): void
+    {
+        if (! $this->isParticipant($conversation, $user)) {
+            abort(403, 'You are not allowed to call this account.');
+        }
+
+        if ($conversation->isGroup()) {
+            return;
+        }
+
+        $peer = $this->resolvePrivatePeerUser($conversation, $user);
+        if (! $peer) {
+            abort(403, 'Conversation peer not found.');
+        }
+
+        if ($this->rolesAllowCall($user, $peer) || $this->canMessage($user, $peer)) {
+            return;
+        }
+
+        abort(403, 'You are not allowed to call this account.');
+    }
+
+    public function resolvePrivatePeerUser(Conversation $conversation, Authenticatable $user): ?User
+    {
+        $userType = $this->types->portalType();
+        $callerTypes = $this->types->equivalentTypes($userType);
+        if ($callerTypes === []) {
+            $callerTypes = [$userType];
+        }
+
+        $other = ConversationParticipant::query()
+            ->where('conversation_id', $conversation->id)
+            ->where(function ($query) use ($user, $callerTypes) {
+                $query->where('user_id', '!=', (int) $user->id)
+                    ->orWhereNotIn('user_type', $callerTypes);
+            })
+            ->orderByRaw('CASE WHEN user_id = ? THEN 1 ELSE 0 END', [(int) $user->id])
+            ->first();
+
+        if (! $other || ((int) $other->user_id === (int) $user->id && $this->types->typesMatch($other->user_type, $userType))) {
+            return null;
+        }
+
+        return User::query()->find($other->user_id);
+    }
+
+    public function rolesAllowCall(Authenticatable $from, User $to): bool
+    {
+        if ((int) $from->id === (int) $to->id) {
+            return false;
+        }
+
+        if (strtoupper((string) $to->status) !== User::STATUS_ACTIVE) {
+            return false;
+        }
+
+        if ($this->isHiddenFederationAdministrator($to)) {
+            return false;
+        }
+
+        try {
+            $fromType = $this->types->fromUser($from);
+            $toType = $this->types->fromUser($to);
+        } catch (\InvalidArgumentException) {
+            return false;
+        }
+
+        return match ($fromType) {
+            ParticipantTypeResolver::SK_OFFICIAL => in_array($toType, [
+                ParticipantTypeResolver::KABATAAN,
+                ParticipantTypeResolver::SK_OFFICIAL,
+                ParticipantTypeResolver::SK_FED,
+            ], true),
+            ParticipantTypeResolver::KABATAAN => $toType === ParticipantTypeResolver::SK_OFFICIAL,
+            ParticipantTypeResolver::SK_FED => $toType === ParticipantTypeResolver::SK_OFFICIAL,
+            default => false,
+        };
     }
 
     /**
