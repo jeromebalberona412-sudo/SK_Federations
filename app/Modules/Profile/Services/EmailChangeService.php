@@ -8,6 +8,7 @@ use App\Modules\Shared\Models\User;
 use App\Services\EmailValidationService;
 use App\Services\InvalidEmailService;
 use App\Services\SkFedPageCache;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Notification;
@@ -21,13 +22,14 @@ class EmailChangeService
 
     private const RESEND_COOLDOWN_SECONDS = 60;
 
+    private const COMPLETED_CACHE_TTL_MINUTES = 30;
+
     public function __construct(
         private readonly SkFedPageCache $pageCache,
         private readonly EmailValidationService $emailValidation,
         private readonly InvalidEmailService $invalidEmails,
         private readonly AuditLogInterface $auditLog,
-    ) {
-    }
+    ) {}
 
     public function hasPendingChange(User $user): bool
     {
@@ -105,6 +107,8 @@ class EmailChangeService
                 'new_email' => ['New email must be different from your current email.'],
             ]);
         }
+
+        $this->forgetRecentlyCompleted($user->id);
 
         $plainToken = Str::random(64);
 
@@ -227,12 +231,7 @@ class EmailChangeService
             $user->forceFill($payload)->save();
             $this->invalidEmails->markVerified($newEmail);
             $this->bumpUserCache();
-
-            if (Schema::hasColumn('users', 'active_session_id')) {
-                User::query()
-                    ->whereKey($user->id)
-                    ->update(['active_session_id' => null]);
-            }
+            $this->markRecentlyCompleted($user->id);
 
             $fresh = $user->fresh() ?? $user;
             $this->auditLog->log('email_change_verified', $fresh, [
@@ -241,6 +240,30 @@ class EmailChangeService
 
             return $fresh;
         });
+    }
+
+    public function markRecentlyCompleted(int $userId): void
+    {
+        Cache::put(
+            $this->completedCacheKey($userId),
+            true,
+            now()->addMinutes(self::COMPLETED_CACHE_TTL_MINUTES),
+        );
+    }
+
+    public function wasRecentlyCompleted(int $userId): bool
+    {
+        return (bool) Cache::get($this->completedCacheKey($userId), false);
+    }
+
+    public function forgetRecentlyCompleted(int $userId): void
+    {
+        Cache::forget($this->completedCacheKey($userId));
+    }
+
+    protected function completedCacheKey(int $userId): string
+    {
+        return "sk_fed_email_change_completed:{$userId}";
     }
 
     public function resendCooldownRemaining(User $user): int

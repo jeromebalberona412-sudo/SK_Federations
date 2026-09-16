@@ -284,6 +284,13 @@ input[name="current_email"] {
         padding: 12px 16px;
     }
 
+    .cp-listening-badge {
+        border-radius: 12px;
+        text-align: center;
+        line-height: 1.35;
+        padding: 10px 12px;
+    }
+
     .ce-info-box {
         font-size: 12.5px;
         padding: 12px 14px;
@@ -311,9 +318,57 @@ input[name="current_email"] {
     }
 }
 
+.cp-listening-badge {
+    width: 100%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 10px 14px;
+    border-radius: 999px;
+    background: #eff6ff;
+    border: 1.5px solid #93c5fd;
+    color: #1d4ed8;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+}
+
+.cp-listening-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #3b82f6;
+    flex-shrink: 0;
+    animation: cpPulse 1.4s ease-in-out infinite;
+}
+
+@keyframes cpPulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.45; transform: scale(0.85); }
+}
+
+.cp-listening-badge.is-confirmed {
+    background: #f0fdf4;
+    border-color: #22c55e;
+    color: #166534;
+}
+
+.cp-listening-badge.is-confirmed .cp-listening-dot {
+    background: #22c55e;
+    animation: none;
+}
+
+#ceVerifySection.is-confirmed .ce-actions,
+#ceVerifySection.is-confirmed .ce-resend-timer,
+#ceVerifySection.is-confirmed .ce-back-section {
+    display: none !important;
+}
+
 @media (prefers-reduced-motion: reduce) {
     .ce-success-check-circle,
-    .ce-success-checkmark {
+    .ce-success-checkmark,
+    .cp-listening-dot {
         animation: none;
     }
 }

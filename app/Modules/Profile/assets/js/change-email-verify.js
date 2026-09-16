@@ -1,13 +1,22 @@
 document.addEventListener('DOMContentLoaded', function () {
     const TIMER_DURATION = 60;
     const TIMER_START_KEY = 'sk_email_change_timer_start';
+    const POLL_INTERVAL_MS = 3000;
 
+    const verifySection = document.getElementById('ceVerifySection');
+    const statusUrl = verifySection?.dataset.statusUrl || '';
+    const dashboardUrl = verifySection?.dataset.dashboardUrl || '/dashboard';
+    const successUrl = verifySection?.dataset.successUrl || '/change-email/success';
     const timerElement = document.getElementById('ceTimer');
     const timerCountElement = document.getElementById('ceTimerCount');
     const resendBtn = document.getElementById('ceResendBtn');
     const resendForm = document.getElementById('ceResendForm');
+    const listeningBadge = document.getElementById('ceListeningBadge');
+    const statusBadge = document.getElementById('ceStatusBadge');
+    const infoBox = document.getElementById('ceInfoBox');
 
     let timerInterval = null;
+    let confirmationHandled = false;
     const serverCooldown = Number(window.ceResendCooldown || 0);
 
     function formatCountdown(seconds) {
@@ -93,7 +102,122 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     }
 
+    function isUnauthorized(response) {
+        return Boolean(response) && (response.status === 401 || response.status === 419);
+    }
+
+    function isHtmlResponse(response) {
+        if (!response) return false;
+        if (response.redirected) return true;
+        const contentType = response.headers.get('content-type') || '';
+        return contentType !== '' && !contentType.includes('application/json');
+    }
+
+    function isConfirmedState(payload) {
+        return Boolean(payload) && (payload.state === 'confirmed' || payload.state === 'completed');
+    }
+
+    function markConfirmedUI(message) {
+        confirmationHandled = true;
+
+        if (verifySection) {
+            verifySection.classList.add('is-confirmed');
+        }
+        if (listeningBadge) {
+            listeningBadge.classList.add('is-confirmed');
+            listeningBadge.innerHTML = '<span class="cp-listening-dot"></span> Email confirmed';
+        }
+        if (statusBadge) {
+            statusBadge.textContent = 'Confirmed';
+            statusBadge.style.background = '#dcfce7';
+            statusBadge.style.color = '#166534';
+        }
+        if (infoBox) {
+            infoBox.textContent = message || 'Email change confirmed. Taking you to your dashboard...';
+        }
+        if (resendBtn) {
+            resendBtn.disabled = true;
+        }
+    }
+
+    function redirectAfterConfirm(message, redirectUrl) {
+        localStorage.removeItem(TIMER_START_KEY);
+        if (timerInterval) {
+            clearInterval(timerInterval);
+        }
+        markConfirmedUI(message);
+        setTimeout(function () {
+            window.location.replace(redirectUrl || dashboardUrl);
+        }, 800);
+    }
+
+    async function parseJson(response) {
+        try {
+            return await response.json();
+        } catch (error) {
+            return {};
+        }
+    }
+
+    async function checkConfirmationStatus() {
+        if (confirmationHandled || !statusUrl) {
+            return;
+        }
+
+        try {
+            const response = await fetch(statusUrl, {
+                method: 'GET',
+                headers: {
+                    Accept: 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+                credentials: 'same-origin',
+            });
+
+            const payload = await parseJson(response);
+
+            if (isUnauthorized(response)) {
+                redirectAfterConfirm(
+                    payload.message || 'Email changed successfully.',
+                    payload.redirect || successUrl,
+                );
+                return;
+            }
+
+            if (isHtmlResponse(response)) {
+                window.location.replace('/login');
+                return;
+            }
+
+            if (isConfirmedState(payload)) {
+                redirectAfterConfirm(
+                    payload.message || 'Email changed successfully. Taking you to your dashboard...',
+                    payload.redirect || dashboardUrl,
+                );
+                return;
+            }
+
+            if (!response.ok) {
+                setTimeout(checkConfirmationStatus, POLL_INTERVAL_MS + 2000);
+                return;
+            }
+
+            if (payload.state === 'pending') {
+                setTimeout(checkConfirmationStatus, POLL_INTERVAL_MS);
+                return;
+            }
+
+            if (payload.state === 'cancelled') {
+                localStorage.removeItem(TIMER_START_KEY);
+                window.location.replace(payload.redirect || '/change-email');
+            }
+        } catch (error) {
+            setTimeout(checkConfirmationStatus, POLL_INTERVAL_MS + 2000);
+        }
+    }
+
     bootstrapTimer();
+    checkConfirmationStatus();
 
     if (resendForm) {
         resendForm.addEventListener('submit', function () {

@@ -8,6 +8,7 @@ use App\Modules\AuditLog\Support\AuditLogPresenter;
 use App\Modules\Shared\Models\User;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\SoftDeletingScope;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;
 
@@ -270,7 +271,11 @@ class AuditLogQueryService
 
     protected function baseQuery(?int $tenantId): Builder
     {
-        $query = AdminActivityLog::query()->with(['user.barangay']);
+        $query = AdminActivityLog::query()->with([
+            'user' => function ($userQuery): void {
+                $userQuery->withoutGlobalScope(SoftDeletingScope::class)->with('barangay');
+            },
+        ]);
         $this->applyTenantScope($query, $tenantId);
 
         return $query;

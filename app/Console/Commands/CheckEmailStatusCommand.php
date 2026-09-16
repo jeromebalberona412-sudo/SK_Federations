@@ -2,8 +2,8 @@
 
 namespace App\Console\Commands;
 
+use App\Modules\Accounts\Support\PortalAppUrl;
 use Illuminate\Console\Command;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
 
 class CheckEmailStatusCommand extends Command
@@ -49,19 +49,21 @@ class CheckEmailStatusCommand extends Command
     protected function displayMailConfiguration(): void
     {
         $this->info('📧 Mail Configuration:');
-        $this->line('  ├─ Default Mailer: ' . config('mail.default'));
-        $this->line('  ├─ SMTP Host: ' . config('mail.mailers.smtp.host'));
-        $this->line('  ├─ SMTP Port: ' . config('mail.mailers.smtp.port'));
-        $this->line('  ├─ Encryption: ' . config('mail.mailers.smtp.encryption'));
-        $this->line('  ├─ Username: ' . config('mail.mailers.smtp.username'));
-        $this->line('  ├─ From Address: ' . config('mail.from.address'));
-        $this->line('  └─ From Name: ' . config('mail.from.name'));
+        $this->line('  ├─ Default Mailer: '.config('mail.default'));
+        $this->line('  ├─ SMTP Host: '.config('mail.mailers.smtp.host'));
+        $this->line('  ├─ SMTP Port: '.config('mail.mailers.smtp.port'));
+        $this->line('  ├─ Encryption: '.config('mail.mailers.smtp.encryption'));
+        $this->line('  ├─ Username: '.config('mail.mailers.smtp.username'));
+        $this->line('  ├─ From Address: '.config('mail.from.address'));
+        $this->line('  ├─ From Name: '.config('mail.from.name'));
+        $this->line('  ├─ APP_URL: '.config('app.url'));
+        $this->line('  └─ Mail links: '.PortalAppUrl::selfApp());
     }
 
     protected function displayNotificationClasses(): void
     {
         $this->info('📬 Email Notification Classes:');
-        
+
         $notifications = [
             '1. Email Verification' => 'Laravel\\Notifications\\Messages\\VerifyEmail (customized in User model)',
             '2. Password Reset' => 'App\\Modules\\Authentication\\Notifications\\SkFedResetPasswordNotification',
@@ -80,21 +82,22 @@ class CheckEmailStatusCommand extends Command
     protected function displayRecentEmailLogs(int $lines): void
     {
         $this->info("📝 Recent Email Logs (last {$lines} entries):");
-        
+
         $logFile = storage_path('logs/laravel.log');
-        
-        if (!File::exists($logFile)) {
-            $this->warn('  └─ No log file found at: ' . $logFile);
+
+        if (! File::exists($logFile)) {
+            $this->warn('  └─ No log file found at: '.$logFile);
+
             return;
         }
 
         try {
             // Read last N lines from log file
             $logLines = $this->tailFile($logFile, $lines * 5); // Get more lines to ensure we capture email-related logs
-            
+
             // Filter for email-related logs
-            $emailLogs = array_filter($logLines, function($line) {
-                return strpos($line, 'email') !== false 
+            $emailLogs = array_filter($logLines, function ($line) {
+                return strpos($line, 'email') !== false
                     || strpos($line, 'notification') !== false
                     || strpos($line, 'mail') !== false
                     || strpos($line, 'verification') !== false
@@ -104,6 +107,7 @@ class CheckEmailStatusCommand extends Command
             if (empty($emailLogs)) {
                 $this->warn('  └─ No email-related logs found in recent entries');
                 $this->line('  └─ Try sending a test email with: php artisan email:test');
+
                 return;
             }
 
@@ -112,24 +116,20 @@ class CheckEmailStatusCommand extends Command
                 if ($count >= $lines) {
                     break;
                 }
-                $this->line('  ' . trim($log));
+                $this->line('  '.trim($log));
                 $count++;
             }
-            
+
             $this->newLine();
-            $this->info("Total email-related log entries: " . count($emailLogs));
-            
+            $this->info('Total email-related log entries: '.count($emailLogs));
+
         } catch (\Throwable $e) {
-            $this->error('  └─ Error reading log file: ' . $e->getMessage());
+            $this->error('  └─ Error reading log file: '.$e->getMessage());
         }
     }
 
     /**
      * Read last N lines from a file
-     *
-     * @param string $file
-     * @param int $lines
-     * @return array
      */
     protected function tailFile(string $file, int $lines): array
     {

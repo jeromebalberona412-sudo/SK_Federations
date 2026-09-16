@@ -1,11 +1,11 @@
 <?php
 
-uses(TestCase::class);
-
 use App\Modules\CommunityFeed\Services\CommunityFeedPostBodyValidator;
 use App\Services\ProhibitedWordsService;
 use Illuminate\Validation\ValidationException;
 use Tests\TestCase;
+
+uses(TestCase::class);
 
 test('post body validator accepts normalized content within limits', function () {
     $validator = new CommunityFeedPostBodyValidator(new ProhibitedWordsService);

@@ -5,6 +5,7 @@ namespace App\Modules\AuditLog\Support;
 use App\Modules\AuditLog\Models\AdminActivityLog;
 use App\Modules\Shared\Models\User;
 use Carbon\CarbonInterface;
+use Illuminate\Support\Carbon;
 
 class AuditLogPresenter
 {
@@ -91,6 +92,28 @@ class AuditLogPresenter
         }
 
         return 'System';
+    }
+
+    /**
+     * @param  array<string, mixed>  $metadata
+     */
+    public static function resolveUserEmail(?object $relatedUser, object $row, array $metadata = []): ?string
+    {
+        $candidates = [
+            $relatedUser?->email ?? null,
+            $row->user_email ?? null,
+            $metadata['email'] ?? null,
+            $metadata['user_email'] ?? null,
+            $metadata['actor_email'] ?? null,
+        ];
+
+        foreach ($candidates as $value) {
+            if (is_string($value) && trim($value) !== '') {
+                return trim($value);
+            }
+        }
+
+        return null;
     }
 
     public static function resolveBarangayName(?string $barangayName, array $metadata = []): string
@@ -220,9 +243,10 @@ class AuditLogPresenter
         $relatedUser = property_exists($row, 'user') && $row->user ? $row->user : null;
 
         $userRole = $relatedUser?->role ?? ($row->user_role ?? ($metadata['role'] ?? null));
+        $resolvedEmail = self::resolveUserEmail($relatedUser, $row, $metadata);
         $userName = self::resolveUserName(
             $relatedUser?->name ?? ($row->user_name ?? null),
-            $relatedUser?->email ?? ($row->user_email ?? null),
+            $resolvedEmail,
             $metadata,
         );
         $barangayName = self::resolveBarangayName(
@@ -234,7 +258,7 @@ class AuditLogPresenter
         $deviceDetails = self::parseDeviceDetails($row->user_agent ?? null);
 
         if (is_string($createdAt)) {
-            $createdAt = \Illuminate\Support\Carbon::parse($createdAt);
+            $createdAt = Carbon::parse($createdAt);
         }
 
         return [
@@ -246,7 +270,7 @@ class AuditLogPresenter
             'relative_time' => self::relativeTime($createdAt),
             'user_id' => $row->user_id ?? null,
             'user_name' => $userName,
-            'user_email' => $relatedUser?->email ?? ($row->user_email ?? ($metadata['email'] ?? null)),
+            'user_email' => $resolvedEmail,
             'role' => self::roleLabel(is_string($userRole) ? $userRole : null),
             'role_key' => $userRole,
             'barangay' => $barangayName,

@@ -3,6 +3,9 @@
 @section('title', 'Dashboard')
 
 @section('content')
+@if (session('success'))
+    <div class="dash-flash dash-flash-success" role="status">{{ session('success') }}</div>
+@endif
 {{-- Page Header --}}
         <div class="dash-page-header">
             <div class="dash-page-header-left">
@@ -16,12 +19,11 @@
             <div class="dash-page-filters">
                 @php
                     $dashYear = (int) ($dashboardYear ?? now()->year);
-                    $dashTermStart = $termStart ?? ($dateFrom ?? sprintf('%04d-01-01', $dashYear));
-                    $dashTermEnd = $termEnd ?? now()->toDateString();
+                    $dashTermStart = $termStart ?? sprintf('%04d-01-01', $dashYear);
+                    $dashTermEnd = $termEnd ?? sprintf('%04d-12-31', $dashYear);
                     $dashToday = now()->timezone(config('app.timezone', 'Asia/Manila'))->toDateString();
-                    $dashDateToCap = $dashToday <= $dashTermEnd ? $dashToday : $dashTermEnd;
-                    $dashDateFrom = $dateFrom ?? $dashTermStart;
-                    $dashDateTo = $dateTo ?? $dashDateToCap;
+                    $dashDateFrom = $dateFrom ?? sprintf('%04d-01-01', $dashYear);
+                    $dashDateTo = $dateTo ?? sprintf('%04d-12-31', $dashYear);
                     $dashDataEarliest = $dataEarliest ?? null;
                     $dashShowAll = !empty($showDateAll);
                 @endphp
@@ -36,8 +38,8 @@
                     <div
                         class="dash-date-range-filter"
                         id="dashDateRangeFilter"
-                        data-default-from="{{ $dashTermStart }}"
-                        data-default-to="{{ $dashDateToCap }}"
+                        data-default-from="{{ $dashDateFrom }}"
+                        data-default-to="{{ $dashDateTo }}"
                         data-term-start="{{ $dashTermStart }}"
                         data-term-end="{{ $dashTermEnd }}"
                         data-term-year="{{ $dashYear }}"
@@ -56,7 +58,7 @@
                                     min="{{ $dashTermStart }}"
                                     max="{{ $dashTermEnd }}"
                                     aria-label="Filter from date"
-                                    title="From (term start)"
+                                    title="From (January 1 of the current year; selectable dates are official term dates only)"
                                 >
                             </label>
                             <span class="dash-date-range-sep" aria-hidden="true">–</span>
@@ -70,7 +72,7 @@
                                     min="{{ $dashTermStart }}"
                                     max="{{ $dashTermEnd }}"
                                     aria-label="Filter to date"
-                                    title="To (today / term end)"
+                                    title="To (December 31 of the current year; selectable dates are official term dates only)"
                                 >
                             </label>
                             @if($dashShowAll)
@@ -88,8 +90,8 @@
                                 type="button"
                                 class="dash-date-reset-btn"
                                 id="dashDateResetBtn"
-                                title="Reset to term start and today"
-                                aria-label="Reset date filter to term start and today"
+                                title="Reset to January 1 – December 31 of the current year"
+                                aria-label="Reset date filter to January 1 through December 31 of the current year"
                             >
                                 <i class="fas fa-undo" aria-hidden="true"></i>
                             </button>
@@ -326,7 +328,9 @@
                     </select>
                 </div>
                 <div class="card-body chart-body dash-demo-chart-body">
-                    <canvas id="employmentStatusChart" aria-label="Employment status distribution chart"></canvas>
+                    <div class="chart-canvas-wrap chart-canvas-wrap--employment" id="employmentChartWrap">
+                        <canvas id="employmentStatusChart" aria-label="Employment status distribution chart"></canvas>
+                    </div>
                     <div class="dash-demo-legend" id="employmentStatusLegend"></div>
                     <p class="dash-empty-note" id="employmentStatusEmpty" hidden>No employment data available.</p>
                 </div>

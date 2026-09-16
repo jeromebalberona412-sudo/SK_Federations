@@ -6,6 +6,8 @@ document.addEventListener('DOMContentLoaded', function () {
     const verifySection = document.getElementById('cpVerifySection');
     const statusUrl = verifySection?.dataset.statusUrl || '';
     const resendUrl = verifySection?.dataset.resendUrl || document.getElementById('cpResendForm')?.action || '';
+    const dashboardUrl = verifySection?.dataset.dashboardUrl || '/dashboard';
+    const successUrl = verifySection?.dataset.successUrl || '/change-password/success';
     const accountEmail = verifySection?.dataset.email || 'default';
     const cooldownKey = `sk_password_change_resend_${accountEmail}`;
 
@@ -37,13 +39,19 @@ document.addEventListener('DOMContentLoaded', function () {
         };
     }
 
-    function isLoggedOutResponse(response, payload) {
+    function isUnauthorized(response) {
+        return Boolean(response) && (response.status === 401 || response.status === 419);
+    }
+
+    function isHtmlResponse(response) {
         if (!response) return false;
-        if (response.status === 401 || response.status === 419) return true;
         if (response.redirected) return true;
         const contentType = response.headers.get('content-type') || '';
-        if (contentType && !contentType.includes('application/json')) return true;
-        return payload && payload.state === 'confirmed';
+        return contentType !== '' && !contentType.includes('application/json');
+    }
+
+    function isConfirmedState(payload) {
+        return Boolean(payload) && payload.state === 'confirmed';
     }
 
     function clearResendCooldown() {
@@ -145,18 +153,18 @@ document.addEventListener('DOMContentLoaded', function () {
             statusBadge.style.color = '#166534';
         }
         if (infoBox) {
-            infoBox.textContent = message || 'Password change confirmed. Signing you out...';
+            infoBox.textContent = message || 'Password change confirmed. Taking you to your dashboard...';
         }
     }
 
-    function redirectToLogin(message, redirectUrl) {
+    function redirectAfterConfirm(message, redirectUrl) {
         clearResendCooldown();
         if (timerInterval) {
             clearInterval(timerInterval);
         }
         markConfirmedUI(message);
         setTimeout(function () {
-            window.location.replace(redirectUrl || '/change-password/success');
+            window.location.replace(redirectUrl || dashboardUrl);
         }, 800);
     }
 
@@ -185,10 +193,23 @@ document.addEventListener('DOMContentLoaded', function () {
 
             const payload = await parseJson(response);
 
-            if (isLoggedOutResponse(response, payload) || payload.state === 'confirmed') {
-                redirectToLogin(
-                    payload.message || 'Password changed successfully. Please sign in with your new password.',
-                    payload.redirect || '/login',
+            if (isUnauthorized(response)) {
+                redirectAfterConfirm(
+                    payload.message || 'Password changed successfully.',
+                    payload.redirect || successUrl,
+                );
+                return;
+            }
+
+            if (isHtmlResponse(response)) {
+                window.location.replace('/login');
+                return;
+            }
+
+            if (isConfirmedState(payload)) {
+                redirectAfterConfirm(
+                    payload.message || 'Password changed successfully. Taking you to your dashboard...',
+                    payload.redirect || dashboardUrl,
                 );
                 return;
             }
@@ -233,10 +254,18 @@ document.addEventListener('DOMContentLoaded', function () {
 
             const payload = await parseJson(response);
 
-            if (isLoggedOutResponse(response, payload) || payload.state === 'confirmed') {
-                redirectToLogin(
-                    payload.message || 'Password changed successfully. Please sign in with your new password.',
-                    payload.redirect || '/login',
+            if (isUnauthorized(response)) {
+                redirectAfterConfirm(
+                    payload.message || 'Password changed successfully.',
+                    payload.redirect || successUrl,
+                );
+                return;
+            }
+
+            if (isConfirmedState(payload)) {
+                redirectAfterConfirm(
+                    payload.message || 'Password changed successfully. Taking you to your dashboard...',
+                    payload.redirect || dashboardUrl,
                 );
                 return;
             }

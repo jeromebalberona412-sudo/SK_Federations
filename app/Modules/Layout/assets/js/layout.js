@@ -4,7 +4,7 @@ function isSidebarCollapsed() {
 }
 
 function isMobileSidebar() {
-    return window.innerWidth <= 1024;
+    return window.matchMedia('(max-width: 1024px)').matches;
 }
 
 function getSubmenuToggleButton(submenuId) {
@@ -54,13 +54,6 @@ function toggleSubmenu(submenuId) {
     }
 
     var willOpen = !isSubmenuOpen(submenuId);
-
-    document.querySelectorAll('.sidebar-submenu.is-open').forEach(function (submenu) {
-        if (submenu.id !== submenuId) {
-            setSubmenuOpen(submenu.id, false);
-        }
-    });
-
     setSubmenuOpen(submenuId, willOpen);
 
     if (willOpen && !isMobileSidebar()) {
@@ -225,7 +218,6 @@ function updateNotifBadge(count) {
     var notifList = document.getElementById('notifList');
     var notifBadges = document.querySelectorAll('#notifBadge');
     var notifBadge = notifBadges.length ? notifBadges[0] : null;
-    var notifCountPill = document.getElementById('notifCountPill');
     var notifEmpty = document.getElementById('notifEmpty');
     var unread = typeof count === 'number' && !isNaN(count) ? Math.max(0, count) : getUnreadTotal();
 
@@ -240,10 +232,6 @@ function updateNotifBadge(count) {
         notifBadge.setAttribute('data-unread-total', String(unread));
         notifBadge.textContent = unread > 0 ? formatNotifCount(unread) : '';
         notifBadge.style.display = unread > 0 ? 'inline-flex' : 'none';
-    }
-    if (notifCountPill) {
-        notifCountPill.textContent = unread > 0 ? formatNotifCount(unread) : '';
-        notifCountPill.style.display = unread > 0 ? 'inline' : 'none';
     }
     if (notifEmpty && notifList) {
         var hasItems = notifList.querySelectorAll('.notif-item').length > 0;

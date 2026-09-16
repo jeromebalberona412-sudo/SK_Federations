@@ -26,7 +26,9 @@ class TurnoverCompletedNotification extends Notification
 
     public function toMail(object $notifiable): MailMessage
     {
-        $loginUrl = PortalAppUrl::join(PortalAppUrl::publicBase($this->portalUrl), '/login');
+        $loginUrl = PortalAppUrl::mailLink(
+            PortalAppUrl::join(PortalAppUrl::publicBase($this->portalUrl), '/login')
+        );
 
         Log::info('Building turnover completed email', [
             'user_id' => method_exists($notifiable, 'getKey') ? $notifiable->getKey() : null,

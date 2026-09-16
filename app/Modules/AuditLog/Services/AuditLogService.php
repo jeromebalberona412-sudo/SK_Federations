@@ -2,10 +2,10 @@
 
 namespace App\Modules\AuditLog\Services;
 
-use App\Modules\Shared\Models\User;
-use App\Modules\AuditLog\Models\AdminActivityLog;
 use App\Modules\AuditLog\Contracts\AuditLogInterface;
+use App\Modules\AuditLog\Models\AdminActivityLog;
 use App\Modules\AuditLog\Support\AuditLogPresenter;
+use App\Modules\Shared\Models\User;
 use Illuminate\Support\Facades\Log;
 use Throwable;
 
@@ -13,11 +13,6 @@ class AuditLogService implements AuditLogInterface
 {
     /**
      * Log an audit event.
-     *
-     * @param string $eventType
-     * @param User|null $user
-     * @param array $metadata
-     * @return void
      */
     public function log(string $eventType, ?User $user = null, array $metadata = []): void
     {
@@ -71,9 +66,6 @@ class AuditLogService implements AuditLogInterface
 
     /**
      * Log successful login.
-     *
-     * @param User $user
-     * @return void
      */
     public function logLoginSuccess(User $user): void
     {
@@ -102,9 +94,6 @@ class AuditLogService implements AuditLogInterface
 
     /**
      * Log failed login attempt.
-     *
-     * @param string $email
-     * @return void
      */
     public function logLoginFailed(string $email): void
     {
@@ -116,9 +105,6 @@ class AuditLogService implements AuditLogInterface
 
     /**
      * Log account lockout.
-     *
-     * @param User $user
-     * @return void
      */
     public function logAccountLocked(User $user): void
     {
@@ -132,9 +118,6 @@ class AuditLogService implements AuditLogInterface
 
     /**
      * Log successful 2FA challenge.
-     *
-     * @param User $user
-     * @return void
      */
     public function log2FAChallengePassed(User $user): void
     {
@@ -145,9 +128,6 @@ class AuditLogService implements AuditLogInterface
 
     /**
      * Log failed 2FA challenge.
-     *
-     * @param User $user
-     * @return void
      */
     public function log2FAChallengeFailed(User $user): void
     {
@@ -158,9 +138,6 @@ class AuditLogService implements AuditLogInterface
 
     /**
      * Log 2FA enabled.
-     *
-     * @param User $user
-     * @return void
      */
     public function log2FAEnabled(User $user): void
     {
@@ -172,9 +149,6 @@ class AuditLogService implements AuditLogInterface
 
     /**
      * Log 2FA disabled.
-     *
-     * @param User $user
-     * @return void
      */
     public function log2FADisabled(User $user): void
     {
@@ -185,9 +159,6 @@ class AuditLogService implements AuditLogInterface
 
     /**
      * Log password change.
-     *
-     * @param User $user
-     * @return void
      */
     public function logPasswordChanged(User $user): void
     {
@@ -199,9 +170,6 @@ class AuditLogService implements AuditLogInterface
 
     /**
      * Log password reset request.
-     *
-     * @param string $email
-     * @return void
      */
     public function logPasswordResetRequested(string $email): void
     {
@@ -213,9 +181,6 @@ class AuditLogService implements AuditLogInterface
 
     /**
      * Log user logout.
-     *
-     * @param User $user
-     * @return void
      */
     public function logLogout(User $user): void
     {
@@ -242,6 +207,7 @@ class AuditLogService implements AuditLogInterface
             $metadata['role'] ??= $user->role;
             $metadata['portal'] ??= AuditLogPresenter::portalFromRole($user->role);
             $metadata['user_name'] ??= $user->name;
+            $metadata['email'] ??= $user->email;
             $metadata['barangay_id'] ??= $user->barangay_id;
 
             if (! isset($metadata['barangay_name']) && $user->relationLoaded('barangay') && $user->barangay) {

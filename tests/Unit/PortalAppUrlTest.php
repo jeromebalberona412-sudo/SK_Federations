@@ -1,9 +1,9 @@
 <?php
 
-uses(Tests\TestCase::class);
-
 use App\Modules\Accounts\Support\PortalAppUrl;
 use Tests\TestCase;
+
+uses(TestCase::class);
 
 it('prefers non-loopback urls and never returns localhost in production', function () {
     app()->detectEnvironment(fn () => 'production');
@@ -45,6 +45,21 @@ it('rewrites localhost mail links to the public federation domain', function () 
         ->and(PortalAppUrl::mailLink('/login'))->toBe('https://federation.example.com/login')
         ->and(PortalAppUrl::mailLink('https://kabataan.example.com/dashboard/comments/9'))
         ->toBe('https://kabataan.example.com/dashboard/comments/9');
+});
+
+it('rewrites lan ip mail links to the configured app url', function () {
+    config([
+        'app.url' => 'https://federation.example.com',
+        'app.public_url' => null,
+        'services.sk_fed_app_url' => 'https://federation.example.com',
+    ]);
+
+    expect(PortalAppUrl::isNonPublic('http://192.168.56.1:8000'))->toBeTrue()
+        ->and(PortalAppUrl::mailLink('http://192.168.56.1:8000/reset-password/demo-token'))
+        ->toBe('https://federation.example.com/reset-password/demo-token')
+        ->and(PortalAppUrl::selfApp())->toBe('https://federation.example.com')
+        ->and(PortalAppUrl::selfApp())->not->toContain('192.168.')
+        ->and(PortalAppUrl::selfApp())->not->toContain('localhost');
 });
 
 it('does not treat an officials portal url as the federation host', function () {

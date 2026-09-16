@@ -77,7 +77,11 @@
 
     function setEmpty(emptyEl, chartCanvas, legendEl, isEmpty) {
         if (emptyEl) emptyEl.hidden = !isEmpty;
+        const wrap = document.getElementById('employmentChartWrap');
         if (chartCanvas) chartCanvas.style.display = isEmpty ? 'none' : '';
+        if (wrap && chartCanvas && chartCanvas.id === 'employmentStatusChart') {
+            wrap.hidden = isEmpty;
+        }
         if (legendEl) legendEl.hidden = isEmpty;
     }
 
@@ -195,15 +199,41 @@
         renderLegend(legend, dataset.labels, dataset.values, dataset.colors);
 
         if (employmentChart) {
-            employmentChart.data.labels = dataset.labels;
-            employmentChart.data.datasets[0].data = dataset.values;
-            employmentChart.data.datasets[0].backgroundColor = dataset.colors;
-            employmentChart.update('none');
-            return;
+            employmentChart.destroy();
+            employmentChart = null;
         }
+
+        const total = sum(dataset.values);
+        const donutLabelsPlugin = {
+            id: 'employmentDonutLabels',
+            afterDraw: function (chart) {
+                const context = chart.ctx;
+                chart.data.datasets.forEach(function (chartDataset, datasetIndex) {
+                    const meta = chart.getDatasetMeta(datasetIndex);
+                    meta.data.forEach(function (arc, index) {
+                        const value = chartDataset.data[index];
+                        if (!value) return;
+                        const pct = total > 0 ? Math.round((value / total) * 100) : 0;
+                        if (pct < 5) return;
+                        const angle = (arc.startAngle + arc.endAngle) / 2;
+                        const radius = (arc.innerRadius + arc.outerRadius) / 2;
+                        const x = arc.x + Math.cos(angle) * radius;
+                        const y = arc.y + Math.sin(angle) * radius;
+                        context.save();
+                        context.textAlign = 'center';
+                        context.textBaseline = 'middle';
+                        context.fillStyle = '#fff';
+                        context.font = 'bold 11px Segoe UI, sans-serif';
+                        context.fillText(pct + '%', x, y);
+                        context.restore();
+                    });
+                });
+            },
+        };
 
         employmentChart = new Chart(canvas, {
             type: 'doughnut',
+            plugins: [donutLabelsPlugin],
             data: {
                 labels: dataset.labels,
                 datasets: [{
@@ -211,20 +241,22 @@
                     backgroundColor: dataset.colors,
                     borderWidth: 2,
                     borderColor: '#fff',
+                    hoverOffset: 6,
                 }],
             },
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
-                cutout: '58%',
+                animation: false,
+                cutout: '62%',
                 plugins: {
                     legend: { display: false },
                     tooltip: {
                         callbacks: {
                             label: function (ctx) {
-                                const total = sum(ctx.dataset.data) || 1;
+                                const chartTotal = sum(ctx.dataset.data) || 1;
                                 const value = Number(ctx.raw || 0);
-                                const pct = Math.round((value / total) * 100);
+                                const pct = ((value / chartTotal) * 100).toFixed(1);
                                 return ' ' + ctx.label + ': ' + value.toLocaleString() + ' (' + pct + '%)';
                             },
                         },

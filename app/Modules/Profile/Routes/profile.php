@@ -29,6 +29,7 @@ Route::middleware($profileMiddleware)->group(function () {
     Route::get('/change-email', [ProfileController::class, 'showChangeEmail'])->name('change-email');
     Route::post('/change-email', [ProfileController::class, 'requestChangeEmail'])->name('change-email.request');
     Route::get('/change-email/verify', [ProfileController::class, 'showChangeEmailVerify'])->name('change-email.verify');
+    Route::get('/change-email/verify-status', [ProfileController::class, 'checkChangeEmailVerifyStatus'])->name('change-email.verify.status');
     Route::post('/change-email/resend', [ProfileController::class, 'resendChangeEmail'])->name('change-email.resend');
     Route::post('/change-email/cancel', [ProfileController::class, 'cancelChangeEmail'])->name('change-email.cancel');
 });

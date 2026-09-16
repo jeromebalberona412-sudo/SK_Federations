@@ -11,6 +11,7 @@ use App\Modules\Authentication\Services\TurnstileAttemptGuard;
 use App\Modules\Profile\Services\PasswordChangeService;
 use App\Modules\Shared\Controllers\Controller;
 use App\Modules\Shared\Models\User;
+use App\Modules\Turnover\Services\FederationTermDetectionService;
 use Illuminate\Auth\Events\Verified;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -782,10 +783,7 @@ class AuthController extends Controller
         $this->passwordChangeService->clearExpiredPending($user);
         $user = $user->fresh();
 
-        if ($this->passwordChangeService->hasPendingChange($user)) {
-            return redirect()->route('change-password.verify');
-        }
-
+        // Always show the form. Browser back from verify must not bounce to /change-password/verify.
         return view('profile::change-password', [
             'user' => $user,
         ]);
@@ -908,7 +906,7 @@ class AuthController extends Controller
     {
         try {
             $user = $request->user();
-            if ($user !== null && app(\App\Modules\Turnover\Services\FederationTermDetectionService::class)
+            if ($user !== null && app(FederationTermDetectionService::class)
                 ->mustLockPortalForTurnover($user)
             ) {
                 return route('turnover.index');

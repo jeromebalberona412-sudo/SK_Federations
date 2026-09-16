@@ -2,19 +2,23 @@
 
 namespace App\Modules\Authentication\Notifications;
 
+use App\Modules\Accounts\Support\PortalAppUrl;
 use Illuminate\Auth\Notifications\ResetPassword;
 use Illuminate\Notifications\Messages\MailMessage;
+use Illuminate\Support\Facades\Log;
 
 class SkFedResetPasswordNotification extends ResetPassword
 {
     public function toMail($notifiable): MailMessage
     {
-        $resetUrl = \App\Modules\Accounts\Support\PortalAppUrl::absoluteRoute('password.reset', [
-            'token' => $this->token,
-            'email' => $notifiable->getEmailForPasswordReset(),
-        ]);
+        $resetUrl = PortalAppUrl::mailLink(
+            PortalAppUrl::absoluteRoute('password.reset', [
+                'token' => $this->token,
+                'email' => $notifiable->getEmailForPasswordReset(),
+            ])
+        );
 
-        \Illuminate\Support\Facades\Log::info('Building password reset email', [
+        Log::info('Building password reset email', [
             'user_id' => method_exists($notifiable, 'getKey') ? $notifiable->getKey() : null,
             'email' => $notifiable->getEmailForPasswordReset(),
             'type' => 'password_reset',

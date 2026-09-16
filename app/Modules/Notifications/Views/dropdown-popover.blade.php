@@ -8,7 +8,6 @@
         <div class="notif-popover-title">
             <i class="fas fa-bell" aria-hidden="true"></i>
             <h4>Notifications</h4>
-            <span class="notif-count-pill" id="notifCountPill" style="{{ ($unreadNotificationCount ?? 0) > 0 ? '' : 'display: none;' }}">{{ ((int) ($unreadNotificationCount ?? 0)) > 99 ? '99+' : ($unreadNotificationCount ?? 0) }}</span>
         </div>
         <button type="button" class="notif-mark-all" id="notifMarkAllBtn" title="Mark all as read">
             Mark all as read

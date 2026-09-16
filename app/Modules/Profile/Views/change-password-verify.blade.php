@@ -19,10 +19,10 @@
 @endpush
 
 @section('content')
-    <div id="cpVerifySection" data-status-url="{{ route('change-password.verify.status', [], false) }}" data-resend-url="{{ route('change-password.resend', [], false) }}" data-email="{{ $user->email }}">
+    <div id="cpVerifySection" data-status-url="{{ route('change-password.verify.status', [], false) }}" data-resend-url="{{ route('change-password.resend', [], false) }}" data-dashboard-url="{{ route('dashboard', [], false) }}" data-success-url="{{ route('change-password.success', [], false) }}" data-email="{{ $user->email }}">
         <div class="card-header">
             <h2 class="card-title">Verify Password Change</h2>
-            <p class="card-subtitle">Check your email and tap the confirmation link. This page will detect it automatically.</p>
+            <p class="card-subtitle">Check your email and tap the confirmation link. This page will take you to the dashboard after it is confirmed.</p>
         </div>
 
         <div class="ce-verify-content">
@@ -39,12 +39,16 @@
                 </div>
             @endif
 
+            @if (session('error'))
+                <div class="sk-alert sk-alert-error">{{ session('error') }}</div>
+            @endif
+
             @if (session('status'))
                 <div class="ce-info-box">{{ session('status') }}</div>
             @endif
 
             <div class="ce-info-box" id="cpInfoBox">
-                A confirmation link has been sent to <strong>{{ $user->email }}</strong>. Your current password stays active until you verify. After confirming on any device, you will be signed out automatically on this page.
+                A confirmation link has been sent to <strong>{{ $user->email }}</strong>. Your current password stays active until you verify. After you confirm, this page will take you to the dashboard. The email link itself only shows a success page.
             </div>
 
             <div class="ce-status-table">

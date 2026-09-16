@@ -29,11 +29,11 @@ class TurnoverForgotPasswordSetupNotification extends Notification
     public function toMail(object $notifiable): MailMessage
     {
         $email = (string) $notifiable->getEmailForPasswordReset();
-        $setupUrl = PortalAppUrl::join(
+        $setupUrl = PortalAppUrl::mailLink(PortalAppUrl::join(
             PortalAppUrl::publicBase($this->baseUrl),
             'reset-password/'.$this->token,
             ['email' => $email]
-        );
+        ));
         $expiryLabel = $this->passwordExpiryLabel();
 
         Log::info('Building turnover forgot password setup email', [

@@ -34,13 +34,13 @@ function getDashboardDateRange() {
     const fromInput = document.getElementById('dashDateFrom');
     const toInput = document.getElementById('dashDateTo');
     const filter = document.getElementById('dashDateRangeFilter');
-    const today = filter?.dataset.today || getTodayIsoDate();
     const termStart = filter?.dataset.termStart || filter?.dataset.defaultFrom || `${new Date().getFullYear()}-01-01`;
-    const termEnd = filter?.dataset.termEnd || today;
+    const termEnd = filter?.dataset.termEnd || filter?.dataset.defaultTo || `${new Date().getFullYear()}-12-31`;
+    const defaultFrom = filter?.dataset.defaultFrom || termStart;
+    const defaultTo = filter?.dataset.defaultTo || termEnd;
+    const today = filter?.dataset.today || getTodayIsoDate();
     const earliest = filter?.dataset.dataEarliest || '';
     const rangeMode = filter?.dataset.rangeMode === 'all' ? 'all' : 'term';
-    const defaultFrom = filter?.dataset.defaultFrom || termStart;
-    const defaultTo = filter?.dataset.defaultTo || (today <= termEnd ? today : termEnd);
 
     let dateFrom = fromInput?.value || defaultFrom;
     let dateTo = toInput?.value || defaultTo;
@@ -78,7 +78,7 @@ function getDashboardDateRange() {
         if (fromInput && toInput) {
             fromInput.min = termStart || '';
             fromInput.max = termEnd || '';
-            toInput.min = dateFrom || termStart || '';
+            toInput.min = termStart || '';
             toInput.max = termEnd || '';
         }
     }
@@ -132,17 +132,16 @@ function resetDashboardDateRange() {
     }
 
     setDashboardRangeMode('term');
-    const termStart = filter?.dataset.termStart || filter?.dataset.defaultFrom || `${new Date().getFullYear()}-01-01`;
-    const termEnd = filter?.dataset.termEnd || getTodayIsoDate();
-    const today = filter?.dataset.today || getTodayIsoDate();
-    const defaultFrom = filter?.dataset.defaultFrom || termStart;
-    const defaultTo = filter?.dataset.defaultTo || (today <= termEnd ? today : termEnd);
+    const defaultFrom = filter?.dataset.defaultFrom || filter?.dataset.termStart || `${new Date().getFullYear()}-01-01`;
+    const defaultTo = filter?.dataset.defaultTo || filter?.dataset.termEnd || `${new Date().getFullYear()}-12-31`;
+    const termStart = filter?.dataset.termStart || defaultFrom;
+    const termEnd = filter?.dataset.termEnd || defaultTo;
 
     fromInput.value = defaultFrom;
     toInput.value = defaultTo;
     fromInput.min = termStart || '';
     fromInput.max = termEnd || '';
-    toInput.min = defaultFrom;
+    toInput.min = termStart || '';
     toInput.max = termEnd || '';
 
     refreshDashboardDateFilteredViews();

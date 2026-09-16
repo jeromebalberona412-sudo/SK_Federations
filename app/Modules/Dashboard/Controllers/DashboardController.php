@@ -2,6 +2,7 @@
 
 namespace App\Modules\Dashboard\Controllers;
 
+use App\Modules\Accounts\Models\OfficialTerm;
 use App\Modules\Accounts\Support\SkOfficialTermDates;
 use App\Modules\BarangayMonitoring\Services\BarangayMonitoringService;
 use App\Modules\Dashboard\Services\DashboardStatsService;
@@ -36,24 +37,12 @@ class DashboardController extends Controller
             $barangays = collect();
         }
 
-        try {
-            $termDefaults = SkOfficialTermDates::leadershipDefaults((int) ($tenantId ?? 0));
-        } catch (\Throwable $e) {
-            report($e);
-            $termDefaults = [
-                'term_start' => SkOfficialTermDates::defaultStart(),
-                'term_end' => SkOfficialTermDates::defaultEnd(),
-            ];
-        }
-
-        $termStart = $termDefaults['term_start'] ?? SkOfficialTermDates::defaultStart();
-        $termEnd = $termDefaults['term_end'] ?? SkOfficialTermDates::defaultEnd();
-        $today = now()->timezone(config('app.timezone', 'Asia/Manila'))->toDateString();
+        [$termStart, $termEnd] = $this->resolveTermBoundsForDashboard($tenantId);
+        [$dateFromCarbon, $dateToCarbon] = $this->defaultCalendarYearRange($termStart, $termEnd);
+        $dateFrom = $dateFromCarbon->toDateString();
+        $dateTo = $dateToCarbon->toDateString();
         $dataEarliest = $this->earliestDashboardDataDate($tenantId);
-        // Default range: President term start → today (capped by term end).
-        $dateFrom = $termStart;
-        $dateTo = $today <= $termEnd ? $today : $termEnd;
-        $dashboardYear = (int) substr((string) $dateFrom, 0, 4);
+        $dashboardYear = (int) $dateFromCarbon->year;
         $user = $request->user();
         $showDateAll = $dataEarliest !== null && $dataEarliest < $termStart;
 
@@ -197,7 +186,7 @@ class DashboardController extends Controller
         $tenantId = $request->user()?->tenant_id;
         [$dateFrom, $dateTo] = $this->resolveFeedDates($request);
         $cacheKey = sprintf(
-            'skfed:dash:stats:v5:%s:%s:%s',
+            'skfed:dash:stats:v8:%s:%s:%s',
             $tenantId === null ? 'all' : (string) $tenantId,
             $dateFrom ?? 'none',
             $dateTo ?? 'none'
@@ -256,18 +245,19 @@ class DashboardController extends Controller
         $dateFrom = trim((string) $request->input('date_from', ''));
         $dateTo = trim((string) $request->input('date_to', ''));
         $rangeMode = strtolower(trim((string) $request->input('range_mode', 'term')));
-        $tenantId = (int) ($request->user()?->tenant_id ?? 0);
-        $defaults = $tenantId > 0 ? SkOfficialTermDates::leadershipDefaults($tenantId) : null;
-        $termStart = $defaults['term_start'] ?? null;
-        $termEnd = $defaults['term_end'] ?? null;
+        $tenantId = $request->user()?->tenant_id;
+        [$termStart, $termEnd] = $this->resolveTermBoundsForDashboard($tenantId);
         $today = now()->timezone(config('app.timezone', 'Asia/Manila'))->toDateString();
-        $earliest = $this->earliestDashboardDataDate($request->user()?->tenant_id);
+        $earliest = $this->earliestDashboardDataDate($tenantId);
 
-        if ($dateFrom === '') {
-            $dateFrom = $termStart;
-        }
-        if ($dateTo === '') {
-            $dateTo = ($termEnd && $today > $termEnd) ? $termEnd : $today;
+        if ($dateFrom === '' || $dateTo === '') {
+            [$calendarFrom, $calendarTo] = $this->defaultCalendarYearRange($termStart, $termEnd);
+            if ($dateFrom === '') {
+                $dateFrom = $calendarFrom->toDateString();
+            }
+            if ($dateTo === '') {
+                $dateTo = $calendarTo->toDateString();
+            }
         }
 
         if ($rangeMode !== 'all') {
@@ -286,11 +276,136 @@ class DashboardController extends Controller
             }
         }
 
-        if ($dateFrom !== null && $dateTo !== null && $dateFrom !== '' && $dateTo !== '' && $dateFrom > $dateTo) {
+        if ($dateFrom !== '' && $dateTo !== '' && $dateFrom > $dateTo) {
             return [$dateTo, $dateFrom];
         }
 
         return [$dateFrom ?: null, $dateTo ?: null];
+    }
+
+    /**
+     * Default From/To = January 1 → December 31 of the current year,
+     * clamped into official_terms.term_start / term_end so the values stay selectable.
+     *
+     * @return array{0: Carbon, 1: Carbon}
+     */
+    private function defaultCalendarYearRange(string $termStart, string $termEnd): array
+    {
+        $tz = config('app.timezone', 'Asia/Manila');
+        $currentYear = (int) Carbon::now($tz)->year;
+        $min = Carbon::createFromFormat('Y-m-d', $termStart, $tz)->startOfDay();
+        $max = Carbon::createFromFormat('Y-m-d', $termEnd, $tz)->endOfDay();
+
+        $useYear = $currentYear;
+        if ($useYear < (int) $min->year) {
+            $useYear = (int) $min->year;
+        }
+        if ($useYear > (int) $max->year) {
+            $useYear = (int) $max->year;
+        }
+
+        $from = Carbon::create($useYear, 1, 1, 0, 0, 0, $tz)->startOfDay();
+        $to = Carbon::create($useYear, 12, 31, 23, 59, 59, $tz)->endOfDay();
+
+        if ($from->lt($min)) {
+            $from = $min->copy();
+        }
+        if ($to->gt($max)) {
+            $to = $max->copy();
+        }
+        if ($from->gt($to)) {
+            $from = $min->copy();
+            $to = $max->copy();
+        }
+
+        return [$from, $to];
+    }
+
+    /**
+     * Selectable date-picker bounds from official_terms.term_start / term_end.
+     * ACTIVE rows first; otherwise any term dates in the tenant.
+     *
+     * @return array{0: string, 1: string}
+     */
+    private function resolveTermBoundsForDashboard(?int $tenantId): array
+    {
+        if (! Schema::hasTable('official_terms')) {
+            return $this->leadershipTermFallback($tenantId);
+        }
+
+        try {
+            $query = OfficialTerm::query()
+                ->whereNotNull('term_start')
+                ->whereNotNull('term_end');
+
+            if ($tenantId !== null && $tenantId > 0) {
+                $query->whereHas('officialProfile.user', function ($userQuery) use ($tenantId): void {
+                    $userQuery->where('tenant_id', $tenantId);
+                });
+            }
+
+            $activeBounds = (clone $query)
+                ->where('status', OfficialTerm::STATUS_ACTIVE)
+                ->selectRaw('MIN(term_start) as oldest_start, MAX(term_end) as latest_end')
+                ->first();
+
+            $oldestStart = $this->termDateString($activeBounds?->oldest_start ?? null);
+            $latestEnd = $this->termDateString($activeBounds?->latest_end ?? null);
+
+            if ($oldestStart === null || $latestEnd === null) {
+                $anyBounds = (clone $query)
+                    ->selectRaw('MIN(term_start) as oldest_start, MAX(term_end) as latest_end')
+                    ->first();
+                $oldestStart = $this->termDateString($anyBounds?->oldest_start ?? null);
+                $latestEnd = $this->termDateString($anyBounds?->latest_end ?? null);
+            }
+        } catch (\Throwable $e) {
+            report($e);
+
+            return $this->leadershipTermFallback($tenantId);
+        }
+
+        if ($oldestStart === null || $latestEnd === null || $oldestStart > $latestEnd) {
+            return $this->leadershipTermFallback($tenantId);
+        }
+
+        return [$oldestStart, $latestEnd];
+    }
+
+    /**
+     * @return array{0: string, 1: string}
+     */
+    private function leadershipTermFallback(?int $tenantId): array
+    {
+        try {
+            $defaults = SkOfficialTermDates::leadershipDefaults((int) ($tenantId ?? 0));
+        } catch (\Throwable $e) {
+            report($e);
+            $defaults = [
+                'term_start' => SkOfficialTermDates::defaultStart(),
+                'term_end' => SkOfficialTermDates::defaultEnd(),
+            ];
+        }
+
+        return [
+            $defaults['term_start'] ?? SkOfficialTermDates::defaultStart(),
+            $defaults['term_end'] ?? SkOfficialTermDates::defaultEnd(),
+        ];
+    }
+
+    private function termDateString(mixed $value): ?string
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+
+        if ($value instanceof Carbon) {
+            return $value->format('Y-m-d');
+        }
+
+        $raw = substr(trim((string) $value), 0, 10);
+
+        return preg_match('/^\d{4}-\d{2}-\d{2}$/', $raw) === 1 ? $raw : null;
     }
 
     private function earliestDashboardDataDate(?int $tenantId): ?string

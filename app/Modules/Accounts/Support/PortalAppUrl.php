@@ -98,19 +98,13 @@ final class PortalAppUrl
      */
     public static function selfApp(): string
     {
+        // Emails and share links must use configured APP_URL / public portal URLs,
+        // never the current request host (localhost, 127.0.0.1, or LAN IPs).
         $candidates = [
             config('app.public_url'),
             config('services.sk_fed_app_url'),
             config('app.url'),
         ];
-
-        if (! app()->runningInConsole()) {
-            try {
-                $candidates[] = request()->getSchemeAndHttpHost();
-            } catch (\Throwable) {
-                // ignore
-            }
-        }
 
         $preferred = self::preferAbsolute($candidates);
         if ($preferred !== null) {
@@ -136,7 +130,7 @@ final class PortalAppUrl
     }
 
     /**
-     * Keep a public absolute link as-is. Rewrite localhost/127.0.0.1 to this app's domain.
+     * Keep a public absolute link as-is. Rewrite localhost/127.0.0.1/LAN IPs to APP_URL.
      */
     public static function mailLink(string $url): string
     {
@@ -151,12 +145,12 @@ final class PortalAppUrl
             return $base === '' ? '/'.ltrim($value, '/') : self::join($base, $value);
         }
 
-        if (! self::isLoopback($value)) {
+        if (! self::isNonPublic($value)) {
             return $value;
         }
 
         $public = self::selfApp();
-        if ($public === '' || self::isLoopback($public)) {
+        if ($public === '' || self::isNonPublic($public)) {
             return $value;
         }
 
@@ -170,13 +164,32 @@ final class PortalAppUrl
 
     public static function isLoopback(?string $url): bool
     {
-        $host = strtolower((string) parse_url((string) $url, PHP_URL_HOST));
+        return self::isNonPublic($url);
+    }
 
-        return $host === ''
+    /**
+     * True for localhost, loopback, and private/LAN hosts that must not appear in emails.
+     */
+    public static function isNonPublic(?string $url): bool
+    {
+        $host = strtolower((string) parse_url((string) $url, PHP_URL_HOST));
+        $host = trim($host, '[]');
+
+        if ($host === ''
             || $host === 'localhost'
             || $host === '127.0.0.1'
-            || $host === '[::1]'
-            || str_ends_with($host, '.localhost');
+            || $host === '::1'
+            || $host === '0.0.0.0'
+            || str_ends_with($host, '.localhost')
+        ) {
+            return true;
+        }
+
+        if (filter_var($host, FILTER_VALIDATE_IP)) {
+            return filter_var($host, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE) === false;
+        }
+
+        return false;
     }
 
     /**
@@ -216,12 +229,12 @@ final class PortalAppUrl
         }
 
         foreach ($normalized as $url) {
-            if (! self::isLoopback($url)) {
+            if (! self::isNonPublic($url)) {
                 return $url;
             }
         }
 
-        // Never leak localhost/127.0.0.1 into production emails or share links.
+        // Never leak localhost/127.0.0.1/LAN IPs into production emails or share links.
         if (app()->environment('local', 'testing') && $normalized !== []) {
             return $normalized[0];
         }

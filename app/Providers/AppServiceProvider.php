@@ -5,6 +5,7 @@ namespace App\Providers;
 use App\Modules\Accounts\Models\OfficialProfile;
 use App\Modules\Accounts\Models\OfficialTerm;
 use App\Modules\Accounts\Policies\AccountPolicy;
+use App\Modules\Accounts\Support\PortalAppUrl;
 use App\Modules\Authentication\Services\BootstrapSkFedAdminService;
 use App\Modules\Shared\Models\User;
 use Illuminate\Support\Carbon;
@@ -46,22 +47,32 @@ class AppServiceProvider extends ServiceProvider
         Gate::define('manage-accounts', fn (User $user) => $user->isFederationAdministrator());
 
         $applicationUrl = trim((string) config('app.url'));
-        $resolvedRoot = \App\Modules\Accounts\Support\PortalAppUrl::selfApp();
+        $mailRoot = PortalAppUrl::selfApp();
 
-        // Prefer public/non-localhost host for absolute URLs (emails, share links).
-        if ($resolvedRoot !== '' && filter_var($resolvedRoot, FILTER_VALIDATE_URL)) {
-            URL::forceRootUrl($resolvedRoot);
+        // If APP_URL is localhost/LAN but a public portal URL is configured, use that
+        // for mail header links (Laravel's template reads config('app.url')).
+        if (
+            $mailRoot !== ''
+            && filter_var($mailRoot, FILTER_VALIDATE_URL)
+            && PortalAppUrl::isNonPublic($applicationUrl)
+            && ! PortalAppUrl::isNonPublic($mailRoot)
+        ) {
+            config(['app.url' => $mailRoot]);
+            $applicationUrl = $mailRoot;
+        }
 
-            if (str_starts_with(strtolower($resolvedRoot), 'https://')) {
-                URL::forceScheme('https');
-            } elseif (str_starts_with(strtolower($resolvedRoot), 'http://')) {
-                URL::forceScheme('http');
-            }
-        } elseif ($this->app->environment('local') && ! $this->app->runningInConsole()) {
-            // In local dev, match the browser host (127.0.0.1 vs LAN IP) so Vite/CSS/assets load.
+        if ($this->app->environment('local') && ! $this->app->runningInConsole()) {
             $requestRoot = request()->getSchemeAndHttpHost();
             if ($requestRoot !== '') {
                 URL::forceRootUrl($requestRoot);
+            }
+        } elseif ($mailRoot !== '' && filter_var($mailRoot, FILTER_VALIDATE_URL)) {
+            URL::forceRootUrl($mailRoot);
+
+            if (str_starts_with(strtolower($mailRoot), 'https://')) {
+                URL::forceScheme('https');
+            } elseif (str_starts_with(strtolower($mailRoot), 'http://')) {
+                URL::forceScheme('http');
             }
         } elseif ($applicationUrl !== '' && filter_var($applicationUrl, FILTER_VALIDATE_URL)) {
             URL::forceRootUrl($applicationUrl);

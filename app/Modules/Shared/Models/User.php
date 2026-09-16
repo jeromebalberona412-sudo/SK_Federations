@@ -340,7 +340,7 @@ class User extends Authenticatable implements MustVerifyEmail
                 ->subject('Verify Your SK Federation Account')
                 ->greeting('Hello!')
                 ->line('Please verify your SK Federation account to complete secure access setup.')
-                ->action('Verify Email Address', $url)
+                ->action('Verify Email Address', PortalAppUrl::mailLink((string) $url))
                 ->line('This verification link expires shortly for your security.')
                 ->line('If you did not request this, no further action is required.');
         });

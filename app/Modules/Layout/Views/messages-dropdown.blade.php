@@ -1,8 +1,6 @@
 @php
     $msgItems = $headerConversations ?? [];
     $hasMsgItems = is_countable($msgItems) ? count($msgItems) > 0 : false;
-    $unreadMsgCount = (int) ($unreadMessagesCount ?? 0);
-    $unreadMsgLabel = $unreadMsgCount > 99 ? '99+' : (string) $unreadMsgCount;
     $messagesIndexUrl = \Illuminate\Support\Facades\Route::has('communications.index')
         ? route('communications.index')
         : url('/communications');
@@ -17,11 +15,6 @@
                 </svg>
             </span>
             <h4>Chats</h4>
-            <span
-                class="comms-msg-count-pill"
-                id="commsMsgCountPill"
-                style="{{ $unreadMsgCount > 0 ? '' : 'display: none;' }}"
-            >{{ $unreadMsgLabel }}</span>
         </div>
         <div class="comms-msg-header-actions">
             <a

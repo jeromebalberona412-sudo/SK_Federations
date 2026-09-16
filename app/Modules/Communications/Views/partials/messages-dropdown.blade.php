@@ -1,8 +1,6 @@
 @php
     $msgItems = $headerConversations ?? [];
     $hasMsgItems = count($msgItems) > 0;
-    $unreadMsgCount = (int) ($unreadMessagesCount ?? 0);
-    $unreadMsgLabel = $unreadMsgCount > 99 ? '99+' : (string) $unreadMsgCount;
 @endphp
 
 <div class="comms-msg-popover" id="commsMsgPopover" role="menu" aria-label="Messages">
@@ -10,11 +8,6 @@
         <div class="comms-msg-popover-title">
             <i class="fas fa-comments" aria-hidden="true"></i>
             <h4>Messages</h4>
-            <span
-                class="comms-msg-count-pill"
-                id="commsMsgCountPill"
-                style="{{ $unreadMsgCount > 0 ? '' : 'display: none;' }}"
-            >{{ $unreadMsgLabel }}</span>
         </div>
         <a
             href="{{ Route::has('communications.index') ? route('communications.index') : '#' }}"

@@ -2,6 +2,7 @@
 
 namespace App\Modules\KabataanMonitoring\Notifications;
 
+use App\Modules\Accounts\Support\PortalAppUrl;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
 
@@ -29,7 +30,7 @@ class KabataanAccountInviteNotification extends Notification
             ->greeting('Hello '.$name.',')
             ->line('Your account has been created for the SK OnePortal system.')
             ->line('Please activate your account and set your password using the button below:')
-            ->action('Activate / Set Up My Account', $this->activationUrl)
+            ->action('Activate / Set Up My Account', PortalAppUrl::mailLink($this->activationUrl))
             ->line('This activation link is temporary and can only be used once. It expires in '.$this->expiryLabel().'.')
             ->line('Important: If the link expires, you do not need to ask SK Federation or SK Officials to resend the activation email.')
             ->line('Simply go to the Kabataan login page and select: Activate Account')

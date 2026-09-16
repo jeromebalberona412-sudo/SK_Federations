@@ -20,13 +20,24 @@
 @endpush
 
 @section('content')
-    <div id="ceVerifySection" class="ce-verify-shell">
+    <div
+        id="ceVerifySection"
+        class="ce-verify-shell"
+        data-status-url="{{ route('change-email.verify.status', [], false) }}"
+        data-dashboard-url="{{ route('dashboard', [], false) }}"
+        data-success-url="{{ route('change-email.success', [], false) }}"
+    >
         <div class="card-header">
             <h2 class="card-title">Verify Email Change</h2>
-            <p class="card-subtitle">We sent a confirmation link to your new email address.</p>
+            <p class="card-subtitle">We sent a confirmation link to your new email address. This page will take you to the dashboard after it is confirmed.</p>
         </div>
 
         <div class="ce-verify-content">
+            <div class="cp-listening-badge" id="ceListeningBadge">
+                <span class="cp-listening-dot"></span>
+                Listening for email confirmation…
+            </div>
+
             @if ($errors->any())
                 <div class="sk-alert sk-alert-error">
                     @foreach ($errors->all() as $error)
@@ -35,12 +46,16 @@
                 </div>
             @endif
 
+            @if (session('error'))
+                <div class="sk-alert sk-alert-error">{{ session('error') }}</div>
+            @endif
+
             @if (session('status'))
                 <div class="ce-info-box">{{ session('status') }}</div>
             @endif
 
-            <div class="ce-info-box">
-                A confirmation link has been sent to <strong id="cePendingEmail">{{ $pendingEmail ?? $user->pending_email }}</strong>. Your current email stays active until you verify the new one.
+            <div class="ce-info-box" id="ceInfoBox">
+                A confirmation link has been sent to <strong id="cePendingEmail">{{ $pendingEmail ?? $user->pending_email }}</strong>. Your current email stays active until you verify the new one. After you confirm, this page will take you to the dashboard. The email link itself only shows a success page.
             </div>
 
             <div class="ce-status-table">
@@ -54,7 +69,7 @@
                 </div>
                 <div class="ce-status-row">
                     <span class="ce-status-key">Status</span>
-                    <span class="ce-status-val"><span class="ce-badge-awaiting">Awaiting verification</span></span>
+                    <span class="ce-status-val"><span class="ce-badge-awaiting" id="ceStatusBadge">Awaiting verification</span></span>
                 </div>
             </div>
 

@@ -356,20 +356,6 @@ body.sidebar-collapsed .toggle-icon-collapse { display: block; }
     flex-shrink: 0;
 }
 
-.comms-msg-count-pill {
-    background: #ef4444;
-    color: #fff;
-    font-size: 10px;
-    font-weight: 700;
-    padding: 1px 6px;
-    border-radius: 999px;
-    min-width: 18px;
-    text-align: center;
-    line-height: 16px;
-    flex-shrink: 0;
-    white-space: nowrap;
-}
-
 .comms-msg-header-icon-btn {
     width: 28px;
     height: 28px;
@@ -2161,19 +2147,6 @@ body.comms-chat-modal-open {
     line-height: 1.2;
     white-space: nowrap;
 }
-.notif-count-pill {
-    background: #ef4444;
-    color: #fff;
-    font-size: 10px;
-    font-weight: 700;
-    padding: 1px 6px;
-    border-radius: 999px;
-    min-width: 18px;
-    text-align: center;
-    line-height: 16px;
-    flex-shrink: 0;
-    white-space: nowrap;
-}
 .notif-mark-all {
     display: inline-flex;
     align-items: center;
@@ -2668,19 +2641,21 @@ body.sidebar-collapsed .sidebar { width: var(--sidebar-collapsed); }
 .menu-item i { font-size: 18px; width: 22px; flex-shrink: 0; text-align: center; }
 .menu-item span { transition: opacity var(--transition); overflow: hidden; text-overflow: ellipsis; }
 
-body.sidebar-collapsed .menu-item {
-    justify-content: center;
-    padding: 11px 0;
-    gap: 0;
-}
-body.sidebar-collapsed .menu-item span {
-    display: none;
-    width: 0;
-    max-width: 0;
-    opacity: 0;
-}
-body.sidebar-collapsed .menu-item > i:not(:first-child) {
-    display: none;
+@media (min-width: 1025px) {
+    body.sidebar-collapsed .menu-item {
+        justify-content: center;
+        padding: 11px 0;
+        gap: 0;
+    }
+    body.sidebar-collapsed .menu-item span {
+        display: none;
+        width: 0;
+        max-width: 0;
+        opacity: 0;
+    }
+    body.sidebar-collapsed .menu-item > i:not(:first-child) {
+        display: none;
+    }
 }
 
 @media (min-width: 1025px) {
@@ -3326,19 +3301,39 @@ body.sidebar-collapsed .main-content { margin-left: var(--sidebar-collapsed); }
 
 @media (max-width: 1024px) {
     .sidebar {
-        transform: translateX(calc(-1 * var(--sidebar-width)));
-        width: var(--sidebar-width) !important;
+        transform: translateX(-100%);
+        width: min(var(--sidebar-width), 100vw) !important;
+        max-width: 100vw;
+        height: calc(100vh - var(--navbar-height));
+        height: calc(100dvh - var(--navbar-height));
+        overflow: hidden;
     }
     body.sidebar-collapsed .sidebar {
-        width: var(--sidebar-width) !important;
+        width: min(var(--sidebar-width), 100vw) !important;
+        max-width: 100vw;
     }
     body.sidebar-open .sidebar { transform: translateX(0); }
     body.sidebar-open .sidebar-overlay { display: block; }
+    body.sidebar-collapsed .sidebar-submenu.is-open,
+    body.sidebar-open .sidebar-submenu.is-open {
+        display: block !important;
+    }
+    body.sidebar-collapsed .menu-item,
+    body.sidebar-open .menu-item {
+        justify-content: flex-start;
+        padding: 10px 14px;
+        gap: 12px;
+        width: calc(100% - 20px);
+        max-width: 100%;
+        box-sizing: border-box;
+        white-space: nowrap;
+    }
     .main-content {
         margin-left: 0 !important;
         width: 100% !important;
         max-width: 100% !important;
         box-sizing: border-box;
+        overflow-x: hidden;
     }
     body.sidebar-collapsed .toggle-icon-expand  { display: block; }
     body.sidebar-collapsed .toggle-icon-collapse { display: none; }
@@ -4582,10 +4577,13 @@ body.sidebar-collapsed .main-content { margin-left: var(--sidebar-collapsed); }
 .dash-audit-table .cell-primary { font-weight: 600; }
 
 .dash-audit-cell-email {
-    max-width: 200px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    max-width: none;
+    min-width: 180px;
+    overflow: visible;
+    text-overflow: unset;
+    white-space: normal;
+    word-break: break-word;
+    overflow-wrap: anywhere;
 }
 
 .dash-audit-col-actions { width: 56px; text-align: center; }
@@ -5280,6 +5278,22 @@ body.dash-activity-modal-open { overflow: hidden; }
     margin-bottom: 22px;
 }
 
+.dash-flash {
+    margin: 0 0 16px;
+    padding: 12px 16px;
+    border-radius: 10px;
+    font-size: 14px;
+    font-weight: 600;
+    line-height: 1.4;
+    word-break: break-word;
+}
+
+.dash-flash-success {
+    background: #dcfce7;
+    color: #166534;
+    border: 1px solid #86efac;
+}
+
 .dash-page-header-left {
     min-width: 0;
     flex: 0 1 auto;
@@ -5721,7 +5735,7 @@ button.activity-item--clickable:active {
     }
 
     .dash-row--top-split {
-        grid-template-columns: 1fr;
+        grid-template-columns: minmax(0, 1fr);
     }
 
     .dash-row--kk-abyip {
@@ -5738,6 +5752,47 @@ button.activity-item--clickable:active {
         min-width: 0;
         justify-self: stretch;
         grid-column: auto;
+    }
+
+    .dash-quick-actions-card .card-body.quick-actions-list {
+        display: grid;
+        grid-template-columns: 1fr;
+        grid-auto-rows: 1fr;
+        gap: 10px;
+        padding: 14px;
+    }
+
+    .qa-item {
+        min-height: 60px;
+        height: 100%;
+        padding: 14px 16px;
+        gap: 12px;
+        box-sizing: border-box;
+        border-radius: 12px;
+        width: 100%;
+    }
+
+    .qa-item-icon {
+        width: 40px;
+        height: 40px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 10px;
+        background: rgba(255, 255, 255, 0.65);
+        font-size: 18px;
+    }
+
+    .qa-item-label {
+        font-size: 15px;
+        line-height: 1.3;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .qa-item-chevron {
+        font-size: 14px;
     }
 
     .dash-header-tools {
@@ -5759,6 +5814,12 @@ button.activity-item--clickable:active {
         align-items: stretch;
         justify-content: flex-start;
         gap: 12px;
+    }
+
+    .dash-flash {
+        width: 100%;
+        font-size: 13px;
+        padding: 10px 12px;
     }
 
     .dash-page-filters {
@@ -5879,7 +5940,26 @@ button.activity-item--clickable:active {
     }
 
     .qa-item {
-        min-height: 44px;
+        min-height: 58px;
+        height: 100%;
+        padding: 14px 16px;
+        gap: 12px;
+        width: 100%;
+    }
+
+    .dash-quick-actions-card .card-body.quick-actions-list {
+        display: grid;
+        grid-template-columns: 1fr;
+        grid-auto-rows: 1fr;
+        gap: 10px;
+        padding: 14px;
+    }
+
+    .qa-item-label {
+        font-size: 15px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
     }
 
     .dash-demo-chart-body {
@@ -5901,7 +5981,7 @@ button.activity-item--clickable:active {
 
 @media (max-width: 375px) {
     .dash-page-title { font-size: 20px; }
-    .qa-item-label { font-size: 12.5px; }
+    .qa-item-label { font-size: 14px; }
 }
 
 .dash-row--main-charts {
@@ -5912,14 +5992,16 @@ button.activity-item--clickable:active {
     margin-bottom: 20px;
 }
 
-/* Purok chart takes remaining width; Quick Actions is a fixed right rail */
+/* Same column width on mobile; desktop keeps the 280px Quick Actions rail */
 .dash-row--top-split {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) 280px;
+    grid-template-columns: minmax(0, 1fr);
     gap: 12px;
     align-items: stretch;
     margin-bottom: 20px;
     width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
 }
 
 .dash-row--top-split > .content-card,
@@ -5930,15 +6012,27 @@ button.activity-item--clickable:active {
     overflow: visible;
 }
 
+.dash-row--top-split > .content-card,
+.dash-row--top-split > .dash-quick-actions-card,
 .dash-row--top-split > #purok-distribution-section {
     width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    justify-self: stretch;
+    box-sizing: border-box;
 }
 
-.dash-row--top-split > .dash-quick-actions-card {
-    width: 280px;
-    max-width: 280px;
-    min-width: 260px;
-    justify-self: end;
+@media (min-width: 1025px) {
+    .dash-row--top-split {
+        grid-template-columns: minmax(0, 1fr) 280px;
+    }
+
+    .dash-row--top-split > .dash-quick-actions-card {
+        width: 280px;
+        max-width: 280px;
+        min-width: 260px;
+        justify-self: end;
+    }
 }
 
 .dash-row--top-split > .content-card > .card-header,
@@ -6030,6 +6124,26 @@ button.activity-item--clickable:active {
     width: 100% !important;
     max-width: 260px;
     height: 220px !important;
+}
+
+.chart-canvas-wrap--employment {
+    position: relative;
+    width: 100%;
+    max-width: 280px;
+    height: 260px;
+    margin: 0 auto;
+    flex: 0 0 auto;
+}
+
+.chart-canvas-wrap--employment[hidden] {
+    display: none !important;
+}
+
+.chart-canvas-wrap--employment canvas,
+.dash-demo-chart-body .chart-canvas-wrap--employment canvas {
+    width: 100% !important;
+    max-width: none;
+    height: 100% !important;
 }
 
 .dash-demo-legend {
@@ -6404,7 +6518,7 @@ button.activity-item--clickable:active {
     .dash-row--main-charts,
     .dash-row--top-split,
     .dash-row--kk-abyip {
-        grid-template-columns: 1fr;
+        grid-template-columns: minmax(0, 1fr);
     }
 
     #purok-distribution-section {

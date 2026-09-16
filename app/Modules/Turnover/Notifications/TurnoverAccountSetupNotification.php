@@ -29,11 +29,11 @@ class TurnoverAccountSetupNotification extends Notification
     public function toMail(object $notifiable): MailMessage
     {
         $email = (string) $notifiable->getEmailForPasswordReset();
-        $setupUrl = PortalAppUrl::join(
+        $setupUrl = PortalAppUrl::mailLink(PortalAppUrl::join(
             PortalAppUrl::publicBase($this->baseUrl),
             'reset-password/'.$this->token,
             ['email' => $email]
-        );
+        ));
         $expiryHours = max(1, (int) round((int) config('turnover.invitation_expire_minutes', 1440) / 60));
 
         Log::info('Building turnover account setup email', [

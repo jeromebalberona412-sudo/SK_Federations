@@ -129,12 +129,14 @@ body:not(.sidebar-collapsed) .sidebar-nav .sidebar-submenu.is-open {
     padding-bottom: 9px;
 }
 
-body.sidebar-collapsed .sidebar-submenu {
-    display: none !important;
-}
+@media (min-width: 1025px) {
+    body.sidebar-collapsed .sidebar-submenu {
+        display: none !important;
+    }
 
-body.sidebar-collapsed .menu-dropdown-chevron {
-    display: none;
+    body.sidebar-collapsed .menu-dropdown-chevron {
+        display: none;
+    }
 }
 
 /* ── Profile page shell (body.profile-page) ────────────────── */

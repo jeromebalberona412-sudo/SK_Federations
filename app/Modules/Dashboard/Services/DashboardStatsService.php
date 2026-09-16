@@ -12,6 +12,7 @@ use App\Modules\Shared\Models\User;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 class DashboardStatsService
@@ -197,10 +198,15 @@ class DashboardStatsService
 
         $query = $this->activeKabataanQuery($tenantId);
         $this->applyKabataanDateRange($query, $dateFrom, $dateTo);
+        $records = $query->get(['id', 'form_data']);
+        $surveyStatusById = $this->surveyWorkStatusByRegistrationId($records->pluck('id'));
 
-        foreach ($query->get(['id', 'form_data']) as $record) {
+        foreach ($records as $record) {
             $formData = is_array($record->form_data) ? $record->form_data : [];
-            $status = $this->normalizeEmploymentStatus($this->formValue($formData, 'work_status'));
+            $surveyStatus = $surveyStatusById[(int) $record->id] ?? null;
+            $status = $this->normalizeEmploymentStatus(
+                $surveyStatus ?? $this->formValue($formData, 'work_status')
+            );
             if ($status !== null) {
                 $counts[$status]++;
             }
@@ -540,6 +546,26 @@ class DashboardStatsService
      */
     private function formValue(array $formData, string $key): string
     {
+        $aliases = [
+            'work_status' => ['work_status', 'workStatus', 'employment_status'],
+        ];
+
+        foreach ($aliases[$key] ?? [$key] as $candidate) {
+            if (! array_key_exists($candidate, $formData)) {
+                continue;
+            }
+
+            $value = $formData[$candidate];
+            if (is_array($value)) {
+                $value = $value[0] ?? '';
+            }
+
+            $trimmed = trim((string) $value);
+            if ($trimmed !== '') {
+                return $trimmed;
+            }
+        }
+
         $value = $formData[$key] ?? '—';
 
         if (is_array($value)) {
@@ -549,6 +575,45 @@ class DashboardStatsService
         $value = trim((string) $value);
 
         return $value !== '' ? $value : '—';
+    }
+
+    /**
+     * @param  Collection<int, mixed>  $registrationIds
+     * @return array<int, string>
+     */
+    private function surveyWorkStatusByRegistrationId(Collection $registrationIds): array
+    {
+        $ids = $registrationIds
+            ->map(fn ($id): int => (int) $id)
+            ->filter(fn (int $id): bool => $id > 0)
+            ->unique()
+            ->values();
+
+        if (
+            $ids->isEmpty()
+            || ! Schema::hasTable('kk_survey_responses')
+            || ! Schema::hasColumn('kk_survey_responses', 'work_status')
+        ) {
+            return [];
+        }
+
+        try {
+            return DB::table('kk_survey_responses')
+                ->whereIn('kabataan_registration_id', $ids->all())
+                ->whereNotNull('work_status')
+                ->where('work_status', '!=', '')
+                ->pluck('work_status', 'kabataan_registration_id')
+                ->mapWithKeys(function ($status, $id): array {
+                    $normalized = $this->normalizeEmploymentStatus((string) $status);
+
+                    return $normalized === null ? [] : [(int) $id => $normalized];
+                })
+                ->all();
+        } catch (\Throwable $e) {
+            report($e);
+
+            return [];
+        }
     }
 
     private function normalizeEmploymentStatus(string $status): ?string

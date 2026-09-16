@@ -151,13 +151,6 @@ class PasswordChangeService
             ->whereKey($user->id)
             ->update(['password' => $pendingPassword]);
 
-        // Clear shared session claim so both portals require re-login with the new password.
-        if (Schema::hasColumn('users', 'active_session_id')) {
-            User::query()
-                ->whereKey($user->id)
-                ->update(['active_session_id' => null]);
-        }
-
         $this->markRecentlyConfirmed($user->id);
 
         return $user->fresh();
