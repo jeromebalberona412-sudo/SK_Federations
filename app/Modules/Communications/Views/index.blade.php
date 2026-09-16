@@ -193,9 +193,6 @@
         </section>
     </div>
 
-    @include('communications::partials.incoming-call-modal')
-    @include('communications::partials.in-call-ui')
-
     <div class="comms-modal" id="commsGroupModal" hidden>
         <div class="comms-modal-backdrop" data-comms-group-close></div>
         <div class="comms-modal-dialog" role="dialog" aria-modal="true" aria-labelledby="commsGroupModalTitle">
@@ -232,7 +229,5 @@
 @push('scripts')
     @vite([
         'app/Modules/Communications/assets/js/chat.js',
-        'app/Modules/Communications/assets/js/webrtc.js',
-        'app/Modules/Communications/assets/js/webrtc-group.js',
     ])
 @endpush

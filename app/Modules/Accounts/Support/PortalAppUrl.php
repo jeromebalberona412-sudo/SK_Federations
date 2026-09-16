@@ -98,12 +98,14 @@ final class PortalAppUrl
      */
     public static function selfApp(): string
     {
-        // Emails and share links must use configured APP_URL / public portal URLs,
-        // never the current request host (localhost, 127.0.0.1, or LAN IPs).
+        // Prefer configured public portal URLs for emails/share links.
+        // Include the current request host so password-reset / verify emails still
+        // work when APP_URL / SK_FED_APP_URL are missing or still set to localhost.
         $candidates = [
             config('app.public_url'),
             config('services.sk_fed_app_url'),
             config('app.url'),
+            self::currentRequestBase(),
         ];
 
         $preferred = self::preferAbsolute($candidates);
@@ -112,10 +114,40 @@ final class PortalAppUrl
         }
 
         if (app()->environment('local', 'testing')) {
+            $local = self::normalize(config('app.url'))
+                ?? self::normalize(config('services.sk_fed_app_url'))
+                ?? self::normalize(self::currentRequestBase());
+
+            if ($local !== null) {
+                return $local;
+            }
+
             return rtrim((string) config('app.url'), '/');
         }
 
         return '';
+    }
+
+    /**
+     * Public scheme+host from the active HTTP request, when available.
+     */
+    private static function currentRequestBase(): ?string
+    {
+        try {
+            if (! app()->bound('request')) {
+                return null;
+            }
+
+            $request = request();
+            $host = strtolower(trim((string) $request->getHost()));
+            if ($host === '') {
+                return null;
+            }
+
+            return $request->getSchemeAndHttpHost();
+        } catch (\Throwable) {
+            return null;
+        }
     }
 
     /**
@@ -198,8 +230,22 @@ final class PortalAppUrl
     public static function absoluteRoute(string $name, array $parameters = []): string
     {
         $path = route($name, $parameters, absolute: false);
+        $base = self::selfApp();
 
-        return self::join(self::selfApp(), $path);
+        if ($base === '') {
+            $base = self::preferAbsolute([
+                self::currentRequestBase(),
+                config('services.sk_fed_app_url'),
+                config('app.public_url'),
+                config('app.url'),
+            ]) ?? '';
+        }
+
+        if ($base === '') {
+            $base = self::federationOrFail();
+        }
+
+        return self::join($base, $path);
     }
 
     public static function temporarySignedRoute(

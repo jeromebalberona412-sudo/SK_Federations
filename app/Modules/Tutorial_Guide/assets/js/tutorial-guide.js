@@ -365,6 +365,23 @@
                 window.toggleSidebar();
                 autoOpenedMobileSidebar = true;
             }
+            document.body.classList.add('sk-tour-active-sidebar');
+            // Remeasure after sidebar open animation so highlight is not behind the drawer.
+            window.requestAnimationFrame(function () {
+                window.requestAnimationFrame(function () {
+                    window.setTimeout(function () {
+                        if (!isActive || !targetEl) return;
+                        const lateRect = targetEl.getBoundingClientRect();
+                        const pad = 6;
+                        spotlightEl.style.left = `${Math.max(0, lateRect.left - pad)}px`;
+                        spotlightEl.style.top = `${Math.max(0, lateRect.top - pad)}px`;
+                        spotlightEl.style.width = `${lateRect.width + (pad * 2)}px`;
+                        spotlightEl.style.height = `${lateRect.height + (pad * 2)}px`;
+                    }, 320);
+                });
+            });
+        } else {
+            document.body.classList.remove('sk-tour-active-sidebar');
         }
 
         targetEl.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
@@ -488,6 +505,7 @@
         }
 
         if (TOUR_STEPS[currentStepIndex].isSidebar && !TOUR_STEPS[nextIdx].isSidebar) {
+            document.body.classList.remove('sk-tour-active-sidebar');
             if (autoOpenedMobileSidebar && document.body.classList.contains('sidebar-open') && typeof window.toggleSidebar === 'function') {
                 window.toggleSidebar();
                 autoOpenedMobileSidebar = false;

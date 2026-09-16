@@ -19,6 +19,8 @@ import { createClient } from '@supabase/supabase-js';
     var signalChannel = null;
     var presenceChannel = null;
     var inboxChannel = null;
+    var callChannel = null;
+    var callChannelId = null;
     var typingTimers = Object.create(null);
     var lastTypingSent = 0;
     var activeConversationId = null;
@@ -262,7 +264,15 @@ import { createClient } from '@supabase/supabase-js';
         if (typeof window.onCommsHeaderMessageInsert === 'function') {
             window.onCommsHeaderMessageInsert(message);
         }
+        if (!message.mine) {
+            var badge = document.getElementById('commsMsgBadge');
+            if (badge) {
+                var next = Number(badge.dataset.unreadTotal || 0) + 1;
+                updateHeaderBadge(next);
+            }
+        }
         scheduleInboxReload();
+        refreshUnread();
     }
 
     function updateHeaderBadge(count) {
@@ -312,8 +322,31 @@ import { createClient } from '@supabase/supabase-js';
         return client;
     }
 
+    function unwrapBroadcast(raw) {
+        var payload = raw;
+        if (payload && payload.payload && (payload.event || payload.type === 'broadcast')) {
+            payload = payload.payload;
+        }
+        if (payload && payload.payload && payload.payload.type && !payload.type) {
+            payload = payload.payload;
+        }
+        return payload;
+    }
+
+    function isOwnSignal(payload) {
+        if (!payload || payload.from_user_id == null) return false;
+        var root = getRoot();
+        if (!root) return false;
+        var myId = Number(root.dataset.currentUserId || 0);
+        var myType = String(root.dataset.portalUserType || '');
+        if (Number(payload.from_user_id) !== myId) return false;
+        if (payload.from_user_type && String(payload.from_user_type) !== myType) return false;
+        return true;
+    }
+
     function handleIncomingSignal(raw) {
-        var payload = (raw && raw.payload) ? raw.payload : raw;
+        var payload = unwrapBroadcast(raw);
+        if (!payload || isOwnSignal(payload)) return;
         if (window.CommsWebRTC && typeof window.CommsWebRTC.handleSignal === 'function') {
             window.CommsWebRTC.handleSignal(payload);
         }
@@ -412,13 +445,79 @@ import { createClient } from '@supabase/supabase-js';
             .subscribe();
     }
 
+    function conversationSignalChannel(conversationId) {
+        if (!conversationId) return null;
+        if (signalChannel && String(conversationId) === String(activeConversationId || '')) {
+            return signalChannel;
+        }
+        if (callChannel && String(conversationId) === String(callChannelId || '')) {
+            return callChannel;
+        }
+        return null;
+    }
+
+    function ensureCallChannel(conversationId) {
+        var sb = ensureClient();
+        if (!sb || !conversationId) return Promise.resolve(null);
+        if (conversationSignalChannel(conversationId)) {
+            return Promise.resolve(conversationSignalChannel(conversationId));
+        }
+        if (callChannel) {
+            try { sb.removeChannel(callChannel); } catch (e) { /* ignore */ }
+            callChannel = null;
+            callChannelId = null;
+        }
+        callChannelId = conversationId;
+        callChannel = sb.channel('comms-signal-' + conversationId, {
+            config: { broadcast: { ack: true, self: false } }
+        })
+            .on('broadcast', { event: 'webrtc' }, function (payload) {
+                handleIncomingSignal(payload);
+            })
+            .on('broadcast', { event: 'message' }, function (raw) {
+                var data = unwrapBroadcast(raw) || {};
+                var msg = data.message || data;
+                if (msg && msg.id != null) deliverRealtimeInsert(msg);
+            });
+
+        return new Promise(function (resolve) {
+            var settled = false;
+            var finish = function () {
+                if (settled) return;
+                settled = true;
+                resolve(callChannel);
+            };
+            var timer = setTimeout(finish, 8000);
+            callChannel.subscribe(function (status) {
+                if (status !== 'SUBSCRIBED') return;
+                clearTimeout(timer);
+                finish();
+            });
+        });
+    }
+
+    function teardownCallChannel(conversationId) {
+        if (conversationId && String(callChannelId) !== String(conversationId)) return;
+        if (!callChannel) return;
+        var sb = ensureClient();
+        try {
+            if (sb) sb.removeChannel(callChannel);
+        } catch (e) { /* ignore */ }
+        callChannel = null;
+        callChannelId = null;
+    }
+
     function sendOnChannel(channelName, payload) {
+        return sendBroadcast(channelName, 'webrtc', payload);
+    }
+
+    function sendBroadcast(channelName, eventName, payload) {
         var sb = ensureClient();
         if (!sb || !channelName) return Promise.resolve();
 
         return new Promise(function (resolve) {
             var ch = sb.channel(channelName, {
-                config: { broadcast: { self: false } }
+                config: { broadcast: { ack: true, self: false } }
             });
             var settled = false;
             var finish = function () {
@@ -427,10 +526,10 @@ import { createClient } from '@supabase/supabase-js';
                 try { sb.removeChannel(ch); } catch (e) { /* ignore */ }
                 resolve();
             };
-            var timer = setTimeout(finish, 4000);
+            var timer = setTimeout(finish, 8000);
             ch.subscribe(function (status) {
                 if (status !== 'SUBSCRIBED') return;
-                ch.send({ type: 'broadcast', event: 'webrtc', payload: payload })
+                ch.send({ type: 'broadcast', event: eventName || 'webrtc', payload: payload })
                     .then(function () {
                         clearTimeout(timer);
                         finish();
@@ -443,8 +542,49 @@ import { createClient } from '@supabase/supabase-js';
         });
     }
 
+    function collectInboxes(options) {
+        options = options || {};
+        var names = [];
+        var push = function (type, id) {
+            var name = peerInboxName(type, id);
+            if (name && names.indexOf(name) === -1) names.push(name);
+        };
+        push(options.peerType, options.peerId);
+        var extra = Array.isArray(options.peers) ? options.peers : [];
+        extra.forEach(function (peer) {
+            if (!peer) return;
+            push(peer.user_type || peer.type || peer.portal, peer.id || peer.user_id);
+        });
+        return names;
+    }
+
+    function broadcastMessage(conversationId, message, options) {
+        options = options || {};
+        if (!ensureClient() || !message) return Promise.resolve();
+        var cid = conversationId || message.conversation_id;
+        var payload = {
+            message: message,
+            conversation_id: cid
+        };
+        var jobs = [];
+        var existing = conversationSignalChannel(cid);
+        if (existing) {
+            jobs.push(existing.send({
+                type: 'broadcast',
+                event: 'message',
+                payload: payload
+            }).catch(function () {}));
+        } else if (cid) {
+            jobs.push(sendBroadcast('comms-signal-' + cid, 'message', payload));
+        }
+        collectInboxes(options).forEach(function (inbox) {
+            jobs.push(sendBroadcast(inbox, 'message', payload));
+        });
+        return Promise.all(jobs);
+    }
+
     /**
-     * Broadcast WebRTC signal on conversation channel + optional peer inbox(es).
+     * Broadcast WebRTC signal on conversation channel + peer inbox(es).
      * options.peerType / options.peerId → personal inbox so callee receives even if chat not open.
      * options.peers → [{ id, type }] fan-out for group calls.
      */
@@ -453,10 +593,9 @@ import { createClient } from '@supabase/supabase-js';
         if (!ensureClient()) return Promise.resolve();
 
         var jobs = [];
-
-        if (conversationId && signalChannel
-            && String(conversationId) === String(activeConversationId || '')) {
-            jobs.push(signalChannel.send({
+        var existing = conversationSignalChannel(conversationId);
+        if (existing) {
+            jobs.push(existing.send({
                 type: 'broadcast',
                 event: 'webrtc',
                 payload: payload
@@ -465,23 +604,9 @@ import { createClient } from '@supabase/supabase-js';
             jobs.push(sendOnChannel('comms-signal-' + conversationId, payload));
         }
 
-        var seen = Object.create(null);
-        function enqueuePeer(peerId, peerType) {
-            var inbox = peerInboxName(peerType, peerId);
-            if (!inbox || seen[inbox]) return;
-            seen[inbox] = true;
+        collectInboxes(options).forEach(function (inbox) {
             jobs.push(sendOnChannel(inbox, payload));
-        }
-
-        if (options.peerId != null && options.peerType) {
-            enqueuePeer(options.peerId, options.peerType);
-        }
-        if (Array.isArray(options.peers)) {
-            options.peers.forEach(function (peer) {
-                if (!peer) return;
-                enqueuePeer(peer.id != null ? peer.id : peer.user_id, peer.type || peer.user_type);
-            });
-        }
+        });
 
         return Promise.all(jobs);
     }
@@ -591,6 +716,11 @@ import { createClient } from '@supabase/supabase-js';
             .on('broadcast', { event: 'webrtc' }, function (payload) {
                 handleIncomingSignal(payload);
             })
+            .on('broadcast', { event: 'message' }, function (raw) {
+                var data = unwrapBroadcast(raw) || {};
+                var msg = data.message || data;
+                if (msg && msg.id != null) deliverRealtimeInsert(msg);
+            })
             .subscribe();
     }
 
@@ -602,8 +732,8 @@ import { createClient } from '@supabase/supabase-js';
                 event: 'INSERT',
                 schema: 'public',
                 table: 'messages'
-            }, function () {
-                scheduleInboxReload();
+            }, function (payload) {
+                deliverRealtimeInsert(payload.new || {});
             })
             .on('postgres_changes', {
                 event: 'UPDATE',
@@ -644,9 +774,12 @@ import { createClient } from '@supabase/supabase-js';
         enabled: enabled,
         __booted: true,
         subscribeConversation: subscribeConversation,
+        ensureCallChannel: ensureCallChannel,
+        teardownCallChannel: teardownCallChannel,
         broadcastTyping: broadcastTyping,
         stopTyping: stopTyping,
         broadcastSignal: broadcastSignal,
+        broadcastMessage: broadcastMessage,
         refreshUnread: refreshUnread
     };
 

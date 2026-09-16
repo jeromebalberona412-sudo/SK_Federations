@@ -1779,6 +1779,16 @@
         }
     }
 
+    function publishSentMessage(sent) {
+        if (!sent || !window.CommsRealtime || typeof window.CommsRealtime.broadcastMessage !== 'function') return;
+        var conv = state.activeConversation;
+        var peer = conv && conv.other_user;
+        window.CommsRealtime.broadcastMessage(sent.conversation_id || state.activeId, sent, {
+            peerId: peer && (peer.id || peer.user_id),
+            peerType: peer && (peer.user_type || peer.type || peer.portal_user_type)
+        });
+    }
+
     function sendMessage(body) {
         if (!state.activeId) return;
         var files = (state.pendingAttachments || []).slice();
@@ -1841,10 +1851,12 @@
                     state.messages[tempIdx] = sent;
                 } else {
                     appendMessage(sent);
+                    publishSentMessage(sent);
                     return;
                 }
                 saveMsgCache(state.activeId, state.messages, state.reactionEmojis);
                 renderMessages({ stickBottom: true });
+                publishSentMessage(sent);
             }));
         }
 
@@ -1911,6 +1923,7 @@
                 }
                 saveMsgCache(state.activeId, state.messages, state.reactionEmojis);
                 renderMessages({ stickBottom: true });
+                publishSentMessage(sent);
             }));
         }
 

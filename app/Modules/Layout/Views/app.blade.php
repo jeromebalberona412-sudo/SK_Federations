@@ -68,6 +68,8 @@
     @include('layout::logout-modal')
     @include('layout::session-timeout-modal')
     @include('layout::chat-modal')
+    @include('communications::partials.incoming-call-modal')
+    @include('communications::partials.in-call-ui')
 
     @auth
         @include('tutorial_guide::tutorial')
@@ -150,6 +152,8 @@
                 'app/Modules/Communications/assets/css/communication.css',
                 'app/Modules/Communications/assets/js/communication.js',
                 'app/Modules/Communications/assets/js/realtime.js',
+                'app/Modules/Communications/assets/js/webrtc.js',
+                'app/Modules/Communications/assets/js/webrtc-group.js',
             ]);
         @endphp
         @if ($commsVite !== [])

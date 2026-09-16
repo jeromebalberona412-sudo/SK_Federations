@@ -12,6 +12,11 @@
         <aside class="comms-chat-fs-sidebar" id="commsChatFsSidebar" hidden>
             <div class="comms-chat-fs-sidebar-head">
                 <h3>Chats</h3>
+                <div class="comms-chat-fs-sidebar-actions">
+                    <button type="button" class="comms-chat-fs-icon-btn" data-comms-chat-close title="Close chats" aria-label="Close chats">
+                        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg>
+                    </button>
+                </div>
             </div>
             <div class="comms-chat-fs-search-wrap">
                 <label class="comms-chat-fs-search" for="commsChatFsSearch">

@@ -356,26 +356,43 @@ class ConversationService
     public function markRead(Conversation $conversation, Authenticatable $user): void
     {
         $userType = $this->types->portalType();
+        $userId = (int) $user->id;
+
+        $latestMessageId = (int) (Message::query()
+            ->where('conversation_id', $conversation->id)
+            ->max('id') ?? 0);
 
         $query = ConversationParticipant::query()
             ->where('conversation_id', $conversation->id)
-            ->where('user_id', (int) $user->id);
+            ->where('user_id', $userId);
 
         if (! $conversation->isGroup()) {
             $query->where('user_type', $userType);
         }
 
-        $query->update(['last_read_at' => now()]);
+        $payload = ['last_read_at' => now()];
+        if (Schema::hasColumn('conversation_participants', 'last_read_message_id') && $latestMessageId > 0) {
+            $payload['last_read_message_id'] = $latestMessageId;
+        }
+
+        $query->update($payload);
     }
 
     public function unreadTotalForUser(Authenticatable $user): int
     {
         $userType = $this->types->portalType();
         $userId = (int) $user->id;
+        $hasMessageCursor = Schema::hasColumn('conversation_participants', 'last_read_message_id');
+
+        $columns = ['conversation_id', 'last_read_at', 'user_type'];
+        if ($hasMessageCursor) {
+            $columns[] = 'last_read_message_id';
+        }
 
         $participants = ConversationParticipant::query()
             ->where('user_id', $userId)
-            ->get(['conversation_id', 'last_read_at', 'user_type']);
+            ->where('user_type', $userType)
+            ->get($columns);
 
         if ($participants->isEmpty()) {
             return 0;
@@ -383,18 +400,12 @@ class ConversationService
 
         $total = 0;
         foreach ($participants as $participant) {
-            $query = Message::query()
-                ->where('conversation_id', $participant->conversation_id)
-                ->where(function (Builder $q) use ($userId, $userType) {
-                    $q->where('sender_id', '!=', $userId)
-                        ->orWhere('sender_type', '!=', $userType);
-                });
-
-            if ($participant->last_read_at) {
-                $query->where('created_at', '>', $participant->last_read_at);
-            }
-
-            $total += (int) $query->count();
+            $total += $this->unreadCountForParticipant(
+                (int) $participant->conversation_id,
+                $participant,
+                $userId,
+                $userType
+            );
         }
 
         return $total;
@@ -608,11 +619,9 @@ class ConversationService
 
         return match ($fromType) {
             ParticipantTypeResolver::KABATAAN => $toType === ParticipantTypeResolver::SK_OFFICIAL
-                && $fromBarangayId > 0
-                && $fromBarangayId === $toBarangayId,
+                && ($fromBarangayId <= 0 || $toBarangayId <= 0 || $fromBarangayId === $toBarangayId),
             ParticipantTypeResolver::SK_OFFICIAL => match ($toType) {
-                ParticipantTypeResolver::KABATAAN => $fromBarangayId > 0
-                    && $fromBarangayId === $toBarangayId,
+                ParticipantTypeResolver::KABATAAN,
                 ParticipantTypeResolver::SK_OFFICIAL,
                 ParticipantTypeResolver::SK_FED => true,
                 default => false,
@@ -808,7 +817,10 @@ class ConversationService
                     ->orWhere('sender_type', '!=', $userType);
             });
 
-        if ($mine?->last_read_at) {
+        $lastReadMessageId = (int) ($mine?->last_read_message_id ?? 0);
+        if ($lastReadMessageId > 0 && Schema::hasColumn('conversation_participants', 'last_read_message_id')) {
+            $query->where('id', '>', $lastReadMessageId);
+        } elseif ($mine?->last_read_at) {
             $query->where('created_at', '>', $mine->last_read_at);
         }
 

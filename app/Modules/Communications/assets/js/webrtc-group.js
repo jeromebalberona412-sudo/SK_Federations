@@ -28,7 +28,7 @@ import {
     var ringTimer = null;
 
     function rootEl() {
-        return document.getElementById('commsApp');
+        return document.getElementById('commsApp') || document.getElementById('commsRealtimeBoot');
     }
 
     function me() {
@@ -470,7 +470,6 @@ import {
             }
             meshInvitees = Array.isArray(meshCall.invitees) ? meshCall.invitees.slice() : [];
             showGroupUi(meshCall, 'Ringing group…');
-            await ensureLocalMedia();
             await signal({
                 type: 'group-invite',
                 call_type: callType,
@@ -479,6 +478,7 @@ import {
                 caller_type: meshCall.caller_type,
                 invitees: meshInvitees
             });
+            await ensureLocalMedia();
             ringTimer = setTimeout(function () {
                 if (!meshConnected) {
                     leaveGroupCall('missed');

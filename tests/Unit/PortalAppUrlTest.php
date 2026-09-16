@@ -75,3 +75,24 @@ it('does not treat an officials portal url as the federation host', function () 
         ->and(PortalAppUrl::officials())->toBe('https://officials.example.com')
         ->and(PortalAppUrl::federation())->toBe('https://federation.example.com');
 });
+
+it('falls back to the current public request host when portal urls are missing', function () {
+    app()->detectEnvironment(fn () => 'production');
+    config([
+        'app.url' => 'http://localhost',
+        'app.public_url' => null,
+        'services.sk_fed_app_url' => null,
+    ]);
+
+    $request = Illuminate\Http\Request::create(
+        'https://skfederations.skoneportal.com/forgot-password',
+        'POST'
+    );
+    app()->instance('request', $request);
+
+    expect(PortalAppUrl::selfApp())->toBe('https://skfederations.skoneportal.com')
+        ->and(PortalAppUrl::absoluteRoute('password.reset', [
+            'token' => 'demo-token',
+            'email' => 'a@b.com',
+        ]))->toStartWith('https://skfederations.skoneportal.com/');
+});

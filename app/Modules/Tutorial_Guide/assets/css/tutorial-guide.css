@@ -43,8 +43,26 @@
 /* ── Elevated Element Under Tour ──────────────────────────────────── */
 .sk-tour-highlighted-element {
     position: relative !important;
-    z-index: 1000002 !important;
-    transition: box-shadow 0.2s ease;
+    z-index: 1000006 !important;
+    pointer-events: auto !important;
+    isolation: isolate;
+    background-clip: padding-box;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.95), 0 0 0 8px rgba(59, 130, 246, 0.2) !important;
+    border-radius: 8px;
+}
+
+/* Sidebar stays under the spotlight dim; only the target nav item rises above. */
+body.sk-tour-active-sidebar #mainSidebar,
+body.sk-tour-active-sidebar .main-sidebar,
+body.sk-tour-active-sidebar .sidebar {
+    z-index: 999998 !important;
+}
+body.sk-tour-active-sidebar .sidebar-overlay.show,
+body.sk-tour-active-sidebar #sidebarOverlay.show {
+    z-index: 999997 !important;
+}
+body.sk-tour-active-sidebar .sk-tour-highlighted-element {
+    z-index: 1000006 !important;
 }
 
 /* ── Floating Tooltip / Card ──────────────────────────────────────── */

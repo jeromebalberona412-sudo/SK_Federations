@@ -1994,6 +1994,28 @@ button.comms-bubble-image,
 .comms-modal-card--call {
     position: relative;
     overflow: hidden;
+    width: min(100%, 400px);
+    padding-bottom: 1.35rem;
+}
+
+.comms-modal-card--call .comms-modal-actions {
+    display: flex;
+    justify-content: center;
+    align-items: stretch;
+    gap: 0.85rem;
+    width: 100%;
+    margin-top: 1.35rem;
+    flex-wrap: nowrap;
+}
+
+.comms-modal-card--call .comms-btn {
+    flex: 1 1 0;
+    min-width: 0;
+    max-width: 168px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.35rem;
 }
 
 .comms-modal-peer {
@@ -2059,13 +2081,11 @@ button.comms-bubble-image,
     object-position: center center;
     background: #0b0b0b;
 }
-
-/* Mobile full-stage: slight cover keeps faces framed without desktop letterbox. */
-@media (max-width: 900px) and (pointer: coarse) {
-    .comms-call-overlay:not(.is-group-call) .comms-remote-video {
-        object-fit: cover;
-        object-position: center 35%;
-    }
+.comms-call-overlay:not(.is-group-call) .comms-remote-video,
+.comms-call-overlay.is-remote-portrait .comms-remote-video,
+.comms-remote-video.is-remote-portrait {
+    object-fit: contain;
+    object-position: center center;
 }
 
 .comms-remote-grid {
@@ -2449,7 +2469,10 @@ button.comms-bubble-image,
 }
 
 .comms-modal-actions--ended {
+    display: flex;
+    justify-content: space-between;
     align-items: center;
+    width: 100%;
 }
 
 .comms-btn--ghost-x {
@@ -3383,4 +3406,25 @@ body.comms-officials-page .main-content {
     .comms-group-member-actions {
         flex-direction: column;
     }
+}
+
+#commsIncomingCall.comms-modal,
+#commsCallEnded.comms-modal {
+    z-index: 10080;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: max(1rem, env(safe-area-inset-top, 0px))
+        max(1rem, env(safe-area-inset-right, 0px))
+        max(1rem, env(safe-area-inset-bottom, 0px))
+        max(1rem, env(safe-area-inset-left, 0px));
+}
+#commsIncomingCall.comms-modal[hidden],
+#commsCallEnded.comms-modal[hidden] {
+    display: none !important;
+}
+#commsIncomingCall .comms-modal-card,
+#commsCallEnded .comms-modal-card {
+    margin: 0 auto;
+    width: min(380px, 100%);
 }
