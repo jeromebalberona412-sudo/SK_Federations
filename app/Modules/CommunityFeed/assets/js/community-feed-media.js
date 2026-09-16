@@ -1308,7 +1308,33 @@
         document.getElementById('videoLightboxPrev') && document.getElementById('videoLightboxPrev').addEventListener('click', videoLightboxPrev);
         document.getElementById('videoLightboxNext') && document.getElementById('videoLightboxNext').addEventListener('click', videoLightboxNext);
         var vlb = document.getElementById('videoLightbox');
-        if (vlb) vlb.addEventListener('click', function (e) { if (e.target && e.target.id === 'videoLightbox') closeVideoLightbox(); });
+        if (vlb) {
+            vlb.addEventListener('click', function (e) { if (e.target && e.target.id === 'videoLightbox') closeVideoLightbox(); });
+            if (!vlb.dataset.swipeWired) {
+                vlb.dataset.swipeWired = '1';
+                var startX = 0;
+                var startY = 0;
+                var active = false;
+                vlb.addEventListener('pointerdown', function (e) {
+                    if (!vlb.classList.contains('active')) return;
+                    if (e.target.closest('button, a, video, iframe')) return;
+                    active = true;
+                    startX = e.clientX;
+                    startY = e.clientY;
+                    try { vlb.setPointerCapture(e.pointerId); } catch (err) { /* ignore */ }
+                });
+                vlb.addEventListener('pointerup', function (e) {
+                    if (!active) return;
+                    active = false;
+                    var dx = e.clientX - startX;
+                    var dy = e.clientY - startY;
+                    if (Math.abs(dx) < 48 || Math.abs(dx) < Math.abs(dy)) return;
+                    if (dx < 0) videoLightboxNext();
+                    else videoLightboxPrev();
+                });
+                vlb.addEventListener('pointercancel', function () { active = false; });
+            }
+        }
     }
 
     function getPendingUploadIds() {

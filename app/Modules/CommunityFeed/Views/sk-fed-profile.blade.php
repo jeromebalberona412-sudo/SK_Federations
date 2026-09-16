@@ -95,17 +95,9 @@
 
 <div id="imageLightbox" class="image-lightbox" aria-hidden="true">
     <button type="button" id="lightboxClose" class="lightbox-close" aria-label="Close">&times;</button>
-    <div class="lightbox-toolbar">
-        <button type="button" id="lightboxZoomOut" class="lightbox-tool-btn" aria-label="Zoom out">−</button>
-        <span id="lightboxZoomLevel" class="lightbox-zoom-level">100%</span>
-        <button type="button" id="lightboxZoomIn" class="lightbox-tool-btn" aria-label="Zoom in">+</button>
-        <button type="button" id="lightboxZoomReset" class="lightbox-tool-btn lightbox-reset-btn" aria-label="Reset zoom">Reset</button>
-    </div>
-    <button type="button" id="lightboxPrev" class="lightbox-nav lightbox-prev" aria-label="Previous">&#10094;</button>
     <div class="lightbox-viewport" id="lightboxViewport">
         <img id="lightboxImage" src="" alt="Full size photo" draggable="false">
     </div>
-    <button type="button" id="lightboxNext" class="lightbox-nav lightbox-next" aria-label="Next">&#10095;</button>
     <div id="lightboxCounter" class="lightbox-counter"></div>
 </div>
 

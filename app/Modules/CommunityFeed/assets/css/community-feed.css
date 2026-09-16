@@ -2020,10 +2020,18 @@ body.sk-fed-feed .main-content,
 .image-lightbox.active { display: flex; flex-direction: column; }
 .lightbox-viewport { flex: 1; display: flex; align-items: center; justify-content: center; overflow: hidden; width: 100%; padding: 60px 72px; box-sizing: border-box; }
 .image-lightbox img { max-width: 100%; max-height: 100%; object-fit: contain; transition: transform 0.15s ease; }
-.lightbox-toolbar {
-    position: absolute; top: 16px; left: 50%; transform: translateX(-50%);
-    display: flex; align-items: center; gap: 8px; background: rgba(0,0,0,0.45);
-    border-radius: 999px; padding: 6px 12px; z-index: 2;
+.lightbox-toolbar,
+.lightbox-tool-btn,
+.lightbox-zoom-level,
+.lightbox-reset-btn { display: none !important; }
+.lightbox-viewport { touch-action: pan-y; cursor: grab; }
+.lightbox-nav { display: none; }
+@media (pointer: fine) and (min-width: 768px) {
+    .video-lightbox .lightbox-nav {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
 }
 .lightbox-tool-btn { background: rgba(255,255,255,0.12); border: none; color: #fff; width: 32px; height: 32px; border-radius: 50%; font-size: 18px; line-height: 1; cursor: pointer; }
 .lightbox-reset-btn { width: auto; border-radius: 999px; padding: 0 12px; font-size: 12px; font-weight: 600; }

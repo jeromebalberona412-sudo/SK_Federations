@@ -20,10 +20,6 @@ const UPDATE_TITLE_MAX = 50;
 const MAX_LINK_LENGTH = 63;
 let lightboxImages = [];
 let lightboxIndex = 0;
-let lightboxZoom = 1;
-const LIGHTBOX_ZOOM_MIN = 0.5;
-const LIGHTBOX_ZOOM_MAX = 4;
-const LIGHTBOX_ZOOM_STEP = 0.25;
 const commentSections = new Set();
 const expandedComments = new Set();
 const postCache = new Map();
@@ -685,43 +681,17 @@ function buildHybridMediaHtml(post) {
 function openLightbox(images, startIndex) {
     lightboxImages = images || [];
     lightboxIndex = startIndex || 0;
-    lightboxZoom = 1;
     var lb = document.getElementById('imageLightbox');
     if (!lb) return;
     lb.classList.add('active');
     document.body.style.overflow = 'hidden';
     renderLightboxImage();
-    applyLightboxZoom();
 }
 
 function closeLightbox() {
     var lb = document.getElementById('imageLightbox');
     if (lb) lb.classList.remove('active');
     document.body.style.overflow = '';
-    lightboxZoom = 1;
-    applyLightboxZoom();
-}
-
-function applyLightboxZoom() {
-    var img = document.getElementById('lightboxImage');
-    var label = document.getElementById('lightboxZoomLevel');
-    if (img) img.style.transform = 'scale(' + lightboxZoom + ')';
-    if (label) label.textContent = Math.round(lightboxZoom * 100) + '%';
-}
-
-function lightboxZoomIn() {
-    lightboxZoom = Math.min(LIGHTBOX_ZOOM_MAX, +(lightboxZoom + LIGHTBOX_ZOOM_STEP).toFixed(2));
-    applyLightboxZoom();
-}
-
-function lightboxZoomOut() {
-    lightboxZoom = Math.max(LIGHTBOX_ZOOM_MIN, +(lightboxZoom - LIGHTBOX_ZOOM_STEP).toFixed(2));
-    applyLightboxZoom();
-}
-
-function lightboxZoomReset() {
-    lightboxZoom = 1;
-    applyLightboxZoom();
 }
 
 function renderLightboxImage() {
@@ -729,32 +699,53 @@ function renderLightboxImage() {
     var counter = document.getElementById('lightboxCounter');
     if (!img || !lightboxImages.length) return;
     img.src = lightboxImages[lightboxIndex] || '';
+    img.style.transform = '';
     if (counter) counter.textContent = (lightboxIndex + 1) + ' / ' + lightboxImages.length;
 }
 
 function lightboxPrev() {
     if (!lightboxImages.length) return;
     lightboxIndex = (lightboxIndex - 1 + lightboxImages.length) % lightboxImages.length;
-    lightboxZoom = 1;
     renderLightboxImage();
-    applyLightboxZoom();
 }
 
 function lightboxNext() {
     if (!lightboxImages.length) return;
     lightboxIndex = (lightboxIndex + 1) % lightboxImages.length;
-    lightboxZoom = 1;
     renderLightboxImage();
-    applyLightboxZoom();
+}
+
+function bindLightboxSwipe(rootId, onPrev, onNext) {
+    var root = document.getElementById(rootId);
+    if (!root || root.dataset.swipeWired === '1') return;
+    root.dataset.swipeWired = '1';
+    var startX = 0;
+    var startY = 0;
+    var active = false;
+    root.addEventListener('pointerdown', function (e) {
+        if (!root.classList.contains('active')) return;
+        if (e.target.closest('button, a, video, iframe')) return;
+        active = true;
+        startX = e.clientX;
+        startY = e.clientY;
+        try { root.setPointerCapture(e.pointerId); } catch (err) { /* ignore */ }
+    });
+    root.addEventListener('pointerup', function (e) {
+        if (!active) return;
+        active = false;
+        var dx = e.clientX - startX;
+        var dy = e.clientY - startY;
+        if (Math.abs(dx) < 48 || Math.abs(dx) < Math.abs(dy)) return;
+        if (dx < 0) onNext();
+        else onPrev();
+    });
+    root.addEventListener('pointercancel', function () { active = false; });
 }
 
 window.openLightbox = openLightbox;
 window.closeLightbox = closeLightbox;
 window.lightboxPrev = lightboxPrev;
 window.lightboxNext = lightboxNext;
-window.lightboxZoomIn = lightboxZoomIn;
-window.lightboxZoomOut = lightboxZoomOut;
-window.lightboxZoomReset = lightboxZoomReset;
 
 function buildReactionAvatarsHtml(summary) {
     if (!summary || !summary.reactors || !summary.reactors.length) return '';
@@ -2843,7 +2834,18 @@ document.addEventListener('DOMContentLoaded', function() {
             closeLightbox();
             if (window.closeVideoLightbox) closeVideoLightbox();
             if (window.closeShareModal) closeShareModal();
+            return;
         }
+        var videoLb = document.getElementById('videoLightbox');
+        if (videoLb && videoLb.classList.contains('active')) {
+            if (e.key === 'ArrowLeft' && window.videoLightboxPrev) window.videoLightboxPrev();
+            if (e.key === 'ArrowRight' && window.videoLightboxNext) window.videoLightboxNext();
+            return;
+        }
+        var lb = document.getElementById('imageLightbox');
+        if (!lb || !lb.classList.contains('active')) return;
+        if (e.key === 'ArrowLeft') lightboxPrev();
+        if (e.key === 'ArrowRight') lightboxNext();
     });
 
     document.getElementById('editCommentBody')?.addEventListener('keydown', function (e) {
@@ -2854,14 +2856,24 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     document.getElementById('lightboxClose')?.addEventListener('click', closeLightbox);
-    document.getElementById('lightboxPrev')?.addEventListener('click', lightboxPrev);
-    document.getElementById('lightboxNext')?.addEventListener('click', lightboxNext);
-    document.getElementById('lightboxZoomIn')?.addEventListener('click', lightboxZoomIn);
-    document.getElementById('lightboxZoomOut')?.addEventListener('click', lightboxZoomOut);
-    document.getElementById('lightboxZoomReset')?.addEventListener('click', lightboxZoomReset);
     document.getElementById('imageLightbox')?.addEventListener('click', function (e) {
         if (e.target && e.target.id === 'imageLightbox') closeLightbox();
     });
+    var imageLbWheelLock = false;
+    document.getElementById('lightboxViewport')?.addEventListener('wheel', function (e) {
+        var lb = document.getElementById('imageLightbox');
+        if (!lb || !lb.classList.contains('active') || lightboxImages.length < 2) return;
+        e.preventDefault();
+        if (imageLbWheelLock) return;
+        imageLbWheelLock = true;
+        if (e.deltaY > 0 || e.deltaX > 0) lightboxNext();
+        else lightboxPrev();
+        setTimeout(function () { imageLbWheelLock = false; }, 280);
+    }, { passive: false });
+    bindLightboxSwipe('imageLightbox', lightboxPrev, lightboxNext);
+    if (window.videoLightboxPrev && window.videoLightboxNext) {
+        bindLightboxSwipe('videoLightbox', window.videoLightboxPrev, window.videoLightboxNext);
+    }
 
     var brgyList = document.getElementById('brgyLinkList') || document.getElementById('cfBrgyLinkList');
     var feedSidebar = document.getElementById('programsSidebar') || document.getElementById('feedSidebar');

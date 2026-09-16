@@ -358,15 +358,11 @@
             '.comms-image-lightbox{position:fixed;inset:0;z-index:100200;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:0;}' +
             '.comms-image-lightbox[hidden]{display:none!important;}' +
             '.comms-image-lightbox-backdrop{position:absolute;inset:0;background:rgba(15,23,42,.92);}' +
-            '.comms-image-lightbox-toolbar{position:fixed;top:max(.65rem,env(safe-area-inset-top));left:50%;transform:translateX(-50%);z-index:3;display:flex;align-items:center;gap:.35rem;padding:.35rem;border-radius:999px;background:rgba(0,0,0,.35);}' +
-            '.comms-image-lightbox-tool{width:40px;height:40px;border:0;border-radius:999px;background:rgba(255,255,255,.12);color:#fff;font-size:1.15rem;font-weight:700;cursor:pointer;line-height:1;}' +
-            '.comms-image-lightbox-tool:hover,.comms-image-lightbox-tool:focus-visible{background:rgba(255,255,255,.22);outline:none;}' +
-            '.comms-image-lightbox-zoom-label{min-width:3.2rem;text-align:center;color:#e2e8f0;font-size:.8rem;font-weight:700;}' +
+            '.comms-image-lightbox-toolbar{display:none!important;}' +
+            '.comms-image-lightbox-tool,.comms-image-lightbox-zoom-label{display:none!important;}' +
             '.comms-image-lightbox-close{position:fixed;top:max(.65rem,env(safe-area-inset-top));left:max(.65rem,env(safe-area-inset-left));z-index:3;width:42px;height:42px;border:0;border-radius:999px;background:rgba(255,255,255,.14);color:#fff;font-size:1.6rem;line-height:1;cursor:pointer;}' +
-            '.comms-image-lightbox-nav{position:fixed;top:50%;transform:translateY(-50%);z-index:3;width:46px;height:46px;border:0;border-radius:999px;background:rgba(255,255,255,.14);color:#fff;font-size:1.45rem;cursor:pointer;}' +
-            '.comms-image-lightbox-nav.is-prev{left:max(.75rem,env(safe-area-inset-left));}' +
-            '.comms-image-lightbox-nav.is-next{right:max(.75rem,env(safe-area-inset-right));}' +
-            '.comms-image-lightbox-stage{position:relative;z-index:1;flex:1;width:100%;display:flex;align-items:center;justify-content:center;overflow:hidden;padding:4.5rem 4rem 6.5rem;}' +
+            '.comms-image-lightbox-nav{display:none!important;}' +
+            '.comms-image-lightbox-stage{position:relative;z-index:1;flex:1;width:100%;display:flex;align-items:center;justify-content:center;overflow:hidden;padding:4.5rem 1rem 6.5rem;touch-action:pan-y;cursor:grab;}' +
             '.comms-image-lightbox-img{max-width:min(96vw,1200px);max-height:calc(100vh - 11rem);width:auto;height:auto;object-fit:contain;border-radius:8px;transform-origin:center center;transition:transform .12s ease;user-select:none;-webkit-user-drag:none;}' +
             '.comms-image-lightbox-counter{position:fixed;top:max(.85rem,env(safe-area-inset-top));right:max(.85rem,env(safe-area-inset-right));z-index:3;color:#e2e8f0;font-size:.85rem;font-weight:700;background:rgba(0,0,0,.35);padding:.35rem .65rem;border-radius:999px;}' +
             '.comms-image-lightbox-thumbs{position:fixed;left:50%;bottom:max(.75rem,env(safe-area-inset-bottom));transform:translateX(-50%);z-index:3;display:flex;gap:.45rem;max-width:min(96vw,920px);overflow-x:auto;padding:.45rem .55rem;border-radius:14px;background:rgba(0,0,0,.42);-webkit-overflow-scrolling:touch;scrollbar-width:thin;}' +
@@ -606,43 +602,15 @@
         imageLightboxEl.innerHTML =
             '<div class="comms-image-lightbox-backdrop" data-comms-lightbox-close tabindex="-1"></div>' +
             '<button type="button" class="comms-image-lightbox-close" data-comms-lightbox-close aria-label="Close all">&times;</button>' +
-            '<div class="comms-image-lightbox-toolbar" role="toolbar" aria-label="Zoom controls">' +
-            '<button type="button" class="comms-image-lightbox-tool" data-comms-lightbox-zoom-out aria-label="Zoom out">−</button>' +
-            '<span class="comms-image-lightbox-zoom-label" data-comms-lightbox-zoom-label>100%</span>' +
-            '<button type="button" class="comms-image-lightbox-tool" data-comms-lightbox-zoom-in aria-label="Zoom in">+</button>' +
-            '<button type="button" class="comms-image-lightbox-tool" data-comms-lightbox-zoom-reset aria-label="Reset zoom">⟲</button>' +
-            '</div>' +
             '<div class="comms-image-lightbox-counter" data-comms-lightbox-counter hidden></div>' +
-            '<button type="button" class="comms-image-lightbox-nav is-prev" data-comms-lightbox-prev aria-label="Previous">&#10094;</button>' +
             '<div class="comms-image-lightbox-stage">' +
             '<img class="comms-image-lightbox-img" alt="Full size image" draggable="false">' +
             '</div>' +
-            '<button type="button" class="comms-image-lightbox-nav is-next" data-comms-lightbox-next aria-label="Next">&#10095;</button>' +
             '<div class="comms-image-lightbox-thumbs" data-comms-lightbox-thumbs hidden role="listbox" aria-label="Image thumbnails"></div>';
         document.body.appendChild(imageLightboxEl);
         imageLightboxEl.addEventListener('click', function (e) {
             if (e.target.closest('[data-comms-lightbox-close]')) {
                 closeImageLightbox();
-                return;
-            }
-            if (e.target.closest('[data-comms-lightbox-prev]')) {
-                stepImageLightbox(-1);
-                return;
-            }
-            if (e.target.closest('[data-comms-lightbox-next]')) {
-                stepImageLightbox(1);
-                return;
-            }
-            if (e.target.closest('[data-comms-lightbox-zoom-in]')) {
-                setImageLightboxZoom(imageLightboxState.zoom + 0.25);
-                return;
-            }
-            if (e.target.closest('[data-comms-lightbox-zoom-out]')) {
-                setImageLightboxZoom(imageLightboxState.zoom - 0.25);
-                return;
-            }
-            if (e.target.closest('[data-comms-lightbox-zoom-reset]')) {
-                setImageLightboxZoom(1);
                 return;
             }
             var removeThumb = e.target.closest('[data-comms-lightbox-remove]');
@@ -665,18 +633,35 @@
         });
         imageLightboxEl.addEventListener('wheel', function (e) {
             if (imageLightboxEl.hidden) return;
+            if (imageLightboxState.images.length < 2) return;
             e.preventDefault();
-            if (e.deltaY < 0) setImageLightboxZoom(imageLightboxState.zoom + 0.15);
-            else setImageLightboxZoom(imageLightboxState.zoom - 0.15);
+            if (e.deltaY > 0 || e.deltaX > 0) stepImageLightbox(1);
+            else stepImageLightbox(-1);
         }, { passive: false });
+        var swipe = { x: 0, y: 0, on: false };
+        imageLightboxEl.addEventListener('pointerdown', function (e) {
+            if (imageLightboxEl.hidden) return;
+            if (e.target.closest('button, [data-comms-lightbox-thumbs]')) return;
+            swipe.on = true;
+            swipe.x = e.clientX;
+            swipe.y = e.clientY;
+            try { imageLightboxEl.setPointerCapture(e.pointerId); } catch (err) { /* ignore */ }
+        });
+        imageLightboxEl.addEventListener('pointerup', function (e) {
+            if (!swipe.on) return;
+            swipe.on = false;
+            var dx = e.clientX - swipe.x;
+            var dy = e.clientY - swipe.y;
+            if (Math.abs(dx) < 48 || Math.abs(dx) < Math.abs(dy)) return;
+            if (dx < 0) stepImageLightbox(1);
+            else stepImageLightbox(-1);
+        });
+        imageLightboxEl.addEventListener('pointercancel', function () { swipe.on = false; });
         document.addEventListener('keydown', function (e) {
             if (!imageLightboxEl || imageLightboxEl.hidden) return;
             if (e.key === 'Escape') closeImageLightbox();
             else if (e.key === 'ArrowLeft') stepImageLightbox(-1);
             else if (e.key === 'ArrowRight') stepImageLightbox(1);
-            else if (e.key === '+' || e.key === '=') setImageLightboxZoom(imageLightboxState.zoom + 0.25);
-            else if (e.key === '-') setImageLightboxZoom(imageLightboxState.zoom - 0.25);
-            else if (e.key === '0') setImageLightboxZoom(1);
             else if (e.key === 'Delete' || e.key === 'Backspace') {
                 e.preventDefault();
                 removeImageFromLightbox(imageLightboxState.index);
@@ -686,11 +671,9 @@
     }
 
     function setImageLightboxZoom(next) {
-        imageLightboxState.zoom = Math.max(0.5, Math.min(4, Number(next) || 1));
+        imageLightboxState.zoom = 1;
         var img = imageLightboxEl && imageLightboxEl.querySelector('.comms-image-lightbox-img');
-        var label = imageLightboxEl && imageLightboxEl.querySelector('[data-comms-lightbox-zoom-label]');
-        if (img) img.style.transform = 'scale(' + imageLightboxState.zoom + ')';
-        if (label) label.textContent = Math.round(imageLightboxState.zoom * 100) + '%';
+        if (img) img.style.transform = '';
     }
 
     function uniqueLightboxSources(list) {
