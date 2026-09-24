@@ -46,7 +46,23 @@ it('resolves officials setup target to an absolute https url', function () {
     );
 
     expect($label)->toBe('SK Official');
-    expect($baseUrl)->toBe('https://skoneportal-com-739030.hostingersite.com');
+    expect($baseUrl)->toBe(PortalAppUrl::CANONICAL_OFFICIALS_URL);
+});
+
+it('falls back to the canonical officials url when SK_OFFICIALS_APP_URL is empty', function () {
+    config([
+        'services.sk_officials_app_url' => null,
+        'services.sk_fed_app_url' => 'https://federations.skoneportal.com',
+        'app.url' => 'https://federations.skoneportal.com',
+    ]);
+
+    [$label, $baseUrl] = app(AccountSetupService::class)->resolveSetupTarget(
+        new User(['role' => User::ROLE_SK_OFFICIAL])
+    );
+
+    expect($label)->toBe('SK Official')
+        ->and($baseUrl)->toBe('https://skofficials.skoneportal.com')
+        ->and(PortalAppUrl::officialsOrFail())->toBe('https://skofficials.skoneportal.com');
 });
 
 it('uses an absolute https portal url in federation position assignment emails', function () {
@@ -117,7 +133,7 @@ it('puts an absolute activation link into the setup email notification', functio
     $mail = $notification->toMail($user);
 
     expect($mail->actionUrl)->toBe(
-        'https://skoneportal-com-739030.hostingersite.com/activate-account/demo-token?email=official%40example.com'
+        'https://skofficials.skoneportal.com/activate-account/demo-token?email=official%40example.com'
     );
 });
 

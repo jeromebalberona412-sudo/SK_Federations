@@ -14,7 +14,49 @@ Do **not** rotate `APP_KEY` if one already exists. A new key invalidates session
 
 ---
 
+## Automatic Vite `public/build` (required)
+
+`public/build/` stays **gitignored**. Do **not** upload it manually.
+
+### Preferred: GitHub Actions (works even when Hostinger has no Node)
+
+Workflow: `.github/workflows/deploy-sk-federations.yml`
+
+On push to `main` under `SK_Federations/**` (or manual **workflow_dispatch**):
+
+1. `composer install --no-dev --optimize-autoloader`
+2. `npm ci`
+3. `npm run build` → writes `public/build/manifest.json`
+4. Fails the job if the manifest is missing
+5. rsync to Hostinger (**includes** `public/build`, **excludes** `.env`)
+6. SSH: `php artisan optimize:clear` && `php artisan optimize`
+
+**GitHub secrets to set** (Settings → Secrets and variables → Actions):
+
+| Secret | Purpose |
+|--------|---------|
+| `SSH_PRIVATE_KEY` | Same as Admin deploy |
+| `SSH_HOST` / `SSH_USERNAME` / `SSH_PORT` | Same as Admin deploy |
+| `HOSTINGER_TARGET_FEDERATIONS` | Absolute app root on Hostinger (directory that contains `artisan` and `public/`) |
+
+Example target (adjust to your Hostinger path):
+
+```text
+/home/u793353577/domains/YOUR-FED-HOST/public_html/
+```
+
+### Optional: Hostinger Git post-deploy (only if Node/npm exist on the server)
+
+```bash
+chmod +x deploy.sh && ./deploy.sh
+```
+
+If Node is missing on Hostinger, use GitHub Actions above — do not upload `public/build` by hand.
+
+---
+
 ## Automatic deploy after `git push` (required Hostinger setting)
+
 
 `deploy.sh` in this folder is **not** executed by Git alone. Hostinger must be told to run it after each pull.
 

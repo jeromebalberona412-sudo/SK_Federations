@@ -31,6 +31,11 @@ final class PortalAppUrl
             return self::CANONICAL_OFFICIALS_URL;
         }
 
+        // Hostinger / missing env: never leave Officials activation emails without a portal base.
+        if ($url === null) {
+            return self::CANONICAL_OFFICIALS_URL;
+        }
+
         return $url;
     }
 

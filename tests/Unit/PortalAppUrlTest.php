@@ -91,6 +91,17 @@ it('rewrites retired hostinger officials urls to the canonical skofficials domai
         ]))->toStartWith('https://skofficials.skoneportal.com/activate-account/');
 });
 
+it('uses the canonical officials url when the env value is missing', function () {
+    config([
+        'services.sk_officials_app_url' => '',
+        'services.sk_fed_app_url' => 'https://federations.skoneportal.com',
+        'app.url' => 'https://federations.skoneportal.com',
+    ]);
+
+    expect(PortalAppUrl::officials())->toBe(PortalAppUrl::CANONICAL_OFFICIALS_URL)
+        ->and(PortalAppUrl::officialsOrFail())->toBe(PortalAppUrl::CANONICAL_OFFICIALS_URL);
+});
+
 it('falls back to the current public request host when portal urls are missing', function () {
     app()->detectEnvironment(fn () => 'production');
     config([
