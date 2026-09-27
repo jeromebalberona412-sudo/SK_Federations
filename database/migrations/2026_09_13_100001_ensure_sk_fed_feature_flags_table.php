@@ -55,7 +55,7 @@ return new class extends Migration
 
             DB::table('sk_fed_feature_flags')->insert([
                 'flag_key' => $row['flag_key'],
-                'enabled' => $row['enabled'],
+                'enabled' => Schema::getConnection()->getDriverName() === 'pgsql' ? DB::raw('true') : $row['enabled'],
                 'description' => $row['description'],
                 'created_at' => $now,
                 'updated_at' => $now,

@@ -102,14 +102,39 @@
         });
     }
 
+    function refreshCsrfToken() {
+        return fetch('/csrf-token', {
+            method: 'GET',
+            credentials: 'same-origin',
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest',
+                'Accept': 'application/json'
+            }
+        })
+            .then(function (response) { return response.json(); })
+            .then(function (data) {
+                if (!data || !data.token) return;
+                var metaTag = document.querySelector('meta[name="csrf-token"]');
+                var csrfInput = loginForm ? loginForm.querySelector('input[name="_token"]') : null;
+                if (metaTag) metaTag.setAttribute('content', data.token);
+                if (csrfInput) csrfInput.value = data.token;
+            })
+            .catch(function () { /* keep existing token */ });
+    }
+
+    function nativeSubmit() {
+        isSubmitting = true;
+        setSigningIn();
+        HTMLFormElement.prototype.submit.call(loginForm);
+    }
+
     function runTurnstileThenSubmit() {
         var required = loginForm.dataset.turnstileRequired === '1';
 
         if (!required) {
-            isSubmitting = true;
-            setSigningIn();
-            loginForm.submit();
-            return Promise.resolve();
+            return refreshCsrfToken().finally(function () {
+                nativeSubmit();
+            });
         }
 
         return waitForGate().then(function (gate) {
@@ -122,10 +147,10 @@
                 throw new Error(turnstileMsg('missingToken') || 'Please complete the Cloudflare verification first.');
             }
             window.FedTurnstileGate.injectToken(loginForm, token);
-            isSubmitting = true;
             turnstileInProgress = false;
-            setSigningIn();
-            loginForm.submit();
+            return refreshCsrfToken().finally(function () {
+                nativeSubmit();
+            });
         });
     }
 
@@ -179,13 +204,12 @@
     }
 
     function onFormSubmit(e) {
+        e.preventDefault();
+        e.stopPropagation();
+
         if (isSubmitting || turnstileInProgress) {
-            e.preventDefault();
-            e.stopPropagation();
             return;
         }
-
-        e.preventDefault();
 
         if (!validateFields()) return;
 
@@ -194,7 +218,9 @@
         if (!turnstileRequired) {
             isSubmitting = true;
             setSigningIn();
-            loginForm.submit();
+            refreshCsrfToken().finally(function () {
+                nativeSubmit();
+            });
             return;
         }
 
@@ -272,30 +298,8 @@
             window.history.pushState(null, '', window.location.href);
         });
 
-        setInterval(function refreshCsrfToken() {
-            var metaTag = document.querySelector('meta[name="csrf-token"]');
-            var csrfInput = loginForm.querySelector('input[name="_token"]');
-
-            if (!metaTag || !csrfInput) return;
-
-            fetch('/csrf-token', {
-                method: 'GET',
-                credentials: 'same-origin',
-                headers: {
-                    'X-Requested-With': 'XMLHttpRequest',
-                    'Accept': 'application/json'
-                }
-            })
-            .then(function (response) { return response.json(); })
-            .then(function (data) {
-                if (data && data.token) {
-                    metaTag.setAttribute('content', data.token);
-                    csrfInput.value = data.token;
-                }
-            })
-            .catch(function (err) {
-                console.warn('[CSRF] Token refresh failed:', err);
-            });
+        setInterval(function () {
+            refreshCsrfToken();
         }, 10 * 60 * 1000);
     }
 

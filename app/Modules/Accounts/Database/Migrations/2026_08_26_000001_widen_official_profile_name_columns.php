@@ -24,8 +24,8 @@ return new class extends Migration
 
         if ($driver === 'pgsql') {
             // Views depend on these columns; drop, alter, recreate.
-            DB::statement('DROP VIEW IF EXISTS deleted_sk_officials CASCADE');
-            DB::statement('DROP VIEW IF EXISTS deleted_sk_federations CASCADE');
+            $this->dropViewIfPresent('deleted_sk_officials');
+            $this->dropViewIfPresent('deleted_sk_federations');
 
             DB::statement('ALTER TABLE official_profiles ALTER COLUMN first_name TYPE VARCHAR(150)');
             DB::statement('ALTER TABLE official_profiles ALTER COLUMN last_name TYPE VARCHAR(150)');
@@ -52,8 +52,8 @@ return new class extends Migration
         }
 
         if ($driver === 'pgsql') {
-            DB::statement('DROP VIEW IF EXISTS deleted_sk_officials CASCADE');
-            DB::statement('DROP VIEW IF EXISTS deleted_sk_federations CASCADE');
+            $this->dropViewIfPresent('deleted_sk_officials');
+            $this->dropViewIfPresent('deleted_sk_federations');
 
             DB::statement('ALTER TABLE official_profiles ALTER COLUMN first_name TYPE VARCHAR(255)');
             DB::statement('ALTER TABLE official_profiles ALTER COLUMN last_name TYPE VARCHAR(255)');
@@ -69,6 +69,7 @@ return new class extends Migration
             return;
         }
 
+        if (! $this->isBaseTable('deleted_sk_officials')) {
         DB::statement(<<<'SQL'
             CREATE OR REPLACE VIEW deleted_sk_officials AS
             SELECT
@@ -97,6 +98,11 @@ return new class extends Migration
             WHERE u.deleted_at IS NOT NULL
               AND u.role = 'sk_official'
         SQL);
+        }
+
+        if ($this->isBaseTable('deleted_sk_federations')) {
+            return;
+        }
 
         DB::statement(<<<'SQL'
             CREATE OR REPLACE VIEW deleted_sk_federations AS
@@ -126,5 +132,22 @@ return new class extends Migration
             WHERE u.deleted_at IS NOT NULL
               AND u.role = 'sk_fed'
         SQL);
+    }
+
+    private function dropViewIfPresent(string $name): void
+    {
+        DB::statement(
+            "do $$ begin if exists (select 1 from pg_class c join pg_namespace n on n.oid = c.relnamespace where n.nspname = current_schema() and c.relname = '{$name}' and c.relkind = 'v') then execute 'drop view {$name} cascade'; end if; end $$;"
+        );
+    }
+
+    private function isBaseTable(string $name): bool
+    {
+        $row = DB::selectOne(
+            'select c.relkind from pg_class c join pg_namespace n on n.oid = c.relnamespace where n.nspname = current_schema() and c.relname = ?',
+            [$name]
+        );
+
+        return $row !== null && $row->relkind === 'r';
     }
 };

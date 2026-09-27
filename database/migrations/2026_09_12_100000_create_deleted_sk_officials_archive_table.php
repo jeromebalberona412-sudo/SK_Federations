@@ -13,11 +13,26 @@ return new class extends Migration
 
         // Existing install used a PostgreSQL VIEW with this name. Replace it with a real archive table.
         if ($driver === 'pgsql') {
-            DB::statement('DROP VIEW IF EXISTS deleted_sk_officials CASCADE');
-        } else {
+            DB::statement(<<<'SQL'
+                DO $$
+                BEGIN
+                    IF EXISTS (
+                        SELECT 1
+                        FROM pg_class c
+                        JOIN pg_namespace n ON n.oid = c.relnamespace
+                        WHERE n.nspname = current_schema()
+                          AND c.relname = 'deleted_sk_officials'
+                          AND c.relkind = 'v'
+                    ) THEN
+                        EXECUTE 'DROP VIEW deleted_sk_officials CASCADE';
+                    END IF;
+                END $$;
+            SQL);
+        } elseif (! Schema::hasTable('deleted_sk_officials')) {
             Schema::dropIfExists('deleted_sk_officials');
         }
 
+        if (! Schema::hasTable('deleted_sk_officials')) {
         Schema::create('deleted_sk_officials', function (Blueprint $table) {
             $table->id();
             $table->unsignedBigInteger('tenant_id')->index();
@@ -60,6 +75,7 @@ return new class extends Migration
             $table->index(['tenant_id', 'restored_at']);
             $table->index(['original_user_id', 'restored_at']);
         });
+        }
 
         // Preserve already soft-deleted SK Officials into the archive table.
         if (Schema::hasTable('users') && Schema::hasColumn('users', 'deleted_at')) {

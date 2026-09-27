@@ -23,24 +23,26 @@ return new class extends Migration
             $table->timestamps();
         });
 
+        $enabled = Schema::getConnection()->getDriverName() === 'pgsql' ? DB::raw('true') : true;
+
         DB::table('sk_fed_feature_flags')->insert([
             [
                 'flag_key' => 'features.device_verification',
-                'enabled' => true,
+                'enabled' => $enabled,
                 'description' => 'Enable trusted-device challenge flow for SK FED.',
                 'created_at' => now(),
                 'updated_at' => now(),
             ],
             [
                 'flag_key' => 'features.login_alert_notifications',
-                'enabled' => true,
+                'enabled' => $enabled,
                 'description' => 'Send login alerts for unusual sign-ins.',
                 'created_at' => now(),
                 'updated_at' => now(),
             ],
             [
                 'flag_key' => 'features.suspicious_login_detection',
-                'enabled' => true,
+                'enabled' => $enabled,
                 'description' => 'Detect suspicious login patterns.',
                 'created_at' => now(),
                 'updated_at' => now(),
