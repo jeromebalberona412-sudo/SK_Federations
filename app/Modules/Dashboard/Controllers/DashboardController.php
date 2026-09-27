@@ -6,6 +6,7 @@ use App\Modules\Accounts\Models\OfficialTerm;
 use App\Modules\Accounts\Support\SkOfficialTermDates;
 use App\Modules\BarangayMonitoring\Services\BarangayMonitoringService;
 use App\Modules\Dashboard\Services\DashboardStatsService;
+use App\Modules\Dashboard\Services\YouthDemographicsService;
 use App\Modules\Dashboard\Services\KkProfilingChartService;
 use App\Modules\Dashboard\Services\SkFedDashboardActivityService;
 use App\Modules\Shared\Controllers\Controller;
@@ -24,6 +25,7 @@ class DashboardController extends Controller
         private readonly KkProfilingChartService $kkProfilingChartService,
         private readonly SkFedDashboardActivityService $dashboardActivityService,
         private readonly BarangayMonitoringService $barangayMonitoringService,
+        private readonly YouthDemographicsService $youthDemographicsService,
     ) {}
 
     public function index(Request $request): View
@@ -51,6 +53,10 @@ class DashboardController extends Controller
         } catch (\Throwable $e) {
             report($e);
             $statCards = [
+                'total_kk' => 0,
+                'kk_approved' => 0,
+                'kk_pending' => 0,
+                'total_programs' => 0,
                 'total_kabataan_registered' => 0,
                 'total_sk_officials' => 0,
                 'total_sk_chairpersons' => 0,
@@ -117,6 +123,10 @@ class DashboardController extends Controller
 
         return view('dashboard::dashboard', [
             'user' => $user,
+            'totalKkProfiles' => $statCards['total_kk'] ?? 0,
+            'kkApproved' => $statCards['kk_approved'] ?? 0,
+            'kkPending' => $statCards['kk_pending'] ?? 0,
+            'totalPrograms' => $statCards['total_programs'] ?? 0,
             'totalKabataanRegistered' => $statCards['total_kabataan_registered'] ?? 0,
             'totalSkOfficials' => $statCards['total_sk_officials'] ?? 0,
             'totalSkChairpersons' => $statCards['total_sk_chairpersons'] ?? 0,
@@ -126,6 +136,10 @@ class DashboardController extends Controller
             'sexDistributionOfficials' => $safe(fn () => $this->dashboardStatsService->sexDistributionOfficials($tenantId, $dateFrom, $dateTo), []),
             'sexDistributionFederations' => $safe(fn () => $this->dashboardStatsService->sexDistributionFederations($tenantId, $dateFrom, $dateTo), []),
             'employmentStatusDistribution' => $safe(fn () => $this->dashboardStatsService->employmentStatusDistribution($tenantId, $dateFrom, $dateTo), []),
+            'youthDemographics' => $safe(
+                fn () => $this->youthDemographicsService->aggregate($tenantId, $dateFrom, $dateTo),
+                $this->youthDemographicsService->emptyPayload()
+            ),
             'federationOfficers' => $safe(fn () => $this->dashboardStatsService->federationOfficers($tenantId), []),
             'topBarangays' => $safe(fn () => $this->dashboardStatsService->topBarangaysByYouth($tenantId, 5, $dateFrom, $dateTo), []),
             'barangays' => $barangays,
@@ -186,7 +200,7 @@ class DashboardController extends Controller
         $tenantId = $request->user()?->tenant_id;
         [$dateFrom, $dateTo] = $this->resolveFeedDates($request);
         $cacheKey = sprintf(
-            'skfed:dash:stats:v8:%s:%s:%s',
+            'skfed:dash:stats:v10:%s:%s:%s',
             $tenantId === null ? 'all' : (string) $tenantId,
             $dateFrom ?? 'none',
             $dateTo ?? 'none'
@@ -218,6 +232,10 @@ class DashboardController extends Controller
 
         return [
             'stats' => [
+                'total_kk' => $statCards['total_kk'],
+                'kk_approved' => $statCards['kk_approved'],
+                'kk_pending' => $statCards['kk_pending'],
+                'total_programs' => $statCards['total_programs'],
                 'total_kabataan_registered' => $statCards['total_kabataan_registered'],
                 'total_sk_officials' => $statCards['total_sk_officials'],
                 'total_sk_chairpersons' => $statCards['total_sk_chairpersons'],
@@ -228,6 +246,7 @@ class DashboardController extends Controller
             'sex_distribution_officials' => $this->dashboardStatsService->sexDistributionOfficials($tenantId, $dateFrom, $dateTo),
             'sex_distribution_federations' => $this->dashboardStatsService->sexDistributionFederations($tenantId, $dateFrom, $dateTo),
             'employment_status_distribution' => $this->dashboardStatsService->employmentStatusDistribution($tenantId, $dateFrom, $dateTo),
+            'youth_demographics' => $this->youthDemographicsService->aggregate($tenantId, $dateFrom, $dateTo),
             'abyip_overview' => $abyipOverview,
             'top_barangays' => $this->dashboardStatsService->topBarangaysByYouth($tenantId, 5, $dateFrom, $dateTo),
             'recent_activity' => $this->dashboardActivityService->recentActivity($tenantId, 12, $dateFrom, $dateTo),

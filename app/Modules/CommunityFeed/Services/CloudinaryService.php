@@ -3,7 +3,6 @@
 namespace App\Modules\CommunityFeed\Services;
 
 use App\Services\CloudinaryService as BaseCloudinaryService;
-use Cloudinary\Cloudinary;
 use Illuminate\Http\UploadedFile;
 use RuntimeException;
 
@@ -20,14 +19,6 @@ class CloudinaryService extends BaseCloudinaryService
             throw new RuntimeException('Cloudinary is not configured.');
         }
 
-        $cloudinary = new Cloudinary([
-            'cloud' => [
-                'cloud_name' => config('services.cloudinary.cloud_name'),
-                'api_key'    => config('services.cloudinary.api_key'),
-                'api_secret' => config('services.cloudinary.api_secret'),
-            ],
-        ]);
-
         $options = [
             'folder'                       => self::FOLDER,
             'public_id'                    => $publicId,
@@ -43,7 +34,11 @@ class CloudinaryService extends BaseCloudinaryService
             $options['invalidate'] = true;
         }
 
-        $result = $cloudinary->uploadApi()->upload($file->getRealPath(), $options);
+        $result = $this->uploadImageAsset(
+            $file->getRealPath() ?: $file->getPathname(),
+            $options,
+            $file->getClientOriginalName()
+        );
         $version = isset($result['version']) ? (int) $result['version'] : null;
 
         return [

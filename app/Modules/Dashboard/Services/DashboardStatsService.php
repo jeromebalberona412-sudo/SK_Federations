@@ -123,9 +123,73 @@ class DashboardStatsService
     /**
      * @return array<string, int>
      */
+    /**
+     * Municipality-wide KK profiling counts (every barangay in the tenant).
+     *
+     * @return array{total_kk: int, approved: int, pending: int}
+     */
+    public function municipalityKkStats(?int $tenantId = null, ?string $dateFrom = null, ?string $dateTo = null): array
+    {
+        if (! Schema::hasTable('kabataan_registrations')) {
+            return ['total_kk' => 0, 'approved' => 0, 'pending' => 0];
+        }
+
+        $base = $this->tenantKabataanQuery($tenantId);
+
+        $approvedQuery = (clone $base)
+            ->where('status', 'active')
+            ->whereIn('evaluation_status', ['active', 'Auto Approved', 'ID Verified']);
+        $this->applyKabataanDateRange($approvedQuery, $dateFrom, $dateTo);
+
+        $pendingQuery = (clone $base)
+            ->whereNotIn('status', ['rejected'])
+            ->whereIn('evaluation_status', ['Not Profiled', 'Wrong Credentials']);
+        $this->applyColumnDateRange($pendingQuery, 'submitted_at', $dateFrom, $dateTo);
+
+        $totalQuery = clone $base;
+        $this->applyColumnDateRange($totalQuery, 'submitted_at', $dateFrom, $dateTo);
+
+        return [
+            'total_kk' => (int) $totalQuery->count(),
+            'approved' => (int) $approvedQuery->count(),
+            'pending' => (int) $pendingQuery->count(),
+        ];
+    }
+
+    /**
+     * Scheduled programs across every barangay in the tenant.
+     */
+    public function totalPrograms(?int $tenantId = null): int
+    {
+        if (! Schema::hasTable('schedule_programs')) {
+            return 0;
+        }
+
+        $query = DB::table('schedule_programs');
+
+        if (Schema::hasColumn('schedule_programs', 'deleted_at')) {
+            $query->whereNull('deleted_at');
+        }
+
+        if ($tenantId !== null && Schema::hasColumn('schedule_programs', 'tenant_id')) {
+            $query->where('tenant_id', $tenantId);
+        } elseif ($tenantId !== null && Schema::hasTable('barangays')) {
+            $barangayIds = DB::table('barangays')->where('tenant_id', $tenantId)->pluck('id');
+            $query->whereIn('barangay_id', $barangayIds);
+        }
+
+        return (int) $query->count();
+    }
+
     public function dashboardStatCards(?int $tenantId = null, ?string $dateFrom = null, ?string $dateTo = null): array
     {
+        $kkStats = $this->municipalityKkStats($tenantId, $dateFrom, $dateTo);
+
         return [
+            'total_kk' => $kkStats['total_kk'],
+            'kk_approved' => $kkStats['approved'],
+            'kk_pending' => $kkStats['pending'],
+            'total_programs' => $this->totalPrograms($tenantId),
             'total_kabataan_registered' => $this->totalKabataanRegistered($tenantId, $dateFrom, $dateTo),
             'total_sk_officials' => $this->totalSkOfficials($tenantId, $dateFrom, $dateTo),
             'total_sk_chairpersons' => $this->totalSkChairpersons($tenantId, $dateFrom, $dateTo),
@@ -342,6 +406,34 @@ class DashboardStatsService
         }
 
         return $officers;
+    }
+
+    /**
+     * @return Builder<KabataanRegistration>
+     */
+    private function tenantKabataanQuery(?int $tenantId)
+    {
+        $query = KabataanRegistration::query();
+
+        if ($tenantId !== null && Schema::hasColumn('kabataan_registrations', 'tenant_id')) {
+            $query->where('tenant_id', $tenantId);
+        }
+
+        return $query;
+    }
+
+    /**
+     * @param  Builder<Model>  $query
+     */
+    private function applyColumnDateRange(Builder $query, string $column, ?string $dateFrom, ?string $dateTo): void
+    {
+        [$from, $to] = $this->normalizeDateRange($dateFrom, $dateTo);
+        if ($from === null || $to === null || ! Schema::hasColumn($query->getModel()->getTable(), $column)) {
+            return;
+        }
+
+        $query->whereDate($column, '>=', $from)
+            ->whereDate($column, '<=', $to);
     }
 
     /**

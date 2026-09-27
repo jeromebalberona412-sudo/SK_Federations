@@ -111,7 +111,7 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     function statsCacheKey(range) {
-        return 'sk_fed_dashboard_stats_v6_'
+        return 'sk_fed_dashboard_stats_v7_'
             + (range.date_from || '') + '_'
             + (range.date_to || '') + '_'
             + (range.range_mode || 'term');
@@ -134,6 +134,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 sex_distribution_officials: feed.sex_distribution_officials || null,
                 sex_distribution_federations: feed.sex_distribution_federations || null,
                 employment_status_distribution: feed.employment_status_distribution || null,
+                youth_demographics: feed.youth_demographics || null,
                 abyip_overview: feed.abyip_overview || null,
                 top_barangays: feed.top_barangays || [],
                 recent_activity: feed.recent_activity || [],
@@ -378,7 +379,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 return;
             }
 
-            const valueEl = card.querySelector('.stat-value');
+            const valueEl = card.querySelector('.stat-card-value, .stat-value');
             if (valueEl) {
                 valueEl.textContent = Number(stats[key] || 0).toLocaleString();
             }

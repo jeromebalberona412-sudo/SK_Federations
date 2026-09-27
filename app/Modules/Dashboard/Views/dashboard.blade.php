@@ -116,42 +116,79 @@
             <a href="{{ route('calendar') }}" class="dash-reminder-link">View Calendar</a>
         </div>
 
-        {{-- ── STAT CARDS ── --}}
+        {{-- Municipality-wide statistics (all barangays, SK officials, and kabataan) --}}
         <div class="dash-stats-grid">
-            <a href="{{ route('kabataan-monitoring') }}" class="stat-card stat-card-link stat-card-clickable" data-no-loading data-stat-key="total_kabataan_registered">
-                <div class="stat-icon blue"><i class="fas fa-users"></i></div>
-                <div class="stat-info">
-                    <div class="stat-value">{{ number_format($totalKabataanRegistered ?? 0) }}</div>
-                    <div class="stat-label">Total Kabataan Registered</div>
+            <a href="{{ route('kabataan-monitoring') }}" class="stat-card stat-card-blue" data-no-loading data-stat-key="total_kk" title="KK profiles across all barangays">
+                <div class="stat-card-top">
+                    <span class="stat-card-value">{{ number_format($totalKkProfiles ?? 0) }}</span>
+                    <div class="stat-card-icon stat-icon-blue">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
+                    </div>
                 </div>
+                <span class="stat-card-label">Total KK Profiles</span>
             </a>
-            <a href="{{ route('accounts.officials.index') }}" class="stat-card stat-card-link stat-card-clickable" data-no-loading data-stat-key="total_sk_officials">
-                <div class="stat-icon indigo"><i class="fas fa-user-tie"></i></div>
-                <div class="stat-info">
-                    <div class="stat-value">{{ number_format($totalSkOfficials ?? 0) }}</div>
-                    <div class="stat-label">Total SK Officials</div>
+            <a href="{{ route('kabataan-monitoring') }}" class="stat-card stat-card-green" data-no-loading data-stat-key="kk_approved" title="Approved KK profiles across all barangays">
+                <div class="stat-card-top">
+                    <span class="stat-card-value">{{ number_format($kkApproved ?? 0) }}</span>
+                    <div class="stat-card-icon stat-icon-green">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                    </div>
                 </div>
+                <span class="stat-card-label">KK Profiling Approved</span>
             </a>
-            <a href="{{ route('accounts.federation.index') }}" class="stat-card stat-card-link stat-card-clickable" data-no-loading data-stat-key="total_sk_chairpersons">
-                <div class="stat-icon teal"><i class="fas fa-crown"></i></div>
-                <div class="stat-info">
-                    <div class="stat-value">{{ number_format($totalSkChairpersons ?? 0) }}</div>
-                    <div class="stat-label">Total SK Chairpersons</div>
+            <a href="{{ route('kabataan-monitoring') }}" class="stat-card stat-card-yellow" data-no-loading data-stat-key="kk_pending" title="Pending KK profiling across all barangays">
+                <div class="stat-card-top">
+                    <span class="stat-card-value">{{ number_format($kkPending ?? 0) }}</span>
+                    <div class="stat-card-icon stat-icon-yellow">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+                    </div>
                 </div>
+                <span class="stat-card-label">KK Profiling Pending</span>
             </a>
-            <a href="{{ route('barangay-monitoring') }}" class="stat-card stat-card-link stat-card-clickable" data-no-loading data-stat-key="total_barangays_abyip_submitted">
-                <div class="stat-icon green"><i class="fas fa-file-invoice-dollar"></i></div>
-                <div class="stat-info">
-                    <div class="stat-value">{{ number_format($totalBarangaysAbyipSubmitted ?? 0) }}</div>
-                    <div class="stat-label">Barangays with ABYIP Submissions</div>
+            <a href="{{ route('barangay-monitoring') }}" class="stat-card stat-card-teal" data-no-loading data-stat-key="total_programs" title="Programs across all barangays">
+                <div class="stat-card-top">
+                    <span class="stat-card-value">{{ number_format($totalPrograms ?? 0) }}</span>
+                    <div class="stat-card-icon stat-icon-teal">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+                    </div>
                 </div>
+                <span class="stat-card-label">Total Programs</span>
             </a>
-            <a href="{{ route('auditlogs.index') }}" class="stat-card stat-card-link stat-card-clickable" data-no-loading data-stat-key="total_audit_logs">
-                <div class="stat-icon purple"><i class="fas fa-clipboard-list"></i></div>
-                <div class="stat-info">
-                    <div class="stat-value">{{ number_format($totalAuditLogs ?? 0) }}</div>
-                    <div class="stat-label">Total Audit Logs</div>
+            <a href="{{ route('accounts.officials.index') }}" class="stat-card stat-card-indigo" data-no-loading data-stat-key="total_sk_officials" title="SK officials across all barangays">
+                <div class="stat-card-top">
+                    <span class="stat-card-value">{{ number_format($totalSkOfficials ?? 0) }}</span>
+                    <div class="stat-card-icon stat-icon-indigo">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+                    </div>
                 </div>
+                <span class="stat-card-label">Total SK Officials</span>
+            </a>
+            <a href="{{ route('accounts.federation.index') }}" class="stat-card stat-card-purple" data-no-loading data-stat-key="total_sk_chairpersons" title="SK chairpersons across all barangays">
+                <div class="stat-card-top">
+                    <span class="stat-card-value">{{ number_format($totalSkChairpersons ?? 0) }}</span>
+                    <div class="stat-card-icon stat-icon-purple">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2l2.4 4.8L20 8l-4 3.9.9 5.6L12 15.8 7.1 17.5 8 11.9 4 8l5.6-1.2L12 2z"></path></svg>
+                    </div>
+                </div>
+                <span class="stat-card-label">Total SK Chairpersons</span>
+            </a>
+            <a href="{{ route('barangay-monitoring') }}" class="stat-card stat-card-green" data-no-loading data-stat-key="total_barangays_abyip_submitted" title="Barangays that submitted an ABYIP">
+                <div class="stat-card-top">
+                    <span class="stat-card-value">{{ number_format($totalBarangaysAbyipSubmitted ?? 0) }}</span>
+                    <div class="stat-card-icon stat-icon-green">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="8" y1="13" x2="16" y2="13"></line><line x1="8" y1="17" x2="16" y2="17"></line></svg>
+                    </div>
+                </div>
+                <span class="stat-card-label">Barangays with ABYIP</span>
+            </a>
+            <a href="{{ route('auditlogs.index') }}" class="stat-card stat-card-slate" data-no-loading data-stat-key="total_audit_logs" title="Audit logs for the municipality">
+                <div class="stat-card-top">
+                    <span class="stat-card-value">{{ number_format($totalAuditLogs ?? 0) }}</span>
+                    <div class="stat-card-icon stat-icon-slate">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line></svg>
+                    </div>
+                </div>
+                <span class="stat-card-label">Total Audit Logs</span>
             </a>
         </div>
         
@@ -304,6 +341,10 @@
                         <option value="officials">SK Officials</option>
                         <option value="federations">SK Federations</option>
                     </select>
+                    <span class="kk-demo-total" id="kabataanSexTotal">
+                        <span class="kk-demo-total-label">Total</span>
+                        <span class="kk-demo-total-value">0</span>
+                    </span>
                 </div>
                 <div class="card-body chart-body dash-demo-chart-body">
                     <canvas id="kabataanSexChart" aria-label="Sex distribution chart"></canvas>
@@ -326,6 +367,10 @@
                         <option value="Currently looking for a Job">Currently looking for a Job</option>
                         <option value="Not Interested Looking for a Job">Not Interested Looking for a Job</option>
                     </select>
+                    <span class="kk-demo-total" id="employmentStatusTotal">
+                        <span class="kk-demo-total-label">Total</span>
+                        <span class="kk-demo-total-value">0</span>
+                    </span>
                 </div>
                 <div class="card-body chart-body dash-demo-chart-body">
                     <div class="chart-canvas-wrap chart-canvas-wrap--employment" id="employmentChartWrap">
@@ -336,6 +381,8 @@
                 </div>
             </div>
         </div>
+
+        @include('dashboard::partials.dashboard-youth-demographics')
 
         {{-- ── ROW 2: Federation Officers + Recent Audit Activity ── --}}
         <div class="dash-row dash-row--balanced dash-row--fed-audit">
@@ -437,6 +484,10 @@
         date_from: @json($dateFrom ?? null),
         date_to: @json($dateTo ?? null),
         stats: {
+            total_kk: {{ (int) ($totalKkProfiles ?? 0) }},
+            kk_approved: {{ (int) ($kkApproved ?? 0) }},
+            kk_pending: {{ (int) ($kkPending ?? 0) }},
+            total_programs: {{ (int) ($totalPrograms ?? 0) }},
             total_kabataan_registered: {{ (int) ($totalKabataanRegistered ?? 0) }},
             total_sk_officials: {{ (int) ($totalSkOfficials ?? 0) }},
             total_sk_chairpersons: {{ (int) ($totalSkChairpersons ?? 0) }},
@@ -447,6 +498,7 @@
         sex_distribution_officials: @json($sexDistributionOfficialsData),
         sex_distribution_federations: @json($sexDistributionFederationsData),
         employment_status_distribution: @json($employmentStatusDistributionData),
+        youth_demographics: @json($youthDemographics ?? null),
         abyip_overview: @json($abyipOverview),
         top_barangays: @json($topBarangays ?? []),
     };
@@ -456,6 +508,8 @@
     $dashboardVite = \App\Support\ViteManifest::existing([
         'app/Modules/Dashboard/assets/js/kkprofilingchart.js',
         'app/Modules/Dashboard/assets/js/dashboard-purok.js',
+        'app/Modules/Dashboard/assets/css/dashboard-youth-demographics.css',
+        'app/Modules/Dashboard/assets/js/dashboard-youth-demographics.js',
         'app/Modules/Dashboard/assets/js/dashboard-demographics.js',
         'app/Modules/Dashboard/assets/js/dashboard-activity.js',
         'app/Modules/Dashboard/assets/js/dashboard-audit.js',
