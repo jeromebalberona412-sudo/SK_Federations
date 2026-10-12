@@ -2928,11 +2928,11 @@ body.sidebar-collapsed .main-content { margin-left: var(--sidebar-collapsed); }
 /* ── STAT CARDS ── */
 .stats-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 16px;
     margin-bottom: 28px;
 }
-.stats-grid-6 { grid-template-columns: repeat(6, 1fr); }
+.stats-grid-6 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 
 .stat-card {
     background: white;
@@ -3197,11 +3197,32 @@ body.sidebar-collapsed .main-content { margin-left: var(--sidebar-collapsed); }
 /* Municipality stat cards — icon left, total right, label underneath.
    The total/count sits in the upper-right corner so it lines up with the
    Total pill used on every chart card further down the dashboard. */
+.dashboard-statistics-section {
+    margin-bottom: 16px;
+}
+
+.dashboard-statistics-heading {
+    margin: 0 0 8px;
+}
+
+.dashboard-statistics-heading h2 {
+    margin: 0;
+    color: #1e293b;
+    font-size: 16px;
+    font-weight: 700;
+}
+
+.dashboard-statistics-heading p {
+    margin: 3px 0 0;
+    color: #64748b;
+    font-size: 11px;
+}
+
 .dash-stats-grid {
     display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 16px;
-    margin-bottom: 20px;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    gap: 8px;
+    margin-bottom: 0;
     width: 100%;
     max-width: 100%;
 }
@@ -3209,13 +3230,14 @@ body.sidebar-collapsed .main-content { margin-left: var(--sidebar-collapsed); }
 .dash-stats-grid .stat-card {
     background: #ffffff;
     border-radius: 12px;
-    padding: 16px 18px 14px;
+    position: relative;
+    padding: 8px 9px 7px 48px;
     display: flex;
     flex-direction: column;
     justify-content: space-between;
     align-items: stretch;
     gap: 0;
-    min-height: 96px;
+    min-height: 64px;
     box-shadow: 0 1px 3px rgba(15, 23, 42, 0.05), 0 1px 2px rgba(15, 23, 42, 0.03);
     border: 1px solid #e2e8f0;
     transition: box-shadow 0.22s ease, transform 0.22s ease, border-color 0.22s ease;
@@ -3224,6 +3246,10 @@ body.sidebar-collapsed .main-content { margin-left: var(--sidebar-collapsed); }
     text-decoration: none;
     color: inherit;
     cursor: pointer;
+}
+
+.dash-stats-grid article.stat-card {
+    cursor: default;
 }
 
 .dash-stats-grid .stat-card:hover {
@@ -3248,14 +3274,14 @@ body.sidebar-collapsed .main-content { margin-left: var(--sidebar-collapsed); }
 
 .dash-stats-grid .stat-card-top {
     display: flex;
-    flex-direction: row-reverse;
     align-items: center;
-    justify-content: space-between;
-    gap: 12px;
+    justify-content: flex-end;
+    min-height: 24px;
+    margin: 0;
 }
 
 .dash-stats-grid .stat-card-value {
-    font-size: 26px;
+    font-size: 20px;
     font-weight: 800;
     color: #0f172a;
     line-height: 1.15;
@@ -3263,19 +3289,23 @@ body.sidebar-collapsed .main-content { margin-left: var(--sidebar-collapsed); }
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    text-align: right;
+    text-align: left;
     flex: 1;
     min-width: 0;
 }
 
 .dash-stats-grid .stat-card-icon {
-    width: 42px;
-    height: 42px;
-    border-radius: 10px;
+    position: absolute;
+    left: 8px;
+    top: 50%;
+    width: 34px;
+    height: 34px;
+    border-radius: 8px;
     display: flex;
     align-items: center;
     justify-content: center;
     flex-shrink: 0;
+    transform: translateY(-50%);
 }
 
 .dash-stats-grid .stat-card:hover .stat-card-icon {
@@ -3283,8 +3313,8 @@ body.sidebar-collapsed .main-content { margin-left: var(--sidebar-collapsed); }
 }
 
 .dash-stats-grid .stat-card-icon svg {
-    width: 20px;
-    height: 20px;
+    width: 17px;
+    height: 17px;
 }
 
 .dash-stats-grid .stat-icon-blue,
@@ -3303,39 +3333,39 @@ body.sidebar-collapsed .main-content { margin-left: var(--sidebar-collapsed); }
 .dash-stats-grid .stat-icon-slate svg { stroke: #dc2626; }
 
 .dash-stats-grid .stat-card-label {
-    font-size: 12.5px;
+    display: -webkit-box;
+    font-size: 10.5px;
     font-weight: 600;
     color: #64748b;
     line-height: 1.35;
     text-align: left;
-    margin-top: 8px;
+    margin-top: 1px;
     overflow: hidden;
     display: -webkit-box;
     -webkit-line-clamp: 2;
     -webkit-box-orient: vertical;
+    overflow: hidden;
 }
 
 @media (max-width: 1024px) {
     .dash-stats-grid {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-        gap: 12px;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
     }
 }
 
 @media (max-width: 768px) {
     .dash-stats-grid {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-        gap: 8px;
-        margin-bottom: 14px;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
     }
 
     .dash-stats-grid .stat-card {
-        padding: 10px 12px 8px;
-        min-height: 76px;
+        padding: 8px 8px 7px 44px;
+        min-height: 62px;
         border-radius: 10px;
     }
 
     .dash-stats-grid .stat-card-icon {
+        left: 7px;
         width: 30px;
         height: 30px;
         border-radius: 8px;
@@ -3347,23 +3377,23 @@ body.sidebar-collapsed .main-content { margin-left: var(--sidebar-collapsed); }
     }
 
     .dash-stats-grid .stat-card-value {
-        font-size: 20px;
+        font-size: 19px;
     }
 
     .dash-stats-grid .stat-card-label {
-        font-size: 11px;
-        margin-top: 4px;
+        font-size: 10px;
+        line-height: 1.25;
     }
 }
 
-@media (max-width: 375px) {
+@media (max-width: 560px) {
     .dash-stats-grid {
-        gap: 8px;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 7px;
     }
 
     .dash-stats-grid .stat-card {
-        padding: 10px 10px 8px;
-        min-height: 72px;
+        min-height: 60px;
     }
 
     .dash-stats-grid .stat-card-value {
@@ -3371,7 +3401,13 @@ body.sidebar-collapsed .main-content { margin-left: var(--sidebar-collapsed); }
     }
 
     .dash-stats-grid .stat-card-label {
-        font-size: 10.5px;
+        font-size: 10px;
+    }
+}
+
+@media (max-width: 340px) {
+    .dash-stats-grid {
+        grid-template-columns: minmax(0, 1fr);
     }
 }
 
@@ -3393,10 +3429,6 @@ body.sidebar-collapsed .main-content { margin-left: var(--sidebar-collapsed); }
 }
 
 /* ── RESPONSIVE ── */
-@media (max-width: 1280px) {
-    .stats-grid-6 { grid-template-columns: repeat(3, 1fr); }
-}
-
 @media (max-width: 1024px) {
     .sidebar {
         transform: translateX(-100%);
@@ -5836,10 +5868,6 @@ button.activity-item--clickable:active {
         grid-template-columns: minmax(0, 1fr);
     }
 
-    .dash-row--kk-abyip {
-        grid-template-columns: minmax(0, 1fr);
-    }
-
     .dash-abyip-list {
         max-height: none;
     }
@@ -6084,7 +6112,7 @@ button.activity-item--clickable:active {
 
 .dash-row--main-charts {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(180px, 0.6fr);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 12px;
     align-items: stretch;
     margin-bottom: 20px;
@@ -6103,7 +6131,7 @@ button.activity-item--clickable:active {
 }
 
 .dash-row--top-split > .content-card,
-.dash-row--kk-abyip > .content-card {
+.dash-row--kk-sex-employment > .content-card {
     min-width: 0;
     display: flex;
     flex-direction: column;
@@ -6134,19 +6162,106 @@ button.activity-item--clickable:active {
 }
 
 .dash-row--top-split > .content-card > .card-header,
-.dash-row--kk-abyip > .content-card > .card-header,
+.dash-row--kk-sex-employment > .content-card > .card-header,
 .dash-row--demographics > .content-card > .card-header {
     overflow: visible;
     position: relative;
     z-index: 2;
 }
 
-.dash-row--kk-abyip {
+.dash-row--kk-sex-employment {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-    gap: 12px;
+    grid-template-columns: minmax(0, 1.35fr) repeat(2, minmax(0, 0.9fr));
+    gap: 16px;
     align-items: stretch;
     margin-bottom: 20px;
+}
+
+.dash-row--kk-sex-employment #kk-profiling-section > .kk-chart-section-header {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: start;
+    gap: 10px 12px;
+}
+
+.dash-row--kk-sex-employment #kk-profiling-section .kk-chart-heading {
+    grid-column: 1;
+    grid-row: 1;
+    padding-right: 0;
+}
+
+.dash-row--kk-sex-employment #kk-profiling-section .kk-demo-total {
+    grid-column: 2;
+    grid-row: 1;
+    margin-left: 0;
+}
+
+.dash-row--kk-sex-employment #kk-profiling-section .kk-chart-header-actions {
+    display: grid;
+    grid-column: 1 / -1;
+    grid-row: 2;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
+    max-width: none;
+    margin-left: 0;
+}
+
+.dash-row--kk-sex-employment #kk-profiling-section .kk-chart-header-actions .kk-barangay-select {
+    width: 100%;
+    min-width: 0;
+    max-width: none;
+}
+
+.dash-row--kk-sex-employment .dash-demo-chart-header {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: start;
+    gap: 8px 12px;
+}
+
+.dash-row--kk-sex-employment .dash-demo-chart-header > .kk-chart-heading {
+    grid-column: 1;
+    grid-row: 1;
+    padding-right: 0;
+}
+
+.dash-row--kk-sex-employment .dash-demo-chart-header > .kk-chart-header-actions {
+    grid-column: 1;
+    grid-row: 2;
+    width: 100%;
+    margin-left: 0;
+}
+
+.dash-row--kk-sex-employment .dash-demo-chart-header > .kk-demo-total {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+    margin-left: 0;
+    align-self: start;
+}
+
+.dash-row--kk-sex-employment .dash-demo-chart-header .kk-barangay-select {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+}
+
+.dash-row--kk-sex-employment > .content-card {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    min-height: 100%;
+    margin-bottom: 0;
+    background: #fff;
+}
+
+.dash-row--kk-sex-employment .card-body {
+    min-width: 0;
+}
+
+@media (max-width: 1100px) {
+    .dash-row--kk-sex-employment {
+        grid-template-columns: minmax(0, 1fr);
+    }
 }
 
 .dash-row--demographics {
@@ -6277,7 +6392,7 @@ button.activity-item--clickable:active {
     }
 }
 
-.dash-row--kk-abyip > .content-card {
+.dash-row--kk-sex-employment > .content-card {
     margin-bottom: 0;
     min-height: 100%;
     background: #fff;
@@ -6343,7 +6458,7 @@ button.activity-item--clickable:active {
 
 .dash-abyip-summary {
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 8px;
     padding: 0 14px 12px;
     border-bottom: 1px solid #f1f5f9;
@@ -6567,7 +6682,7 @@ button.activity-item--clickable:active {
     color: #475569;
 }
 
-.dash-row--kk-abyip .kk-chart-canvas-wrap--line {
+#kk-profiling-section .kk-chart-canvas-wrap--line {
     flex: 1;
     min-height: 220px;
     max-height: 280px;
@@ -6591,7 +6706,7 @@ button.activity-item--clickable:active {
     min-height: 240px;
 }
 
-.dash-row--kk-abyip .dash-abyip-body {
+.dash-abyip-card .dash-abyip-body {
     min-height: 280px;
 }
 
@@ -6614,8 +6729,11 @@ button.activity-item--clickable:active {
 
 @media (max-width: 768px) {
     .dash-row--main-charts,
-    .dash-row--top-split,
-    .dash-row--kk-abyip {
+    .dash-row--top-split {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .dash-row--kk-sex-employment {
         grid-template-columns: minmax(0, 1fr);
     }
 
@@ -6629,7 +6747,7 @@ button.activity-item--clickable:active {
     }
 
     .dash-abyip-summary {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
+        grid-template-columns: minmax(0, 1fr);
     }
 
     .dash-abyip-header {
@@ -6970,4 +7088,64 @@ button.activity-item--clickable:active {
 
 .kk-chart-canvas-wrap--purok canvas {
     background: transparent;
+}
+
+/* Keep monitoring panels and audit tables from shrinking below readable widths. */
+.dash-row--fed-audit > *,
+.dash-row--fed-audit .content-card,
+.dash-row--fed-audit .content-card-body {
+    min-width: 0;
+}
+
+.dash-row--fed-audit {
+    grid-template-columns: minmax(0, 1fr);
+}
+
+.dash-row--fed-audit .content-card-body,
+.dash-row--fed-audit .table-responsive {
+    overflow-x: auto;
+}
+
+.dash-row--fed-audit table {
+    min-width: 680px;
+}
+
+@media (max-width: 768px) {
+    .dash-row--demographics,
+    .dash-row--kk-sex-employment {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .dash-row--fed-audit table {
+        min-width: 600px;
+    }
+}
+
+@media (min-width: 1101px) {
+    .dash-row--kk-sex-employment {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .dash-row--kk-sex-employment > #kk-profiling-section {
+        grid-column: 1 / -1;
+    }
+}
+
+.dash-row--kk-sex-employment #kabataan-sex-section,
+.dash-row--kk-sex-employment #employment-status-section {
+    min-width: 0;
+}
+
+@media (max-width: 768px) {
+    .dash-row--kk-sex-employment #kabataan-sex-section .dash-demo-chart-body,
+    .dash-row--kk-sex-employment #employment-status-section .dash-demo-chart-body {
+        min-height: 230px;
+        padding: 14px;
+    }
+
+    .dash-row--kk-sex-employment #kabataan-sex-section .dash-demo-legend,
+    .dash-row--kk-sex-employment #employment-status-section .dash-demo-legend {
+        justify-content: center;
+        gap: 8px 12px;
+    }
 }

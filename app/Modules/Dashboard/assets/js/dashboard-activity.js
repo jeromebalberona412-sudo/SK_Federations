@@ -111,7 +111,7 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     function statsCacheKey(range) {
-        return 'sk_fed_dashboard_stats_v7_'
+        return 'sk_fed_dashboard_stats_v8_'
             + (range.date_from || '') + '_'
             + (range.date_to || '') + '_'
             + (range.range_mode || 'term');
@@ -136,6 +136,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 employment_status_distribution: feed.employment_status_distribution || null,
                 youth_demographics: feed.youth_demographics || null,
                 abyip_overview: feed.abyip_overview || null,
+                programs: feed.programs || null,
                 top_barangays: feed.top_barangays || [],
                 recent_activity: feed.recent_activity || [],
                 upcoming_events: feed.upcoming_events || [],
@@ -285,6 +286,9 @@ document.addEventListener('DOMContentLoaded', function () {
         }
         if (payload.stats) {
             updateStats(payload.stats);
+        }
+        if (payload.programs) {
+            window.dispatchEvent(new CustomEvent('skfed:dashboard-programs', { detail: payload.programs }));
         }
         if (typeof window.applyDashboardDemographics === 'function') {
             window.applyDashboardDemographics(payload);

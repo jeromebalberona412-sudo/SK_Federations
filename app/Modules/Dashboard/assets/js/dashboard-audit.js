@@ -50,7 +50,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 <tr>
                     <td class="cell-primary dash-audit-col-date">${escapeHtml(row.created_date)}</td>
                     <td class="dash-audit-col-time">${escapeHtml(row.created_time)}</td>
-                    <td class="dash-audit-cell-email dash-audit-col-email" title="${escapeHtml(row.user_email || '-')}">${escapeHtml(row.user_email || '-')}</td>
+                    <td class="dash-audit-cell-email dash-audit-col-email" title="${escapeHtml(row.account_email || '-')}">${escapeHtml(row.account_email || '-')}</td>
                     <td class="dash-audit-col-role">${escapeHtml(row.role)}</td>
                     <td class="dash-audit-col-event">${escapeHtml(row.event_type)}</td>
                     <td class="dash-audit-col-ip">${escapeHtml(row.ip_address)}</td>
@@ -86,7 +86,7 @@ document.addEventListener('DOMContentLoaded', function () {
             date_to: range.date_to || '',
             range_mode: range.range_mode || 'term',
         });
-        const cacheKey = 'sk_fed_dash_audit_v2_' + params.toString();
+        const cacheKey = 'sk_fed_dash_audit_v3_' + params.toString();
         const cached = window.SkLocalCache?.get(cacheKey);
         const paint = (payload) => {
             state.rows = (payload.data || []).slice(0, state.perPage);
@@ -153,7 +153,7 @@ document.addEventListener('DOMContentLoaded', function () {
         const detailFields = [
             ['Date', row.created_date],
             ['Time', row.created_time],
-            ['Email', row.user_email || '-'],
+            ['Email', row.account_email || '-'],
             ['Role', row.role],
             ['Event Type', row.event_type],
             ['IP Address', row.ip_address],

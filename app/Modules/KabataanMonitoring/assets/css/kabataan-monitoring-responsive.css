@@ -102,6 +102,7 @@ body.km-main {
         width: 100%;
     }
 
+    .km-btn--excel-upload,
     .km-export-btn,
     .km-batch-print-btn {
         width: 100%;
@@ -302,6 +303,27 @@ body.km-main {
     .kabataan-preview-table th,
     .kabataan-preview-table td {
         padding: 6px 4px;
+    }
+
+    .km-excel-preview {
+        padding: 10px;
+    }
+
+    .km-excel-preview-heading {
+        flex-direction: column;
+        gap: 2px;
+    }
+
+    .km-excel-preview-note {
+        margin-top: 0;
+    }
+
+    .km-excel-preview-scroll {
+        max-height: 240px;
+    }
+
+    #kabataanBatchUploadModal.modal-maximized .kabataan-modal-body {
+        padding: 12px;
     }
 
     /* Delete modal */

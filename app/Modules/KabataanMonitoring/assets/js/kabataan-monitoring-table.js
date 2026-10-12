@@ -24,9 +24,10 @@
         'VOTED LAST ELECTION?',
         'ATTENDED KK  ASSEMBLY?',
         'IF YES, HOW MANY TIMES?',
+        'RECORD SOURCE',
     ];
 
-    var FORM_2A_SUBHEADERS = ['', '', '', '', '', '', 'MONTH/DAY/YEAR', '', '', '', '', '', '', '', '', '', '', '', ''];
+    var FORM_2A_SUBHEADERS = ['', '', '', '', '', '', 'MONTH/DAY/YEAR', '', '', '', '', '', '', '', '', '', '', '', '', ''];
 
     function closeKmSortMenu() {
         if (sortMenu) sortMenu.hidden = true;
@@ -138,6 +139,7 @@
             row.votedLastElection,
             row.kkAssembly,
             row.kkTimes,
+            row.recordSource,
         ];
     }
 

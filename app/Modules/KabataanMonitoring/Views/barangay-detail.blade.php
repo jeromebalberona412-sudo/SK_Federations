@@ -76,8 +76,12 @@
                     <i class="fas fa-plus" aria-hidden="true"></i>
                     Add KK Record
                 </button>
+                <button type="button" class="km-btn km-btn--excel-upload" id="km-open-excel-upload">
+                    <i class="fas fa-file-excel" aria-hidden="true"></i>
+                    Upload Excel
+                </button>
                 <button type="button" class="km-export-btn km-export-btn--csv" id="km-export-csv-btn">
-                    <i class="fas fa-file-csv"></i> CSV
+                    <i class="fas fa-file-csv" aria-hidden="true"></i> Export CSV
                 </button>
                 <button type="button" class="km-batch-print-btn" id="km-batch-print-btn" disabled>
                     <i class="fas fa-print"></i> Batch Print
@@ -111,13 +115,14 @@
                         </th>
                         <th>Age</th>
                         <th>Purok/Zone</th>
+                        <th>Record Source</th>
                         <th>Registered Voter</th>
                         <th class="col-actions">Actions</th>
                     </tr>
                 </thead>
                 <tbody id="km-table-tbody">
                     <tr class="km-loading-row">
-                        <td colspan="7">Loading records…</td>
+                        <td colspan="8">Loading records…</td>
                     </tr>
                 </tbody>
             </table>
@@ -172,6 +177,33 @@
                 <p class="km-kkp-loading">Loading questionnaire...</p>
             </div>
             @include('kabataan_monitoring::partials.kk-survey-edit')
+            <section class="km-monitoring-document" id="kmMonitoringDocumentPanel" aria-labelledby="kmMonitoringDocumentTitle">
+                <div class="km-monitoring-document-heading km-monitoring-document-header">
+                    <div>
+                        <h3 id="kmMonitoringDocumentTitle">Supporting PDF</h3>
+                        <p class="km-monitoring-document-meta" id="kmMonitoringDocumentMeta">No PDF has been attached to this record.</p>
+                    </div>
+                    <div class="km-monitoring-document-links" id="kmMonitoringDocumentLinks" hidden>
+                        <a class="km-document-action km-monitoring-document-link" id="kmMonitoringDocumentView" target="_blank" rel="noopener" hidden>
+                            <i class="fas fa-eye" aria-hidden="true"></i> View PDF
+                        </a>
+                        <a class="km-document-action km-monitoring-document-link" id="kmMonitoringDocumentDownload" hidden>
+                            <i class="fas fa-download" aria-hidden="true"></i> Download PDF
+                        </a>
+                    </div>
+                </div>
+                <div class="km-monitoring-document-upload" id="kmMonitoringDocumentUpload" hidden>
+                    <label class="km-monitoring-document-upload-label" for="kmMonitoringDocumentInput">Attach or replace PDF (maximum 10 MB)</label>
+                    <div class="km-monitoring-document-upload-controls km-monitoring-document-actions">
+                        <input class="km-monitoring-document-input" type="file" id="kmMonitoringDocumentInput" accept=".pdf,application/pdf">
+                        <button type="button" class="km-kkp-btn-save km-monitoring-document-upload-btn" id="kmMonitoringDocumentUploadBtn">
+                            <i class="fas fa-upload" aria-hidden="true"></i> Upload PDF
+                        </button>
+                    </div>
+                    <progress id="kmMonitoringDocumentProgress" max="100" value="0" aria-label="PDF upload progress" hidden></progress>
+                </div>
+                <p class="km-monitoring-document-status" id="kmMonitoringDocumentStatus" role="status" aria-live="polite" hidden></p>
+            </section>
         </div>
         <div class="km-kkp-modal-footer" id="kmKKPEditFooter" hidden>
             <button type="button" class="km-kkp-btn-close" id="kmKKPEditCancelBtn">Cancel</button>
@@ -240,12 +272,14 @@
 <div id="kmSortMenu" class="km-sort-menu" hidden role="menu" aria-label="Sort options"></div>
 
 @include('kabataan_monitoring::partials.add-kabataan-modal')
+@include('kabataan_monitoring::partials.batch-upload-modal')
 @endsection
 
 @push('scripts')
     <script>
         window.kmPageMode = 'barangay-detail';
         window.kmBarangay = @json($barangay);
+        window.kmTenantId = @json((int) $user->tenant_id);
         window.kmPurokZones = @json($purokZones ?? []);
         window.kmInitialPayload = {
             data: @json($initialRecords ?? []),
@@ -253,10 +287,15 @@
         };
         window.kmConfig = {
             dataUrl: @json(route('api.kabataan-monitoring.index')),
+            batchUploadUrl: @json(route('api.kabataan-monitoring.batch-upload')),
+            templateUrl: @json(route('kabataan-monitoring.batch-template', ['barangay' => $barangay])),
             storeUrl: @json(route('api.kabataan-monitoring.store')),
             questionnaireUrl: @json(url('/api/kabataan-monitoring/__ID__/questionnaire')),
             editUrl: @json(url('/api/kabataan-monitoring/__ID__/edit')),
             updateUrl: @json(url('/api/kabataan-monitoring/__ID__')),
+            documentUploadUrl: @json(url('/api/kabataan-monitoring/__ID__/document')),
+            documentUrl: @json(url('/api/kabataan-monitoring/__ID__/document')),
+            documentDownloadUrl: @json(url('/api/kabataan-monitoring/__ID__/document/download')),
             destroyUrl: @json(url('/api/kabataan-monitoring/__ID__')),
             batchPrintUrl: @json(route('kabataan-monitoring.batch-print')),
             printUrl: @json(url('/kabataan-monitoring/__ID__/print')),
@@ -271,5 +310,6 @@
         'app/Modules/KabataanMonitoring/assets/js/kabataan-monitoring-validation.js',
         'app/Modules/KabataanMonitoring/assets/js/kabataan-monitoring-edit.js',
         'app/Modules/KabataanMonitoring/assets/js/kabataan-monitoring-upload.js',
+        'app/Modules/KabataanMonitoring/assets/js/kabataan-monitoring-excel-upload.js',
     ])
 @endpush

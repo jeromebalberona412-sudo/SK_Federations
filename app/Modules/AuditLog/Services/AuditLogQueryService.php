@@ -277,6 +277,12 @@ class AuditLogQueryService
             },
         ]);
         $this->applyTenantScope($query, $tenantId);
+        $query->whereHas('user', function (Builder $userQuery): void {
+            $userQuery
+                ->withoutGlobalScope(SoftDeletingScope::class)
+                ->whereNotNull('email')
+                ->where('email', '<>', '');
+        });
 
         return $query;
     }

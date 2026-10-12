@@ -240,7 +240,9 @@ class AuditLogPresenter
         $row = is_array($log) ? (object) $log : $log;
         $metadata = self::normalizeMetadata($row->metadata ?? null);
 
-        $relatedUser = property_exists($row, 'user') && $row->user ? $row->user : null;
+        $relatedUser = method_exists($row, 'relationLoaded') && $row->relationLoaded('user')
+            ? $row->getRelation('user')
+            : ($row->user ?? null);
 
         $userRole = $relatedUser?->role ?? ($row->user_role ?? ($metadata['role'] ?? null));
         $resolvedEmail = self::resolveUserEmail($relatedUser, $row, $metadata);
@@ -271,6 +273,9 @@ class AuditLogPresenter
             'user_id' => $row->user_id ?? null,
             'user_name' => $userName,
             'user_email' => $resolvedEmail,
+            'account_email' => is_string($relatedUser?->email) && trim($relatedUser->email) !== ''
+                ? trim($relatedUser->email)
+                : null,
             'role' => self::roleLabel(is_string($userRole) ? $userRole : null),
             'role_key' => $userRole,
             'barangay' => $barangayName,

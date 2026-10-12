@@ -161,35 +161,139 @@ class DashboardStatsService
      */
     public function totalPrograms(?int $tenantId = null): int
     {
-        if (! Schema::hasTable('schedule_programs')) {
-            return 0;
+        $query = $this->activeScheduleProgramsQuery($tenantId);
+
+        return $query === null ? 0 : (int) $query->count();
+    }
+
+    /**
+     * Aggregate active schedule programs within one Federation tenant.
+     *
+     * ScheduleProgram.status describes application availability, not program
+     * implementation, so only the persisted open/closed states are reported.
+     *
+     * @return array{
+     *     stats: array{total_programs:int, open_programs:int, closed_programs:int, upcoming_programs:int},
+     *     status_chart: array{labels:list<string>, values:list<int>},
+     *     barangay_chart: array{labels:list<string>, values:list<int>}
+     * }
+     */
+    public function programDashboardData(?int $tenantId): array
+    {
+        $empty = [
+            'stats' => [
+                'total_programs' => 0,
+                'open_programs' => 0,
+                'closed_programs' => 0,
+                'upcoming_programs' => 0,
+            ],
+            'status_chart' => ['labels' => [], 'values' => []],
+            'barangay_chart' => ['labels' => [], 'values' => []],
+        ];
+
+        $query = $this->activeScheduleProgramsQuery($tenantId);
+        if ($query === null) {
+            return $empty;
+        }
+
+        $statusRows = (clone $query)
+            ->selectRaw("LOWER(COALESCE(status, '')) AS program_status, COUNT(*) AS program_count")
+            ->groupByRaw("LOWER(COALESCE(status, ''))")
+            ->get();
+        $statusCounts = $statusRows->mapWithKeys(
+            fn (object $row): array => [(string) $row->program_status => (int) $row->program_count]
+        );
+
+        $total = (int) $statusRows->sum('program_count');
+        $upcoming = Schema::hasColumn('schedule_programs', 'start_date')
+            ? (int) (clone $query)->whereDate('start_date', '>', now()->toDateString())->count()
+            : 0;
+
+        $labels = [];
+        $values = [];
+        foreach ($statusCounts as $status => $count) {
+            $labels[] = match ($status) {
+                'open' => 'Open for Applications',
+                'closed' => 'Closed to Applications',
+                '' => 'Unspecified',
+                default => ucfirst(str_replace('_', ' ', $status)),
+            };
+            $values[] = $count;
+        }
+
+        $barangayChart = ['labels' => [], 'values' => []];
+        if (Schema::hasTable('barangays') && Schema::hasColumn('schedule_programs', 'barangay_id')) {
+            $barangayRows = (clone $query)
+                ->join('barangays as dashboard_barangays', 'dashboard_barangays.id', '=', 'schedule_programs.barangay_id')
+                ->select('dashboard_barangays.id', 'dashboard_barangays.name')
+                ->selectRaw('COUNT(*) AS program_count')
+                ->groupBy('dashboard_barangays.id', 'dashboard_barangays.name')
+                ->orderByDesc('program_count')
+                ->orderBy('dashboard_barangays.name')
+                ->limit(10)
+                ->get();
+
+            $barangayChart = [
+                'labels' => $barangayRows->map(
+                    fn (object $row): string => trim((string) $row->name) ?: 'Barangay '.$row->id
+                )->all(),
+                'values' => $barangayRows->map(fn (object $row): int => (int) $row->program_count)->all(),
+            ];
+        }
+
+        return [
+            'stats' => [
+                'total_programs' => $total,
+                'open_programs' => (int) ($statusCounts['open'] ?? 0),
+                'closed_programs' => (int) ($statusCounts['closed'] ?? 0),
+                'upcoming_programs' => $upcoming,
+            ],
+            'status_chart' => ['labels' => $labels, 'values' => $values],
+            'barangay_chart' => $barangayChart,
+        ];
+    }
+
+    private function activeScheduleProgramsQuery(?int $tenantId): ?\Illuminate\Database\Query\Builder
+    {
+        if ($tenantId === null || $tenantId <= 0 || ! Schema::hasTable('schedule_programs')) {
+            return null;
         }
 
         $query = DB::table('schedule_programs');
-
         if (Schema::hasColumn('schedule_programs', 'deleted_at')) {
             $query->whereNull('deleted_at');
         }
-
-        if ($tenantId !== null && Schema::hasColumn('schedule_programs', 'tenant_id')) {
-            $query->where('tenant_id', $tenantId);
-        } elseif ($tenantId !== null && Schema::hasTable('barangays')) {
-            $barangayIds = DB::table('barangays')->where('tenant_id', $tenantId)->pluck('id');
-            $query->whereIn('barangay_id', $barangayIds);
+        if (Schema::hasColumn('schedule_programs', 'is_archived')) {
+            $query->where(function ($activeQuery): void {
+                $activeQuery->whereNull('is_archived')->orWhere('is_archived', false);
+            });
         }
 
-        return (int) $query->count();
+        if (Schema::hasColumn('schedule_programs', 'tenant_id')) {
+            return $query->where('tenant_id', $tenantId);
+        }
+
+        if (Schema::hasTable('barangays') && Schema::hasColumn('barangays', 'tenant_id')) {
+            return $query->whereIn(
+                'barangay_id',
+                DB::table('barangays')->select('id')->where('tenant_id', $tenantId)
+            );
+        }
+
+        return null;
     }
 
     public function dashboardStatCards(?int $tenantId = null, ?string $dateFrom = null, ?string $dateTo = null): array
     {
         $kkStats = $this->municipalityKkStats($tenantId, $dateFrom, $dateTo);
+        $programs = $this->programDashboardData($tenantId);
 
         return [
             'total_kk' => $kkStats['total_kk'],
             'kk_approved' => $kkStats['approved'],
             'kk_pending' => $kkStats['pending'],
-            'total_programs' => $this->totalPrograms($tenantId),
+            'total_programs' => $programs['stats']['total_programs'],
+            'programs' => $programs,
             'total_kabataan_registered' => $this->totalKabataanRegistered($tenantId, $dateFrom, $dateTo),
             'total_sk_officials' => $this->totalSkOfficials($tenantId, $dateFrom, $dateTo),
             'total_sk_chairpersons' => $this->totalSkChairpersons($tenantId, $dateFrom, $dateTo),

@@ -291,7 +291,7 @@
         }
 
         var force = options && options.force === true;
-        var cacheKey = 'km_kabataan_records_v2_' + String(window.kmBarangay || 'all').toLowerCase();
+        var cacheKey = 'km_kabataan_records_v3_' + String(window.kmTenantId || '0') + '_' + String(window.kmBarangay || 'all').toLowerCase();
         var ttlMs = 10 * 60 * 1000;
 
         function applyPayload(payload) {
@@ -873,7 +873,7 @@
         }
 
         if (!filtered.length) {
-            tbody.innerHTML = '<tr class="km-empty-row"><td colspan="7">No profiles match your current filters.</td></tr>';
+            tbody.innerHTML = '<tr class="km-empty-row"><td colspan="8">No profiles match your current filters.</td></tr>';
             if (empty) empty.hidden = true;
             selectedIds.clear();
             syncSelectAllCheckbox();
@@ -954,6 +954,9 @@
                 votedLastElection: dash(r.votedLastElection),
                 kkAssembly: dash(r.kkAssembly),
                 kkTimes: dash(r.kkTimes),
+                recordSource: r.recordSource === 'monitoring_upload'
+                    ? 'Federation monitoring upload (not approved)'
+                    : 'Approved KK Profiling',
             };
         });
     };
@@ -1007,6 +1010,7 @@
     window.kmReloadRecords = function (options) {
         var force = !(options && options.force === false);
         if (force && window.SkLocalCache) {
+            window.SkLocalCache.clearByPrefix('km_kabataan_records_v3_');
             window.SkLocalCache.clearByPrefix('km_kabataan_records_v2_');
             window.SkLocalCache.clearByPrefix('km_kabataan_records_v1_');
         }
@@ -1060,12 +1064,15 @@
             var fullName = formatFullName(r);
             var recordId = String(r.id || r.slug || '');
             var checked = selectedIds.has(recordId) ? ' checked' : '';
+            var sourceIsMonitoring = r.recordSource === 'monitoring_upload';
+            var sourceLabel = sourceIsMonitoring ? 'Monitoring upload · Not approved' : 'Approved KK Profiling';
             return '<tr>' +
                 '<td class="km-col-check"><input type="checkbox" class="km-row-checkbox" data-id="' + escapeHtml(recordId) + '" aria-label="Select row"' + checked + '></td>' +
                 '<td class="km-respondent-cell">' + escapeHtml(r.respondentNumber || '—') + '</td>' +
                 '<td class="km-fullname-cell"><span class="km-fullname">' + escapeHtml(fullName) + '</span></td>' +
                 '<td>' + escapeHtml(String(r.age ?? '—')) + '</td>' +
                 '<td>' + escapeHtml(r.purokZone || '—') + '</td>' +
+                '<td><span class="km-record-source ' + (sourceIsMonitoring ? 'km-record-source--monitoring' : 'km-record-source--approved') + '">' + escapeHtml(sourceLabel) + '</span></td>' +
                 '<td>' + escapeHtml(r.registeredVoter || '—') + '</td>' +
                 '<td class="col-actions">' +
                     '<div class="km-row-actions-menu">' +

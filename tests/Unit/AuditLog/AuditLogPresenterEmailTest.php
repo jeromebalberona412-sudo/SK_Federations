@@ -1,6 +1,8 @@
 <?php
 
 use App\Modules\AuditLog\Support\AuditLogPresenter;
+use App\Modules\AuditLog\Models\AdminActivityLog;
+use App\Modules\Shared\Models\User;
 use Tests\TestCase;
 
 uses(TestCase::class);
@@ -23,6 +25,31 @@ it('prefers the related user email over metadata', function () {
     );
 
     expect($email)->toBe('official@example.com');
+});
+
+it('includes an account email from a loaded audit user relation', function () {
+    $user = new User;
+    $user->forceFill(['email' => 'official@example.com', 'name' => 'SK Official', 'role' => 'sk_fed']);
+    $log = new AdminActivityLog;
+    $log->forceFill([
+        'id' => 'audit-row',
+        'event_type' => 'login_success',
+        'metadata' => ['email' => 'stale@example.com'],
+    ]);
+    $log->setRelation('user', $user);
+
+    expect(AuditLogPresenter::toArray($log)['account_email'])->toBe('official@example.com');
+});
+
+it('does not treat an unlinked attempted email as an account email', function () {
+    $log = new AdminActivityLog;
+    $log->forceFill([
+        'id' => 'audit-row',
+        'event_type' => 'login_failed',
+        'metadata' => ['email' => 'unknown@example.com'],
+    ]);
+
+    expect(AuditLogPresenter::toArray($log)['account_email'])->toBeNull();
 });
 
 it('defaults federations dashboard from and to to the current calendar year within official terms', function () {

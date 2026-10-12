@@ -237,7 +237,125 @@
         setCheckboxGroupByHiddenId('kkEditYouthAgeGroup', youthAgeGroupFromAge(request.age) || request.youthAgeGroup || '');
         syncEditAssemblyFollowUp();
         populateSignature(request);
+        renderMonitoringDocument(request.monitoringDocument, editingId);
         originalEmail = normalizeCompare(request.emailAddress && request.emailAddress !== 'No email' ? request.emailAddress : '');
+    }
+
+    function formatDocumentSize(bytes) {
+        var size = Math.max(0, Number(bytes) || 0);
+        return size >= 1024 * 1024
+            ? (size / (1024 * 1024)).toFixed(1) + ' MB'
+            : Math.max(1, Math.round(size / 1024)) + ' KB';
+    }
+
+    function renderMonitoringDocument(documentInfo, recordId) {
+        var meta = getEditField('kmMonitoringDocumentMeta');
+        var links = getEditField('kmMonitoringDocumentLinks');
+        var viewLink = getEditField('kmMonitoringDocumentView');
+        var downloadLink = getEditField('kmMonitoringDocumentDownload');
+        if (!meta || !links || !viewLink || !downloadLink) return;
+
+        var document = documentInfo && typeof documentInfo === 'object' ? documentInfo : null;
+        if (!document || !recordId) {
+            meta.textContent = 'No PDF has been attached to this record.';
+            links.hidden = true;
+            viewLink.hidden = true;
+            downloadLink.hidden = true;
+            return;
+        }
+
+        var config = window.kmConfig || {};
+        var viewUrl = document.view_url || String(config.documentUrl || '').replace('__ID__', encodeURIComponent(String(recordId)));
+        var downloadUrl = document.download_url || String(config.documentDownloadUrl || '').replace('__ID__', encodeURIComponent(String(recordId)));
+        var fileName = String(document.filename || 'Monitoring document.pdf');
+        meta.textContent = fileName + ' · ' + formatDocumentSize(document.size || 0)
+            + (document.uploaded_at ? ' · Uploaded ' + String(document.uploaded_at) : '');
+        viewLink.href = viewUrl;
+        downloadLink.href = downloadUrl;
+        links.hidden = false;
+        viewLink.hidden = !viewUrl;
+        downloadLink.hidden = !downloadUrl;
+    }
+
+    function setMonitoringDocumentStatus(message, isError) {
+        var status = getEditField('kmMonitoringDocumentStatus');
+        if (!status) return;
+        status.textContent = message || '';
+        status.classList.toggle('is-error', Boolean(isError));
+        status.hidden = !message;
+    }
+
+    function uploadMonitoringDocument() {
+        var fileInput = getEditField('kmMonitoringDocumentInput');
+        var uploadButton = getEditField('kmMonitoringDocumentUploadBtn');
+        var progress = getEditField('kmMonitoringDocumentProgress');
+        var file = fileInput?.files?.[0];
+        var uploadUrl = String(window.kmConfig?.documentUploadUrl || '');
+
+        if (!editingId || !file || !uploadButton || uploadButton.dataset.uploading === '1') return;
+        if (file.size > 10 * 1024 * 1024) {
+            setMonitoringDocumentStatus('The PDF exceeds the 10 MB limit.', true);
+            return;
+        }
+        if (!file.name.toLowerCase().endsWith('.pdf')) {
+            setMonitoringDocumentStatus('Choose a PDF file.', true);
+            return;
+        }
+        if (!uploadUrl) {
+            setMonitoringDocumentStatus('The PDF upload endpoint is unavailable. Refresh the page and try again.', true);
+            return;
+        }
+
+        var request = new XMLHttpRequest();
+        var body = new FormData();
+        body.append('file', file);
+        uploadButton.dataset.uploading = '1';
+        uploadButton.disabled = true;
+        fileInput.disabled = true;
+        if (progress) {
+            progress.value = 0;
+            progress.hidden = false;
+        }
+        setMonitoringDocumentStatus('Uploading and validating PDF…', false);
+
+        request.upload.addEventListener('progress', function (event) {
+            if (!progress || !event.lengthComputable) return;
+            progress.value = Math.round((event.loaded / event.total) * 100);
+        });
+        request.addEventListener('load', function () {
+            var payload = {};
+            try {
+                payload = JSON.parse(request.responseText || '{}');
+            } catch (_error) {
+                payload = {};
+            }
+            if (request.status < 200 || request.status >= 300 || payload.success !== true) {
+                var errors = Object.values(payload.errors || {}).flat();
+                setMonitoringDocumentStatus(errors[0] || payload.message || 'The PDF could not be uploaded.', true);
+                return;
+            }
+            renderMonitoringDocument(payload.data, editingId);
+            setMonitoringDocumentStatus(payload.message || 'PDF uploaded successfully.', false);
+            if (typeof window.kmInvalidateModalCache === 'function') {
+                window.kmInvalidateModalCache(editingId);
+            }
+            if (fileInput) fileInput.value = '';
+        });
+        request.addEventListener('error', function () {
+            setMonitoringDocumentStatus('A network error interrupted the upload. Please retry.', true);
+        });
+        request.addEventListener('loadend', function () {
+            uploadButton.dataset.uploading = '0';
+            uploadButton.disabled = false;
+            fileInput.disabled = false;
+            if (progress) progress.hidden = true;
+        });
+        request.open('POST', uploadUrl.replace('__ID__', encodeURIComponent(String(editingId))));
+        request.setRequestHeader('Accept', 'application/json');
+        request.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+        request.setRequestHeader('X-CSRF-TOKEN', String(window.kmConfig?.csrfToken || ''));
+        request.withCredentials = true;
+        request.send(body);
     }
 
     function collectKkProfilingEditPayload() {
@@ -280,10 +398,12 @@
         var viewRoot = document.getElementById('kmKKPViewRoot');
         var editRoot = document.getElementById('kkProfilingEditRoot');
         var editFooter = document.getElementById('kmKKPEditFooter');
+        var documentUpload = document.getElementById('kmMonitoringDocumentUpload');
         var title = document.querySelector('#kmKKPModal h2');
         if (viewRoot) viewRoot.hidden = isEdit;
         if (editRoot) editRoot.hidden = !isEdit;
         if (editFooter) editFooter.hidden = !isEdit;
+        if (documentUpload) documentUpload.hidden = !isEdit;
         if (title) {
             title.innerHTML = isEdit
                 ? '<i class="fas fa-pen"></i> Edit KK Survey Questionnaire'
@@ -298,6 +418,11 @@
     }
 
     function bindEditControls() {
+        var documentUploadButton = getEditField('kmMonitoringDocumentUploadBtn');
+        if (documentUploadButton && documentUploadButton.dataset.kmBound !== '1') {
+            documentUploadButton.dataset.kmBound = '1';
+            documentUploadButton.addEventListener('click', uploadMonitoringDocument);
+        }
         var suffixEl = getEditField('kkEditSuffix');
         if (suffixEl && suffixEl.dataset.kmBound !== '1') {
             suffixEl.dataset.kmBound = '1';
@@ -489,6 +614,8 @@
         if (!modal) return;
 
         editingId = recordId;
+        renderMonitoringDocument(null, null);
+        setMonitoringDocumentStatus('', false);
         bindEditControls();
         setEditMode(true);
         if (viewRoot) viewRoot.innerHTML = '';
@@ -512,6 +639,7 @@
                 }
             }
             populateKkEditForm(payload.data);
+            renderMonitoringDocument(payload.data.monitoringDocument, recordId);
         } catch (error) {
             alert(error.message || 'Failed to load record for editing.');
             setEditMode(false);
@@ -525,5 +653,6 @@
         setEditMode(false);
         editingId = null;
         originalEmail = '';
+        editingId = null;
     };
 })();

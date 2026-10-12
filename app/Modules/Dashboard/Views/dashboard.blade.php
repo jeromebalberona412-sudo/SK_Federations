@@ -116,7 +116,11 @@
             <a href="{{ route('calendar') }}" class="dash-reminder-link">View Calendar</a>
         </div>
 
-        {{-- Municipality-wide statistics (all barangays, SK officials, and kabataan) --}}
+        <section class="dashboard-statistics-section" aria-labelledby="dashboardStatisticsTitle">
+            <div class="dashboard-statistics-heading">
+                <h2 id="dashboardStatisticsTitle">Dashboard Statistics</h2>
+                <p>Municipal, profiling, audit, and program totals.</p>
+            </div>
         <div class="dash-stats-grid">
             <a href="{{ route('kabataan-monitoring') }}" class="stat-card stat-card-blue" data-no-loading data-stat-key="total_kk" title="KK profiles across all barangays">
                 <div class="stat-card-top">
@@ -144,15 +148,6 @@
                     </div>
                 </div>
                 <span class="stat-card-label">KK Profiling Pending</span>
-            </a>
-            <a href="{{ route('barangay-monitoring') }}" class="stat-card stat-card-teal" data-no-loading data-stat-key="total_programs" title="Programs across all barangays">
-                <div class="stat-card-top">
-                    <span class="stat-card-value">{{ number_format($totalPrograms ?? 0) }}</span>
-                    <div class="stat-card-icon stat-icon-teal">
-                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
-                    </div>
-                </div>
-                <span class="stat-card-label">Total Programs</span>
             </a>
             <a href="{{ route('accounts.officials.index') }}" class="stat-card stat-card-indigo" data-no-loading data-stat-key="total_sk_officials" title="SK officials across all barangays">
                 <div class="stat-card-top">
@@ -190,8 +185,10 @@
                 </div>
                 <span class="stat-card-label">Total Audit Logs</span>
             </a>
+            @include('dashboard::partials.dashboard-program-stat-cards')
         </div>
-        
+        </section>
+
         {{-- ── Purok + Quick Actions ── --}}
         <div class="dash-row dash-row--top-split">
             <div class="content-card dash-main-chart-card" id="purok-distribution-section">
@@ -269,16 +266,13 @@
             </div>
         </div>
 
-        {{-- ── KK Profiling + ABYIP (side by side) ── --}}
-        <div class="dash-row dash-row--kk-abyip">
-<div class="content-card dash-kk-chart-card" id="kk-profiling-section">
+        {{-- ── KK Profiling, Sex Distribution, and Employment Status ── --}}
+        <div class="dash-row dash-row--kk-sex-employment">
+            <div class="content-card dash-kk-chart-card" id="kk-profiling-section">
                 <div class="card-header kk-chart-section-header">
                     <div class="kk-chart-heading">
                         <h3>KK Profiling by Month</h3>
-                        <span class="kk-demo-total" id="kkProfilingTotal">
-                            <span class="kk-demo-total-label">Total</span>
-                            <span class="kk-demo-total-value">0</span>
-                        </span>
+                        <p class="kk-chart-subtitle kk-chart-subtitle--center" id="kkProfilingChartSubtitle">Monthly submissions — approved, pending, and rejected</p>
                     </div>
                     <div class="kk-chart-header-actions">
                         <select id="kkProfilingBarangayFilter" class="kk-barangay-select" aria-label="Filter by barangay">
@@ -306,7 +300,11 @@
                             <option value="12">December</option>
                         </select>
                     </div>
-                    <p class="kk-chart-subtitle kk-chart-subtitle--center" id="kkProfilingChartSubtitle">Monthly submissions — approved, pending, and rejected</p>
+                    <span class="kk-demo-total" id="kkProfilingTotal">
+                        <span class="kk-demo-total-label">Total</span>
+                        <span class="kk-demo-total-value">0</span>
+                    </span>
+                </div>
                 <div class="card-body">
                     <div class="kk-chart-canvas-wrap kk-chart-canvas-wrap--line">
                         <canvas id="kkProfilingMonthlyChart"></canvas>
@@ -330,12 +328,6 @@
                     </div>
                 </div>
             </div>
-
-            @include('dashboard::partials.dashboard-abyip-submissions')
-        </div>
-
-        {{-- ── Sex Distribution + Employment Status (municipality-wide) ── --}}
-        <div class="dash-row dash-row--demographics">
             <div class="content-card dash-col-6" id="kabataan-sex-section">
                 <div class="card-header dash-demo-chart-header">
                     <div class="kk-chart-heading">
@@ -392,6 +384,10 @@
                 </div>
             </div>
         </div>
+
+        @include('dashboard::partials.dashboard-program-statistics')
+
+        @include('dashboard::partials.dashboard-abyip-submissions')
 
         @include('dashboard::partials.dashboard-youth-demographics')
 
@@ -466,6 +462,7 @@
                 @include('dashboard::partials.dashboard-recent-activity')
             </div>
         </div>
+
 @endsection
 
 @push('scripts')
@@ -498,7 +495,10 @@
             total_kk: {{ (int) ($totalKkProfiles ?? 0) }},
             kk_approved: {{ (int) ($kkApproved ?? 0) }},
             kk_pending: {{ (int) ($kkPending ?? 0) }},
-            total_programs: {{ (int) ($totalPrograms ?? 0) }},
+            total_programs: {{ (int) data_get($programDashboard ?? [], 'stats.total_programs', $totalPrograms ?? 0) }},
+            open_programs: {{ (int) data_get($programDashboard ?? [], 'stats.open_programs', 0) }},
+            closed_programs: {{ (int) data_get($programDashboard ?? [], 'stats.closed_programs', 0) }},
+            upcoming_programs: {{ (int) data_get($programDashboard ?? [], 'stats.upcoming_programs', 0) }},
             total_kabataan_registered: {{ (int) ($totalKabataanRegistered ?? 0) }},
             total_sk_officials: {{ (int) ($totalSkOfficials ?? 0) }},
             total_sk_chairpersons: {{ (int) ($totalSkChairpersons ?? 0) }},
@@ -512,6 +512,7 @@
         youth_demographics: @json($youthDemographics ?? null),
         abyip_overview: @json($abyipOverview),
         top_barangays: @json($topBarangays ?? []),
+        programs: @json($programDashboard ?? []),
     };
 </script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
@@ -544,10 +545,12 @@
         'app/Modules/Dashboard/assets/js/kkprofilingchart.js',
         'app/Modules/Dashboard/assets/js/dashboard-purok.js',
         'app/Modules/Dashboard/assets/css/dashboard-youth-demographics.css',
+        'app/Modules/Dashboard/assets/css/dashboard-programs.css',
         'app/Modules/Dashboard/assets/js/dashboard-youth-demographics.js',
         'app/Modules/Dashboard/assets/js/dashboard-demographics.js',
         'app/Modules/Dashboard/assets/js/dashboard-activity.js',
         'app/Modules/Dashboard/assets/js/dashboard-audit.js',
+        'app/Modules/Dashboard/assets/js/dashboard-programs.js',
     ]);
 @endphp
 @if ($dashboardVite !== [])

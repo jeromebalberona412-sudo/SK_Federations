@@ -57,6 +57,11 @@ class DashboardController extends Controller
                 'kk_approved' => 0,
                 'kk_pending' => 0,
                 'total_programs' => 0,
+                'programs' => [
+                    'stats' => ['total_programs' => 0, 'open_programs' => 0, 'closed_programs' => 0, 'upcoming_programs' => 0],
+                    'status_chart' => ['labels' => [], 'values' => []],
+                    'barangay_chart' => ['labels' => [], 'values' => []],
+                ],
                 'total_kabataan_registered' => 0,
                 'total_sk_officials' => 0,
                 'total_sk_chairpersons' => 0,
@@ -127,6 +132,11 @@ class DashboardController extends Controller
             'kkApproved' => $statCards['kk_approved'] ?? 0,
             'kkPending' => $statCards['kk_pending'] ?? 0,
             'totalPrograms' => $statCards['total_programs'] ?? 0,
+            'programDashboard' => $statCards['programs'] ?? [
+                'stats' => ['total_programs' => 0, 'open_programs' => 0, 'closed_programs' => 0, 'upcoming_programs' => 0],
+                'status_chart' => ['labels' => [], 'values' => []],
+                'barangay_chart' => ['labels' => [], 'values' => []],
+            ],
             'totalKabataanRegistered' => $statCards['total_kabataan_registered'] ?? 0,
             'totalSkOfficials' => $statCards['total_sk_officials'] ?? 0,
             'totalSkChairpersons' => $statCards['total_sk_chairpersons'] ?? 0,
@@ -200,7 +210,7 @@ class DashboardController extends Controller
         $tenantId = $request->user()?->tenant_id;
         [$dateFrom, $dateTo] = $this->resolveFeedDates($request);
         $cacheKey = sprintf(
-            'skfed:dash:stats:v10:%s:%s:%s',
+            'skfed:dash:stats:v11:%s:%s:%s',
             $tenantId === null ? 'all' : (string) $tenantId,
             $dateFrom ?? 'none',
             $dateTo ?? 'none'
@@ -236,12 +246,16 @@ class DashboardController extends Controller
                 'kk_approved' => $statCards['kk_approved'],
                 'kk_pending' => $statCards['kk_pending'],
                 'total_programs' => $statCards['total_programs'],
+                'open_programs' => $statCards['programs']['stats']['open_programs'] ?? 0,
+                'closed_programs' => $statCards['programs']['stats']['closed_programs'] ?? 0,
+                'upcoming_programs' => $statCards['programs']['stats']['upcoming_programs'] ?? 0,
                 'total_kabataan_registered' => $statCards['total_kabataan_registered'],
                 'total_sk_officials' => $statCards['total_sk_officials'],
                 'total_sk_chairpersons' => $statCards['total_sk_chairpersons'],
                 'total_barangays_abyip_submitted' => (int) ($abyipOverview['stats']['submitted'] ?? 0),
                 'total_audit_logs' => $statCards['total_audit_logs'],
             ],
+            'programs' => $statCards['programs'] ?? $this->dashboardStatsService->programDashboardData($tenantId),
             'sex_distribution' => $this->dashboardStatsService->sexDistribution($tenantId, $dateFrom, $dateTo),
             'sex_distribution_officials' => $this->dashboardStatsService->sexDistributionOfficials($tenantId, $dateFrom, $dateTo),
             'sex_distribution_federations' => $this->dashboardStatsService->sexDistributionFederations($tenantId, $dateFrom, $dateTo),

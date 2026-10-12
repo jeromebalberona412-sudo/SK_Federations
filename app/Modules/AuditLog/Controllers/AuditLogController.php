@@ -44,7 +44,7 @@ class AuditLogController extends Controller
         $filters = $this->extractFilters($request);
         $pageCache = app(\App\Services\SkFedPageCache::class);
 
-        $payload = $pageCache->remember('audit.logs', function () use ($filters, $tenantId, $perPage, $page) {
+        $payload = $pageCache->remember('audit.logs.account-email', function () use ($filters, $tenantId, $perPage, $page) {
             $paginator = $this->queryService->paginate($filters, $tenantId, $perPage, $page);
 
             return [
