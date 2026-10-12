@@ -28,3 +28,6 @@ Thumbs.db
 /storage/framework/*
 /bootstrap/cache/*
 /storage/logs/*
+
+# Kilo AI development rules (local only)
+.kilocode/

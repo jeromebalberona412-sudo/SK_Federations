@@ -297,6 +297,8 @@ function updateKkProfilingSubtitle(data) {
 }
 
 function syncKkProfilingChartAppearance(labelCount) {
+    updateKkProfilingTotal();
+
     if (!kkProfilingMonthlyChart) {
         return;
     }
@@ -307,9 +309,12 @@ function syncKkProfilingChartAppearance(labelCount) {
     xTicks.font = { size: veryDenseLabels ? 9 : 11 };
     xTicks.maxRotation = denseLabels ? 45 : 0;
     xTicks.minRotation = denseLabels ? 30 : 0;
-    xTicks.autoSkip = true;
+    // January..December must all stay visible on the monthly view, so never skip.
+    // Weekly views have far more ticks and still need auto-skipping to stay readable.
+    const isMonthly = kkProfilingCurrentData?.period !== 'weekly';
+    xTicks.autoSkip = !isMonthly;
     xTicks.autoSkipPadding = denseLabels ? 8 : 4;
-    xTicks.maxTicksLimit = veryDenseLabels ? 10 : (denseLabels ? 12 : 16);
+    xTicks.maxTicksLimit = isMonthly ? 12 : (veryDenseLabels ? 10 : 16);
 
     kkProfilingMonthlyChart.data.datasets.forEach((dataset) => {
         dataset.pointRadius = veryDenseLabels ? 2 : 4;
@@ -319,6 +324,25 @@ function syncKkProfilingChartAppearance(labelCount) {
     if (wrap) {
         wrap.classList.toggle('is-weekly', kkProfilingCurrentData?.period === 'weekly');
     }
+}
+
+function updateKkProfilingTotal() {
+    const valueEl = document.querySelector('#kkProfilingTotal .kk-demo-total-value');
+    if (!valueEl) {
+        return;
+    }
+
+    const current = kkProfilingCurrentData;
+    const series = current
+        ? [current.monthlyApproved, current.monthlyRejected, current.monthlyPending]
+        : [];
+    const total = series.reduce(function (sum, values) {
+        return sum + (Array.isArray(values) ? values : []).reduce(function (inner, value) {
+            return inner + Number(value || 0);
+        }, 0);
+    }, 0);
+
+    valueEl.textContent = total.toLocaleString();
 }
 
 function applyKkProfilingChartData(data, barangayName) {
@@ -422,11 +446,8 @@ function initKkProfilingMonthlyChart() {
             plugins: {
                 legend: { display: false },
                 tooltip: {
-                    backgroundColor: 'rgba(10, 17, 34, 0.96)',
-                    borderColor: 'rgba(88, 130, 222, 0.7)',
-                    borderWidth: 1,
-                    titleColor: '#e8f1ff',
-                    bodyColor: '#d8e6ff',
+                    // Colors come from the dashboard-wide Chart.js defaults
+                    // (see the chart theme bootstrap in dashboard.blade.php).
                 },
             },
             scales: {
@@ -437,9 +458,9 @@ function initKkProfilingMonthlyChart() {
                         color: '#6b7280',
                         maxRotation: 45,
                         minRotation: 0,
-                        autoSkip: true,
+                        autoSkip: false,
                         autoSkipPadding: 4,
-                        maxTicksLimit: 16,
+                        maxTicksLimit: 12,
                     },
                 },
                 y: {

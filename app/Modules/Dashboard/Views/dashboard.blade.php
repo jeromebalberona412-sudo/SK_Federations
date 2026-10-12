@@ -199,6 +199,10 @@
                     <div class="kk-chart-heading">
                         <h3>Kabataan per Purok/Sitio</h3>
                         <p class="kk-chart-subtitle">Youth population distribution</p>
+                        <span class="kk-demo-total" id="purokDistributionTotal">
+                            <span class="kk-demo-total-label">Total</span>
+                            <span class="kk-demo-total-value">0</span>
+                        </span>
                     </div>
                     <div class="kk-chart-header-actions">
                         <select id="purokBarangayFilter" class="kk-barangay-select" aria-label="Filter by barangay">
@@ -267,10 +271,14 @@
 
         {{-- ── KK Profiling + ABYIP (side by side) ── --}}
         <div class="dash-row dash-row--kk-abyip">
-            <div class="content-card dash-kk-chart-card" id="kk-profiling-section">
+<div class="content-card dash-kk-chart-card" id="kk-profiling-section">
                 <div class="card-header kk-chart-section-header">
                     <div class="kk-chart-heading">
                         <h3>KK Profiling by Month</h3>
+                        <span class="kk-demo-total" id="kkProfilingTotal">
+                            <span class="kk-demo-total-label">Total</span>
+                            <span class="kk-demo-total-value">0</span>
+                        </span>
                     </div>
                     <div class="kk-chart-header-actions">
                         <select id="kkProfilingBarangayFilter" class="kk-barangay-select" aria-label="Filter by barangay">
@@ -298,8 +306,7 @@
                             <option value="12">December</option>
                         </select>
                     </div>
-                </div>
-                <p class="kk-chart-subtitle kk-chart-subtitle--center" id="kkProfilingChartSubtitle">Monthly submissions — approved, pending, and rejected</p>
+                    <p class="kk-chart-subtitle kk-chart-subtitle--center" id="kkProfilingChartSubtitle">Monthly submissions — approved, pending, and rejected</p>
                 <div class="card-body">
                     <div class="kk-chart-canvas-wrap kk-chart-canvas-wrap--line">
                         <canvas id="kkProfilingMonthlyChart"></canvas>
@@ -335,12 +342,14 @@
                         <h3><i class="fas fa-venus-mars" style="color:#213F99;margin-right:8px;"></i>Sex Distribution</h3>
                         <p class="dash-demo-chart-sub">Male vs Female — Kabataan, SK Officials &amp; SK Federations</p>
                     </div>
-                    <select id="sexDistributionRoleFilter" class="kk-barangay-select" aria-label="Filter by role">
-                        <option value="all" selected>All</option>
-                        <option value="kabataan">Kabataan</option>
-                        <option value="officials">SK Officials</option>
-                        <option value="federations">SK Federations</option>
-                    </select>
+                    <div class="kk-chart-header-actions">
+                        <select id="sexDistributionRoleFilter" class="kk-barangay-select" aria-label="Filter by role">
+                            <option value="all" selected>All</option>
+                            <option value="kabataan">Kabataan</option>
+                            <option value="officials">SK Officials</option>
+                            <option value="federations">SK Federations</option>
+                        </select>
+                    </div>
                     <span class="kk-demo-total" id="kabataanSexTotal">
                         <span class="kk-demo-total-label">Total</span>
                         <span class="kk-demo-total-value">0</span>
@@ -359,14 +368,16 @@
                         <h3><i class="fas fa-briefcase" style="color:#213F99;margin-right:8px;"></i>Employment Status Distribution</h3>
                         <p class="dash-demo-chart-sub">Current employment profile of registered Kabataan</p>
                     </div>
-                    <select id="employmentChartFilter" class="kk-barangay-select" aria-label="Filter employment status">
-                        <option value="all" selected>All Statuses</option>
-                        <option value="Employed">Employed</option>
-                        <option value="Unemployed">Unemployed</option>
-                        <option value="Self-Employed">Self-Employed</option>
-                        <option value="Currently looking for a Job">Currently looking for a Job</option>
-                        <option value="Not Interested Looking for a Job">Not Interested Looking for a Job</option>
-                    </select>
+                    <div class="kk-chart-header-actions">
+                        <select id="employmentChartFilter" class="kk-barangay-select" aria-label="Filter employment status">
+                            <option value="all" selected>All Statuses</option>
+                            <option value="Employed">Employed</option>
+                            <option value="Unemployed">Unemployed</option>
+                            <option value="Self-Employed">Self-Employed</option>
+                            <option value="Currently looking for a Job">Currently looking for a Job</option>
+                            <option value="Not Interested Looking for a Job">Not Interested Looking for a Job</option>
+                        </select>
+                    </div>
                     <span class="kk-demo-total" id="employmentStatusTotal">
                         <span class="kk-demo-total-label">Total</span>
                         <span class="kk-demo-total-value">0</span>
@@ -504,6 +515,30 @@
     };
 </script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+    // One chart theme for the whole SK Federations dashboard. Chart.js otherwise
+    // falls back to Helvetica and a near-black (rgba(0,0,0,0.8)) tooltip, which
+    // is what produced the dark panel over the Purok/Sitio chart and made the
+    // tooltip typography differ from the rest of the page.
+    (function () {
+        if (typeof window.Chart === 'undefined' || !window.Chart.defaults) {
+            return;
+        }
+        var defaults = window.Chart.defaults;
+        defaults.font.family = 'Inter, system-ui, sans-serif';
+        defaults.color = '#475569';
+        var tooltip = defaults.plugins && defaults.plugins.tooltip;
+        if (tooltip) {
+            tooltip.backgroundColor = '#2F4E85';
+            tooltip.borderColor = '#2D4C7C';
+            tooltip.borderWidth = 1;
+            tooltip.titleColor = '#ffffff';
+            tooltip.bodyColor = '#ffffff';
+            tooltip.padding = 10;
+            tooltip.cornerRadius = 8;
+        }
+    })();
+</script>
 @php
     $dashboardVite = \App\Support\ViteManifest::existing([
         'app/Modules/Dashboard/assets/js/kkprofilingchart.js',

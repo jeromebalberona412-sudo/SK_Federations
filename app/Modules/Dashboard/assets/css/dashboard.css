@@ -3194,7 +3194,9 @@ body.sidebar-collapsed .main-content { margin-left: var(--sidebar-collapsed); }
 .stat-card-link { text-decoration: none; cursor: pointer; color: inherit; display: flex; }
 .stat-card-link:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(0,0,0,0.1); }
 
-/* Municipality stat cards — number left, icon right */
+/* Municipality stat cards — icon left, total right, label underneath.
+   The total/count sits in the upper-right corner so it lines up with the
+   Total pill used on every chart card further down the dashboard. */
 .dash-stats-grid {
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -3246,6 +3248,7 @@ body.sidebar-collapsed .main-content { margin-left: var(--sidebar-collapsed); }
 
 .dash-stats-grid .stat-card-top {
     display: flex;
+    flex-direction: row-reverse;
     align-items: center;
     justify-content: space-between;
     gap: 12px;
@@ -3260,6 +3263,7 @@ body.sidebar-collapsed .main-content { margin-left: var(--sidebar-collapsed); }
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    text-align: right;
     flex: 1;
     min-width: 0;
 }
@@ -4433,7 +4437,7 @@ body.sidebar-collapsed .main-content { margin-left: var(--sidebar-collapsed); }
     overflow: hidden;
     padding: 4px 0 2px;
     border-radius: 10px;
-    background: #fff;
+    background: #eff6ff;
     position: relative;
 }
 
@@ -4453,10 +4457,10 @@ body.sidebar-collapsed .main-content { margin-left: var(--sidebar-collapsed); }
     scrollbar-width: thin;
     scrollbar-color: #94a3b8 transparent;
     padding-bottom: 6px;
-    border: 1px solid #eef2f7;
+    border: 1px solid #dbeafe;
     background:
-        linear-gradient(#fff 0 0) padding-box,
-        linear-gradient(90deg, rgba(15, 23, 42, 0.05), transparent 18px) border-box;
+        linear-gradient(#eff6ff 0 0) padding-box,
+        linear-gradient(90deg, rgba(37, 99, 235, 0.18), transparent 18px) border-box;
 }
 
 .kk-chart-canvas-wrap--purok.is-scroll-x::-webkit-scrollbar {
@@ -6576,7 +6580,7 @@ button.activity-item--clickable:active {
 }
 
 #kk-profiling-section .kk-chart-heading h3 {
-    white-space: nowrap;
+    white-space: normal;
 }
 
 #kk-profiling-section .kk-chart-header-actions {
@@ -6672,3 +6676,298 @@ button.activity-item--clickable:active {
     }
 }
 
+/* ══════════════════════════════════════════════════════════════
+   Statistics filter dropdowns — one canonical layout
+   ══════════════════════════════════════════════════════════════
+   Each statistics card carried its own sizing override, so the same
+   filter looked different in every section — the youth-demographics
+   cards still used their own .dash-filter-select box. This block sits
+   last in the file and repeats the earlier per-section selectors so it
+   wins on source order: one size, one position in every card, and one
+   full-width dropdown per line on mobile.
+
+   The two descendant selectors are load-bearing, not redundant: the
+   bare class lost the cascade inside .kk-chart-section-header (the
+   Purok and KK Profiling cards) and those dropdowns fell back to the
+   unstyled native control, which is what made them disappear into
+   the card on a phone. Matching the header class directly restores
+   the shared styling at the same specificity the Sex/Employment cards
+   already used. */
+.kk-deadongay-select,
+#purok-distribution-section .kk-deadongay-select,
+.kk-chart-section-header .kk-deadongay-select,
+.kk-chart-header-actions .kk-deadongay-select,
+.dash-demo-chart-header .kk-deadongay-select,
+.dash-filter-select,
+.kk-demo-block .dash-filter-select,
+.kk-month-filter {
+    flex: 0 0 auto;
+    width: 150px;
+    min-width: 150px;
+    max-width: 150px;
+    height: 36px;
+    min-height: 36px;
+    padding: 0 28px 0 12px;
+    margin-left: 0;
+    align-self: center;
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 1.2;
+    background-color: #fff;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%23475569' d='M1.4 1.4L6 6 10.6 1.4'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 10px center;
+    background-size: 10px 7px;
+    -webkit-appearance: none;
+    appearance: none;
+    color: #1e293b;
+    border: 1.5px solid #e2e8f0;
+    border-radius: 8px;
+    cursor: pointer;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Filter groups stay pinned to the right edge on desktop. */
+.kk-chart-header-actions,
+.dash-demo-chart-header {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-left: auto;
+}
+
+@media (max-width: 1024px) {
+    .kk-chart-header-actions,
+    .dash-demo-chart-header {
+        justify-content: flex-start;
+        margin-left: 0;
+        width: 100%;
+    }
+}
+
+/* ══════════════════════════════════════════════════════════════
+   Card header — title shares its line with the Total pill
+   ══════════════════════════════════════════════════════════════
+   The pill is the last flex child, so it only stays in the upper
+   right if everything before it fits on one line. A max-content
+   basis on the title made the line break and dropped the pill onto a
+   line of its own, mid-card. A zero basis lets the title grow into
+   whatever space is left instead. */
+.kk-chart-heading,
+.kk-chart-section-header > .kk-chart-heading,
+.kk-chart-section-header > div:first-child,
+.dash-section-header-text,
+.kk-demo-block .dash-section-header-text {
+    flex: 1 1 0%;
+    min-width: 0;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   Card header on narrow screens — Total above the filters
+   ══════════════════════════════════════════════════════════════
+   The Total pill is a direct child of the card header (not buried in
+   the filter row), so the header can stay a single wrapping row on a
+   phone: the title takes line one with the pill hard right of it, and
+   the dropdowns drop to their own full-width line underneath. Without
+   this the pill sank below a full-width select and the card's upper
+   right corner went empty.
+
+   The Purok card is listed twice on purpose. Its own rule pins
+   `flex-wrap: nowrap` at .card-header specificity, which beats the
+   plain header selector here and squeezed the title down to 8px
+   instead of wrapping the filters onto their own line. */
+@media (max-width: 1024px) {
+    .kk-chart-section-header,
+    #purok-distribution-section .kk-chart-section-header,
+    #purok-distribution-section > .card-header.kk-chart-section-header,
+    .dash-demo-chart-header,
+    .kk-demo-block .dash-section-header {
+        flex-direction: row;
+        flex-wrap: wrap;
+        align-items: flex-start;
+        gap: 10px;
+    }
+
+    /* Title shares line one with the pill instead of taking a whole line. */
+    .kk-chart-section-header > .kk-chart-heading,
+    #purok-distribution-section .kk-chart-heading,
+    .dash-demo-chart-header > .kk-chart-heading,
+    .kk-demo-block .dash-section-header-text {
+        width: auto;
+        flex: 1 1 0%;
+        min-width: 0;
+        padding-right: 8px;
+    }
+
+    .kk-chart-section-header > .kk-demo-total,
+    .dash-demo-chart-header > .kk-demo-total,
+    .kk-demo-block .dash-section-header > .kk-demo-total {
+        order: 1;
+        margin-left: auto;
+        align-self: flex-start;
+    }
+
+    /* Filters always break to their own full-width line below both. */
+    .kk-chart-section-header > .kk-chart-header-actions,
+    .dash-demo-chart-header > .kk-chart-header-actions,
+    .kk-demo-block .dash-section-header > .dash-chart-header-actions {
+        order: 2;
+        flex: 1 1 100%;
+        width: 100%;
+        margin-left: 0;
+    }
+}
+
+@media (max-width: 768px) {
+    /* One dropdown per line, full width, so the tap target stays large. */
+    .kk-deadongay-select,
+    #purok-distribution-section .kk-deadongay-select,
+    .kk-chart-section-header .kk-deadongay-select,
+    .kk-chart-header-actions .kk-deadongay-select,
+    .dash-demo-chart-header .kk-deadongay-select,
+    .dash-filter-select,
+    .kk-demo-block .dash-filter-select,
+    .kk-month-filter {
+        flex: 1 1 100%;
+        width: 100%;
+        min-width: 0;
+        max-width: none;
+        height: 44px;
+        min-height: 44px;
+        font-size: 13px;
+    }
+
+    /* The youth cards wrap their filter inside a content-sized row, so a
+       width:100% dropdown had nothing to resolve against and came out at
+       whatever the option text needed. Give that row the full card width. */
+    .kk-demo-block .dash-chart-header-actions {
+        flex: 1 1 100%;
+        width: 100%;
+        justify-content: flex-start;
+    }
+}
+
+@media (max-width: 400px) {
+    .kk-deadongay-select,
+    #purok-distribution-section .kk-deadongay-select,
+    .kk-chart-section-header .kk-deadongay-select,
+    .kk-chart-header-actions .kk-deadongay-select,
+    .dash-demo-chart-header .kk-deadongay-select,
+    .dash-filter-select,
+    .kk-demo-block .dash-filter-select,
+    .kk-month-filter {
+        height: 42px;
+        min-height: 42px;
+        font-size: 12.5px;
+    }
+}
+
+/* ══════════════════════════════════════════════════════════════
+   Statistics "Total" box — one spec on every card
+   ══════════════════════════════════════════════════════════════
+   The label sits above the number inside a bordered pill, tinted with
+   the SK OnePortal primary blue. It is the last child of every card's
+   filter row (.kk-chart-header-actions / .dash-chart-header-actions),
+   which is what pins it to the upper-right corner of the card. The
+   youth-demographics stylesheet used to declare its own copy of these
+   three rules with a different alignment, so that duplicate has been
+   removed — this block is the only definition. */
+.kk-demo-total {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    align-self: flex-start;
+    min-width: 68px;
+    padding: 6px 10px;
+    border-radius: 10px;
+    background: #eff6ff;
+    border: 1.5px solid #2F4E85;
+    line-height: 1.05;
+    flex: 0 0 auto;
+    margin-left: 0;
+    text-align: center;
+}
+
+.kk-demo-total-label {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: #2F4E85;
+}
+
+.kk-demo-total-value {
+    font-size: 18px;
+    font-weight: 800;
+    color: #0f172a;
+    font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 768px) {
+    .kk-demo-total {
+        min-width: 58px;
+        padding: 4px 8px;
+        margin-left: auto;
+    }
+
+    .kk-demo-total-value {
+        font-size: 16px;
+    }
+}
+
+/* ══════════════════════════════════════════════════════════════
+   Statistics card headings and subtitles — one type scale
+   ══════════════════════════════════════════════════════════════
+   Purok and the seven youth-demographics cards already used a 15px /
+   800 title, while KK Profiling, ABYIP, Sex Distribution and
+   Employment Status used 16px / 700 — that is what made Sex
+   Distribution read as oversized next to its neighbours. Subtitles
+   were split between 12px / #9ca3af and 13px / #64748b. Everything
+   now resolves to the same title and subtitle spec. */
+.kk-chart-section-header h3,
+#purok-distribution-section .kk-chart-heading h3,
+.dash-demo-chart-header h3,
+.dash-section-title,
+.kk-demo-block .dash-section-title {
+    margin: 0;
+    font-size: 15px;
+    font-weight: 800;
+    line-height: 1.3;
+    color: #111827;
+    letter-spacing: -0.01em;
+    font-family: inherit;
+}
+
+.kk-chart-subtitle,
+#purok-distribution-section .kk-chart-subtitle,
+.dash-demo-chart-sub,
+.dash-section-sub,
+.kk-demo-block .dash-section-sub {
+    margin: 4px 0 0;
+    font-size: 13px;
+    font-weight: 500;
+    line-height: 1.4;
+    color: #64748b;
+    font-family: inherit;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   Purok/Sitio chart — no background panel
+   ══════════════════════════════════════════════════════════════
+   The graph is intentionally background-free: the scroll wrapper and
+   the canvas are both fully transparent so the white card shows
+   through. The previous light-blue tint plus the plot-gradient plugin
+   both painted a panel behind the bars and are gone. */
+.kk-chart-canvas-wrap--purok,
+.kk-chart-canvas-wrap--purok.is-scroll-x {
+    background: transparent;
+}
+
+.kk-chart-canvas-wrap--purok canvas {
+    background: transparent;
+}

@@ -55,73 +55,21 @@
     min-width: 0;
 }
 
-.kk-demo-block .dash-section-title {
-    margin: 0;
-    font-size: 15px;
-    font-weight: 800;
-    color: #111827;
-}
-
-.kk-demo-block .dash-section-sub {
-    margin: 2px 0 0;
-    font-size: 12px;
-    color: #9ca3af;
-}
-
 .kk-demo-block .dash-chart-header-actions {
     display: flex;
     align-items: center;
     justify-content: flex-end;
+    flex-wrap: wrap;
     gap: 8px;
     margin-left: auto;
     flex: 0 1 auto;
     min-width: 0;
 }
 
-.kk-demo-total {
-    display: inline-flex;
-    flex-direction: column;
-    align-items: flex-end;
-    justify-content: center;
-    min-width: 68px;
-    padding: 6px 10px;
-    border-radius: 10px;
-    background: #eff6ff;
-    border: 1.5px solid #3b82f6;
-    line-height: 1.05;
-    flex: 0 0 auto;
-}
-
-.kk-demo-total-label {
-    font-size: 10px;
-    font-weight: 700;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
-    color: #2563eb;
-}
-
-.kk-demo-total-value {
-    font-size: 18px;
-    font-weight: 800;
-    color: #0f172a;
-}
-
-.dash-demo-chart-header .kk-demo-total {
-    align-self: flex-start;
-}
-
-.kk-demo-block .dash-filter-select {
-    min-width: 0;
-    width: auto;
-    max-width: 180px;
-    padding: 5px 10px;
-    border: 1px solid #d1d5db;
-    border-radius: 6px;
-    background: #fff;
-    font-size: 12px;
-    font-weight: 600;
-    color: #111827;
-}
+/* .kk-demo-total, its label/value children, .dash-section-title,
+   .dash-section-sub and the filter select are all owned by the shared
+   dashboard.css blocks so every card in the dashboard matches. Only the
+   youth-demographics layout below is defined here. */
 
 .kk-demo-chart-wrap {
     position: relative;
@@ -246,11 +194,6 @@
     .kk-demo-block .dash-section-header {
         flex-wrap: wrap;
     }
-
-    .kk-demo-block .dash-filter-select {
-        max-width: 100%;
-        width: 100%;
-    }
 }
 
 @media (max-width: 900px) {
@@ -260,23 +203,7 @@
     }
 }
 
-@media (max-width: 1024px) {
-    .dash-demo-chart-header .kk-demo-total {
-        align-self: flex-end;
-        width: auto;
-    }
-}
-
 @media (max-width: 768px) {
-    .kk-demo-total {
-        min-width: 58px;
-        padding: 4px 8px;
-    }
-
-    .kk-demo-total-value {
-        font-size: 16px;
-    }
-
     .kk-demo-block {
         gap: 10px;
         margin-bottom: 16px;

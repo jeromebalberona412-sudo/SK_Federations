@@ -63,7 +63,9 @@
             return (
                 '<span class="dash-demo-legend-item">' +
                 '<span class="dash-demo-legend-swatch" style="background:' + color + '"></span>' +
-                '<span>' + label + ': <strong>' + count.toLocaleString() + '</strong> (' + pct + '%)</span>' +
+                '<span class="dash-demo-legend-label">' + label + ':</span> ' +
+                '<span class="dash-demo-legend-count">' + count.toLocaleString() + '</span> ' +
+                '<span class="dash-demo-legend-pct">(' + pct + '%)</span>' +
                 '</span>'
             );
         }).join('');
@@ -227,7 +229,7 @@
                         context.textAlign = 'center';
                         context.textBaseline = 'middle';
                         context.fillStyle = '#fff';
-                        context.font = 'bold 11px Segoe UI, sans-serif';
+                        context.font = '600 11px Inter, system-ui, sans-serif';
                         context.fillText(pct + '%', x, y);
                         context.restore();
                     });

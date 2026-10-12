@@ -20,11 +20,11 @@
                         <option value="Unknown">Unknown</option>
                         <option value="Live-in">Live-in</option>
                     </select>
-                    <span class="kk-demo-total" id="kkDemoCivilTotal">
-                        <span class="kk-demo-total-label">Total</span>
-                        <span class="kk-demo-total-value">0</span>
-                    </span>
                 </div>
+                <span class="kk-demo-total" id="kkDemoCivilTotal">
+                    <span class="kk-demo-total-label">Total</span>
+                    <span class="kk-demo-total-value">0</span>
+                </span>
             </div>
             <div class="kk-demo-chart-wrap">
                 <canvas id="chartDemoCivilStatus" aria-label="Civil status donut chart"></canvas>
@@ -45,11 +45,11 @@
                         <option value="Core Youth (18-24 yrs old)">Core Youth (18-24 yrs old)</option>
                         <option value="Young Adult (25-30 yrs old)">Young Adult (25-30 yrs old)</option>
                     </select>
-                    <span class="kk-demo-total" id="kkDemoAgeTotal">
-                        <span class="kk-demo-total-label">Total</span>
-                        <span class="kk-demo-total-value">0</span>
-                    </span>
                 </div>
+                <span class="kk-demo-total" id="kkDemoAgeTotal">
+                    <span class="kk-demo-total-label">Total</span>
+                    <span class="kk-demo-total-value">0</span>
+                </span>
             </div>
             <div class="kk-demo-chart-wrap kk-demo-chart-wrap--bar">
                 <canvas id="chartDemoAgeGroup" aria-label="Youth age group bar chart"></canvas>
@@ -77,11 +77,11 @@
                         <option value="Doctorate Level">Doctorate Level</option>
                         <option value="Doctorate Graduate">Doctorate Graduate</option>
                     </select>
-                    <span class="kk-demo-total" id="kkDemoEducationTotal">
-                        <span class="kk-demo-total-label">Total</span>
-                        <span class="kk-demo-total-value">0</span>
-                    </span>
                 </div>
+                <span class="kk-demo-total" id="kkDemoEducationTotal">
+                    <span class="kk-demo-total-label">Total</span>
+                    <span class="kk-demo-total-value">0</span>
+                </span>
             </div>
             <div class="kk-edu-bars" id="kkDemoEducationList" role="list" aria-label="Educational background bars"></div>
         </article>
@@ -100,11 +100,11 @@
                         <option value="Working Youth">Working Youth</option>
                         <option value="Youth w/ Specific Needs">Youth w/ Specific Needs</option>
                     </select>
-                    <span class="kk-demo-total" id="kkDemoClassificationTotal">
-                        <span class="kk-demo-total-label">Total</span>
-                        <span class="kk-demo-total-value">0</span>
-                    </span>
                 </div>
+                <span class="kk-demo-total" id="kkDemoClassificationTotal">
+                    <span class="kk-demo-total-label">Total</span>
+                    <span class="kk-demo-total-value">0</span>
+                </span>
             </div>
             <div class="kk-demo-chart-wrap kk-demo-chart-wrap--bar">
                 <canvas id="chartDemoClassification" aria-label="Youth classification bar chart"></canvas>
@@ -124,11 +124,11 @@
                         <option value="Children In Conflict w/ Law">Children In Conflict w/ Law</option>
                         <option value="Indigenous People">Indigenous People</option>
                     </select>
-                    <span class="kk-demo-total" id="kkDemoNeedsTotal">
-                        <span class="kk-demo-total-label">Total</span>
-                        <span class="kk-demo-total-value">0</span>
-                    </span>
                 </div>
+                <span class="kk-demo-total" id="kkDemoNeedsTotal">
+                    <span class="kk-demo-total-label">Total</span>
+                    <span class="kk-demo-total-value">0</span>
+                </span>
             </div>
             <div class="kk-demo-chart-wrap kk-demo-chart-wrap--bar">
                 <canvas id="chartDemoSpecificNeeds" aria-label="Youth with specific needs bar chart"></canvas>
@@ -147,11 +147,11 @@
                         <option value="Yes">Yes</option>
                         <option value="No">No</option>
                     </select>
-                    <span class="kk-demo-total" id="kkDemoSkVoterTotal">
-                        <span class="kk-demo-total-label">Total</span>
-                        <span class="kk-demo-total-value">0</span>
-                    </span>
                 </div>
+                <span class="kk-demo-total" id="kkDemoSkVoterTotal">
+                    <span class="kk-demo-total-label">Total</span>
+                    <span class="kk-demo-total-value">0</span>
+                </span>
             </div>
             <div class="kk-demo-chart-wrap">
                 <canvas id="chartDemoSkVoter" aria-label="Registered SK voter donut chart"></canvas>
@@ -171,11 +171,11 @@
                         <option value="Yes">Yes</option>
                         <option value="No">No</option>
                     </select>
-                    <span class="kk-demo-total" id="kkDemoNationalVoterTotal">
-                        <span class="kk-demo-total-label">Total</span>
-                        <span class="kk-demo-total-value">0</span>
-                    </span>
                 </div>
+                <span class="kk-demo-total" id="kkDemoNationalVoterTotal">
+                    <span class="kk-demo-total-label">Total</span>
+                    <span class="kk-demo-total-value">0</span>
+                </span>
             </div>
             <div class="kk-demo-chart-wrap">
                 <canvas id="chartDemoNationalVoter" aria-label="Registered national voter donut chart"></canvas>

@@ -392,21 +392,25 @@ class KkProfilingChartService
     }
 
     /**
+     * Always returns the 12 months January..December of the dashboard year.
+     *
+     * The selected range is clamped into the official term, which can start or end
+     * mid-year. Bucketing on the clamped range alone would hide months the term does
+     * not cover, so the axis is pinned to the full calendar year and months outside
+     * the range are simply reported as zero by countByMonthBuckets().
+     *
      * @return list<array{key: string, label: string}>
      */
     private function monthBuckets(Carbon $dateFrom, Carbon $dateTo): array
     {
-        $cursor = $dateFrom->copy()->startOfMonth();
-        $lastMonth = $dateTo->copy()->startOfMonth();
-        $sameYear = $dateFrom->year === $dateTo->year;
+        $year = (int) $dateTo->year;
         $buckets = [];
 
-        while ($cursor->lte($lastMonth)) {
+        for ($month = 1; $month <= 12; $month++) {
             $buckets[] = [
-                'key' => $cursor->format('Y-m'),
-                'label' => $sameYear ? $cursor->format('M') : $cursor->format('M Y'),
+                'key' => sprintf('%04d-%02d', $year, $month),
+                'label' => Carbon::create($year, $month, 1)->format('M'),
             ];
-            $cursor->addMonth();
         }
 
         return $buckets;
