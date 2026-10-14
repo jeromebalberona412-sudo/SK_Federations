@@ -290,7 +290,18 @@ class BarangayMonitoringService
 
         $this->applyDashboardAbyipFilters($documentsQuery, $dateFrom, $dateTo);
 
+        // The dashboard only needs status and labels. pdf_data is a stored PDF
+        // and is not displayed on this card.
         $documents = $documentsQuery
+            ->select([
+                'id',
+                'barangay_id',
+                'created_by',
+                'fiscal_year',
+                'document_title',
+                'status',
+                'created_at',
+            ])
             ->orderByDesc('created_at')
             ->get();
 

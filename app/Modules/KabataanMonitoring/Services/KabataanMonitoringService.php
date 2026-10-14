@@ -3,12 +3,13 @@
 namespace App\Modules\KabataanMonitoring\Services;
 
 use App\Models\KabataanRegistration;
-use App\Modules\Profile\Models\Barangay;
 use App\Modules\AuditLog\Contracts\AuditLogInterface;
 use App\Modules\KabataanMonitoring\Support\KabataanQuestionnairePrintPresenter;
 use App\Modules\KabataanMonitoring\Support\KkProfilingReviewStatus;
+use App\Modules\Profile\Models\Barangay;
 use App\Modules\Shared\Models\User;
 use App\Services\BarangayLogoUrlService;
+use Illuminate\Contracts\Cache\Repository;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -29,15 +30,14 @@ class KabataanMonitoringService
         ?string $barangayName = null,
         ?int $tenantId = null,
         bool $includeAllReviewStatuses = false,
-    ): array
-    {
+    ): array {
         $barangayName = $barangayName !== null ? trim($barangayName) : '';
         if (! $tenantId) {
             return [];
         }
         $cacheKey = $this->listCacheKey($barangayName, $tenantId, $includeAllReviewStatuses);
 
-        return Cache::remember($cacheKey, self::LIST_CACHE_TTL, function () use ($barangayName, $tenantId, $includeAllReviewStatuses) {
+        return $this->monitoringCache()->remember($cacheKey, self::LIST_CACHE_TTL, function () use ($barangayName, $tenantId, $includeAllReviewStatuses) {
             return $this->listAllUncached(
                 $barangayName !== '' ? $barangayName : null,
                 $tenantId,
@@ -53,8 +53,7 @@ class KabataanMonitoringService
         ?string $barangayName,
         int $tenantId,
         bool $includeAllReviewStatuses = false,
-    ): array
-    {
+    ): array {
         if (! Schema::hasTable('kabataan_registrations')) {
             return [];
         }
@@ -101,9 +100,7 @@ class KabataanMonitoringService
             ->values()
             ->all();
 
-        foreach ($barangayIds as $barangayId) {
-            $logoMap[$barangayId] = $this->logoUrls->resolve($barangayId);
-        }
+        $logoMap = $barangayIds === [] ? [] : $this->logoUrls->resolveMany($barangayIds);
 
         return $records
             ->map(fn (KabataanRegistration $record) => $this->formatRecord(
@@ -119,15 +116,23 @@ class KabataanMonitoringService
         if (! $tenantId) {
             return;
         }
-        Cache::forget($this->listCacheKey('', $tenantId));
-        Cache::forget($this->listCacheKey('', $tenantId, true));
-        Cache::forget($this->yearsCacheKey('', $tenantId));
+        $cache = $this->monitoringCache();
+        $cache->forget($this->listCacheKey('', $tenantId));
+        $cache->forget($this->listCacheKey('', $tenantId, true));
+        $cache->forget($this->yearsCacheKey('', $tenantId));
 
         if ($barangayName !== '') {
-            Cache::forget($this->listCacheKey($barangayName, $tenantId));
-            Cache::forget($this->listCacheKey($barangayName, $tenantId, true));
-            Cache::forget($this->yearsCacheKey($barangayName, $tenantId));
+            $cache->forget($this->listCacheKey($barangayName, $tenantId));
+            $cache->forget($this->listCacheKey($barangayName, $tenantId, true));
+            $cache->forget($this->yearsCacheKey($barangayName, $tenantId));
         }
+    }
+
+    private function monitoringCache(): Repository
+    {
+        // The default store is remote Postgres. These keys already include the
+        // tenant and barangay, and forgetListCache clears the same store.
+        return Cache::store('file');
     }
 
     private function listCacheKey(string $barangayName, int $tenantId, bool $includeAllReviewStatuses = false): string
@@ -153,7 +158,7 @@ class KabataanMonitoringService
         }
         $cacheKey = $this->yearsCacheKey($barangayName, $tenantId);
 
-        return Cache::remember($cacheKey, self::LIST_CACHE_TTL, function () use ($barangayName, $tenantId) {
+        return $this->monitoringCache()->remember($cacheKey, self::LIST_CACHE_TTL, function () use ($barangayName, $tenantId) {
             return $this->registrationYearsUncached($barangayName !== '' ? $barangayName : null, $tenantId);
         });
     }
@@ -742,5 +747,4 @@ class KabataanMonitoringService
             'barangay' => $data['barangay'] ?? null,
         ];
     }
-
 }

@@ -41,7 +41,7 @@ class KkProfilingChartService
             $month
         );
 
-        return Cache::remember($cacheKey, self::CACHE_TTL_SECONDS, function () use ($tenantId, $barangayId, $period, $month, $dateFrom, $dateTo): array {
+        return Cache::store('file')->remember($cacheKey, self::CACHE_TTL_SECONDS, function () use ($tenantId, $barangayId, $period, $month, $dateFrom, $dateTo): array {
             $barangayIds = Barangay::query()
                 ->where('tenant_id', $tenantId)
                 ->pluck('id');
@@ -83,7 +83,7 @@ class KkProfilingChartService
             $dateTo->toDateString()
         );
 
-        return Cache::remember($cacheKey, self::CACHE_TTL_SECONDS, function () use ($user, $request): array {
+        return Cache::store('file')->remember($cacheKey, self::CACHE_TTL_SECONDS, function () use ($user, $request): array {
             return $this->buildPurokChartData($user, $request);
         });
     }

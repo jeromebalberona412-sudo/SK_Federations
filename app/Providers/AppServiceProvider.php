@@ -2,6 +2,7 @@
 
 namespace App\Providers;
 
+use App\Database\CachingPostgresBuilder;
 use App\Modules\Accounts\Models\OfficialProfile;
 use App\Modules\Accounts\Models\OfficialTerm;
 use App\Modules\Accounts\Policies\AccountPolicy;
@@ -23,7 +24,21 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        // Artisan, migrations, and tests keep the uncached builder so a
+        // schema change in the same process is visible immediately.
+        if ($this->app->runningInConsole() || config('database.default') !== 'pgsql') {
+            return;
+        }
+
+        $this->app->bind('db.schema', function ($app) {
+            $connection = $app['db']->connection();
+
+            if ($connection->getSchemaGrammar() === null) {
+                $connection->useDefaultSchemaGrammar();
+            }
+
+            return new CachingPostgresBuilder($connection);
+        });
     }
 
     /**
@@ -31,6 +46,10 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        if (! $this->app->runningInConsole()) {
+            CachingPostgresBuilder::flush();
+        }
+
         // Ensure PHP temp directory is used consistently
         // The container configures /tmp/php-tmp via php-fpm.conf and entrypoint.sh
         // This prevents tempnam() from falling back to system temp dir

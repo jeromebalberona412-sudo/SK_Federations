@@ -1566,11 +1566,7 @@ function processSkOfficialNameInput(input) {
 }
 
 function showSkOfficialMaxMessage(input) {
-    if ((input.value || '').length >= SK_OFFICIAL_NAME_MAX) {
-        _showErr(input, SK_OFFICIAL_MAX_MSG);
-        return true;
-    }
-    return false;
+    return (input?.value || '').length > SK_OFFICIAL_NAME_MAX;
 }
 
 function toggleSkOfficialSuffixOther(form) {
@@ -1670,11 +1666,14 @@ function _validateSkOfficialFirstName(input, options = {}) {
         _showErr(input, 'First name must be at least 2 characters');
         return false;
     }
+    if (val.length > SK_OFFICIAL_NAME_MAX) {
+        _showErr(input, 'First name must not exceed 150 characters');
+        return false;
+    }
     if (!PERSON_NAME_ONE_SPACE_REGEX.test(val)) {
         _showErr(input, 'Letters only; need a letter before each space; no pure spaces');
         return false;
     }
-    if (showSkOfficialMaxMessage(input)) return false;
     _markValid(input);
     return true;
 }
@@ -1691,11 +1690,14 @@ function _validateSkOfficialMiddleName(input, options = {}) {
         _showErr(input, 'Middle name must be at least 2 characters when provided');
         return false;
     }
+    if (val.length > SK_OFFICIAL_NAME_MAX) {
+        _showErr(input, 'Middle name must not exceed 150 characters');
+        return false;
+    }
     if (!PERSON_NAME_ONE_SPACE_REGEX.test(val)) {
         _showErr(input, 'Letters only; need a letter before each space; no pure spaces');
         return false;
     }
-    if (showSkOfficialMaxMessage(input)) return false;
     _markValid(input);
     return true;
 }
@@ -1712,11 +1714,14 @@ function _validateSkOfficialLastName(input, options = {}) {
         _showErr(input, 'Last name must be at least 2 characters');
         return false;
     }
+    if (val.length > SK_OFFICIAL_NAME_MAX) {
+        _showErr(input, 'Last name must not exceed 150 characters');
+        return false;
+    }
     if (!PERSON_NAME_ONE_SPACE_REGEX.test(val)) {
         _showErr(input, 'Letters only; need a letter before each space; no pure spaces');
         return false;
     }
-    if (showSkOfficialMaxMessage(input)) return false;
     _markValid(input);
     return true;
 }
@@ -2322,7 +2327,7 @@ function wireSkOfficialsManualValidation(form) {
                 } catch (_e) {
                     // ignore
                 }
-                showSkOfficialMaxMessage(el);
+                fn(el, { finalize: false });
                 return;
             }
 
@@ -2355,9 +2360,8 @@ function wireSkOfficialsManualValidation(form) {
                 }
             }
             const len = (el.value || '').length;
-            if (len >= SK_OFFICIAL_NAME_MAX && !['Backspace', 'Delete', 'ArrowLeft', 'ArrowRight', 'Tab', ' '].includes(e.key) && !e.ctrlKey && !e.metaKey) {
+            if (len >= SK_OFFICIAL_NAME_MAX && e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
                 e.preventDefault();
-                showSkOfficialMaxMessage(el);
             }
         });
     });
@@ -2824,7 +2828,7 @@ function initCreateAccountFormDefaults(form) {
     }
 
     const status = form.querySelector('[name="status"]');
-    if (status) {
+    if (status && !status.value) {
         status.value = 'ACTIVE';
     }
 
@@ -3184,15 +3188,41 @@ window.toggleAddOfficialsSize = function () {
     applyModalResizeState({ overlay, content, btn, isMaximized: addOfficialsIsMaximized });
 };
 
+window.addEventListener('pageshow', (event) => {
+    if (!event.persisted) {
+        return;
+    }
+    if (typeof discardAddSkOfficialsDraft === 'function') {
+        discardAddSkOfficialsDraft();
+    }
+    if (typeof window.resetBatchUploadPanel === 'function') {
+        window.resetBatchUploadPanel('official');
+        window.resetBatchUploadPanel('fed');
+    }
+});
+
+function discardAddSkOfficialsDraft() {
+    const form = document.getElementById('addSkOfficialsForm');
+    if (form) {
+        form.reset();
+        form.dataset.editingPresident = '0';
+        form.dataset.accountId = '';
+        form.dataset.submitting = '0';
+        form.querySelectorAll('.is-invalid,.is-valid').forEach(el => el.classList.remove('is-invalid', 'is-valid'));
+        form.querySelectorAll('.validation-error').forEach(el => el.remove());
+        form.querySelectorAll('.form-error-light').forEach(el => { el.textContent = ''; });
+    }
+    if (typeof window.resetBatchUploadPanel === 'function') {
+        window.resetBatchUploadPanel('official');
+    }
+}
+
 window.openAddSkOfficialsModal = function () {
     switchAddOfficialTab('manual');
     const form = document.getElementById('addSkOfficialsForm');
     if (form) {
         form.dataset.editingPresident = '0';
         form.dataset.accountId = '';
-        form.querySelectorAll('.is-invalid,.is-valid').forEach(el => el.classList.remove('is-invalid', 'is-valid'));
-        form.querySelectorAll('.validation-error').forEach(el => el.remove());
-        form.querySelectorAll('.form-error-light').forEach(el => { el.textContent = ''; });
     }
     toggleModal('addSkOfficialsModal', true);
     initCreateAccountFormDefaults(form);
@@ -3201,21 +3231,16 @@ window.openAddSkOfficialsModal = function () {
     applySkOfficialPositionBarangayAvailability(form);
 };
 
-window.closeAddSkOfficialsModal = function () {
+window.closeAddSkOfficialsModal = function (discard) {
     addOfficialsIsMaximized = false;
     const overlay = document.getElementById('addSkOfficialsModal');
     const content = document.getElementById('addSkOfficialsModalContent');
     const btn = document.getElementById('addOfficialsResizeBtn');
     resetModalResizeState({ overlay, content, btn });
-    const form = document.getElementById('addSkOfficialsForm');
-    if (form) {
-        form.reset();
-        form.querySelectorAll('.is-invalid,.is-valid').forEach(el => el.classList.remove('is-invalid', 'is-valid'));
-        form.querySelectorAll('.validation-error').forEach(el => el.remove());
-        form.querySelectorAll('.form-error-light').forEach(el => { el.textContent = ''; });
+    if (discard === true) {
+        discardAddSkOfficialsDraft();
+        switchAddOfficialTab('manual');
     }
-    switchAddOfficialTab('manual');
-    resetBatchUploadPanel('official');
     toggleModal('addSkOfficialsModal', false);
 };
 
@@ -3236,9 +3261,6 @@ window.switchAddOfficialTab = function (tab) {
     if (batchFooter) batchFooter.style.display = isManual ? 'none' : '';
     if (tM) tM.classList.toggle('active', isManual);
     if (tB) tB.classList.toggle('active', !isManual);
-    if (!isManual && typeof window.resetBatchUploadPanel === 'function') {
-        window.resetBatchUploadPanel('official');
-    }
 };
 
 window.switchAddFedTab = function (tab) {
@@ -3255,9 +3277,6 @@ window.switchAddFedTab = function (tab) {
     if (batchFooter) batchFooter.style.display = isManual ? 'none' : '';
     if (tM) tM.classList.toggle('active', isManual);
     if (tB) tB.classList.toggle('active', !isManual);
-    if (!isManual && typeof window.resetBatchUploadPanel === 'function') {
-        window.resetBatchUploadPanel('fed');
-    }
 };
 
 // ── Edit SK Officials modal ───────────────────────────────────
@@ -3319,37 +3338,33 @@ window.toggleAddFedSize = function () {
 
 window.openAddAccountModal = function () {
     const type = getCurrentAccountType();
-    const ids = _getModalIds(type);
-    const formId = type === 'sk_officials' ? 'addSkOfficialsForm' : 'addSkFedForm';
-    const form = document.getElementById(formId);
-    if (form) {
-        form.querySelectorAll('.is-invalid,.is-valid').forEach(el => el.classList.remove('is-invalid', 'is-valid'));
-        form.querySelectorAll('.validation-error').forEach(el => el.remove());
-        form.querySelectorAll('.form-error-light').forEach(el => { el.textContent = ''; });
-    }
     if (type === 'sk_officials') {
-        switchAddOfficialTab('manual');
-    } else {
-        switchAddFedTab('manual');
+        window.openAddSkOfficialsModal();
+        return;
     }
+    const ids = _getModalIds(type);
+    const form = document.getElementById('addSkFedForm');
+    switchAddFedTab('manual');
     toggleModal(ids.addModalId, true);
     initCreateAccountFormDefaults(form);
 };
 
-window.closeAddAccountModal = function () {
+window.closeAddAccountModal = function (discard) {
     addFedIsMaximized = false;
     const overlay = document.getElementById('addAccountModal');
     const content = document.getElementById('addSkFedModalContent');
     const btn = document.getElementById('addFedResizeBtn');
     resetModalResizeState({ overlay, content, btn });
-    const form = document.getElementById('addSkFedForm');
-    if (form) {
-        form.reset();
-        form.querySelectorAll('.is-invalid,.is-valid').forEach(f => f.classList.remove('is-invalid', 'is-valid'));
-        form.querySelectorAll('.validation-error').forEach(e => e.remove());
+    if (discard === true) {
+        const form = document.getElementById('addSkFedForm');
+        if (form) {
+            form.reset();
+            form.querySelectorAll('.is-invalid,.is-valid').forEach(f => f.classList.remove('is-invalid', 'is-valid'));
+            form.querySelectorAll('.validation-error').forEach(e => e.remove());
+        }
+        switchAddFedTab('manual');
+        resetBatchUploadPanel('fed');
     }
-    switchAddFedTab('manual');
-    resetBatchUploadPanel('fed');
     const ids = _getModalIds(getCurrentAccountType());
     toggleModal(ids.addModalId, false);
 };
@@ -4539,7 +4554,13 @@ function initBatchUploadPanel(prefix, role) {
     };
 
     const templateType = role === 'sk_fed' ? 'federation' : 'officials';
-    const closeAddModal = prefix === 'official' ? closeAddSkOfficialsModal : closeAddAccountModal;
+    function closeAddModal(discard) {
+        if (prefix === 'official') {
+            closeAddSkOfficialsModal(discard === true);
+            return;
+        }
+        closeAddAccountModal(discard === true);
+    }
 
     function getRequiredHeaderGroups() {
         return BATCH_REQUIRED_HEADERS.map((label) => {
@@ -5240,6 +5261,8 @@ function initBatchUploadPanel(prefix, role) {
                 return;
             }
 
+            if (els.confirmBtn.dataset.submitting === '1') return;
+            els.confirmBtn.dataset.submitting = '1';
             showLoadingOverlay('Uploading accounts', 'Creating accounts now — emails will send right after...');
             els.confirmBtn.disabled = true;
 
@@ -5248,6 +5271,7 @@ function initBatchUploadPanel(prefix, role) {
                 if (!token) {
                     hideLoadingOverlay();
                     alert('Session expired. Please refresh the page and try again.');
+                    els.confirmBtn.dataset.submitting = '0';
                     els.confirmBtn.disabled = false;
                     return;
                 }
@@ -5272,6 +5296,7 @@ function initBatchUploadPanel(prefix, role) {
                 if (response.status === 419) {
                     hideLoadingOverlay();
                     alert('Session expired (CSRF). Please refresh the page and try again.');
+                    els.confirmBtn.dataset.submitting = '0';
                     els.confirmBtn.disabled = false;
                     return;
                 }
@@ -5303,6 +5328,7 @@ function initBatchUploadPanel(prefix, role) {
                             ? 'Server error while importing accounts. Please try again.'
                             : 'Batch account creation failed.');
                     alert(message);
+                    els.confirmBtn.dataset.submitting = '0';
                     els.confirmBtn.disabled = false;
                     return;
                 }
@@ -5314,7 +5340,7 @@ function initBatchUploadPanel(prefix, role) {
                         error: item.message,
                     })));
                 } else {
-                    closeAddModal();
+                    closeAddModal(true);
                 }
                 const toastType = Array.isArray(data.failed) && data.failed.length > 0 ? 'edit' : 'success';
                 showAccountToast(data.message || 'Accounts created successfully.', toastType);
@@ -5336,6 +5362,8 @@ function initBatchUploadPanel(prefix, role) {
                         ? `Unable to create accounts from the uploaded file. ${detail}`
                         : 'Unable to create accounts from the uploaded file. Please check your connection and try again.'
                 );
+            } finally {
+                els.confirmBtn.dataset.submitting = '0';
             }
         });
     }
@@ -5774,6 +5802,9 @@ document.addEventListener('DOMContentLoaded', function () {
 
         officialsForm.addEventListener('submit', async function (e) {
             e.preventDefault();
+            if (officialsForm.dataset.submitting === '1') {
+                return;
+            }
             if (!validateSkOfficialsManualForm(officialsForm)) {
                 const first = officialsForm.querySelector('.is-invalid');
                 if (first) first.focus();
@@ -5784,21 +5815,28 @@ document.addEventListener('DOMContentLoaded', function () {
             const payload = {};
             for (const [k, v] of formData.entries()) { if (k !== '_token') payload[k] = v; }
             payload.term_status = payload.term_status || (payload.status === 'INACTIVE' ? 'INACTIVE' : 'ACTIVE');
-            // Keep suffix=__other__ + suffix_other for the server (resolves into stored suffix).
             if (payload.suffix === '__other__') {
                 payload.suffix_other = String(payload.suffix_other || '').trim().toUpperCase();
             }
 
+            officialsForm.dataset.submitting = '1';
+            const requestId = (Number(officialsForm.dataset.createRequestId || '0') + 1);
+            officialsForm.dataset.createRequestId = String(requestId);
             showLoadingOverlay('Creating account', 'Please wait while we set up the account...');
             const createBtn = getCreateAccountSubmitButton(officialsForm);
-            if (createBtn?.dataset.creating === '1') {
-                return;
-            }
             setCreateAccountButtonLoading(createBtn, true, 'Creating...');
-            if (createBtn) createBtn.dataset.creating = '1';
 
             const controller = new AbortController();
             const timeoutId = window.setTimeout(() => controller.abort(), 45000);
+            const finishRequest = () => {
+                if (officialsForm.dataset.createRequestId !== String(requestId)) {
+                    return;
+                }
+                window.clearTimeout(timeoutId);
+                hideLoadingOverlay();
+                setCreateAccountButtonLoading(createBtn, false);
+                officialsForm.dataset.submitting = '0';
+            };
 
             fetch('/accounts', {
                 method: 'POST',
@@ -5816,10 +5854,11 @@ document.addEventListener('DOMContentLoaded', function () {
                     return { ok: r.ok, data };
                 })
                 .then(({ ok, data }) => {
-                    if (!ok || !data.success) {
-                        hideLoadingOverlay();
-                        setCreateAccountButtonLoading(createBtn, false);
-                        if (createBtn) delete createBtn.dataset.creating;
+                    if (officialsForm.dataset.createRequestId !== String(requestId)) {
+                        return;
+                    }
+                    finishRequest();
+                    if (!ok || data.success !== true) {
                         if (data.errors) {
                             const firstError = displayFormValidationErrors(officialsForm, data.errors)
                                 || Object.values(data.errors).flat()[0]
@@ -5833,24 +5872,21 @@ document.addEventListener('DOMContentLoaded', function () {
                         return;
                     }
 
-                    setCreateAccountButtonLoading(createBtn, false);
-                    if (createBtn) delete createBtn.dataset.creating;
                     cleanupAccountUiState();
+                    discardAddSkOfficialsDraft();
                     showAccountToast(data.message || 'SK Officials account created. Password setup email sent.', 'success');
                     if (data.data) {
                         prependOfficialAccountRow(data.data);
-                    }
-                    if (officialsForm) {
-                        officialsForm.reset();
                     }
                     if (typeof loadOfficialsAccountsTable === 'function') {
                         loadOfficialsAccountsTable({ force: true });
                     }
                 })
                 .catch((err) => {
-                    hideLoadingOverlay();
-                    setCreateAccountButtonLoading(createBtn, false);
-                    if (createBtn) delete createBtn.dataset.creating;
+                    if (officialsForm.dataset.createRequestId !== String(requestId)) {
+                        return;
+                    }
+                    finishRequest();
                     const timedOut = err && err.name === 'AbortError';
                     showAccountToast(
                         timedOut
@@ -5858,9 +5894,6 @@ document.addEventListener('DOMContentLoaded', function () {
                             : 'An unexpected error occurred. Please try again.',
                         'error'
                     );
-                })
-                .finally(() => {
-                    window.clearTimeout(timeoutId);
                 });
         });
     }

@@ -6,9 +6,9 @@ use App\Modules\Accounts\Models\OfficialTerm;
 use App\Modules\Accounts\Support\SkOfficialTermDates;
 use App\Modules\BarangayMonitoring\Services\BarangayMonitoringService;
 use App\Modules\Dashboard\Services\DashboardStatsService;
-use App\Modules\Dashboard\Services\YouthDemographicsService;
 use App\Modules\Dashboard\Services\KkProfilingChartService;
 use App\Modules\Dashboard\Services\SkFedDashboardActivityService;
+use App\Modules\Dashboard\Services\YouthDemographicsService;
 use App\Modules\Shared\Controllers\Controller;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
@@ -87,34 +87,8 @@ class DashboardController extends Controller
             ];
         }
 
-        $kkInitialRequest = new Request([
-            'barangay_id' => 'all',
-            'period' => 'monthly',
-            'date_from' => $dateFrom,
-            'date_to' => $dateTo,
-        ]);
-
-        $purokInitialRequest = new Request([
-            'barangay_id' => 'all',
-            'purok' => 'all',
-            'date_from' => $dateFrom,
-            'date_to' => $dateTo,
-        ]);
-
         $kkProfilingInitial = null;
         $purokChartInitial = null;
-        if ($user) {
-            try {
-                $kkProfilingInitial = $this->kkProfilingChartService->getChartData($user, $kkInitialRequest);
-            } catch (\Throwable $e) {
-                report($e);
-            }
-            try {
-                $purokChartInitial = $this->kkProfilingChartService->getPurokChartData($user, $purokInitialRequest);
-            } catch (\Throwable $e) {
-                report($e);
-            }
-        }
 
         $safe = function (callable $callback, $fallback = null) {
             try {
@@ -216,7 +190,10 @@ class DashboardController extends Controller
             $dateTo ?? 'none'
         );
 
-        $payload = Cache::remember(
+        // The default cache store is the remote database, so a cache read
+        // costs another Supabase round trip. This payload is tenant-scoped
+        // and expires in 5 seconds; the local file store keeps that window.
+        $payload = Cache::store('file')->remember(
             $cacheKey,
             5,
             fn (): array => $this->dashboardLivePayload($tenantId, $dateFrom, $dateTo)
