@@ -294,11 +294,12 @@
             }
             var unread = Number(c.unread_count || 0);
             var active = Number(c.id) === Number(state.activeId) ? ' is-active' : '';
-            var displayName = isGroup
+            var fullName = isGroup
                 ? (c.name || peer.name || 'Group chat')
                 : (peer.name || 'User');
+            var displayName = fullName.length > 22 ? fullName.slice(0, 19).replace(/\s+$/, '') + '...' : fullName;
             var avatar = isGroup
-                ? (peer.profile_image_url || c.avatar_url || Comms.defaultAvatar(displayName))
+                ? (peer.profile_image_url || c.avatar_url || Comms.defaultAvatar(fullName))
                 : resolvePeerAvatar(peer);
             var online = isGroup
                 ? 'offline'
@@ -312,14 +313,15 @@
                     : (count > 0 ? ('<div class="comms-conv-limit">' + count + ' members</div>') : '');
             }
             return '<button type="button" class="comms-conv-item' + (isGroup ? ' is-group' : '') + active + '" data-id="' + c.id + '"' +
-                ' data-peer-name="' + Comms.escapeHtml(displayName) + '"' +
+                ' data-peer-name="' + Comms.escapeHtml(fullName) + '"' +
+                ' title="' + Comms.escapeHtml(fullName) + '"' +
                 ' data-peer-avatar="' + Comms.escapeHtml(avatar) + '"' +
                 ' data-peer-status="' + online + '"' +
                 ' data-is-group="' + (isGroup ? '1' : '0') + '"' +
                 ' role="listitem">' +
-                '<img class="comms-avatar" src="' + Comms.escapeHtml(avatar) + '" alt="" onerror="this.onerror=null;this.src=\'' + Comms.escapeHtml(Comms.defaultAvatar(displayName)) + '\'">' +
+                '<img class="comms-avatar" src="' + Comms.escapeHtml(avatar) + '" alt="" onerror="this.onerror=null;this.src=\'' + Comms.escapeHtml(Comms.defaultAvatar(fullName)) + '\'">' +
                 '<div class="comms-conv-main">' +
-                '<div class="comms-conv-name">' + Comms.escapeHtml(displayName) + '</div>' +
+                '<div class="comms-conv-name" title="' + Comms.escapeHtml(fullName) + '">' + Comms.escapeHtml(displayName) + '</div>' +
                 memberHint +
                 '<div class="comms-conv-preview">' + Comms.escapeHtml(preview) + '</div>' +
                 '</div>' +
@@ -343,12 +345,92 @@
 
     var callPhoneIcon = '<svg class="comms-call-icon" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6A19.79 19.79 0 0 1 2.12 4.18 2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.81.36 1.6.68 2.35a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.75.32 1.54.55 2.35.68A2 2 0 0 1 22 16.92z"/></svg>';
 
+    function nameParts(fullName) {
+        return String(fullName || '').trim().split(/\s+/).filter(Boolean);
+    }
+
+    function lastNameToken(fullName) {
+        var parts = nameParts(fullName);
+        if (!parts.length) return '';
+        var suffixes = { jr: 1, sr: 1, ii: 1, iii: 1, iv: 1, v: 1 };
+        var last = parts[parts.length - 1].replace(/\.$/, '');
+        if (suffixes[last.toLowerCase()] && parts.length > 1) {
+            last = parts[parts.length - 2].replace(/\.$/, '');
+        }
+        return last;
+    }
+
+    function compactSenderLabel(fullName) {
+        var full = String(fullName || '').trim();
+        if (!full || full.toLowerCase() === 'none' || full.toLowerCase() === 'null') return 'Member';
+        var last = lastNameToken(full);
+        var first = nameParts(full)[0] || '';
+        var label = last || first || full;
+        var peers = [];
+        (state.messages || []).forEach(function (row) {
+            var peerName = String(row && row.sender_name || '').trim();
+            if (peerName && peers.indexOf(peerName) === -1) peers.push(peerName);
+        });
+        var members = state.activeConversation && state.activeConversation.members;
+        if (Array.isArray(members)) {
+            members.forEach(function (member) {
+                var peerName = String(member && member.name || '').trim();
+                if (peerName && peers.indexOf(peerName) === -1) peers.push(peerName);
+            });
+        }
+        var collisions = peers.filter(function (peerName) {
+            return last && lastNameToken(peerName).toLowerCase() === last.toLowerCase();
+        });
+        if (collisions.length > 1 && first) {
+            label = last + ', ' + first.charAt(0).toUpperCase() + '.';
+        }
+        if (label.length > 20) {
+            label = label.slice(0, 17).replace(/\s+$/, '') + '...';
+        }
+        return label;
+    }
+
+    function renderSenderMeta(m, mine, previous) {
+        if (mine) return '';
+        if (previous && !previous.mine && String(previous.sender_id) === String(m.sender_id)
+            && previous.message_type !== 'call' && previous.message_type !== 'system') {
+            return '';
+        }
+        var full = String(m.sender_name || '').trim() || 'Member';
+        var name = compactSenderLabel(full);
+        var avatar = String(m.sender_avatar_url || m.sender_profile_image_url || '').trim() || Comms.defaultAvatar(full);
+        return '<div class="comms-msg-sender" title="' + Comms.escapeHtml(full) + '">' +
+            '<img class="comms-msg-sender-avatar" src="' + Comms.escapeHtml(avatar) + '" alt="" ' +
+            'onerror="this.onerror=null;this.src=\'' + Comms.escapeHtml(Comms.defaultAvatar(full)) + '\'">' +
+            '<span class="comms-msg-sender-name">' + Comms.escapeHtml(name) + '</span>' +
+            '</div>';
+    }
+
+    function groupCallStillOpen(m) {
+        var body = String(m && m.body || '').toLowerCase();
+        if (body.indexOf('group') === -1 || body.indexOf('started') === -1) return false;
+        var items = state.messages || [];
+        for (var i = 0; i < items.length; i += 1) {
+            var other = items[i];
+            if (!other || Number(other.id) <= Number(m.id) || other.message_type !== 'call') continue;
+            var text = String(other.body || '').toLowerCase();
+            if (text.indexOf('ended') !== -1 || text.indexOf('missed') !== -1 || text.indexOf('cancelled') !== -1 || text.indexOf('canceled') !== -1) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     function renderCallBubble(m) {
+        var join = groupCallStillOpen(m)
+            ? '<button type="button" class="comms-call-join" data-join-group-call="' + Comms.escapeHtml(String(m.conversation_id || state.activeId || '')) + '">Join Call</button>'
+            : '';
         return '<div class="comms-bubble-wrap ' + (m.mine ? 'is-mine' : 'is-theirs') + ' is-call" data-id="' + m.id + '">' +
             '<div class="comms-bubble-row">' +
             '<div class="' + callBubbleClass(m.body) + '" role="status">' +
             callPhoneIcon +
             '<span class="comms-call-text">' + Comms.escapeHtml(m.body) + '</span>' +
+            join +
             '</div>' +
             renderMessageActions(m, false) +
             '</div></div>';
@@ -1016,6 +1098,7 @@
             }
 
             parts.push('<div class="comms-bubble-wrap ' + (mine ? 'is-mine' : 'is-theirs') + (pickerOpen ? ' is-picker-open' : '') + '" data-id="' + m.id + '"' + titleAttr + '>' +
+                renderSenderMeta(m, mine, items[index - 1]) +
                 '<div class="comms-bubble-row">' +
                 bubbleContent +
                 '<div class="comms-bubble-tools">' +
@@ -1285,7 +1368,10 @@
         var name = isGroup
             ? ((conversation && conversation.name) || peer.name || 'Group chat')
             : (peer.name || 'User');
-        if (els.peerName) els.peerName.textContent = name;
+        if (els.peerName) {
+            els.peerName.textContent = name;
+            els.peerName.title = name;
+        }
 
         var statusBits = [];
         if (isGroup) {
@@ -1537,8 +1623,19 @@
     }
 
     function loadConversations() {
+        var epoch = Number(window.__COMMS_INBOX_EPOCH__) || 0;
+        state.listGen = (state.listGen || 0) + 1;
+        var gen = state.listGen;
         return Comms.api(routes.conversations).then(function (data) {
-            state.conversations = data.conversations || [];
+            if (gen !== state.listGen) return;
+            if (epoch !== (Number(window.__COMMS_INBOX_EPOCH__) || 0)) return;
+            var list = data.conversations || [];
+            if (state.activeId && document.visibilityState !== 'hidden') {
+                list.forEach(function (c) {
+                    if (Number(c.id) === Number(state.activeId)) c.unread_count = 0;
+                });
+            }
+            state.conversations = list;
             if (Comms.writeInboxCache) Comms.writeInboxCache(state.conversations);
             renderConversations(els.convFilter ? els.convFilter.value : '');
         }).catch(function (err) {
@@ -1734,6 +1831,12 @@
 
             saveMsgCache(id, freshMessages, freshEmojis);
 
+            if (document.visibilityState === 'hidden') return null;
+            window.__COMMS_INBOX_EPOCH__ = (Number(window.__COMMS_INBOX_EPOCH__) || 0) + 1;
+            if (listConv) {
+                listConv.unread_count = 0;
+                renderConversations(els.convFilter ? els.convFilter.value : '');
+            }
             return Comms.api(Comms.route(routes.read, id), { method: 'POST', body: '{}' });
         }).then(function (data) {
             if (data && typeof data.unread_count === 'number' && window.CommsRealtime && typeof window.CommsRealtime.updateHeaderBadge === 'function') {
@@ -1784,13 +1887,16 @@
         }
     }
 
-    function publishSentMessage(sent) {
+    function publishSentMessage(sent, extraPeers) {
         if (!sent || !window.CommsRealtime || typeof window.CommsRealtime.broadcastMessage !== 'function') return;
         var conv = state.activeConversation;
         var peer = conv && conv.other_user;
+        var peers = Array.isArray(extraPeers) ? extraPeers : [];
+        if (!peers.length && conv && Array.isArray(conv.members)) peers = conv.members;
         window.CommsRealtime.broadcastMessage(sent.conversation_id || state.activeId, sent, {
-            peerId: peer && (peer.id || peer.user_id),
-            peerType: peer && (peer.user_type || peer.type || peer.portal_user_type)
+            peerId: peer && !peer.is_group ? (peer.id || peer.user_id) : null,
+            peerType: peer && !peer.is_group ? (peer.user_type || peer.type || peer.portal_user_type) : null,
+            peers: peers
         });
     }
 
@@ -1989,6 +2095,40 @@
             els.searchResults.hidden = false;
         }).catch(function (err) {
             Comms.showToast(err.message || 'Search failed.', 'error');
+        });
+    }
+
+    var markAllBtn = document.getElementById('commsMarkAllRead');
+    var markAllBusy = false;
+    if (markAllBtn) {
+        markAllBtn.addEventListener('click', function () {
+            if (markAllBusy || !routes.markAllRead) return;
+            var label = markAllBtn.querySelector('.comms-mark-all-read-label');
+            markAllBusy = true;
+            markAllBtn.disabled = true;
+            markAllBtn.setAttribute('aria-busy', 'true');
+            if (label) label.textContent = 'Marking...';
+            window.__COMMS_INBOX_EPOCH__ = (Number(window.__COMMS_INBOX_EPOCH__) || 0) + 1;
+            Comms.api(routes.markAllRead, { method: 'POST', body: '{}', dedupe: true }).then(function (data) {
+                (state.conversations || []).forEach(function (c) { c.unread_count = 0; });
+                if (Comms.writeInboxCache) Comms.writeInboxCache(state.conversations);
+                renderConversations(els.convFilter ? els.convFilter.value : '');
+                if (data && typeof data.unread_count === 'number' && window.CommsRealtime && typeof window.CommsRealtime.updateHeaderBadge === 'function') {
+                    window.CommsRealtime.updateHeaderBadge(data.unread_count);
+                }
+                return loadConversations();
+            }).catch(function (err) {
+                Comms.showToast((err && err.message) || 'Could not mark messages as read. Please try again.', 'error');
+                loadConversations();
+                if (window.CommsRealtime && typeof window.CommsRealtime.refreshUnread === 'function') {
+                    window.CommsRealtime.refreshUnread();
+                }
+            }).finally(function () {
+                markAllBusy = false;
+                markAllBtn.disabled = false;
+                markAllBtn.removeAttribute('aria-busy');
+                if (label) label.textContent = 'Mark All as Read';
+            });
         });
     }
 
@@ -2568,8 +2708,16 @@
             if (els.threadMenuBtn) els.threadMenuBtn.setAttribute('aria-expanded', 'false');
         }
     });
+    document.addEventListener('click', function (e) {
+        var joinBtn = e.target.closest('[data-join-group-call]');
+        if (!joinBtn || !window.CommsWebRTC || typeof window.CommsWebRTC.joinActiveGroupCall !== 'function') return;
+        e.preventDefault();
+        window.CommsWebRTC.joinActiveGroupCall(joinBtn.getAttribute('data-join-group-call') || state.activeId);
+    });
+
     window.CommsChat = {
         appendMessage: appendMessage,
+        publishSentMessage: publishSentMessage,
         reloadConversations: loadConversations,
         reloadActiveMessages: reloadActiveMessages,
         onReactionChange: onReactionChange,

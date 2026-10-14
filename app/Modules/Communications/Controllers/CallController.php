@@ -5,6 +5,7 @@ namespace App\Modules\Communications\Controllers;
 use App\Modules\Communications\Models\Call;
 use App\Modules\Communications\Models\Conversation;
 use App\Modules\Communications\Services\CallService;
+use App\Modules\Communications\Services\MessageService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
@@ -14,7 +15,8 @@ use Illuminate\Support\Facades\Gate;
 class CallController extends Controller
 {
     public function __construct(
-        protected CallService $calls
+        protected CallService $calls,
+        protected MessageService $messages
     ) {}
 
     public function index(): JsonResponse
@@ -47,8 +49,12 @@ class CallController extends Controller
             $receiverId
         );
 
+        $viewer = Auth::user();
+        $notice = $this->calls->pullLastCallNotice();
+
         return response()->json([
-            'call' => $this->calls->serialize($call->load(['caller', 'receiver', 'conversation']), Auth::user()),
+            'call' => $this->calls->serialize($call->load(['caller', 'receiver', 'conversation']), $viewer),
+            'message' => $notice ? $this->messages->serialize($notice->load('sender'), $viewer) : null,
         ], 201);
     }
 
@@ -58,10 +64,13 @@ class CallController extends Controller
             'status' => ['required', 'string', 'in:accepted,rejected,missed,cancelled,ended'],
         ]);
 
-        $call = $this->calls->updateStatus($call, Auth::user(), $validated['status']);
+        $viewer = Auth::user();
+        $call = $this->calls->updateStatus($call, $viewer, $validated['status']);
+        $notice = $this->calls->pullLastCallNotice();
 
         return response()->json([
-            'call' => $this->calls->serialize($call->load(['caller', 'receiver', 'conversation']), Auth::user()),
+            'call' => $this->calls->serialize($call->load(['caller', 'receiver', 'conversation']), $viewer),
+            'message' => $notice ? $this->messages->serialize($notice->load('sender'), $viewer) : null,
         ]);
     }
 }

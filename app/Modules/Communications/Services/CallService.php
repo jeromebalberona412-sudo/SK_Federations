@@ -12,6 +12,15 @@ use Illuminate\Support\Collection;
 
 class CallService
 {
+    protected ?Message $lastCallNotice = null;
+
+    public function pullLastCallNotice(): ?Message
+    {
+        $notice = $this->lastCallNotice;
+        $this->lastCallNotice = null;
+
+        return $notice;
+    }
     public function __construct(
         protected ParticipantTypeResolver $types,
         protected ConversationService $conversations
@@ -121,6 +130,19 @@ class CallService
 
         $previous = $call->status;
         if ($previous === $status) {
+            return $call;
+        }
+
+        $terminal = [
+            Call::STATUS_ENDED,
+            Call::STATUS_REJECTED,
+            Call::STATUS_MISSED,
+            Call::STATUS_CANCELLED,
+        ];
+        if (in_array($previous, $terminal, true)) {
+            return $call;
+        }
+        if ($status === Call::STATUS_MISSED && ($previous === Call::STATUS_ACCEPTED || $call->started_at !== null)) {
             return $call;
         }
 
@@ -278,19 +300,22 @@ class CallService
         return sprintf('%d:%02d', $m, $s);
     }
 
-    protected function postCallMessage(Call $call, Authenticatable $actor, string $body): void
+    protected function postCallMessage(Call $call, Authenticatable $actor, string $body): Message
     {
-        Message::query()->create([
+        $message = Message::query()->create([
             'conversation_id' => $call->conversation_id,
             'sender_id' => (int) $actor->id,
             'sender_type' => $this->types->portalType(),
             'body' => $body,
             'message_type' => 'call',
         ]);
+        $this->lastCallNotice = $message;
 
         Conversation::query()->whereKey($call->conversation_id)->update([
             'updated_at' => now(),
         ]);
+
+        return $message;
     }
 
     protected function assertCanActOnCall(Call $call, Authenticatable $user): void

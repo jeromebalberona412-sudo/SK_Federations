@@ -588,11 +588,31 @@ import {
         els.inCall.classList.toggle('is-remote-landscape', !portrait);
     }
 
+    var remoteStream = null;
+
+    function mergeRemoteTrack(track, inboundStream) {
+        if (!remoteStream) remoteStream = new MediaStream();
+        function add(next) {
+            if (!next || remoteStream.getTracks().some(function (existing) { return existing.id === next.id; })) return;
+            remoteStream.addTrack(next);
+        }
+        add(track);
+        if (inboundStream && typeof inboundStream.getTracks === 'function') {
+            inboundStream.getTracks().forEach(add);
+        }
+        return remoteStream;
+    }
+
     function bindRemoteMedia(stream) {
         if (!stream) return;
         if (els.remoteVideo) {
-            els.remoteVideo.srcObject = stream;
+            els.remoteVideo.muted = true;
+            els.remoteVideo.setAttribute('muted', '');
             els.remoteVideo.playsInline = true;
+            els.remoteVideo.autoplay = true;
+            if (els.remoteVideo.srcObject !== stream) {
+                els.remoteVideo.srcObject = stream;
+            }
             try {
                 var vp = els.remoteVideo.play();
                 if (vp && typeof vp.catch === 'function') vp.catch(function () {});
@@ -605,7 +625,10 @@ import {
             applyRemoteVideoMetrics();
         }
         if (els.remoteAudio) {
-            els.remoteAudio.srcObject = stream;
+            var audioTracks = typeof stream.getAudioTracks === 'function' ? stream.getAudioTracks() : [];
+            els.remoteAudio.muted = false;
+            els.remoteAudio.autoplay = true;
+            els.remoteAudio.srcObject = new MediaStream(audioTracks);
             ensureRemoteAudioPlaying();
         }
         updateCameraUi();
@@ -666,7 +689,10 @@ import {
     }
 
     function showIncoming(call) {
-        if (!els.incoming) return;
+        els.incoming = document.getElementById('commsIncomingCall') || els.incoming;
+        els.incomingPeer = document.getElementById('commsIncomingPeer') || els.incomingPeer;
+        els.incomingType = document.getElementById('commsIncomingType') || els.incomingType;
+        if (!els.incoming || !call) return;
         role = 'callee';
         callConnected = false;
         hideEnded();
@@ -686,6 +712,8 @@ import {
             // Keep currentCall null so 1:1 cleanup does not steal the group room.
             currentCall = null;
             els.incoming.hidden = false;
+            els.incoming.removeAttribute('hidden');
+            els.incoming.style.display = 'flex';
             startRingtone('incoming');
             clearRingTimeout();
             ringTimeout = setTimeout(function () {
@@ -701,6 +729,8 @@ import {
         currentCall = Object.assign({}, currentCall || {}, call);
         rememberCallContext(currentCall);
         els.incoming.hidden = false;
+        els.incoming.removeAttribute('hidden');
+        els.incoming.style.display = 'flex';
         startRingtone('incoming');
         armRingTimeout();
     }
@@ -759,11 +789,11 @@ import {
             });
         };
         pc.ontrack = function (ev) {
-            var stream = ev.streams && ev.streams[0]
-                ? ev.streams[0]
-                : (ev.track ? new MediaStream([ev.track]) : null);
-            if (!stream) return;
-            bindRemoteMedia(stream);
+            var merged = mergeRemoteTrack(
+                ev.track,
+                ev.streams && ev.streams[0] ? ev.streams[0] : null
+            );
+            bindRemoteMedia(merged);
             if (ev.track && ev.track.kind === 'audio') {
                 ensureRemoteAudioPlaying();
             }
@@ -896,6 +926,7 @@ import {
         if (els.remoteVideo) els.remoteVideo.srcObject = null;
         if (els.localVideo) els.localVideo.srcObject = null;
         if (els.remoteAudio) els.remoteAudio.srcObject = null;
+        remoteStream = null;
         if (els.inCall) {
             els.inCall.hidden = true;
             els.inCall.classList.remove('is-connected', 'has-remote-video', 'is-video-call', 'is-remote-portrait', 'is-remote-landscape');
@@ -913,6 +944,16 @@ import {
         if (els.incoming) els.incoming.hidden = true;
     }
 
+    function publishCallNotice(data) {
+        var notice = data && data.message;
+        if (!notice || !window.CommsChat || typeof window.CommsChat.publishSentMessage !== 'function') return;
+        var peers = (data.call && data.call.invitees) || [];
+        window.CommsChat.publishSentMessage(notice, peers);
+        if (typeof window.CommsChat.appendMessage === 'function') {
+            window.CommsChat.appendMessage(notice);
+        }
+    }
+
     async function updateCallStatus(callId, status) {
         var r = routes();
         if (!r.callStatus || !window.Comms) return null;
@@ -920,7 +961,10 @@ import {
             method: 'POST',
             body: JSON.stringify({ status: status }),
             dedupe: false
-        }).then(function (data) { return data.call; });
+        }).then(function (data) {
+            publishCallNotice(data);
+            return data.call;
+        });
     }
 
     async function finishUnanswered(reason) {
@@ -1058,6 +1102,7 @@ import {
             callConnected = false;
             lastEndedCallId = null;
             currentCall = data.call;
+            publishCallNotice(data);
             wantsVideo = callType === 'video';
             if (conversation && conversation.other_user && !conversation.other_user.is_group) {
                 currentCall.peer = conversation.other_user;
@@ -1410,6 +1455,21 @@ import {
         var isReceiver = Number(row.receiver_id) === myId && row.receiver_type === myType;
         var isCaller = Number(row.caller_id) === myId && row.caller_type === myType;
         if (!isReceiver && !isCaller) return;
+
+        if (row.is_group_call && row.status === 'ringing' && !isCaller
+            && typeof window.CommsWebRTC.__showIncomingGroup === 'function') {
+            window.CommsWebRTC.__showIncomingGroup({
+                call_id: row.id,
+                conversation_id: row.conversation_id,
+                call_type: row.call_type,
+                caller_id: row.caller_id,
+                caller_type: row.caller_type,
+                peer_name: (row.peer && row.peer.name) || 'Group call',
+                invitees: row.invitees || [],
+                call_max_participants: row.call_max_participants
+            });
+            return;
+        }
 
         if (row.status === 'ringing' && isReceiver) {
             currentCall = Object.assign({}, currentCall || {}, {

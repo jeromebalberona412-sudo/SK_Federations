@@ -81,8 +81,8 @@
             @include('notifications::dropdown-popover')
         </div>
 
-        <div class="profile-dropdown-wrapper" data-tour="account-menu">
-            <button class="profile-btn" onclick="toggleProfileDropdown(event)" aria-label="Profile menu" aria-expanded="false" aria-haspopup="true">
+        <div class="profile-dropdown-wrapper">
+            <button class="profile-btn" data-tour="account-menu" onclick="toggleProfileDropdown(event)" aria-label="Profile menu" aria-expanded="false" aria-haspopup="true">
                 <img src="{{ $avatar }}" alt="Profile" class="nav-avatar">
                 <i class="fas fa-chevron-down nav-chevron"></i>
             </button>

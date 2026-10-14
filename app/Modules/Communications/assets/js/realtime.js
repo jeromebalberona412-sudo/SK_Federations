@@ -266,10 +266,12 @@ import { createClient } from '@supabase/supabase-js';
         if (typeof window.onCommsHeaderMessageInsert === 'function') {
             window.onCommsHeaderMessageInsert(message);
         }
+        var conversationId = row.conversation_id || message.conversation_id;
+        var viewing = isConversationOpen(conversationId) && document.visibilityState !== 'hidden';
         if (!message.mine) {
-            if (isConversationOpen(row.conversation_id || message.conversation_id)) {
-                markOpenConversationRead(row.conversation_id || message.conversation_id);
-            } else {
+            if (viewing) {
+                markOpenConversationRead(conversationId);
+            } else if (rememberUnreadMessage(row.id)) {
                 var badge = document.getElementById('commsMsgBadge');
                 if (badge) {
                     unreadFetchGen += 1;
@@ -278,9 +280,8 @@ import { createClient } from '@supabase/supabase-js';
                 }
             }
         }
-        scheduleInboxReload();
-        if (message.mine || !isConversationOpen(row.conversation_id || message.conversation_id)) {
-            refreshUnread();
+        if (!viewing) {
+            scheduleInboxReload();
         }
     }
 
@@ -323,9 +324,26 @@ import { createClient } from '@supabase/supabase-js';
         });
     }
 
+    var countedUnreadIds = Object.create(null);
+
+    function rememberUnreadMessage(messageId) {
+        var key = String(messageId || '');
+        if (!key || countedUnreadIds[key]) return false;
+        countedUnreadIds[key] = 1;
+        var keys = Object.keys(countedUnreadIds);
+        if (keys.length > 400) delete countedUnreadIds[keys[0]];
+        return true;
+    }
+
+    function beginReadSync() {
+        window.__COMMS_INBOX_EPOCH__ = (Number(window.__COMMS_INBOX_EPOCH__) || 0) + 1;
+    }
+
     function markOpenConversationRead(conversationId) {
         var cid = Number(conversationId || 0);
-        if (!cid || !window.Comms) return;
+        if (!cid || !window.Comms || document.visibilityState === 'hidden') return;
+        beginReadSync();
+        zeroConversationUnread(cid);
         window.clearTimeout(markReadTimers[cid]);
         markReadTimers[cid] = window.setTimeout(function () {
             delete markReadTimers[cid];
@@ -338,9 +356,12 @@ import { createClient } from '@supabase/supabase-js';
                 zeroConversationUnread(cid);
                 if (data && typeof data.unread_count === 'number') {
                     updateHeaderBadge(data.unread_count);
-                    return;
+                } else {
+                    refreshUnread();
                 }
-                refreshUnread();
+                if (window.CommsChat && typeof window.CommsChat.reloadConversations === 'function') {
+                    window.CommsChat.reloadConversations();
+                }
             }).catch(function () { refreshUnread(); });
         }, 120);
     }
@@ -377,8 +398,10 @@ import { createClient } from '@supabase/supabase-js';
         }
         if (!window.Comms) return;
         var gen = ++unreadFetchGen;
-        window.Comms.api(url, { dedupe: true }).then(function (data) {
+        var epoch = Number(window.__COMMS_INBOX_EPOCH__) || 0;
+        window.Comms.api(url, { dedupe: false }).then(function (data) {
             if (gen !== unreadFetchGen) return;
+            if ((Number(window.__COMMS_INBOX_EPOCH__) || 0) !== epoch) return;
             updateHeaderBadge(data.unread_count || 0);
         }).catch(function () { /* ignore */ });
     }
@@ -617,10 +640,18 @@ import { createClient } from '@supabase/supabase-js';
         var sb = ensureClient();
         if (!sb || !channelName) return Promise.resolve();
 
+        var packet = { type: 'broadcast', event: eventName || 'webrtc', payload: payload };
+        var prior = typeof sb.getChannels === 'function' ? sb.getChannels().slice() : [];
+        var ch = sb.channel(channelName, {
+            config: { broadcast: { ack: true, self: false } }
+        });
+        var createdHere = prior.indexOf(ch) === -1;
+
+        if (!createdHere) {
+            return ch.send(packet).catch(function () {});
+        }
+
         return new Promise(function (resolve) {
-            var ch = sb.channel(channelName, {
-                config: { broadcast: { ack: true, self: false } }
-            });
             var settled = false;
             var finish = function () {
                 if (settled) return;
@@ -631,7 +662,7 @@ import { createClient } from '@supabase/supabase-js';
             var timer = setTimeout(finish, 8000);
             ch.subscribe(function (status) {
                 if (status !== 'SUBSCRIBED') return;
-                ch.send({ type: 'broadcast', event: eventName || 'webrtc', payload: payload })
+                ch.send(packet)
                     .then(function () {
                         clearTimeout(timer);
                         finish();
@@ -802,17 +833,23 @@ import { createClient } from '@supabase/supabase-js';
         });
     }
 
-    function startPersonalInbox() {
-        var sb = ensureClient();
-        var name = myInboxName();
-        if (!sb || !name) return;
+    var inboxChannels = [];
 
-        if (inboxChannel) {
-            sb.removeChannel(inboxChannel);
-            inboxChannel = null;
-        }
+    function myInboxNames() {
+        var root = getRoot();
+        var primary = myInboxName();
+        var names = [];
+        if (primary) names.push(primary);
+        if (!root) return names;
+        typeAliases(root.dataset.portalUserType).forEach(function (alias) {
+            var name = peerInboxName(alias, root.dataset.currentUserId);
+            if (name && names.indexOf(name) === -1) names.push(name);
+        });
+        return names;
+    }
 
-        inboxChannel = sb.channel(name, {
+    function bindInboxChannel(sb, name) {
+        return sb.channel(name, {
             config: { broadcast: { self: false } }
         })
             .on('broadcast', { event: 'webrtc' }, function (payload) {
@@ -824,6 +861,21 @@ import { createClient } from '@supabase/supabase-js';
                 if (msg && msg.id != null) deliverRealtimeInsert(msg);
             })
             .subscribe();
+    }
+
+    function startPersonalInbox() {
+        var sb = ensureClient();
+        var names = myInboxNames();
+        if (!sb || !names.length) return;
+
+        inboxChannels.forEach(function (channel) {
+            try { sb.removeChannel(channel); } catch (e) { /* ignore */ }
+        });
+        inboxChannels = [];
+        names.forEach(function (name) {
+            inboxChannels.push(bindInboxChannel(sb, name));
+        });
+        inboxChannel = inboxChannels[0] || null;
     }
 
     function initGlobalMessageWatch() {
@@ -895,6 +947,19 @@ import { createClient } from '@supabase/supabase-js';
     document.addEventListener('visibilitychange', function () {
         if (document.visibilityState === 'hidden' && localTyping.active && localTyping.conversationId) {
             stopTyping(localTyping.conversationId);
+            return;
+        }
+        if (document.visibilityState !== 'visible') return;
+        var activeId = window.CommsChat && typeof window.CommsChat.getActiveId === 'function'
+            ? window.CommsChat.getActiveId()
+            : null;
+        if (activeId) markOpenConversationRead(activeId);
+        refreshUnread();
+        if (window.CommsChat && typeof window.CommsChat.reloadActiveMessages === 'function') {
+            window.CommsChat.reloadActiveMessages();
+        }
+        if (window.CommsWebRTC && typeof window.CommsWebRTC.syncIncomingFromServer === 'function') {
+            window.CommsWebRTC.syncIncomingFromServer(null);
         }
     });
 

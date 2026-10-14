@@ -18,6 +18,7 @@
         'updateMessage' => url('/api/communications/messages/__ID__'),
         'deleteMessage' => url('/api/communications/messages/__ID__'),
         'read' => url('/api/communications/conversations/__ID__/read'),
+        'markAllRead' => route('api.communications.conversations.mark-all-read'),
         'showConversation' => url('/api/communications/conversations/__ID__'),
         'searchUsers' => route('api.communications.users.search'),
         'unreadCount' => route('api.communications.unread-count'),
@@ -60,6 +61,9 @@
                         </a>
                     </div>
                 </div>
+                <button type="button" class="comms-mark-all-read" id="commsMarkAllRead" style="display:flex;align-items:center;justify-content:center;width:calc(100% - 24px);margin:8px 12px 0;box-sizing:border-box;background:#0039A8;color:#fff;border:0;border-radius:999px;padding:8px 12px;font-size:13px;font-weight:700;line-height:1.2;cursor:pointer;">
+                    <span class="comms-mark-all-read-label" style="color:#fff;font-size:13px;font-weight:700;line-height:1.2;">Mark All as Read</span>
+                </button>
 
                 @if(($portalUserType ?? '') === 'sk_fed')
                     <div class="comms-call-prompt" role="note">
