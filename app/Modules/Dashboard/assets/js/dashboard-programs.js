@@ -39,6 +39,15 @@ document.addEventListener('DOMContentLoaded', function () {
         const labels = Array.isArray(data?.labels) ? data.labels : [];
         const values = Array.isArray(data?.values) ? data.values.map(Number) : [];
         const hasData = labels.length > 0 && values.some((value) => value > 0);
+        const totalEl = document.querySelector(
+            (key === 'status' ? '#programStatusTotal' : '#programBarangayTotal') + ' .kk-demo-total-value'
+        );
+        if (totalEl) {
+            const total = values.reduce(function (sum, value) {
+                return sum + (Number(value) || 0);
+            }, 0);
+            totalEl.textContent = total.toLocaleString();
+        }
 
         if (!canvas || !empty) {
             return;

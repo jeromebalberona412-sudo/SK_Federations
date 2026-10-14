@@ -3038,7 +3038,7 @@ function initSessionTimeoutWarning() {
     scheduleFrom(lastActivityAt);
 }
 
-/* Communications unread badge (lightweight poll; Realtime also refreshes on Messages page) */
+/* Communications unread badge fallback when Realtime is not loaded. */
 (function () {
     var badge = document.getElementById('commsMsgBadge');
     if (!badge) return;
@@ -3051,7 +3051,8 @@ function initSessionTimeoutWarning() {
                 'X-Requested-With': 'XMLHttpRequest',
                 'X-CSRF-TOKEN': csrf ? csrf.getAttribute('content') : ''
             },
-            credentials: 'same-origin'
+            credentials: 'same-origin',
+            cache: 'no-store'
         }).then(function (r) { return r.ok ? r.json() : null; }).then(function (data) {
             if (!data) return;
             var n = Number(data.unread_count || 0);
@@ -3062,10 +3063,13 @@ function initSessionTimeoutWarning() {
                 return;
             }
             badge.style.display = '';
-            badge.textContent = (window.Comms && typeof window.Comms.formatHeaderMsgCount === 'function')
-                ? window.Comms.formatHeaderMsgCount(n)
-                : (n >= 9 ? '9+' : String(n));
+            badge.textContent = n > 99 ? '99+' : String(n);
         }).catch(function () { /* ignore */ });
     }
-    setInterval(refresh, 30000);
+    setInterval(function () {
+        if (window.CommsRealtime && typeof window.CommsRealtime.refreshUnread === 'function') {
+            return;
+        }
+        refresh();
+    }, 30000);
 })();

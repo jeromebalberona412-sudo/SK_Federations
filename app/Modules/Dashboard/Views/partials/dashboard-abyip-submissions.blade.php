@@ -14,6 +14,10 @@
             <a href="{{ route('barangay-monitoring') }}" class="dash-abyip-view-all" data-no-loading>
                 View All <i class="fas fa-arrow-right" aria-hidden="true"></i>
             </a>
+            <span class="kk-demo-total" id="dashAbyipTotal" aria-live="polite">
+                <span class="kk-demo-total-label">Total</span>
+                <span class="kk-demo-total-value">{{ number_format((int) ($abyipStats['submitted'] ?? 0)) }}</span>
+            </span>
         </div>
     </div>
     <div class="card-body dash-abyip-body">

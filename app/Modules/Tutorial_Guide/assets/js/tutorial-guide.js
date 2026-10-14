@@ -51,8 +51,8 @@
             key: 'barangay-monitoring',
             target: '[data-tour="barangay-monitoring"]',
             icon: 'fa-map-marker-alt',
-            title: 'Barangay Compliance',
-            description: 'Monitor barangay SK compliance and check which barangays have submitted or completed required requirements.',
+            title: 'Barangay ABYIP',
+            description: 'Monitor barangay ABYIP submissions and check which barangays have submitted or completed required requirements.',
             placement: 'right',
             isSidebar: true
         },

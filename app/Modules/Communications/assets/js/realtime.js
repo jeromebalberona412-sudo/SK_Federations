@@ -24,6 +24,7 @@ import { createClient } from '@supabase/supabase-js';
     var pendingSignals = [];
     var typingTimers = Object.create(null);
     var lastTypingSent = 0;
+    var unreadFetchGen = 0;
     var activeConversationId = null;
     var localTyping = {
         active: false,
@@ -266,28 +267,102 @@ import { createClient } from '@supabase/supabase-js';
             window.onCommsHeaderMessageInsert(message);
         }
         if (!message.mine) {
-            var badge = document.getElementById('commsMsgBadge');
-            if (badge) {
-                var next = Number(badge.dataset.unreadTotal || 0) + 1;
-                updateHeaderBadge(next);
+            if (isConversationOpen(row.conversation_id || message.conversation_id)) {
+                markOpenConversationRead(row.conversation_id || message.conversation_id);
+            } else {
+                var badge = document.getElementById('commsMsgBadge');
+                if (badge) {
+                    unreadFetchGen += 1;
+                    var next = Number(badge.dataset.unreadTotal || 0) + 1;
+                    updateHeaderBadge(next);
+                }
             }
         }
         scheduleInboxReload();
-        refreshUnread();
+        if (message.mine || !isConversationOpen(row.conversation_id || message.conversation_id)) {
+            refreshUnread();
+        }
+    }
+
+    function isConversationOpen(conversationId) {
+        var cid = Number(conversationId || 0);
+        if (!cid) return false;
+        var pageCid = window.__COMMS_PAGE_ACTIVE_ID__;
+        var headerCid = window.__COMMS_HEADER_ACTIVE_ID__;
+        var chatId = (window.CommsChat && typeof window.CommsChat.getActiveId === 'function')
+            ? window.CommsChat.getActiveId()
+            : null;
+        return Number(pageCid) === cid || Number(headerCid) === cid || Number(chatId) === cid;
+    }
+
+    var markReadTimers = Object.create(null);
+
+    function zeroConversationUnread(conversationId) {
+        var cid = Number(conversationId || 0);
+        if (!cid) return;
+        function zeroItem(c) {
+            if (c && Number(c.id) === cid) {
+                c.unread_count = 0;
+            }
+        }
+        if (Array.isArray(window.__COMMS_HEADER_CONVERSATIONS__)) {
+            window.__COMMS_HEADER_CONVERSATIONS__.forEach(zeroItem);
+        }
+        if (window.Comms && typeof window.Comms.readInboxCache === 'function' && typeof window.Comms.writeInboxCache === 'function') {
+            var cached = window.Comms.readInboxCache();
+            if (Array.isArray(cached) && cached.length) {
+                cached.forEach(zeroItem);
+                window.Comms.writeInboxCache(cached);
+            }
+        }
+        document.querySelectorAll('.comms-msg-item[data-id="' + cid + '"]').forEach(function (btn) {
+            btn.classList.remove('comms-msg-unread');
+            btn.setAttribute('data-unread', '0');
+            var dot = btn.querySelector('.comms-msg-unread-dot, .comms-unread');
+            if (dot) dot.remove();
+        });
+    }
+
+    function markOpenConversationRead(conversationId) {
+        var cid = Number(conversationId || 0);
+        if (!cid || !window.Comms) return;
+        window.clearTimeout(markReadTimers[cid]);
+        markReadTimers[cid] = window.setTimeout(function () {
+            delete markReadTimers[cid];
+            window.Comms.api('/api/communications/conversations/' + encodeURIComponent(cid) + '/read', {
+                method: 'POST',
+                body: '{}',
+                dedupe: true
+            }).then(function (data) {
+                unreadFetchGen += 1;
+                zeroConversationUnread(cid);
+                if (data && typeof data.unread_count === 'number') {
+                    updateHeaderBadge(data.unread_count);
+                    return;
+                }
+                refreshUnread();
+            }).catch(function () { refreshUnread(); });
+        }, 120);
     }
 
     function updateHeaderBadge(count) {
         var badge = document.getElementById('commsMsgBadge');
         if (!badge) return;
         var n = Number(count || 0);
+        if (!Number.isFinite(n) || n < 0) n = 0;
         badge.dataset.unreadTotal = String(n);
         if (n <= 0) {
             badge.style.display = 'none';
             badge.textContent = '0';
-            return;
+        } else {
+            badge.style.display = '';
+            badge.textContent = n > 99 ? '99+' : String(n);
         }
-        badge.style.display = '';
-        badge.textContent = n > 99 ? '99+' : String(n);
+        var pill = document.getElementById('commsMsgCountPill');
+        if (pill) {
+            pill.style.display = n > 0 ? '' : 'none';
+            pill.textContent = n > 99 ? '99+' : String(n);
+        }
     }
 
     function refreshUnread() {
@@ -297,8 +372,13 @@ import { createClient } from '@supabase/supabase-js';
         if (!url && root && root.dataset.unreadCountUrl) {
             url = root.dataset.unreadCountUrl;
         }
-        if (!url || !window.Comms) return;
+        if (!url) {
+            url = '/api/communications/unread-count';
+        }
+        if (!window.Comms) return;
+        var gen = ++unreadFetchGen;
         window.Comms.api(url, { dedupe: true }).then(function (data) {
+            if (gen !== unreadFetchGen) return;
             updateHeaderBadge(data.unread_count || 0);
         }).catch(function () { /* ignore */ });
     }
@@ -803,6 +883,7 @@ import { createClient } from '@supabase/supabase-js';
         broadcastSignal: broadcastSignal,
         broadcastMessage: broadcastMessage,
         refreshUnread: refreshUnread,
+        updateHeaderBadge: updateHeaderBadge,
         flushPendingSignals: flushPendingSignals
     };
 

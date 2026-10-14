@@ -40,9 +40,18 @@
 
 .program-chart-card > .card-header {
     min-height: 48px;
-    align-items: center;
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
     padding-top: 10px;
     padding-bottom: 10px;
+}
+
+.program-chart-card > .card-header > .kk-demo-total {
+    margin-left: auto;
+    align-self: flex-start;
+    flex: 0 0 auto;
 }
 
 .program-chart-card > .card-header h3 {

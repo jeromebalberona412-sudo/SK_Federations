@@ -30,8 +30,8 @@
             <i class="fas fa-rss"></i><span>SK Community Feed</span>
         </a>
 
-        <a href="{{ route('barangay-monitoring') }}" class="menu-item {{ request()->routeIs('barangay-monitoring*') ? 'active' : '' }}" data-tooltip="Barangay Compliance" data-tour="barangay-monitoring" data-no-loading>
-            <i class="fas fa-map-marker-alt"></i><span>Barangay Compliance</span>
+        <a href="{{ route('barangay-monitoring') }}" class="menu-item {{ request()->routeIs('barangay-monitoring*') ? 'active' : '' }}" data-tooltip="Barangay ABYIP" data-tour="barangay-monitoring" data-no-loading>
+            <i class="fas fa-map-marker-alt"></i><span>Barangay ABYIP</span>
         </a>
 
         <a href="{{ route('kabataan-monitoring') }}" class="menu-item {{ request()->routeIs('kabataan-monitoring*') ? 'active' : '' }}" data-tooltip="KK Profiling Records" data-tour="kabataan-monitoring" data-no-loading>

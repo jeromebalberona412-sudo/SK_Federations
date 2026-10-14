@@ -5,7 +5,7 @@
     --audit-footer-height: 34px;
     --audit-control-height: 32px;
     position: relative;
-    z-index: 5;
+    z-index: auto;
     box-sizing: border-box;
     min-height: calc(100vh - var(--navbar-height, 64px));
     margin: -28px;
@@ -832,5 +832,31 @@ body.sidebar-collapsed .audit-page-footer {
 @media (max-width: 390px) {
     .audit-stats-grid .stat-card-label {
         font-size: 0.62rem;
+    }
+}
+
+#logoutModal.modal.show {
+    z-index: 40000 !important;
+}
+
+#logoutModal .logout-modal-content {
+    height: auto !important;
+    max-height: min(90dvh, 520px) !important;
+    width: min(420px, calc(100vw - 32px)) !important;
+    max-width: min(420px, calc(100vw - 32px)) !important;
+}
+
+@media (max-width: 768px) {
+    .navbar.sk-fed-navbar .profile-dropdown {
+        z-index: 20000 !important;
+        overflow-x: hidden;
+        overflow-y: auto;
+        max-height: calc(100vh - var(--navbar-height, 52px) - 12px);
+        pointer-events: auto;
+    }
+
+    .navbar.sk-fed-navbar .profile-dropdown-item--logout {
+        pointer-events: auto;
+        min-height: 44px;
     }
 }

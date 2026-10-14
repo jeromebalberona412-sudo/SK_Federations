@@ -1735,8 +1735,10 @@
             saveMsgCache(id, freshMessages, freshEmojis);
 
             return Comms.api(Comms.route(routes.read, id), { method: 'POST', body: '{}' });
-        }).then(function () {
-            if (window.CommsRealtime && typeof window.CommsRealtime.refreshUnread === 'function') {
+        }).then(function (data) {
+            if (data && typeof data.unread_count === 'number' && window.CommsRealtime && typeof window.CommsRealtime.updateHeaderBadge === 'function') {
+                window.CommsRealtime.updateHeaderBadge(data.unread_count);
+            } else if (window.CommsRealtime && typeof window.CommsRealtime.refreshUnread === 'function') {
                 window.CommsRealtime.refreshUnread();
             } else if (typeof window.refreshMessagesUnreadBadge === 'function') {
                 window.refreshMessagesUnreadBadge();

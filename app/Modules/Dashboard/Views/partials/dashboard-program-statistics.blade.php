@@ -12,6 +12,10 @@
                     <h3>Program Schedule Status</h3>
                     <p class="program-chart-subtitle">Open and closed application schedules</p>
                 </div>
+                <span class="kk-demo-total" id="programStatusTotal" aria-live="polite">
+                    <span class="kk-demo-total-label">Total</span>
+                    <span class="kk-demo-total-value">0</span>
+                </span>
             </div>
             <div class="card-body program-chart-body">
                 <div class="program-chart-canvas">
@@ -26,6 +30,10 @@
                     <h3>Programs by Barangay</h3>
                     <p class="program-chart-subtitle">Barangays with the most active schedules</p>
                 </div>
+                <span class="kk-demo-total" id="programBarangayTotal" aria-live="polite">
+                    <span class="kk-demo-total-label">Total</span>
+                    <span class="kk-demo-total-value">0</span>
+                </span>
             </div>
             <div class="card-body program-chart-body">
                 <div class="program-chart-canvas program-chart-canvas--bar">

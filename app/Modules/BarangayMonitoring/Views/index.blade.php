@@ -1,6 +1,6 @@
 @extends('layout::app')
 
-@section('title', 'Barangay Compliance - SK Federation')
+@section('title', 'Barangay ABYIP - SK Federation')
 
 @push('main-class')
     bm-main

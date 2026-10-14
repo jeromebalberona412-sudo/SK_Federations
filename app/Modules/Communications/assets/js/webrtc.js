@@ -718,10 +718,22 @@ import {
     }
 
     function startTimer() {
-        callStartedAt = Date.now();
-        clearInterval(callTimer);
+        if (callTimer) {
+            if (els.timer && callStartedAt) {
+                els.timer.textContent = formatTimer(Date.now() - callStartedAt);
+            }
+            return;
+        }
+        if (!callStartedAt) {
+            callStartedAt = Date.now();
+        }
+        if (els.timer) {
+            els.timer.textContent = formatTimer(Date.now() - callStartedAt);
+        }
         callTimer = setInterval(function () {
-            if (els.timer) els.timer.textContent = formatTimer(Date.now() - callStartedAt);
+            if (els.timer && callStartedAt) {
+                els.timer.textContent = formatTimer(Date.now() - callStartedAt);
+            }
         }, 1000);
     }
 

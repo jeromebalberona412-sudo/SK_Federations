@@ -319,6 +319,11 @@ document.addEventListener('DOMContentLoaded', function () {
             subtitle.textContent = 'Barangays that submitted ABYIP — ' + yearLabel;
         }
 
+        const abyipTotalEl = document.querySelector('#dashAbyipTotal .kk-demo-total-value');
+        if (abyipTotalEl) {
+            abyipTotalEl.textContent = Number(stats.submitted || 0).toLocaleString();
+        }
+
         if (empty) {
             empty.textContent = 'No ABYIP submissions yet for ' + yearLabel + '.';
             empty.hidden = rows.length > 0;

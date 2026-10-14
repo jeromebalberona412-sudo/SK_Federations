@@ -1184,6 +1184,7 @@ select.form-input-light option {
 .main-content-modern.accounts-page {
     --accounts-footer-height: 34px;
     position: relative;
+    z-index: auto;
     box-sizing: border-box;
     min-height: calc(100vh - var(--navbar-height, 64px));
     padding: 0 20px calc(var(--accounts-footer-height, 36px) + 28px);
@@ -2155,12 +2156,26 @@ body.sidebar-collapsed .accounts-page-footer {
         justify-content: stretch;
     }
 
-    .modal-content {
+    .modal-overlay .modal-content,
+    .modal-content:not(.logout-modal-content) {
         width: 100%;
         max-width: 100%;
         max-height: 100dvh;
         height: 100dvh;
         border-radius: 0;
+    }
+
+    #logoutModal.modal {
+        z-index: 40000 !important;
+    }
+
+    #logoutModal .logout-modal-content {
+        width: min(420px, calc(100vw - 32px)) !important;
+        max-width: min(420px, calc(100vw - 32px)) !important;
+        height: auto !important;
+        max-height: min(90dvh, 520px) !important;
+        border-radius: 16px !important;
+        margin: auto;
     }
 
     .modal-large {
@@ -4817,4 +4832,19 @@ body.sidebar-collapsed .accounts-page-footer {
     height: 22px;
     border-width: 2.5px;
     flex-shrink: 0;
+}
+
+@media (max-width: 768px) {
+    .navbar.sk-fed-navbar .profile-dropdown {
+        z-index: 20000 !important;
+        overflow-x: hidden;
+        overflow-y: auto;
+        max-height: calc(100vh - var(--navbar-height, 52px) - 12px);
+        pointer-events: auto;
+    }
+
+    .navbar.sk-fed-navbar .profile-dropdown-item--logout {
+        pointer-events: auto;
+        min-height: 44px;
+    }
 }

@@ -189,85 +189,8 @@
         </div>
         </section>
 
-        {{-- ── Purok + Quick Actions ── --}}
-        <div class="dash-row dash-row--top-split">
-            <div class="content-card dash-main-chart-card" id="purok-distribution-section">
-                <div class="card-header kk-chart-section-header">
-                    <div class="kk-chart-heading">
-                        <h3>Kabataan per Purok/Sitio</h3>
-                        <p class="kk-chart-subtitle">Youth population distribution</p>
-                        <span class="kk-demo-total" id="purokDistributionTotal">
-                            <span class="kk-demo-total-label">Total</span>
-                            <span class="kk-demo-total-value">0</span>
-                        </span>
-                    </div>
-                    <div class="kk-chart-header-actions">
-                        <select id="purokBarangayFilter" class="kk-barangay-select" aria-label="Filter by barangay">
-                            <option value="all">All Barangays</option>
-                            @foreach ($barangays as $barangay)
-                                <option value="{{ $barangay->id }}">{{ $barangay->name }}</option>
-                            @endforeach
-                        </select>
-                        <select id="purokZoneFilter" class="kk-barangay-select" aria-label="Filter by purok or sitio" hidden>
-                            <option value="all">All Purok/Sitio</option>
-                        </select>
-                    </div>
-                </div>
-                <div class="card-body dash-purok-card-body">
-                    <div class="kk-chart-canvas-wrap kk-chart-canvas-wrap--purok" id="purokChartWrap">
-                        <div class="purok-chart-scroll-inner" id="purokChartScrollInner">
-                            <canvas id="purokDistributionChart"></canvas>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <div class="content-card dash-quick-actions-card">
-                <div class="card-header dash-qa-header">
-                    <h3><i class="fas fa-bolt" aria-hidden="true"></i> Quick Actions</h3>
-                </div>
-                <div class="card-body quick-actions-list" role="list">
-                    <a href="{{ route('accounts.officials.index') }}" class="qa-item qa-item--blue" role="listitem" data-no-loading>
-                        <span class="qa-item-icon"><i class="fas fa-user-plus"></i></span>
-                        <span class="qa-item-label">Add SK Officials</span>
-                        <span class="qa-item-chevron"><i class="fas fa-chevron-right"></i></span>
-                    </a>
-                    <a href="{{ route('barangay-monitoring') }}" class="qa-item qa-item--green" role="listitem" data-no-loading>
-                        <span class="qa-item-icon"><i class="fas fa-clipboard-check"></i></span>
-                        <span class="qa-item-label">Barangay Compliance</span>
-                        <span class="qa-item-chevron"><i class="fas fa-chevron-right"></i></span>
-                    </a>
-                    <a href="{{ route('kabataan-monitoring') }}" class="qa-item qa-item--teal" role="listitem" data-no-loading>
-                        <span class="qa-item-icon"><i class="fas fa-users"></i></span>
-                        <span class="qa-item-label">KK Profiling Records</span>
-                        <span class="qa-item-chevron"><i class="fas fa-chevron-right"></i></span>
-                    </a>
-                    <a href="{{ route('kabataan-monitoring') }}" class="qa-item qa-item--blue" role="listitem" data-no-loading>
-                        <span class="qa-item-icon"><i class="fas fa-file-csv"></i></span>
-                        <span class="qa-item-label">Generate Reports</span>
-                        <span class="qa-item-chevron"><i class="fas fa-chevron-right"></i></span>
-                    </a>
-                    <a href="{{ route('barangay-logos.index') }}" class="qa-item qa-item--orange" role="listitem" data-no-loading>
-                        <span class="qa-item-icon"><i class="fas fa-image"></i></span>
-                        <span class="qa-item-label">Barangay Logos</span>
-                        <span class="qa-item-chevron"><i class="fas fa-chevron-right"></i></span>
-                    </a>
-                    <a href="{{ route('community-feed') }}" class="qa-item qa-item--purple" role="listitem" data-no-loading>
-                        <span class="qa-item-icon"><i class="fas fa-rss"></i></span>
-                        <span class="qa-item-label">SK Community Feed</span>
-                        <span class="qa-item-chevron"><i class="fas fa-chevron-right"></i></span>
-                    </a>
-                    <a href="{{ route('calendar') }}" class="qa-item qa-item--teal" role="listitem" data-no-loading>
-                        <span class="qa-item-icon"><i class="fas fa-calendar-alt"></i></span>
-                        <span class="qa-item-label">Calendar</span>
-                        <span class="qa-item-chevron"><i class="fas fa-chevron-right"></i></span>
-                    </a>
-                </div>
-            </div>
-        </div>
-
-        {{-- ── KK Profiling, Sex Distribution, and Employment Status ── --}}
-        <div class="dash-row dash-row--kk-sex-employment">
+        {{-- ── KK Profiling by Month ── --}}
+        <div class="dash-row dash-row--kk-month">
             <div class="content-card dash-kk-chart-card" id="kk-profiling-section">
                 <div class="card-header kk-chart-section-header">
                     <div class="kk-chart-heading">
@@ -328,18 +251,104 @@
                     </div>
                 </div>
             </div>
-            <div class="content-card dash-col-6" id="kabataan-sex-section">
-                <div class="card-header dash-demo-chart-header">
+        </div>
+
+        {{-- ── Purok + Quick Actions ── --}}
+        <div class="dash-row dash-row--top-split">
+            <div class="content-card dash-main-chart-card" id="purok-distribution-section">
+                <div class="card-header kk-chart-section-header">
                     <div class="kk-chart-heading">
-                        <h3><i class="fas fa-venus-mars" style="color:#213F99;margin-right:8px;"></i>Sex Distribution</h3>
-                        <p class="dash-demo-chart-sub">Male vs Female — Kabataan, SK Officials &amp; SK Federations</p>
+                        <h3>Kabataan per Purok/Sitio</h3>
+                        <p class="kk-chart-subtitle">Youth population distribution</p>
                     </div>
                     <div class="kk-chart-header-actions">
+                        <select id="purokBarangayFilter" class="kk-barangay-select" aria-label="Filter by barangay">
+                            <option value="all">All Barangays</option>
+                            @foreach ($barangays as $barangay)
+                                <option value="{{ $barangay->id }}">{{ $barangay->name }}</option>
+                            @endforeach
+                        </select>
+                        <select id="purokZoneFilter" class="kk-barangay-select" aria-label="Filter by purok or sitio" hidden>
+                            <option value="all">All Purok/Sitio</option>
+                        </select>
+                    </div>
+                    <span class="kk-demo-total" id="purokDistributionTotal">
+                        <span class="kk-demo-total-label">Total</span>
+                        <span class="kk-demo-total-value">0</span>
+                    </span>
+                </div>
+                <div class="card-body dash-purok-card-body">
+                    <div class="kk-chart-canvas-wrap kk-chart-canvas-wrap--purok" id="purokChartWrap">
+                        <div class="purok-chart-scroll-inner" id="purokChartScrollInner">
+                            <canvas id="purokDistributionChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="content-card dash-quick-actions-card">
+                <div class="card-header dash-qa-header">
+                    <h3><i class="fas fa-bolt" aria-hidden="true"></i> Quick Actions</h3>
+                </div>
+                <div class="card-body quick-actions-list" role="list">
+                    <a href="{{ route('accounts.officials.index') }}" class="qa-item qa-item--blue" role="listitem" data-no-loading>
+                        <span class="qa-item-icon"><i class="fas fa-user-plus"></i></span>
+                        <span class="qa-item-label">Add SK Officials</span>
+                        <span class="qa-item-chevron"><i class="fas fa-chevron-right"></i></span>
+                    </a>
+                    <a href="{{ route('barangay-monitoring') }}" class="qa-item qa-item--green" role="listitem" data-no-loading>
+                        <span class="qa-item-icon"><i class="fas fa-clipboard-check"></i></span>
+                        <span class="qa-item-label">Barangay ABYIP</span>
+                        <span class="qa-item-chevron"><i class="fas fa-chevron-right"></i></span>
+                    </a>
+                    <a href="{{ route('kabataan-monitoring') }}" class="qa-item qa-item--teal" role="listitem" data-no-loading>
+                        <span class="qa-item-icon"><i class="fas fa-users"></i></span>
+                        <span class="qa-item-label">KK Profiling Records</span>
+                        <span class="qa-item-chevron"><i class="fas fa-chevron-right"></i></span>
+                    </a>
+                    <a href="{{ route('kabataan-monitoring') }}" class="qa-item qa-item--blue" role="listitem" data-no-loading>
+                        <span class="qa-item-icon"><i class="fas fa-file-csv"></i></span>
+                        <span class="qa-item-label">Generate Reports</span>
+                        <span class="qa-item-chevron"><i class="fas fa-chevron-right"></i></span>
+                    </a>
+                    <a href="{{ route('barangay-logos.index') }}" class="qa-item qa-item--orange" role="listitem" data-no-loading>
+                        <span class="qa-item-icon"><i class="fas fa-image"></i></span>
+                        <span class="qa-item-label">Barangay Logos</span>
+                        <span class="qa-item-chevron"><i class="fas fa-chevron-right"></i></span>
+                    </a>
+                    <a href="{{ route('community-feed') }}" class="qa-item qa-item--purple" role="listitem" data-no-loading>
+                        <span class="qa-item-icon"><i class="fas fa-rss"></i></span>
+                        <span class="qa-item-label">SK Community Feed</span>
+                        <span class="qa-item-chevron"><i class="fas fa-chevron-right"></i></span>
+                    </a>
+                    <a href="{{ route('calendar') }}" class="qa-item qa-item--teal" role="listitem" data-no-loading>
+                        <span class="qa-item-icon"><i class="fas fa-calendar-alt"></i></span>
+                        <span class="qa-item-label">Calendar</span>
+                        <span class="qa-item-chevron"><i class="fas fa-chevron-right"></i></span>
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        {{-- ── Sex Distribution and Employment Status ── --}}
+        <div class="dash-row dash-row--kk-sex-employment">
+            <div class="content-card dash-col-6 kk-demo-chart-card" id="kabataan-sex-section">
+                <div class="card-header dash-demo-chart-header dash-section-header--chart-filters">
+                    <div class="kk-chart-heading dash-section-header-text">
+                        <h3 class="dash-section-title">Kabataan Sex Distribution</h3>
+                        <p class="dash-section-sub">Male vs Female registered youth</p>
+                    </div>
+                    <div class="kk-chart-header-actions dash-chart-header-actions">
                         <select id="sexDistributionRoleFilter" class="kk-barangay-select" aria-label="Filter by role">
                             <option value="all" selected>All</option>
                             <option value="kabataan">Kabataan</option>
                             <option value="officials">SK Officials</option>
                             <option value="federations">SK Federations</option>
+                        </select>
+                        <select id="sexDistributionGenderFilter" class="kk-barangay-select" aria-label="Filter by sex">
+                            <option value="all" selected>All</option>
+                            <option value="male">Male</option>
+                            <option value="female">Female</option>
                         </select>
                     </div>
                     <span class="kk-demo-total" id="kabataanSexTotal">
@@ -348,8 +357,10 @@
                     </span>
                 </div>
                 <div class="card-body chart-body dash-demo-chart-body">
-                    <canvas id="kabataanSexChart" aria-label="Sex distribution chart"></canvas>
-                    <div class="dash-demo-legend" id="kabataanSexLegend"></div>
+                    <div class="chart-canvas-wrap chart-canvas-wrap--pie kk-demo-chart-wrap">
+                        <canvas id="kabataanSexChart" aria-label="Kabataan sex distribution chart"></canvas>
+                    </div>
+                    <div class="pie-legend-row" id="kabataanSexLegend"></div>
                     <p class="dash-empty-note" id="kabataanSexEmpty" hidden>No sex data available.</p>
                 </div>
             </div>
@@ -396,6 +407,10 @@
             <div class="content-card dash-col-6" id="federation-section">
                 <div class="card-header">
                     <h3><i class="fas fa-sitemap" style="color:#213F99;margin-right:8px;"></i>Federation Officers</h3>
+                    <span class="kk-demo-total" aria-live="polite">
+                        <span class="kk-demo-total-label">Total</span>
+                        <span class="kk-demo-total-value">{{ number_format(count($federationOfficers ?? [])) }}</span>
+                    </span>
                 </div>
                 <div class="card-body federation-officers-body">
                     <table class="federation-officers-table">
