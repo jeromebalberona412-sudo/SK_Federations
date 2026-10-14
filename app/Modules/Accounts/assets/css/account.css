@@ -3664,6 +3664,64 @@ body.sidebar-collapsed .accounts-page-footer {
     overflow-y: hidden !important;
 }
 
+#mainContent[data-account-type="sk_officials"] .accounts-table {
+    table-layout: fixed;
+    min-width: 1070px;
+}
+
+#mainContent[data-account-type="sk_officials"] .accounts-table thead th,
+#mainContent[data-account-type="sk_officials"] .accounts-table tbody td {
+    white-space: nowrap;
+}
+
+#mainContent[data-account-type="sk_officials"] .accounts-table thead th:nth-child(1),
+#mainContent[data-account-type="sk_officials"] .accounts-table tbody td:nth-child(1) {
+    width: 40px;
+    min-width: 40px;
+    max-width: 40px;
+}
+
+#mainContent[data-account-type="sk_officials"] .accounts-table thead th:nth-child(2),
+#mainContent[data-account-type="sk_officials"] .accounts-table tbody td:nth-child(2) {
+    width: 19%;
+}
+
+#mainContent[data-account-type="sk_officials"] .accounts-table thead th:nth-child(3),
+#mainContent[data-account-type="sk_officials"] .accounts-table tbody td:nth-child(3) {
+    width: 22%;
+}
+
+#mainContent[data-account-type="sk_officials"] .accounts-table thead th:nth-child(4),
+#mainContent[data-account-type="sk_officials"] .accounts-table tbody td:nth-child(4) {
+    width: 14%;
+}
+
+#mainContent[data-account-type="sk_officials"] .accounts-table thead th:nth-child(5),
+#mainContent[data-account-type="sk_officials"] .accounts-table tbody td:nth-child(5) {
+    width: 13%;
+}
+
+#mainContent[data-account-type="sk_officials"] .accounts-table thead th:nth-child(6),
+#mainContent[data-account-type="sk_officials"] .accounts-table tbody td:nth-child(6),
+#mainContent[data-account-type="sk_officials"] .accounts-table thead th:nth-child(7),
+#mainContent[data-account-type="sk_officials"] .accounts-table tbody td:nth-child(7) {
+    width: 110px;
+}
+
+#mainContent[data-account-type="sk_officials"] .accounts-table thead th:nth-child(8),
+#mainContent[data-account-type="sk_officials"] .accounts-table tbody td:nth-child(8) {
+    width: 72px;
+}
+
+#mainContent[data-account-type="sk_officials"] .accounts-table tbody td:not(.td-actions) {
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+#mainContent[data-account-type="sk_officials"] .accounts-table .td-email {
+    min-width: 0;
+}
+
 @media (max-width: 768px) {
     .accounts-page .table-responsive {
         overflow-x: auto !important;

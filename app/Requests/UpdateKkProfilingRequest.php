@@ -31,7 +31,7 @@ class UpdateKkProfilingRequest extends FormRequest
             'suffix' => ['required', 'string', 'in:None,Jr.,Sr.,I,II,III,IV,V,Others'],
             'custom_suffix' => ['nullable', 'required_if:suffix,Others', 'string', 'max:5', 'regex:/^(?!\s+$)[A-Za-z.\s]+$/'],
             'email' => ['required', ValidEmailAddress::profilingRules()],
-            'contact_number' => ['required', 'string', 'max:30', new PhilippineMobileNumber($this->route('id'), false)],
+            'contact_number' => ['nullable', 'string', 'max:30', new PhilippineMobileNumber($this->route('id'), false)],
             'age' => ['required', 'integer', 'min:15', 'max:30'],
             'birthday' => ['required', 'date', 'before_or_equal:today'],
             'sex' => ['nullable', 'in:Male,Female'],
@@ -77,7 +77,6 @@ class UpdateKkProfilingRequest extends FormRequest
             'custom_suffix.regex' => 'Custom suffix contains invalid characters.',
             'email.required' => 'E-mail address is required.',
             'email.max' => ValidEmailAddress::MSG_MAX,
-            'contact_number.required' => 'Contact number is required.',
             'contact_number.max' => 'Contact number must not exceed 30 characters.',
             'age.required' => 'Age is required.',
             'age.integer' => 'Age must be a valid number.',
@@ -112,6 +111,9 @@ class UpdateKkProfilingRequest extends FormRequest
             'last_name' => preg_replace('/\s+/', ' ', trim((string) $this->input('last_name', ''))) ?: '',
             'first_name' => preg_replace('/\s+/', ' ', trim((string) $this->input('first_name', ''))) ?: '',
             'middle_name' => preg_replace('/\s+/', ' ', trim((string) $this->input('middle_name', ''))) ?: null,
+            'contact_number' => trim((string) $this->input('contact_number', '')) === '09'
+                ? null
+                : $this->input('contact_number'),
         ]);
 
         if ($this->input('middle_name') === '') {

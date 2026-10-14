@@ -81,9 +81,9 @@ class KabataanMonitoringDocumentService
         ];
     }
 
-    public function response(User $user, int $recordId, bool $download = false): Response
+    public function response(User $user, int $recordId, bool $download = false, bool $forReview = false): Response
     {
-        $record = $this->authorizedRecord($user, $recordId);
+        $record = $this->authorizedRecord($user, $recordId, $forReview);
         $formData = is_array($record->form_data) ? $record->form_data : [];
         $document = $formData['monitoring_document'] ?? null;
         $path = is_array($document) ? ($document['path'] ?? null) : null;
@@ -113,9 +113,9 @@ class KabataanMonitoringDocumentService
     /**
      * @return array{filename:string,size:int,uploaded_at:?string}|null
      */
-    public function metadata(User $user, int $recordId): ?array
+    public function metadata(User $user, int $recordId, bool $forReview = false): ?array
     {
-        $record = $this->authorizedRecord($user, $recordId);
+        $record = $this->authorizedRecord($user, $recordId, $forReview);
         $formData = is_array($record->form_data) ? $record->form_data : [];
         $document = $formData['monitoring_document'] ?? null;
         $path = is_array($document) ? ($document['path'] ?? null) : null;
@@ -131,11 +131,13 @@ class KabataanMonitoringDocumentService
         ];
     }
 
-    private function authorizedRecord(User $user, int $recordId): KabataanRegistration
+    private function authorizedRecord(User $user, int $recordId, bool $forReview = false): KabataanRegistration
     {
         abort_unless($user->canAccessFederationPortal() && (int) $user->tenant_id > 0, 403);
 
-        $record = $this->monitoring->find($recordId, (int) $user->tenant_id);
+        $record = $forReview
+            ? $this->monitoring->findSubmissionForReview($recordId, (int) $user->tenant_id)
+            : $this->monitoring->find($recordId, (int) $user->tenant_id);
         abort_if($record === null, 404, 'Kabataan record not found.');
 
         return $record;

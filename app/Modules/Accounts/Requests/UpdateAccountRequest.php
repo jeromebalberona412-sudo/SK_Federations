@@ -140,7 +140,11 @@ class UpdateAccountRequest extends FormRequest
         ], true);
         $isOfficial = $accountRole === User::ROLE_SK_OFFICIAL;
 
-        $bounds = SkOfficialTermDates::birthdateBounds();
+        $bounds = match ($accountRole) {
+            User::ROLE_SK_FED => SkOfficialTermDates::federationBirthdateBounds(),
+            User::ROLE_SK_OFFICIAL => SkOfficialTermDates::officialAccountBirthdateBounds(),
+            default => SkOfficialTermDates::birthdateBounds(),
+        };
         $keepsExistingBirthdate = $requiresDemographics && $this->birthdateMatchesStored();
 
         $dateOfBirthRules = $requiresDemographics
@@ -237,7 +241,11 @@ class UpdateAccountRequest extends FormRequest
             return;
         }
 
-        $error = SkOfficialTermDates::birthdateErrorFor($dob);
+        $error = match ($accountRole) {
+            User::ROLE_SK_FED => SkOfficialTermDates::federationBirthdateErrorFor($dob),
+            User::ROLE_SK_OFFICIAL => SkOfficialTermDates::officialAccountBirthdateErrorFor($dob),
+            default => SkOfficialTermDates::birthdateErrorFor($dob),
+        };
         if ($error !== null) {
             $validator->errors()->add('date_of_birth', $error);
         }
@@ -308,6 +316,8 @@ class UpdateAccountRequest extends FormRequest
      */
     public function messages(): array
     {
+        $accountRole = (string) ($this->route('user')?->role ?? '');
+
         return [
             'email.unique' => 'This email is already taken.',
             'email.required' => ValidEmailAddress::MSG_REQUIRED,
@@ -317,7 +327,11 @@ class UpdateAccountRequest extends FormRequest
             'middle_name.regex' => 'Middle name must use uppercase letters only; need a letter before each space; no pure spaces.',
             'date_of_birth.required' => SkOfficialTermDates::MSG_DOB_REQUIRED,
             'date_of_birth.before' => 'Birthdate must be before today.',
-            'date_of_birth.after_or_equal' => SkOfficialTermDates::MSG_OVER_MAX_AGE,
+            'date_of_birth.after_or_equal' => match ($accountRole) {
+                User::ROLE_SK_FED => SkOfficialTermDates::MSG_BEFORE_FEDERATION_MIN_BIRTHDATE,
+                User::ROLE_SK_OFFICIAL => SkOfficialTermDates::MSG_BEFORE_OFFICIAL_MIN_BIRTHDATE,
+                default => SkOfficialTermDates::MSG_OVER_MAX_AGE,
+            },
             'date_of_birth.before_or_equal' => SkOfficialTermDates::MSG_UNDER_MIN_AGE,
             'age.min' => 'Age must be a valid number.',
             'age.max' => 'Age must be a valid number.',

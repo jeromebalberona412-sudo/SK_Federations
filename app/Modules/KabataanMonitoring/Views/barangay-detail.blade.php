@@ -46,6 +46,12 @@
                         <option value="{{ $year }}">{{ $year }}</option>
                     @endforeach
                 </select>
+                <select id="km-brgy-status-filter" class="km-select" aria-label="Filter by KK Profiling review status">
+                    <option value="all">All Statuses</option>
+                    <option value="pending">Pending</option>
+                    <option value="approved">Approved</option>
+                    <option value="rejected">Rejected</option>
+                </select>
                 <select id="km-brgy-age-group-filter" class="km-select" aria-label="Filter by youth age group">
                     <option value="all">Youth Age Group</option>
                     <option value="child">Child Youth (15–17)</option>
@@ -74,14 +80,20 @@
             <div class="km-filter-bar-actions-right">
                 <button type="button" class="km-btn km-btn--add-record" id="km-add-kk-record-btn">
                     <i class="fas fa-plus" aria-hidden="true"></i>
-                    Add KK Record
-                </button>
-                <button type="button" class="km-btn km-btn--excel-upload" id="km-open-excel-upload">
-                    <i class="fas fa-file-excel" aria-hidden="true"></i>
-                    Upload Excel
+                    Add Kabataan
                 </button>
                 <button type="button" class="km-export-btn km-export-btn--csv" id="km-export-csv-btn">
                     <i class="fas fa-file-csv" aria-hidden="true"></i> Export CSV
+                </button>
+                <button type="button" class="km-batch-approve-btn" id="km-batch-approve-btn" disabled hidden>
+                    <i class="fas fa-check" aria-hidden="true"></i>
+                    <span class="km-bulk-action-label">Approve Selected</span>
+                    <span class="km-bulk-action-count"></span>
+                </button>
+                <button type="button" class="km-batch-delete-btn" id="km-batch-delete-btn" disabled hidden>
+                    <i class="fas fa-trash" aria-hidden="true"></i>
+                    <span class="km-bulk-action-label">Delete Selected</span>
+                    <span class="km-bulk-action-count"></span>
                 </button>
                 <button type="button" class="km-batch-print-btn" id="km-batch-print-btn" disabled>
                     <i class="fas fa-print"></i> Batch Print
@@ -115,7 +127,7 @@
                         </th>
                         <th>Age</th>
                         <th>Purok/Zone</th>
-                        <th>Record Source</th>
+                        <th>Status</th>
                         <th>Registered Voter</th>
                         <th class="col-actions">Actions</th>
                     </tr>
@@ -272,7 +284,6 @@
 <div id="kmSortMenu" class="km-sort-menu" hidden role="menu" aria-label="Sort options"></div>
 
 @include('kabataan_monitoring::partials.add-kabataan-modal')
-@include('kabataan_monitoring::partials.batch-upload-modal')
 @endsection
 
 @push('scripts')
@@ -298,6 +309,8 @@
             documentDownloadUrl: @json(url('/api/kabataan-monitoring/__ID__/document/download')),
             destroyUrl: @json(url('/api/kabataan-monitoring/__ID__')),
             batchPrintUrl: @json(route('kabataan-monitoring.batch-print')),
+            bulkApproveUrl: @json(route('api.kabataan-monitoring.bulk-approve', ['barangay' => $barangay])),
+            bulkDeleteUrl: @json(route('api.kabataan-monitoring.bulk-delete', ['barangay' => $barangay])),
             printUrl: @json(url('/kabataan-monitoring/__ID__/print')),
             csrfToken: @json(csrf_token()),
             viewCssUrl: @json(\Illuminate\Support\Facades\Vite::asset('app/Modules/KabataanMonitoring/assets/css/kk-questionnaire-view.css')),

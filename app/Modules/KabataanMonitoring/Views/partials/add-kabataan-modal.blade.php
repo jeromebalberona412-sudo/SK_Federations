@@ -11,6 +11,14 @@
         </div>
 
         <div class="modal-body kabataan-modal-body">
+            <div class="km-add-mode-toggle" role="tablist" aria-label="Choose how to add Kabataan">
+                <button type="button" class="km-add-mode-tab is-active" id="km-add-manual-tab" role="tab" aria-selected="true" aria-controls="kabataanPanelManual">
+                    <i class="fas fa-user-plus" aria-hidden="true"></i> Add KK Record
+                </button>
+                <button type="button" class="km-add-mode-tab" id="km-add-excel-tab" role="tab" aria-selected="false" aria-controls="kabataanBatchUploadPanel">
+                    <i class="fas fa-file-excel" aria-hidden="true"></i> Upload Excel
+                </button>
+            </div>
             <div class="kabataan-mode-panel kabataan-panel-manual" id="kabataanPanelManual">
                 <div class="kkp-paper kk-view-paper kabataan-add-paper">
 
@@ -39,6 +47,7 @@
                                     <input type="text" id="kabataanDate" class="kkp-hdr-input kkp-hdr-input-readonly" readonly tabindex="-1">
                                 </div>
                             </div>
+                            @include('kabataan_monitoring::partials.batch-upload-modal')
                         </div>
                     </div>
 
@@ -158,8 +167,8 @@
                                 <input type="email" id="kabataanEmail" class="kkp-uline kkp-uline-med kkp-email-input" placeholder=" " minlength="6" maxlength="64" autocomplete="email" autocapitalize="none" spellcheck="false" required>
                             </div>
                             <div class="kkp-inline-pair kkp-inline-pair--contact">
-                                <label class="kkp-inline-label" for="kabataanContactInput">Contact #: <span class="kkp-required">*</span></label>
-                                <input type="tel" id="kabataanContactInput" class="kkp-uline kkp-uline-med" value="09" placeholder="09XXXXXXXXX" inputmode="numeric" pattern="09[0-9]{9}" maxlength="11" autocomplete="tel" required>
+                                <label class="kkp-inline-label" for="kabataanContactInput">Contact #: <span class="kkp-optional-label">(Optional)</span></label>
+                                <input type="tel" id="kabataanContactInput" class="kkp-uline kkp-uline-med" placeholder="09XXXXXXXXX" inputmode="numeric" pattern="09[0-9]{9}" maxlength="11" autocomplete="tel">
                             </div>
                         </div>
                     </div>

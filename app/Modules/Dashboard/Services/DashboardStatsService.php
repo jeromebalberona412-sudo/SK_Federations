@@ -8,6 +8,7 @@ use App\Modules\Accounts\Models\OfficialTerm;
 use App\Modules\Accounts\Services\ChairpersonFederationSyncService;
 use App\Modules\Accounts\Services\FederationRosterService;
 use App\Modules\AuditLog\Services\AuditLogQueryService;
+use App\Modules\KabataanMonitoring\Support\KkProfilingReviewStatus;
 use App\Modules\Shared\Models\User;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
@@ -130,23 +131,20 @@ class DashboardStatsService
      */
     public function municipalityKkStats(?int $tenantId = null, ?string $dateFrom = null, ?string $dateTo = null): array
     {
-        if (! Schema::hasTable('kabataan_registrations')) {
+        if (! $tenantId || ! Schema::hasTable('kabataan_registrations')) {
             return ['total_kk' => 0, 'approved' => 0, 'pending' => 0];
         }
 
         $base = $this->tenantKabataanQuery($tenantId);
 
-        $approvedQuery = (clone $base)
-            ->where('status', 'active')
-            ->whereIn('evaluation_status', ['active', 'Auto Approved', 'ID Verified']);
+        $approvedQuery = KkProfilingReviewStatus::applyApprovedScope((clone $base)->whereNull('deleted_at'));
         $this->applyKabataanDateRange($approvedQuery, $dateFrom, $dateTo);
 
-        $pendingQuery = (clone $base)
-            ->whereNotIn('status', ['rejected'])
-            ->whereIn('evaluation_status', ['Not Profiled', 'Wrong Credentials']);
-        $this->applyColumnDateRange($pendingQuery, 'submitted_at', $dateFrom, $dateTo);
+        $pendingQuery = (clone $base)->whereNull('deleted_at');
+        KkProfilingReviewStatus::applyPendingScope($pendingQuery);
+        $this->applyKabataanDateRange($pendingQuery, $dateFrom, $dateTo);
 
-        $totalQuery = clone $base;
+        $totalQuery = (clone $base)->whereNull('deleted_at');
         $this->applyColumnDateRange($totalQuery, 'submitted_at', $dateFrom, $dateTo);
 
         return [
@@ -265,12 +263,12 @@ class DashboardStatsService
         }
         if (Schema::hasColumn('schedule_programs', 'is_archived')) {
             $query->where(function ($activeQuery): void {
-                $activeQuery->whereNull('is_archived')->orWhere('is_archived', false);
+                $activeQuery->whereNull('is_archived')->orWhereRaw('"is_archived" = false');
             });
         }
 
         if (Schema::hasColumn('schedule_programs', 'tenant_id')) {
-            return $query->where('tenant_id', $tenantId);
+            return $query->where('schedule_programs.tenant_id', $tenantId);
         }
 
         if (Schema::hasTable('barangays') && Schema::hasColumn('barangays', 'tenant_id')) {

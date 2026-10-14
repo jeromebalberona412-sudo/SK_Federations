@@ -377,7 +377,11 @@ class BatchAccountImportService
                     $errors[] = 'Birthdate must be before today.';
                 } else {
                     // Age eligibility is as of today (not term_start), so 18+ today always passes.
-                    $birthdateError = SkOfficialTermDates::birthdateErrorFor($dob, null);
+                    $birthdateError = match ($role) {
+                        User::ROLE_SK_FED => SkOfficialTermDates::federationBirthdateErrorFor($dob, null),
+                        User::ROLE_SK_OFFICIAL => SkOfficialTermDates::officialAccountBirthdateErrorFor($dob, null),
+                        default => SkOfficialTermDates::birthdateErrorFor($dob, null),
+                    };
                     if ($birthdateError !== null) {
                         $errors[] = $birthdateError;
                     }

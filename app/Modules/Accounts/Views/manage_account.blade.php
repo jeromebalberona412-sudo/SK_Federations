@@ -13,7 +13,9 @@
     $tableColspan = $isOfficials ? 8 : 6;
     $batchTemplateType = $isOfficials ? 'officials' : 'federation';
     $batchRole = $isOfficials ? 'sk_official' : 'sk_fed';
-    $skDobBounds = \App\Modules\Accounts\Support\SkOfficialTermDates::birthdateBounds();
+    $skDobBounds = $isOfficials
+        ? \App\Modules\Accounts\Support\SkOfficialTermDates::officialAccountBirthdateBounds()
+        : \App\Modules\Accounts\Support\SkOfficialTermDates::federationBirthdateBounds();
     $skDobReference = \App\Modules\Accounts\Support\SkOfficialTermDates::eligibilityReference()->toDateString();
 @endphp
 

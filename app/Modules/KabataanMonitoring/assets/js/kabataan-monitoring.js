@@ -23,7 +23,8 @@
     function getFiltered() {
         var q = state.search.trim().toLowerCase();
         return records.filter(function(r) {
-            var matchStatus = state.status === 'all' || r.status === state.status;
+            var matchStatus = state.status === 'all'
+                || String(r.reviewStatus || '').toLowerCase() === state.status;
             var matchBrgy   = state.barangay === 'all' || r.barangay === state.barangay;
             var matchYear = state.year === 'all' || String(r.submittedYear || '') === String(state.year);
             var voterValue = String(r.registeredVoter || '').trim().toLowerCase();
@@ -291,7 +292,7 @@
         }
 
         var force = options && options.force === true;
-        var cacheKey = 'km_kabataan_records_v3_' + String(window.kmTenantId || '0') + '_' + String(window.kmBarangay || 'all').toLowerCase();
+        var cacheKey = 'km_kabataan_records_v4_' + String(window.kmTenantId || '0') + '_' + String(window.kmBarangay || 'all').toLowerCase();
         var ttlMs = 10 * 60 * 1000;
 
         function applyPayload(payload) {
@@ -437,6 +438,16 @@
             });
         }
 
+        var statusFilter = document.getElementById('km-brgy-status-filter');
+        if (statusFilter) {
+            statusFilter.addEventListener('change', function(e) {
+                state.status = e.target.value || 'all';
+                selectedIds.clear();
+                resetBarangayPagination();
+                renderBarangayDetail();
+            });
+        }
+
         var voterFilter = document.getElementById('km-brgy-voter-filter');
         if (voterFilter) {
             voterFilter.addEventListener('change', function(e) {
@@ -533,6 +544,9 @@
             batchBtn.addEventListener('click', openBatchPrint);
         }
 
+        document.getElementById('km-batch-approve-btn')?.addEventListener('click', bulkApproveSelected);
+        document.getElementById('km-batch-delete-btn')?.addEventListener('click', bulkDeleteSelected);
+
         setupRowActionMenus();
         setupDeleteConfirmModal();
 
@@ -571,11 +585,110 @@
 
     function updateBatchPrintButton() {
         var batchBtn = document.getElementById('km-batch-print-btn');
-        if (!batchBtn) return;
-        batchBtn.disabled = selectedIds.size === 0;
-        batchBtn.title = selectedIds.size
+        var approveBtn = document.getElementById('km-batch-approve-btn');
+        var deleteBtn = document.getElementById('km-batch-delete-btn');
+        var selected = records.filter(function(record) {
+            return selectedIds.has(String(record.id || record.slug || ''));
+        });
+        var pendingCount = selected.filter(function(record) {
+            return String(record.reviewStatus || '').toLowerCase() === 'pending';
+        }).length;
+
+        if (batchBtn) {
+            batchBtn.disabled = selectedIds.size === 0;
+            batchBtn.title = selectedIds.size
             ? 'Print ' + selectedIds.size + ' selected record' + (selectedIds.size === 1 ? '' : 's')
             : 'Select records to batch print';
+        }
+        if (approveBtn) {
+            approveBtn.hidden = selectedIds.size === 0;
+            approveBtn.disabled = pendingCount === 0;
+            var approveCount = approveBtn.querySelector('.km-bulk-action-count');
+            if (approveCount) approveCount.textContent = pendingCount ? ' (' + pendingCount + ')' : '';
+            approveBtn.title = pendingCount ? 'Approve selected pending records' : 'No selected records are pending';
+        }
+        if (deleteBtn) {
+            deleteBtn.hidden = selectedIds.size === 0;
+            deleteBtn.disabled = selectedIds.size === 0;
+            var deleteCount = deleteBtn.querySelector('.km-bulk-action-count');
+            if (deleteCount) deleteCount.textContent = selectedIds.size ? ' (' + selectedIds.size + ')' : '';
+        }
+    }
+
+    async function submitBulkAction(url, method, ids) {
+        if (!url || !ids.length) return;
+
+        var response = await fetch(url, {
+            method: method,
+            headers: {
+                Accept: 'application/json',
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': String((window.kmConfig && window.kmConfig.csrfToken) || ''),
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            credentials: 'same-origin',
+            body: JSON.stringify({ ids: ids })
+        });
+        var payload = await response.json();
+
+        if (!response.ok || payload.success !== true) {
+            var errors = Object.values(payload.errors || {}).flat();
+            throw new Error(errors[0] || payload.message || 'The selected records could not be updated.');
+        }
+
+        selectedIds.clear();
+        await window.kmReloadRecords?.({ force: true });
+        window.refreshDashboardStats?.(true);
+        alert(payload.message || 'Selected records updated.');
+    }
+
+    async function bulkApproveSelected() {
+        var pendingIds = records
+            .filter(function(record) {
+                return selectedIds.has(String(record.id || record.slug || ''))
+                    && String(record.reviewStatus || '').toLowerCase() === 'pending';
+            })
+            .map(function(record) {
+                return Number(record.id);
+            })
+            .filter(function(id) {
+                return Number.isInteger(id) && id > 0;
+            });
+
+        if (!pendingIds.length || !window.confirm('Approve ' + pendingIds.length + ' selected pending record(s)?')) {
+            return;
+        }
+
+        var button = document.getElementById('km-batch-approve-btn');
+        if (button) button.disabled = true;
+        try {
+            await submitBulkAction(window.kmConfig?.bulkApproveUrl, 'POST', pendingIds);
+        } catch (error) {
+            alert(error instanceof Error ? error.message : 'Approval failed. Please try again.');
+        } finally {
+            updateBatchPrintButton();
+        }
+    }
+
+    async function bulkDeleteSelected() {
+        var ids = Array.from(selectedIds)
+            .map(Number)
+            .filter(function(id) {
+                return Number.isInteger(id) && id > 0;
+            });
+        if (!ids.length || !window.confirm('Delete ' + ids.length + ' selected record(s)? This action cannot be undone.')) {
+            return;
+        }
+
+        var button = document.getElementById('km-batch-delete-btn');
+        if (button) button.disabled = true;
+        try {
+            await submitBulkAction(window.kmConfig?.bulkDeleteUrl, 'DELETE', ids);
+        } catch (error) {
+            alert(error instanceof Error ? error.message : 'Delete failed. Please try again.');
+        } finally {
+            updateBatchPrintButton();
+        }
     }
 
     function openBatchPrint() {
@@ -954,9 +1067,7 @@
                 votedLastElection: dash(r.votedLastElection),
                 kkAssembly: dash(r.kkAssembly),
                 kkTimes: dash(r.kkTimes),
-                recordSource: r.recordSource === 'monitoring_upload'
-                    ? 'Federation monitoring upload (not approved)'
-                    : 'Approved KK Profiling',
+                recordSource: r.reviewStatus || 'Approved',
             };
         });
     };
@@ -1010,6 +1121,7 @@
     window.kmReloadRecords = function (options) {
         var force = !(options && options.force === false);
         if (force && window.SkLocalCache) {
+            window.SkLocalCache.clearByPrefix('km_kabataan_records_v4_');
             window.SkLocalCache.clearByPrefix('km_kabataan_records_v3_');
             window.SkLocalCache.clearByPrefix('km_kabataan_records_v2_');
             window.SkLocalCache.clearByPrefix('km_kabataan_records_v1_');
@@ -1064,15 +1176,15 @@
             var fullName = formatFullName(r);
             var recordId = String(r.id || r.slug || '');
             var checked = selectedIds.has(recordId) ? ' checked' : '';
-            var sourceIsMonitoring = r.recordSource === 'monitoring_upload';
-            var sourceLabel = sourceIsMonitoring ? 'Monitoring upload · Not approved' : 'Approved KK Profiling';
+            var reviewStatus = r.reviewStatus || 'Approved';
+            var sourceClass = 'km-record-source--' + String(reviewStatus).toLowerCase();
             return '<tr>' +
                 '<td class="km-col-check"><input type="checkbox" class="km-row-checkbox" data-id="' + escapeHtml(recordId) + '" aria-label="Select row"' + checked + '></td>' +
                 '<td class="km-respondent-cell">' + escapeHtml(r.respondentNumber || '—') + '</td>' +
                 '<td class="km-fullname-cell"><span class="km-fullname">' + escapeHtml(fullName) + '</span></td>' +
                 '<td>' + escapeHtml(String(r.age ?? '—')) + '</td>' +
                 '<td>' + escapeHtml(r.purokZone || '—') + '</td>' +
-                '<td><span class="km-record-source ' + (sourceIsMonitoring ? 'km-record-source--monitoring' : 'km-record-source--approved') + '">' + escapeHtml(sourceLabel) + '</span></td>' +
+                '<td><span class="km-record-source ' + sourceClass + '">' + escapeHtml(reviewStatus) + '</span></td>' +
                 '<td>' + escapeHtml(r.registeredVoter || '—') + '</td>' +
                 '<td class="col-actions">' +
                     '<div class="km-row-actions-menu">' +

@@ -1,15 +1,5 @@
-<div class="modal-backdrop kabataan-modal-backdrop" id="kabataanBatchUploadModal" hidden role="dialog" aria-modal="true" aria-labelledby="kabataanBatchUploadTitle">
-    <div class="modal-box kabataan-modal-box">
-        <div class="modal-header">
-            <h2 class="modal-title" id="kabataanBatchUploadTitle">Upload KK Monitoring Records</h2>
-            <div class="modal-window-controls">
-                <button type="button" class="modal-toggle-btn" id="kmBatchUploadMaximizeBtn" aria-label="Fullscreen" title="Fullscreen">□</button>
-                <button type="button" class="modal-toggle-btn" id="kmBatchUploadRestoreBtn" hidden aria-label="Restore down" title="Restore down">⧉</button>
-                <button type="button" class="modal-close" data-batch-modal-close aria-label="Close upload dialog">&times;</button>
-            </div>
-        </div>
-        <div class="modal-body kabataan-modal-body">
-            <div class="kabataan-batch-upload-container">
+<section id="kabataanBatchUploadPanel" class="kabataan-mode-panel kabataan-batch-upload-panel" role="tabpanel" aria-labelledby="km-add-excel-tab" hidden>
+    <div class="kabataan-batch-upload-container">
                 <div class="kabataan-upload-instructions">
                     <h3>Barangay-scoped monitoring import</h3>
                     <p>Upload youth monitoring records for <strong>{{ $barangay }}</strong>. Files are validated on the server before any records are written.</p>
@@ -65,13 +55,12 @@
                 </section>
                 <div class="km-upload-feedback" id="km-upload-feedback" hidden aria-live="polite"></div>
                 <ul class="km-upload-errors" id="km-upload-errors" hidden></ul>
-            </div>
-        </div>
-        <div class="modal-footer kabataan-modal-footer">
-            <button type="button" class="btn btn-approve-cancel" data-batch-modal-close>Cancel</button>
+        <div class="modal-footer kabataan-modal-footer km-upload-panel-actions" id="kmUploadFooter">
+            <button type="button" class="km-kkp-btn-close" data-add-modal-close>Cancel</button>
+            <p class="km-upload-approved-note">Uploaded records are saved as Approved.</p>
             <button type="button" class="btn primary-btn km-import-monitoring-btn" id="kabataanBatchUploadBtn" disabled>
-                <i class="fas fa-file-import" aria-hidden="true"></i> Import Monitoring Records
+                <i class="fas fa-file-import" aria-hidden="true"></i> Import Approved Records
             </button>
         </div>
     </div>
-</div>
+</section>

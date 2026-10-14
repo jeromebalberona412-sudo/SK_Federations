@@ -210,7 +210,7 @@ class DashboardController extends Controller
         $tenantId = $request->user()?->tenant_id;
         [$dateFrom, $dateTo] = $this->resolveFeedDates($request);
         $cacheKey = sprintf(
-            'skfed:dash:stats:v11:%s:%s:%s',
+            'skfed:dash:stats:v13:%s:%s:%s',
             $tenantId === null ? 'all' : (string) $tenantId,
             $dateFrom ?? 'none',
             $dateTo ?? 'none'
@@ -218,7 +218,7 @@ class DashboardController extends Controller
 
         $payload = Cache::remember(
             $cacheKey,
-            20,
+            5,
             fn (): array => $this->dashboardLivePayload($tenantId, $dateFrom, $dateTo)
         );
 

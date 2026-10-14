@@ -2,8 +2,11 @@
 
 use App\Models\KabataanRegistration;
 use App\Modules\AuditLog\Contracts\AuditLogInterface;
+use App\Modules\Accounts\Services\ChairpersonFederationSyncService;
+use App\Modules\Accounts\Services\FederationRosterService;
 use App\Modules\KabataanMonitoring\Services\KabataanMonitoringExcelService;
 use App\Modules\KabataanMonitoring\Services\KabataanMonitoringService;
+use App\Modules\KabataanMonitoring\Support\KkProfilingReviewStatus;
 use App\Modules\Profile\Models\Barangay;
 use App\Modules\Shared\Models\User;
 use Illuminate\Database\Schema\Blueprint;
@@ -194,10 +197,18 @@ describe('Kabataan Monitoring Excel import', function () {
             ->and($record)->not->toBeNull()
             ->and($record->status)->toBe('active')
             ->and($record->evaluation_status)->toBe('active')
+            ->and(KkProfilingReviewStatus::labelFor($record))->toBe('Approved')
             ->and($record->reviewed_by_user_id)->toBe(7)
             ->and($record->reviewed_at)->not->toBeNull()
             ->and($record->form_data['entry_source'])->toBe('federation_monitoring')
             ->and($record->form_data['monitoring_imported_by'])->toBe(7);
+
+        $dashboardStats = new DashboardStatsService(
+            Mockery::mock(ChairpersonFederationSyncService::class),
+            Mockery::mock(FederationRosterService::class),
+        );
+        expect($dashboardStats->municipalityKkStats(3)['approved'])->toBe(1)
+            ->and($dashboardStats->municipalityKkStats(3)['pending'])->toBe(0);
     });
 
     it('applies edits made in the spreadsheet preview before importing', function () {

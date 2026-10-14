@@ -104,9 +104,43 @@ body.km-main {
 
     .km-btn--excel-upload,
     .km-export-btn,
-    .km-batch-print-btn {
+    .km-batch-print-btn,
+    .km-batch-approve-btn,
+    .km-batch-delete-btn {
         width: 100%;
         justify-content: center;
+    }
+
+    .km-filter-bar-actions-right {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        width: 100%;
+    }
+
+    .km-add-mode-toggle {
+        position: sticky;
+        top: 0;
+        z-index: 2;
+    }
+
+    .km-add-mode-tab {
+        padding: 8px 6px;
+        font-size: 12px;
+    }
+
+    .km-upload-panel-actions {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .km-upload-approved-note {
+        margin: 0;
+        text-align: center;
+    }
+
+    .km-upload-panel-actions [data-add-modal-close],
+    .km-upload-panel-actions .km-import-monitoring-btn {
+        width: 100%;
     }
 
     /* Table responsive */
@@ -322,7 +356,7 @@ body.km-main {
         max-height: 240px;
     }
 
-    #kabataanBatchUploadModal.modal-maximized .kabataan-modal-body {
+    #kabataanAddModal.modal-maximized .kabataan-modal-body {
         padding: 12px;
     }
 
@@ -467,7 +501,9 @@ body.km-main {
     .km-btn,
     .km-search-btn,
     .km-export-btn,
-    .km-batch-print-btn {
+    .km-batch-print-btn,
+    .km-batch-approve-btn,
+    .km-batch-delete-btn {
         font-size: 12px;
         padding: 6px 12px;
     }

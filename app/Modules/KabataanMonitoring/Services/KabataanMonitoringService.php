@@ -6,9 +6,11 @@ use App\Models\KabataanRegistration;
 use App\Modules\Profile\Models\Barangay;
 use App\Modules\AuditLog\Contracts\AuditLogInterface;
 use App\Modules\KabataanMonitoring\Support\KabataanQuestionnairePrintPresenter;
+use App\Modules\KabataanMonitoring\Support\KkProfilingReviewStatus;
 use App\Modules\Shared\Models\User;
 use App\Services\BarangayLogoUrlService;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 class KabataanMonitoringService
@@ -23,23 +25,35 @@ class KabataanMonitoringService
     /**
      * @return list<array<string, mixed>>
      */
-    public function listAll(?string $barangayName = null, ?int $tenantId = null): array
+    public function listAll(
+        ?string $barangayName = null,
+        ?int $tenantId = null,
+        bool $includeAllReviewStatuses = false,
+    ): array
     {
         $barangayName = $barangayName !== null ? trim($barangayName) : '';
         if (! $tenantId) {
             return [];
         }
-        $cacheKey = $this->listCacheKey($barangayName, $tenantId);
+        $cacheKey = $this->listCacheKey($barangayName, $tenantId, $includeAllReviewStatuses);
 
-        return Cache::remember($cacheKey, self::LIST_CACHE_TTL, function () use ($barangayName, $tenantId) {
-            return $this->listAllUncached($barangayName !== '' ? $barangayName : null, $tenantId);
+        return Cache::remember($cacheKey, self::LIST_CACHE_TTL, function () use ($barangayName, $tenantId, $includeAllReviewStatuses) {
+            return $this->listAllUncached(
+                $barangayName !== '' ? $barangayName : null,
+                $tenantId,
+                $includeAllReviewStatuses,
+            );
         });
     }
 
     /**
      * @return list<array<string, mixed>>
      */
-    private function listAllUncached(?string $barangayName, int $tenantId): array
+    private function listAllUncached(
+        ?string $barangayName,
+        int $tenantId,
+        bool $includeAllReviewStatuses = false,
+    ): array
     {
         if (! Schema::hasTable('kabataan_registrations')) {
             return [];
@@ -48,8 +62,10 @@ class KabataanMonitoringService
         $query = KabataanRegistration::query()
             ->with('barangay:id,name')
             ->where('tenant_id', $tenantId)
-            ->whereNull('deleted_at')
-            ->where(function ($records) {
+            ->whereNull('deleted_at');
+
+        if (! $includeAllReviewStatuses) {
+            $query->where(function ($records) {
                 $records->where(function ($approved) {
                     $approved->whereIn('status', ['active', 'email_verified', 'password_set']);
                     if (Schema::hasColumn('kabataan_registrations', 'evaluation_status')) {
@@ -63,6 +79,7 @@ class KabataanMonitoringService
                         ->whereJsonContains('form_data->entry_source', 'federation_monitoring');
                 });
             });
+        }
 
         $barangayName = $barangayName !== null ? trim($barangayName) : '';
         if ($barangayName !== '') {
@@ -103,17 +120,21 @@ class KabataanMonitoringService
             return;
         }
         Cache::forget($this->listCacheKey('', $tenantId));
+        Cache::forget($this->listCacheKey('', $tenantId, true));
         Cache::forget($this->yearsCacheKey('', $tenantId));
 
         if ($barangayName !== '') {
             Cache::forget($this->listCacheKey($barangayName, $tenantId));
+            Cache::forget($this->listCacheKey($barangayName, $tenantId, true));
             Cache::forget($this->yearsCacheKey($barangayName, $tenantId));
         }
     }
 
-    private function listCacheKey(string $barangayName, int $tenantId): string
+    private function listCacheKey(string $barangayName, int $tenantId, bool $includeAllReviewStatuses = false): string
     {
-        return 'skfed:km:list:v3:'.$tenantId.':'.md5(strtolower($barangayName !== '' ? $barangayName : 'all'));
+        $scope = $includeAllReviewStatuses ? 'review' : 'approved';
+
+        return 'skfed:km:list:v4:'.$scope.':'.$tenantId.':'.md5(strtolower($barangayName !== '' ? $barangayName : 'all'));
     }
 
     private function yearsCacheKey(string $barangayName, int $tenantId): string
@@ -206,6 +227,23 @@ class KabataanMonitoringService
             ->find($id);
     }
 
+    public function findSubmissionForReview(
+        int $id,
+        int $tenantId,
+        ?int $barangayId = null,
+    ): ?KabataanRegistration {
+        if (! Schema::hasTable('kabataan_registrations') || $tenantId <= 0) {
+            return null;
+        }
+
+        return KabataanRegistration::query()
+            ->with('barangay:id,name')
+            ->where('tenant_id', $tenantId)
+            ->whereNull('deleted_at')
+            ->when($barangayId !== null, fn ($query) => $query->where('barangay_id', $barangayId))
+            ->find($id);
+    }
+
     public function destroy(User $user, int $id): void
     {
         $record = $this->find($id, (int) $user->tenant_id);
@@ -228,9 +266,62 @@ class KabataanMonitoringService
         ]);
     }
 
-    public function renderQuestionnaireHtml(int $id, int $tenantId): ?string
+    /**
+     * Soft-delete selected registrations within the current Federation barangay.
+     *
+     * @param  list<int>  $ids
+     */
+    public function destroySelected(User $user, array $ids, int $barangayId): int
     {
-        $record = $this->find($id, $tenantId);
+        abort_unless($user->canAccessFederationPortal() && (int) $user->tenant_id > 0, 403);
+        abort_unless(
+            Barangay::query()
+                ->where('tenant_id', (int) $user->tenant_id)
+                ->whereKey($barangayId)
+                ->exists(),
+            404,
+        );
+
+        $records = DB::transaction(function () use ($user, $ids, $barangayId) {
+            $records = KabataanRegistration::query()
+                ->with('barangay:id,name')
+                ->where('tenant_id', (int) $user->tenant_id)
+                ->where('barangay_id', $barangayId)
+                ->whereNull('deleted_at')
+                ->whereIn('id', $ids)
+                ->lockForUpdate()
+                ->get();
+
+            abort_unless($records->count() === count($ids), 404, 'One or more selected records are unavailable.');
+
+            foreach ($records as $record) {
+                $record->delete();
+            }
+
+            return $records;
+        });
+
+        foreach ($records as $record) {
+            $this->auditLog->log('kabataan_registration.deleted', $user, [
+                'action' => 'delete',
+                'entity_type' => 'kabataan_registration',
+                'entity_id' => (string) $record->id,
+                'module' => 'kabataan_monitoring',
+                'barangay_id' => (int) $barangayId,
+                'name' => $record->full_name,
+            ]);
+        }
+
+        $this->forgetListCache($records->first()?->barangay?->name, (int) $user->tenant_id);
+
+        return $records->count();
+    }
+
+    public function renderQuestionnaireHtml(int $id, int $tenantId, bool $forReview = false, ?int $barangayId = null): ?string
+    {
+        $record = $forReview
+            ? $this->findSubmissionForReview($id, $tenantId, $barangayId)
+            : $this->find($id, $tenantId);
         if ($record === null) {
             return null;
         }
@@ -380,6 +471,11 @@ class KabataanMonitoringService
         return [
             'record' => $record,
             'form' => $form,
+            'supportingDocumentsRequired' => (bool) (
+                is_array($record->form_data)
+                    ? ($record->form_data['supporting_documents_required'] ?? false)
+                    : false
+            ),
             'barangayLogoUrl' => $barangayLogoUrl,
             'barangayName' => $record->barangay?->name ?? $form['barangay'] ?? 'Barangay',
         ];
@@ -425,6 +521,7 @@ class KabataanMonitoringService
             'education' => $this->formValue($formData, 'education'),
             'workStatus' => $this->formValue($formData, 'work_status'),
             'status' => $this->resolveParticipationStatus($formData),
+            'reviewStatus' => KkProfilingReviewStatus::labelFor($record),
             'recordSource' => ($formData['entry_source'] ?? null) === 'federation_monitoring'
                 ? 'monitoring_upload'
                 : 'approved_registry',
@@ -576,6 +673,9 @@ class KabataanMonitoringService
         $data['province'] = $data['province'] ?: ($barangay->province ?: 'Laguna');
         $data['city'] = $data['city'] ?: ($barangay->municipality ?: 'Santa Cruz');
         $formData = $this->buildFormDataFromRequest($data);
+        $formData['entry_source'] = 'federation_monitoring';
+        $formData['monitoring_imported_at'] = now()->toIso8601String();
+        $formData['monitoring_imported_by'] = (int) $user->id;
 
         $registration = KabataanRegistration::create([
             'tenant_id' => $barangay->tenant_id,
@@ -617,6 +717,7 @@ class KabataanMonitoringService
     private function buildFormDataFromRequest(array $data): array
     {
         return [
+            'entry_source' => 'federation_monitoring',
             'age' => $data['age'] ?? null,
             'birthday' => $data['birthday'] ?? null,
             'sex' => $data['sex'] ?? null,

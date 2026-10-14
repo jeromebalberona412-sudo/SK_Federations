@@ -34,6 +34,11 @@
     </div>
 
     <div class="kkp-section-heading">I. PROFILE</div>
+    <p class="kkp-demo-instruction">
+        Valid ID documents:
+        <strong>{{ !empty($supportingDocumentsRequired) ? 'Required' : 'Optional' }}</strong>
+        for this profiling schedule.
+    </p>
 
     <div class="kkp-row-label">Name of Respondent</div>
     <div class="kkp-name-row">

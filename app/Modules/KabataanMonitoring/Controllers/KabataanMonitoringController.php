@@ -5,13 +5,16 @@ namespace App\Modules\KabataanMonitoring\Controllers;
 use App\Modules\KabataanMonitoring\Services\KabataanMonitoringDocumentService;
 use App\Modules\KabataanMonitoring\Services\KabataanMonitoringExcelService;
 use App\Modules\KabataanMonitoring\Services\KabataanMonitoringService;
+use App\Modules\KabataanMonitoring\Services\KkProfilingReviewService;
 use App\Modules\KabataanMonitoring\Services\KkProfilingFederationUpdateService;
+use App\Modules\KabataanMonitoring\Support\KkProfilingReviewStatus;
 use App\Modules\Profile\Models\Barangay;
 use App\Modules\Shared\Controllers\Controller;
 use App\Requests\UpdateKkProfilingRequest;
 use App\Rules\ValidEmailAddress;
 use App\Services\BarangayLogoUrlService;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
@@ -27,6 +30,7 @@ class KabataanMonitoringController extends Controller
         private readonly KabataanMonitoringDocumentService $documentService,
         private readonly KabataanMonitoringExcelService $excelService,
         private readonly KkProfilingFederationUpdateService $updateService,
+        private readonly KkProfilingReviewService $reviewService,
     ) {}
 
     public function index(Request $request): View
@@ -47,7 +51,7 @@ class KabataanMonitoringController extends Controller
         $tenantId = (int) $request->user()->tenant_id;
 
         return response()->json([
-            'data' => $this->service->listAll($barangayFilter, $tenantId),
+            'data' => $this->service->listAll($barangayFilter, $tenantId, $barangayFilter !== null),
             'years' => $this->service->registrationYears($barangayFilter, $tenantId),
         ])->header('Cache-Control', 'private, no-store');
     }
@@ -76,6 +80,54 @@ class KabataanMonitoringController extends Controller
         $this->service->destroy($request->user(), $id);
 
         return response()->json(['message' => 'Kabataan record deleted.']);
+    }
+
+    public function bulkApprove(Request $request, string $barangay): JsonResponse
+    {
+        $validated = $request->validate([
+            'ids' => ['required', 'array', 'min:1', 'max:500'],
+            'ids.*' => ['required', 'integer', 'distinct', 'min:1'],
+        ]);
+        $user = $request->user();
+        $barangayId = $this->barangayIdForUser($request, $barangay);
+
+        DB::transaction(function () use ($validated, $user, $barangayId): void {
+            foreach ($validated['ids'] as $id) {
+                $this->reviewService->approve($user, (int) $id, $barangayId);
+            }
+        });
+
+        $this->service->forgetListCache(
+            urldecode($barangay),
+            (int) $user->tenant_id,
+        );
+
+        return response()->json([
+            'success' => true,
+            'message' => count($validated['ids']).' KK Profiling record(s) approved.',
+            'approved' => count($validated['ids']),
+        ]);
+    }
+
+    public function bulkDestroy(Request $request, string $barangay): JsonResponse
+    {
+        $validated = $request->validate([
+            'ids' => ['required', 'array', 'min:1', 'max:500'],
+            'ids.*' => ['required', 'integer', 'distinct', 'min:1'],
+        ]);
+        $user = $request->user();
+        $barangayId = $this->barangayIdForUser($request, $barangay);
+        $deleted = $this->service->destroySelected(
+            $user,
+            array_map('intval', $validated['ids']),
+            $barangayId,
+        );
+
+        return response()->json([
+            'success' => true,
+            'message' => $deleted.' KK Profiling record(s) deleted.',
+            'deleted' => $deleted,
+        ]);
     }
 
     public function editData(Request $request, int $id): JsonResponse
@@ -191,8 +243,123 @@ class KabataanMonitoringController extends Controller
             'barangayLogoUrl' => $logoUrl,
             'registrationYears' => $this->service->registrationYears($barangayName, (int) $request->user()->tenant_id),
             'purokZones' => $purokZones,
-            'initialRecords' => $this->service->listAll($barangayName, (int) $request->user()->tenant_id),
+            'initialRecords' => $this->service->listAll($barangayName, (int) $request->user()->tenant_id, true),
         ]);
+    }
+
+    public function showReviewSubmission(Request $request, int $id): View
+    {
+        return $this->reviewSubmissionView($request, $id, null, null);
+    }
+
+    public function showBarangayReviewSubmission(Request $request, string $barangay, int $id): View
+    {
+        $barangayId = $this->barangayIdForUser($request, $barangay);
+
+        return $this->reviewSubmissionView($request, $id, $barangayId, urldecode($barangay));
+    }
+
+    public function approveReviewSubmission(Request $request, int $id): RedirectResponse
+    {
+        $this->reviewService->approve($request->user(), $id);
+
+        return back()->with('success', 'KK Profiling submission approved.');
+    }
+
+    public function approveBarangayReviewSubmission(Request $request, string $barangay, int $id): RedirectResponse
+    {
+        $barangayId = $this->barangayIdForUser($request, $barangay);
+        $this->reviewService->approve($request->user(), $id, $barangayId);
+
+        return back()->with('success', 'KK Profiling submission approved.');
+    }
+
+    public function rejectReviewSubmission(Request $request, int $id): RedirectResponse
+    {
+        $validated = $request->validate([
+            'rejection_reason' => ['required', 'string', 'max:255'],
+            'rejection_remarks' => ['nullable', 'string', 'max:2000'],
+        ]);
+        $this->reviewService->reject(
+            $request->user(),
+            $id,
+            $validated['rejection_reason'],
+            $validated['rejection_remarks'] ?? null,
+        );
+
+        return back()->with('success', 'KK Profiling submission rejected.');
+    }
+
+    public function rejectBarangayReviewSubmission(Request $request, string $barangay, int $id): RedirectResponse
+    {
+        $barangayId = $this->barangayIdForUser($request, $barangay);
+        $validated = $request->validate([
+            'rejection_reason' => ['required', 'string', 'max:255'],
+            'rejection_remarks' => ['nullable', 'string', 'max:2000'],
+        ]);
+        $this->reviewService->reject(
+            $request->user(),
+            $id,
+            $validated['rejection_reason'],
+            $validated['rejection_remarks'] ?? null,
+            $barangayId,
+        );
+
+        return back()->with('success', 'KK Profiling submission rejected.');
+    }
+
+    public function reviewDocument(Request $request, int $id): Response
+    {
+        return $this->documentService->response($request->user(), $id, false, true);
+    }
+
+    public function downloadReviewDocument(Request $request, int $id): Response
+    {
+        return $this->documentService->response($request->user(), $id, true, true);
+    }
+
+    private function reviewSubmissionView(
+        Request $request,
+        int $id,
+        ?int $barangayId,
+        ?string $barangayName,
+    ): View {
+        $record = $this->reviewService->findSubmission($request->user(), $id, $barangayId);
+        $questionnaireHtml = $this->service->renderQuestionnaireHtml(
+            $id,
+            (int) $request->user()->tenant_id,
+            true,
+            $barangayId,
+        );
+        abort_if($questionnaireHtml === null, 404, 'KK Profiling submission not found.');
+        $status = in_array($request->query('status'), ['all', 'pending', 'approved', 'rejected'], true)
+            ? (string) $request->query('status')
+            : 'pending';
+        $page = filter_var($request->query('page'), FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+        $backParams = ['status' => $status, 'page' => $page ?: 1];
+
+        return view('kabataan_monitoring::review-submission', [
+            'record' => $record,
+            'barangayName' => $barangayName ?? $record->barangay?->name,
+            'backUrl' => $barangayId !== null
+                ? route('kabataan-monitoring.barangay', [
+                    'barangay' => $barangayName ?? $record->barangay?->name,
+                    ...$backParams,
+                ])
+                : route('kabataan-monitoring'),
+            'statusLabel' => KkProfilingReviewStatus::labelFor($record),
+            'questionnaireHtml' => $questionnaireHtml,
+            'document' => $this->documentService->metadata($request->user(), $id, true),
+        ]);
+    }
+
+    private function barangayIdForUser(Request $request, string $barangay): int
+    {
+        return (int) Barangay::query()
+            ->where('tenant_id', $request->user()->tenant_id)
+            ->where('name', urldecode($barangay))
+            ->firstOrFail()
+            ->id;
     }
 
     public function downloadBatchTemplate(Request $request, string $barangay): \Symfony\Component\HttpFoundation\StreamedResponse
@@ -236,13 +403,18 @@ class KabataanMonitoringController extends Controller
 
     public function store(Request $request): JsonResponse
     {
+        $contactNumber = trim((string) $request->input('contact_number', ''));
+        if ($contactNumber === '' || $contactNumber === '09') {
+            $request->merge(['contact_number' => null]);
+        }
+
         $validated = $request->validate([
             'last_name' => ['required', 'string', 'max:100'],
             'first_name' => ['required', 'string', 'max:100'],
             'middle_name' => ['nullable', 'string', 'max:100'],
             'suffix' => ['nullable', 'string', 'max:20'],
             'email' => \App\Rules\ValidEmailAddress::profilingRules(),
-            'contact_number' => ['required', 'string', 'max:15'],
+            'contact_number' => ['nullable', 'string', 'max:15'],
             'age' => ['required', 'integer', 'min:15', 'max:30'],
             'birthday' => ['required', 'string', 'max:20'],
             'sex' => ['required', 'in:Male,Female'],

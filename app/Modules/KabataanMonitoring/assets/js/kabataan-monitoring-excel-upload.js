@@ -1,8 +1,8 @@
 document.addEventListener('DOMContentLoaded', () => {
     const config = window.kmConfig || {};
-    const modal = document.getElementById('kabataanBatchUploadModal');
-    const openButton = document.getElementById('km-open-excel-upload');
-    const closeButtons = modal?.querySelectorAll('[data-batch-modal-close]') || [];
+    const modal = document.getElementById('kabataanAddModal');
+    const uploadPanel = document.getElementById('kabataanBatchUploadPanel');
+    const uploadTab = document.getElementById('km-add-excel-tab');
     const dropzone = document.getElementById('kabataanUploadDropzone');
     const fileInput = document.getElementById('kabataanFileInput');
     const selectButton = document.getElementById('kabataanSelectFileBtn');
@@ -19,8 +19,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const previewMeta = document.getElementById('kmExcelPreviewMeta');
     const previewPagination = document.getElementById('kmExcelPreviewPagination');
     const previewPageLabel = document.getElementById('kmExcelPreviewPageLabel');
-    const maximizeButton = document.getElementById('kmBatchUploadMaximizeBtn');
-    const restoreButton = document.getElementById('kmBatchUploadRestoreBtn');
+    const maximizeButton = document.getElementById('kabataanAddMaximizeBtn');
+    const restoreButton = document.getElementById('kabataanAddRestoreBtn');
     const modalBox = modal?.querySelector('.modal-box');
     const maxFileSize = 25 * 1024 * 1024;
     const maxPreviewRows = 100;
@@ -79,7 +79,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let previewPage = 0;
     const editedRows = new Map();
 
-    if (!modal || !openButton || !fileInput || !importButton) return;
+    if (!modal || !uploadPanel || !uploadTab || !fileInput || !importButton) return;
 
     function showFeedback(message, type = 'info', errors = []) {
         if (feedback) {
@@ -345,32 +345,27 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function closeModal() {
         setMaximized(false);
-        modal.hidden = true;
+        if (typeof window.kmCloseAddModal === 'function') {
+            window.kmCloseAddModal();
+        } else {
+            modal.style.display = 'none';
+        }
     }
 
-    openButton.addEventListener('click', () => {
-        setMaximized(false);
-        modal.hidden = false;
-        clearSelection();
-        modal.querySelector('[data-batch-modal-close]')?.focus();
+    uploadTab.addEventListener('click', () => {
+        window.kmSetAddMode?.('excel');
     });
 
     maximizeButton?.addEventListener('click', () => setMaximized(true));
     restoreButton?.addEventListener('click', () => setMaximized(false));
-    closeButtons.forEach((button) => button.addEventListener('click', () => {
-        closeModal();
-        openButton.focus();
-    }));
     modal.addEventListener('click', (event) => {
         if (event.target === modal) {
             closeModal();
-            openButton.focus();
         }
     });
     modal.addEventListener('keydown', (event) => {
         if (event.key === 'Escape') {
             closeModal();
-            openButton.focus();
         }
     });
 
@@ -451,12 +446,13 @@ document.addEventListener('DOMContentLoaded', () => {
             showFeedback(payload.message || 'Monitoring upload processed.', hasWarnings ? 'warning' : 'success', importErrors);
             clearSelection(true);
             await window.kmReloadRecords?.({ force: true });
+            window.refreshDashboardStats?.(true);
         } catch (error) {
             showFeedback(error instanceof Error ? error.message : 'The upload failed. Please retry.', 'error');
         } finally {
             importing = false;
             importButton.disabled = !selectedFile || !previewReady;
-            importButton.innerHTML = '<i class="fas fa-file-import" aria-hidden="true"></i> Import Monitoring Records';
+            importButton.innerHTML = '<i class="fas fa-file-import" aria-hidden="true"></i> Import Approved Records';
         }
     });
 });

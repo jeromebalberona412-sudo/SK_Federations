@@ -717,11 +717,11 @@ function buildOfficialAccountRowHtml(account) {
             <td class="td-name" title="${escapeAttr(displayName)}">
                 <span class="account-name-text">${escapeHtml(displayName)}</span>
             </td>
-            <td class="td-email">${escapeHtml(email)}</td>
-            <td class="td-barangay">${escapeHtml(barangayName)}</td>
-            <td class="td-position">${escapeHtml(position)}</td>
-            <td class="td-term">${escapeHtml(termStartDisplay)}</td>
-            <td class="td-term">${escapeHtml(termEndDisplay)}</td>
+            <td class="td-email" title="${escapeAttr(email)}">${escapeHtml(email)}</td>
+            <td class="td-barangay" title="${escapeAttr(barangayName)}">${escapeHtml(barangayName)}</td>
+            <td class="td-position" title="${escapeAttr(position)}">${escapeHtml(position)}</td>
+            <td class="td-term" title="${escapeAttr(termStartDisplay)}">${escapeHtml(termStartDisplay)}</td>
+            <td class="td-term" title="${escapeAttr(termEndDisplay)}">${escapeHtml(termEndDisplay)}</td>
             <td class="td-actions">
                 <div class="account-actions-menu">
                     <button type="button"
@@ -1767,6 +1767,19 @@ function isSkFedManualForm(form) {
     return form?.id === 'addSkFedForm' || form?.id === 'editAccountForm';
 }
 
+function isSkFederationEligibilityContext(formOrReference) {
+    const root = document.getElementById('mainContent');
+    return isSkFedManualForm(formOrReference)
+        || root?.dataset.accountType === 'sk_federation';
+}
+
+function isSkOfficialsEligibilityContext(formOrReference) {
+    const root = document.getElementById('mainContent');
+    return isSkOfficialsForm(formOrReference)
+        || root?.dataset.accountType === 'sk_officials'
+        || root?.dataset.batchRole === 'sk_official';
+}
+
 /**
  * The birthdate window is computed server-side from the configured reference date
  * and published on #mainContent, so the picker, the validators, and the backend all
@@ -1786,14 +1799,21 @@ function getSkEligibilityConfig(formOrReference) {
         reference = normalizeDateInputValue(rootRef) || formatLocalDate(new Date());
     }
 
-    const bounds = window.AccountDateFieldUtils?.getSkElectionBounds?.(reference) || {
-        min: addYearsToDateString(reference, -(SK_OFFICIAL_AGE_MAX + 1)),
-        max: addYearsToDateString(reference, -SK_OFFICIAL_AGE_MIN),
-    };
+    const isFederation = isSkFederationEligibilityContext(formOrReference);
+    const isOfficial = isSkOfficialsEligibilityContext(formOrReference);
+    const configuredBounds = isFederation || isOfficial
+        ? {
+            min: root?.dataset.skDobMin || (isOfficial ? '1991-01-01' : '1992-01-01'),
+            max: root?.dataset.skDobMax || addYearsToDateString(reference, -SK_OFFICIAL_AGE_MIN),
+        }
+        : window.AccountDateFieldUtils?.getSkElectionBounds?.(reference) || {
+            min: addYearsToDateString(reference, -(SK_OFFICIAL_AGE_MAX + 1)),
+            max: addYearsToDateString(reference, -SK_OFFICIAL_AGE_MIN),
+        };
 
     return {
-        min: bounds.min,
-        max: bounds.max,
+        min: configuredBounds.min,
+        max: configuredBounds.max,
         reference,
         ageMin: parseInt(root?.dataset.skAgeMin || '', 10) || SK_OFFICIAL_AGE_MIN,
         ageMax: parseInt(root?.dataset.skAgeMax || '', 10) || SK_OFFICIAL_AGE_MAX,
@@ -1814,6 +1834,14 @@ function formatSkReadableDate(isoValue) {
 
 function getSkBirthdateRuleMessage(formOrReference) {
     const config = getSkEligibilityConfig(formOrReference);
+    if (isSkOfficialsEligibilityContext(formOrReference)) {
+        return `Birthdate must be at least 18 years old as of ${formatSkReadableDate(config.reference)} `
+            + `and on or after January 1, 1991 (born between ${formatSkReadableDate(config.min)} and ${formatSkReadableDate(config.max)})`;
+    }
+    if (isSkFederationEligibilityContext(formOrReference)) {
+        return `Birthdate must be on or after January 1, 1992 and old enough to be at least 18 years old `
+            + `(born between ${formatSkReadableDate(config.min)} and ${formatSkReadableDate(config.max)})`;
+    }
     const asOf = config.reference ? ` as of ${formatSkReadableDate(config.reference)}` : '';
     return `Birthdate must correspond to age ${config.ageMin}–${config.ageMax}${asOf} `
         + `(born between ${formatSkReadableDate(config.min)} and ${formatSkReadableDate(config.max)})`;
@@ -1824,6 +1852,12 @@ function getSkUnderAgeMessage(formOrReference) {
 }
 
 function getSkOverAgeMessage(formOrReference) {
+    if (isSkOfficialsEligibilityContext(formOrReference)) {
+        return 'SK Official birthdate must be on or after January 1, 1991.';
+    }
+    if (isSkFederationEligibilityContext(formOrReference)) {
+        return 'SK Federation birthdate must be on or after January 1, 1992.';
+    }
     return `SK Official must not be older than ${getSkEligibilityConfig(formOrReference).ageMax} years old.`;
 }
 
@@ -1839,6 +1873,12 @@ function calculateSkEligibilityAge(isoValue, formOrReference) {
 /** Returns 'ok', 'under', 'over', or 'invalid' for a normalized ISO birthdate. */
 function classifySkBirthdate(isoValue, formOrReference) {
     if (!isoValue) return 'invalid';
+    if (isSkFederationEligibilityContext(formOrReference) || isSkOfficialsEligibilityContext(formOrReference)) {
+        const bounds = getSkOfficialBirthdateBounds(formOrReference);
+        if (isoValue > bounds.max) return 'under';
+        if (isoValue < bounds.min) return 'over';
+        return 'ok';
+    }
     const age = calculateSkEligibilityAge(isoValue, formOrReference);
     if (age !== null && !Number.isNaN(age)) {
         const config = getSkEligibilityConfig(formOrReference);

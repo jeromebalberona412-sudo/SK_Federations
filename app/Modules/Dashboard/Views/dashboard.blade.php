@@ -122,14 +122,14 @@
                 <p>Municipal, profiling, audit, and program totals.</p>
             </div>
         <div class="dash-stats-grid">
-            <a href="{{ route('kabataan-monitoring') }}" class="stat-card stat-card-blue" data-no-loading data-stat-key="total_kk" title="KK profiles across all barangays">
+            <a href="{{ route('kabataan-monitoring') }}" class="stat-card stat-card-blue" data-no-loading data-stat-key="total_kk" title="Kabataan registrations across all barangays">
                 <div class="stat-card-top">
                     <span class="stat-card-value">{{ number_format($totalKkProfiles ?? 0) }}</span>
                     <div class="stat-card-icon stat-icon-blue">
                         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
                     </div>
                 </div>
-                <span class="stat-card-label">Total KK Profiles</span>
+                <span class="stat-card-label">Total Kabataan Registered</span>
             </a>
             <a href="{{ route('kabataan-monitoring') }}" class="stat-card stat-card-green" data-no-loading data-stat-key="kk_approved" title="Approved KK profiles across all barangays">
                 <div class="stat-card-top">
@@ -140,7 +140,7 @@
                 </div>
                 <span class="stat-card-label">KK Profiling Approved</span>
             </a>
-            <a href="{{ route('kabataan-monitoring') }}" class="stat-card stat-card-yellow" data-no-loading data-stat-key="kk_pending" title="Pending KK profiling across all barangays">
+            <a href="{{ route('kabataan-monitoring') }}" class="stat-card stat-card-yellow" data-no-loading data-stat-key="kk_pending" title="Pending KK profiling submissions across all barangays">
                 <div class="stat-card-top">
                     <span class="stat-card-value">{{ number_format($kkPending ?? 0) }}</span>
                     <div class="stat-card-icon stat-icon-yellow">

@@ -111,7 +111,7 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     function statsCacheKey(range) {
-        return 'sk_fed_dashboard_stats_v8_'
+        return 'sk_fed_dashboard_stats_v9_'
             + (range.date_from || '') + '_'
             + (range.date_to || '') + '_'
             + (range.range_mode || 'term');
@@ -240,7 +240,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
         feedRefreshInFlight = true;
         const range = getDashboardDateRangeParams();
-        const cacheKey = 'sk_fed_dashboard_feed_v5_' + (range.date_from || '') + '_' + (range.date_to || '');
+        const cacheKey = 'sk_fed_dashboard_feed_v6_' + (range.date_from || '') + '_' + (range.date_to || '');
         const cached = window.SkLocalCache?.get(cacheKey);
         if (cached?.payload) {
             renderActivity(cached.payload.recent_activity || [], els.activityList);
