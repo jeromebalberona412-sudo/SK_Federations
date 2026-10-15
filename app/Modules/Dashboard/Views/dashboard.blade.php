@@ -116,45 +116,139 @@
             <a href="{{ route('calendar') }}" class="dash-reminder-link">View Calendar</a>
         </div>
 
-        {{-- ── STAT CARDS ── --}}
+        <section class="dashboard-statistics-section">
         <div class="dash-stats-grid">
-            <a href="{{ route('kabataan-monitoring') }}" class="stat-card stat-card-link stat-card-clickable" data-no-loading data-stat-key="total_kabataan_registered">
-                <div class="stat-icon blue"><i class="fas fa-users"></i></div>
-                <div class="stat-info">
-                    <div class="stat-value">{{ number_format($totalKabataanRegistered ?? 0) }}</div>
-                    <div class="stat-label">Total Kabataan Registered</div>
+            <a href="{{ route('kabataan-monitoring') }}" class="stat-card stat-card-blue" data-no-loading data-stat-key="total_kk" title="Kabataan registrations across all barangays">
+                <div class="stat-card-top">
+                    <span class="stat-card-value">{{ number_format($totalKkProfiles ?? 0) }}</span>
+                    <div class="stat-card-icon stat-icon-blue">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
+                    </div>
                 </div>
+                <span class="stat-card-label">Total Kabataan Registered</span>
             </a>
-            <a href="{{ route('accounts.officials.index') }}" class="stat-card stat-card-link stat-card-clickable" data-no-loading data-stat-key="total_sk_officials">
-                <div class="stat-icon indigo"><i class="fas fa-user-tie"></i></div>
-                <div class="stat-info">
-                    <div class="stat-value">{{ number_format($totalSkOfficials ?? 0) }}</div>
-                    <div class="stat-label">Total SK Officials</div>
+            <a href="{{ route('kabataan-monitoring') }}" class="stat-card stat-card-green" data-no-loading data-stat-key="kk_approved" title="Approved KK profiles across all barangays">
+                <div class="stat-card-top">
+                    <span class="stat-card-value">{{ number_format($kkApproved ?? 0) }}</span>
+                    <div class="stat-card-icon stat-icon-green">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                    </div>
                 </div>
+                <span class="stat-card-label">KK Profiling Approved</span>
             </a>
-            <a href="{{ route('accounts.federation.index') }}" class="stat-card stat-card-link stat-card-clickable" data-no-loading data-stat-key="total_sk_chairpersons">
-                <div class="stat-icon teal"><i class="fas fa-crown"></i></div>
-                <div class="stat-info">
-                    <div class="stat-value">{{ number_format($totalSkChairpersons ?? 0) }}</div>
-                    <div class="stat-label">Total SK Chairpersons</div>
+            <a href="{{ route('kabataan-monitoring') }}" class="stat-card stat-card-yellow" data-no-loading data-stat-key="kk_pending" title="Pending KK profiling submissions across all barangays">
+                <div class="stat-card-top">
+                    <span class="stat-card-value">{{ number_format($kkPending ?? 0) }}</span>
+                    <div class="stat-card-icon stat-icon-yellow">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+                    </div>
                 </div>
+                <span class="stat-card-label">KK Profiling Pending</span>
             </a>
-            <a href="{{ route('barangay-monitoring') }}" class="stat-card stat-card-link stat-card-clickable" data-no-loading data-stat-key="total_barangays_abyip_submitted">
-                <div class="stat-icon green"><i class="fas fa-file-invoice-dollar"></i></div>
-                <div class="stat-info">
-                    <div class="stat-value">{{ number_format($totalBarangaysAbyipSubmitted ?? 0) }}</div>
-                    <div class="stat-label">Barangays with ABYIP Submissions</div>
+            <a href="{{ route('accounts.officials.index') }}" class="stat-card stat-card-indigo" data-no-loading data-stat-key="total_sk_officials" title="SK officials across all barangays">
+                <div class="stat-card-top">
+                    <span class="stat-card-value">{{ number_format($totalSkOfficials ?? 0) }}</span>
+                    <div class="stat-card-icon stat-icon-indigo">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+                    </div>
                 </div>
+                <span class="stat-card-label">Total SK Officials</span>
             </a>
-            <a href="{{ route('auditlogs.index') }}" class="stat-card stat-card-link stat-card-clickable" data-no-loading data-stat-key="total_audit_logs">
-                <div class="stat-icon purple"><i class="fas fa-clipboard-list"></i></div>
-                <div class="stat-info">
-                    <div class="stat-value">{{ number_format($totalAuditLogs ?? 0) }}</div>
-                    <div class="stat-label">Total Audit Logs</div>
+            <a href="{{ route('accounts.federation.index') }}" class="stat-card stat-card-purple" data-no-loading data-stat-key="total_sk_chairpersons" title="SK chairpersons across all barangays">
+                <div class="stat-card-top">
+                    <span class="stat-card-value">{{ number_format($totalSkChairpersons ?? 0) }}</span>
+                    <div class="stat-card-icon stat-icon-purple">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2l2.4 4.8L20 8l-4 3.9.9 5.6L12 15.8 7.1 17.5 8 11.9 4 8l5.6-1.2L12 2z"></path></svg>
+                    </div>
                 </div>
+                <span class="stat-card-label">Total SK Chairpersons</span>
             </a>
+            <a href="{{ route('barangay-monitoring') }}" class="stat-card stat-card-green" data-no-loading data-stat-key="total_barangays_abyip_submitted" title="Barangays that submitted an ABYIP">
+                <div class="stat-card-top">
+                    <span class="stat-card-value">{{ number_format($totalBarangaysAbyipSubmitted ?? 0) }}</span>
+                    <div class="stat-card-icon stat-icon-green">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="8" y1="13" x2="16" y2="13"></line><line x1="8" y1="17" x2="16" y2="17"></line></svg>
+                    </div>
+                </div>
+                <span class="stat-card-label">Barangays with ABYIP</span>
+            </a>
+            <a href="{{ route('auditlogs.index') }}" class="stat-card stat-card-slate" data-no-loading data-stat-key="total_audit_logs" title="Audit logs for the municipality">
+                <div class="stat-card-top">
+                    <span class="stat-card-value">{{ number_format($totalAuditLogs ?? 0) }}</span>
+                    <div class="stat-card-icon stat-icon-slate">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line></svg>
+                    </div>
+                </div>
+                <span class="stat-card-label">Total Audit Logs</span>
+            </a>
+            @include('dashboard::partials.dashboard-program-stat-cards')
         </div>
-        
+        </section>
+
+        {{-- ── KK Profiling by Month ── --}}
+        <div class="dash-row dash-row--kk-month">
+            <div class="content-card dash-kk-chart-card" id="kk-profiling-section">
+                <div class="card-header kk-chart-section-header">
+                    <div class="kk-chart-heading">
+                        <h3>KK Profiling by Month</h3>
+                        <p class="kk-chart-subtitle kk-chart-subtitle--center" id="kkProfilingChartSubtitle">Monthly submissions — approved, pending, and rejected</p>
+                    </div>
+                    <div class="kk-chart-header-actions">
+                        <select id="kkProfilingBarangayFilter" class="kk-barangay-select" aria-label="Filter by barangay">
+                            <option value="all">All Barangays</option>
+                            @foreach ($barangays as $barangay)
+                                <option value="{{ $barangay->id }}">{{ $barangay->name }}</option>
+                            @endforeach
+                        </select>
+                        <select id="kkProfilingPeriodFilter" class="kk-barangay-select" aria-label="Filter by period">
+                            <option value="monthly" selected>Monthly</option>
+                            <option value="weekly">Weekly</option>
+                        </select>
+                        <select id="kkProfilingMonthFilter" class="kk-barangay-select kk-month-filter" hidden aria-label="Filter by month">
+                            <option value="1">January</option>
+                            <option value="2">February</option>
+                            <option value="3">March</option>
+                            <option value="4">April</option>
+                            <option value="5">May</option>
+                            <option value="6">June</option>
+                            <option value="7">July</option>
+                            <option value="8">August</option>
+                            <option value="9">September</option>
+                            <option value="10">October</option>
+                            <option value="11">November</option>
+                            <option value="12">December</option>
+                        </select>
+                    </div>
+                    <span class="kk-demo-total" id="kkProfilingTotal">
+                        <span class="kk-demo-total-label">Total</span>
+                        <span class="kk-demo-total-value">0</span>
+                    </span>
+                </div>
+                <div class="card-body">
+                    <div class="kk-chart-canvas-wrap kk-chart-canvas-wrap--line">
+                        <canvas id="kkProfilingMonthlyChart"></canvas>
+                    </div>
+                    <div class="kk-chart-filter-row">
+                        <label class="kk-chart-filter-check kk-chart-filter-check--approved">
+                            <input type="checkbox" id="filterKkApproved" checked>
+                            <span class="kk-chart-filter-dot kk-chart-filter-dot--approved"></span>
+                            <span>Approved</span>
+                        </label>
+                        <label class="kk-chart-filter-check kk-chart-filter-check--pending">
+                            <input type="checkbox" id="filterKkPending" checked>
+                            <span class="kk-chart-filter-dot kk-chart-filter-dot--pending"></span>
+                            <span>Pending</span>
+                        </label>
+                        <label class="kk-chart-filter-check kk-chart-filter-check--rejected">
+                            <input type="checkbox" id="filterKkRejected" checked>
+                            <span class="kk-chart-filter-dot kk-chart-filter-dot--rejected"></span>
+                            <span>Rejected</span>
+                        </label>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         {{-- ── Purok + Quick Actions ── --}}
         <div class="dash-row dash-row--top-split">
             <div class="content-card dash-main-chart-card" id="purok-distribution-section">
@@ -174,6 +268,10 @@
                             <option value="all">All Purok/Sitio</option>
                         </select>
                     </div>
+                    <span class="kk-demo-total" id="purokDistributionTotal">
+                        <span class="kk-demo-total-label">Total</span>
+                        <span class="kk-demo-total-value">0</span>
+                    </span>
                 </div>
                 <div class="card-body dash-purok-card-body">
                     <div class="kk-chart-canvas-wrap kk-chart-canvas-wrap--purok" id="purokChartWrap">
@@ -196,7 +294,7 @@
                     </a>
                     <a href="{{ route('barangay-monitoring') }}" class="qa-item qa-item--green" role="listitem" data-no-loading>
                         <span class="qa-item-icon"><i class="fas fa-clipboard-check"></i></span>
-                        <span class="qa-item-label">Barangay Compliance</span>
+                        <span class="qa-item-label">Barangay ABYIP</span>
                         <span class="qa-item-chevron"><i class="fas fa-chevron-right"></i></span>
                     </a>
                     <a href="{{ route('kabataan-monitoring') }}" class="qa-item qa-item--teal" role="listitem" data-no-loading>
@@ -228,86 +326,37 @@
             </div>
         </div>
 
-        {{-- ── KK Profiling + ABYIP (side by side) ── --}}
-        <div class="dash-row dash-row--kk-abyip">
-            <div class="content-card dash-kk-chart-card" id="kk-profiling-section">
-                <div class="card-header kk-chart-section-header">
-                    <div class="kk-chart-heading">
-                        <h3>KK Profiling by Month</h3>
+        {{-- ── Sex Distribution and Employment Status ── --}}
+        <div class="dash-row dash-row--kk-sex-employment">
+            <div class="content-card dash-col-6 kk-demo-chart-card" id="kabataan-sex-section">
+                <div class="card-header dash-demo-chart-header dash-section-header--chart-filters">
+                    <div class="kk-chart-heading dash-section-header-text">
+                        <h3 class="dash-section-title">Kabataan Sex Distribution</h3>
+                        <p class="dash-section-sub">Male vs Female registered youth</p>
                     </div>
-                    <div class="kk-chart-header-actions">
-                        <select id="kkProfilingBarangayFilter" class="kk-barangay-select" aria-label="Filter by barangay">
-                            <option value="all">All Barangays</option>
-                            @foreach ($barangays as $barangay)
-                                <option value="{{ $barangay->id }}">{{ $barangay->name }}</option>
-                            @endforeach
+                    <div class="kk-chart-header-actions dash-chart-header-actions">
+                        <select id="sexDistributionRoleFilter" class="kk-barangay-select" aria-label="Filter by role">
+                            <option value="all" selected>All</option>
+                            <option value="kabataan">Kabataan</option>
+                            <option value="officials">SK Officials</option>
+                            <option value="federations">SK Federations</option>
                         </select>
-                        <select id="kkProfilingPeriodFilter" class="kk-barangay-select" aria-label="Filter by period">
-                            <option value="monthly" selected>Monthly</option>
-                            <option value="weekly">Weekly</option>
-                        </select>
-                        <select id="kkProfilingMonthFilter" class="kk-barangay-select kk-month-filter" hidden aria-label="Filter by month">
-                            <option value="1">January</option>
-                            <option value="2">February</option>
-                            <option value="3">March</option>
-                            <option value="4">April</option>
-                            <option value="5">May</option>
-                            <option value="6">June</option>
-                            <option value="7">July</option>
-                            <option value="8">August</option>
-                            <option value="9">September</option>
-                            <option value="10">October</option>
-                            <option value="11">November</option>
-                            <option value="12">December</option>
+                        <select id="sexDistributionGenderFilter" class="kk-barangay-select" aria-label="Filter by sex">
+                            <option value="all" selected>All</option>
+                            <option value="male">Male</option>
+                            <option value="female">Female</option>
                         </select>
                     </div>
-                </div>
-                <p class="kk-chart-subtitle kk-chart-subtitle--center" id="kkProfilingChartSubtitle">Monthly submissions — approved, pending, and rejected</p>
-                <div class="card-body">
-                    <div class="kk-chart-canvas-wrap kk-chart-canvas-wrap--line">
-                        <canvas id="kkProfilingMonthlyChart"></canvas>
-                    </div>
-                    <div class="kk-chart-filter-row">
-                        <label class="kk-chart-filter-check kk-chart-filter-check--approved">
-                            <input type="checkbox" id="filterKkApproved" checked>
-                            <span class="kk-chart-filter-dot kk-chart-filter-dot--approved"></span>
-                            <span>Approved</span>
-                        </label>
-                        <label class="kk-chart-filter-check kk-chart-filter-check--pending">
-                            <input type="checkbox" id="filterKkPending" checked>
-                            <span class="kk-chart-filter-dot kk-chart-filter-dot--pending"></span>
-                            <span>Pending</span>
-                        </label>
-                        <label class="kk-chart-filter-check kk-chart-filter-check--rejected">
-                            <input type="checkbox" id="filterKkRejected" checked>
-                            <span class="kk-chart-filter-dot kk-chart-filter-dot--rejected"></span>
-                            <span>Rejected</span>
-                        </label>
-                    </div>
-                </div>
-            </div>
-
-            @include('dashboard::partials.dashboard-abyip-submissions')
-        </div>
-
-        {{-- ── Sex Distribution + Employment Status (municipality-wide) ── --}}
-        <div class="dash-row dash-row--demographics">
-            <div class="content-card dash-col-6" id="kabataan-sex-section">
-                <div class="card-header dash-demo-chart-header">
-                    <div class="kk-chart-heading">
-                        <h3><i class="fas fa-venus-mars" style="color:#213F99;margin-right:8px;"></i>Sex Distribution</h3>
-                        <p class="dash-demo-chart-sub">Male vs Female — Kabataan, SK Officials &amp; SK Federations</p>
-                    </div>
-                    <select id="sexDistributionRoleFilter" class="kk-barangay-select" aria-label="Filter by role">
-                        <option value="all" selected>All</option>
-                        <option value="kabataan">Kabataan</option>
-                        <option value="officials">SK Officials</option>
-                        <option value="federations">SK Federations</option>
-                    </select>
+                    <span class="kk-demo-total" id="kabataanSexTotal">
+                        <span class="kk-demo-total-label">Total</span>
+                        <span class="kk-demo-total-value">0</span>
+                    </span>
                 </div>
                 <div class="card-body chart-body dash-demo-chart-body">
-                    <canvas id="kabataanSexChart" aria-label="Sex distribution chart"></canvas>
-                    <div class="dash-demo-legend" id="kabataanSexLegend"></div>
+                    <div class="chart-canvas-wrap chart-canvas-wrap--pie kk-demo-chart-wrap">
+                        <canvas id="kabataanSexChart" aria-label="Kabataan sex distribution chart"></canvas>
+                    </div>
+                    <div class="pie-legend-row" id="kabataanSexLegend"></div>
                     <p class="dash-empty-note" id="kabataanSexEmpty" hidden>No sex data available.</p>
                 </div>
             </div>
@@ -318,14 +367,20 @@
                         <h3><i class="fas fa-briefcase" style="color:#213F99;margin-right:8px;"></i>Employment Status Distribution</h3>
                         <p class="dash-demo-chart-sub">Current employment profile of registered Kabataan</p>
                     </div>
-                    <select id="employmentChartFilter" class="kk-barangay-select" aria-label="Filter employment status">
-                        <option value="all" selected>All Statuses</option>
-                        <option value="Employed">Employed</option>
-                        <option value="Unemployed">Unemployed</option>
-                        <option value="Self-Employed">Self-Employed</option>
-                        <option value="Currently looking for a Job">Currently looking for a Job</option>
-                        <option value="Not Interested Looking for a Job">Not Interested Looking for a Job</option>
-                    </select>
+                    <div class="kk-chart-header-actions">
+                        <select id="employmentChartFilter" class="kk-barangay-select" aria-label="Filter employment status">
+                            <option value="all" selected>All Statuses</option>
+                            <option value="Employed">Employed</option>
+                            <option value="Unemployed">Unemployed</option>
+                            <option value="Self-Employed">Self-Employed</option>
+                            <option value="Currently looking for a Job">Currently looking for a Job</option>
+                            <option value="Not Interested Looking for a Job">Not Interested Looking for a Job</option>
+                        </select>
+                    </div>
+                    <span class="kk-demo-total" id="employmentStatusTotal">
+                        <span class="kk-demo-total-label">Total</span>
+                        <span class="kk-demo-total-value">0</span>
+                    </span>
                 </div>
                 <div class="card-body chart-body dash-demo-chart-body">
                     <div class="chart-canvas-wrap chart-canvas-wrap--employment" id="employmentChartWrap">
@@ -337,11 +392,21 @@
             </div>
         </div>
 
+        @include('dashboard::partials.dashboard-program-statistics')
+
+        @include('dashboard::partials.dashboard-abyip-submissions')
+
+        @include('dashboard::partials.dashboard-youth-demographics')
+
         {{-- ── ROW 2: Federation Officers + Recent Audit Activity ── --}}
         <div class="dash-row dash-row--balanced dash-row--fed-audit">
             <div class="content-card dash-col-6" id="federation-section">
                 <div class="card-header">
                     <h3><i class="fas fa-sitemap" style="color:#213F99;margin-right:8px;"></i>Federation Officers</h3>
+                    <span class="kk-demo-total" aria-live="polite">
+                        <span class="kk-demo-total-label">Total</span>
+                        <span class="kk-demo-total-value">{{ number_format(count($federationOfficers ?? [])) }}</span>
+                    </span>
                 </div>
                 <div class="card-body federation-officers-body">
                     <table class="federation-officers-table">
@@ -375,7 +440,7 @@
 
         {{-- ── ROW 3: Top 5 Barangays + Recent Activity + Upcoming Events ── --}}
         <div class="dash-row">
-            <div class="content-card dash-col-4" id="top-barangays-section">
+            <div class="content-card dash-col-6" id="top-barangays-section">
                 <div class="card-header">
                     <h3><i class="fas fa-trophy" style="color:#F7D31E;margin-right:8px;"></i>Top 5 Barangays by Youth Population</h3>
                 </div>
@@ -404,10 +469,11 @@
                 </div>
             </div>
 
-            <div class="dash-col-8">
+            <div class="dash-col-6">
                 @include('dashboard::partials.dashboard-recent-activity')
             </div>
         </div>
+
 @endsection
 
 @push('scripts')
@@ -437,6 +503,13 @@
         date_from: @json($dateFrom ?? null),
         date_to: @json($dateTo ?? null),
         stats: {
+            total_kk: {{ (int) ($totalKkProfiles ?? 0) }},
+            kk_approved: {{ (int) ($kkApproved ?? 0) }},
+            kk_pending: {{ (int) ($kkPending ?? 0) }},
+            total_programs: {{ (int) data_get($programDashboard ?? [], 'stats.total_programs', $totalPrograms ?? 0) }},
+            open_programs: {{ (int) data_get($programDashboard ?? [], 'stats.open_programs', 0) }},
+            closed_programs: {{ (int) data_get($programDashboard ?? [], 'stats.closed_programs', 0) }},
+            upcoming_programs: {{ (int) data_get($programDashboard ?? [], 'stats.upcoming_programs', 0) }},
             total_kabataan_registered: {{ (int) ($totalKabataanRegistered ?? 0) }},
             total_sk_officials: {{ (int) ($totalSkOfficials ?? 0) }},
             total_sk_chairpersons: {{ (int) ($totalSkChairpersons ?? 0) }},
@@ -447,18 +520,48 @@
         sex_distribution_officials: @json($sexDistributionOfficialsData),
         sex_distribution_federations: @json($sexDistributionFederationsData),
         employment_status_distribution: @json($employmentStatusDistributionData),
+        youth_demographics: @json($youthDemographics ?? null),
         abyip_overview: @json($abyipOverview),
         top_barangays: @json($topBarangays ?? []),
+        programs: @json($programDashboard ?? []),
     };
 </script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+    // One chart theme for the whole SK Federations dashboard. Chart.js otherwise
+    // falls back to Helvetica and a near-black (rgba(0,0,0,0.8)) tooltip, which
+    // is what produced the dark panel over the Purok/Sitio chart and made the
+    // tooltip typography differ from the rest of the page.
+    (function () {
+        if (typeof window.Chart === 'undefined' || !window.Chart.defaults) {
+            return;
+        }
+        var defaults = window.Chart.defaults;
+        defaults.font.family = 'Inter, system-ui, sans-serif';
+        defaults.color = '#475569';
+        var tooltip = defaults.plugins && defaults.plugins.tooltip;
+        if (tooltip) {
+            tooltip.backgroundColor = '#2F4E85';
+            tooltip.borderColor = '#2D4C7C';
+            tooltip.borderWidth = 1;
+            tooltip.titleColor = '#ffffff';
+            tooltip.bodyColor = '#ffffff';
+            tooltip.padding = 10;
+            tooltip.cornerRadius = 8;
+        }
+    })();
+</script>
 @php
     $dashboardVite = \App\Support\ViteManifest::existing([
         'app/Modules/Dashboard/assets/js/kkprofilingchart.js',
         'app/Modules/Dashboard/assets/js/dashboard-purok.js',
+        'app/Modules/Dashboard/assets/css/dashboard-youth-demographics.css',
+        'app/Modules/Dashboard/assets/css/dashboard-programs.css',
+        'app/Modules/Dashboard/assets/js/dashboard-youth-demographics.js',
         'app/Modules/Dashboard/assets/js/dashboard-demographics.js',
         'app/Modules/Dashboard/assets/js/dashboard-activity.js',
         'app/Modules/Dashboard/assets/js/dashboard-audit.js',
+        'app/Modules/Dashboard/assets/js/dashboard-programs.js',
     ]);
 @endphp
 @if ($dashboardVite !== [])

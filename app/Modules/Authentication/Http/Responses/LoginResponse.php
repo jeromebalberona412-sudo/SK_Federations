@@ -18,8 +18,12 @@ class LoginResponse implements LoginResponseContract
 
         try {
             $user = $request->user();
-            if ($user !== null && app(FederationTermDetectionService::class)->mustLockPortalForTurnover($user)) {
-                $redirect = route('turnover.index');
+            if ($user !== null) {
+                if (! $user->hasVerifiedEmail()) {
+                    $redirect = route('skfed.verification.wait');
+                } elseif (app(FederationTermDetectionService::class)->mustLockPortalForTurnover($user)) {
+                    $redirect = route('turnover.index');
+                }
             }
         } catch (\Throwable $e) {
             report($e);

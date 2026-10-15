@@ -14,7 +14,9 @@
     <style id="login-critical-css">
         .label-icon{width:18px!important;height:18px!important;max-width:18px!important;max-height:18px!important;display:inline-block;vertical-align:-0.15em;flex-shrink:0;}
         .pw-toggle-btn svg,.pw-eye{width:22px!important;height:22px!important;max-width:22px!important;max-height:22px!important;}
-        .collab-logo{width:120px;height:120px;max-width:42vw;max-height:42vw;object-fit:contain;border-radius:50%;background:#fff;display:block;}
+        .collab-logo{width:180px;height:180px;max-width:40vw;max-height:40vw;object-fit:contain;border-radius:50%;background:#fff;display:block;}
+        .brand-title{font-size:clamp(1.85rem,3.8vw,2.75rem);font-weight:900;margin:0 0 0.4rem;line-height:1.12;white-space:nowrap;}
+        .brand-subtitle{font-size:clamp(0.78rem,1.7vw,1.05rem);font-weight:600;margin:0 auto;line-height:1.3;white-space:nowrap;max-width:100%;overflow:hidden;text-overflow:ellipsis;}
         .auth-legal-link{display:inline;padding:0;border:0;background:none;color:#2563eb;text-decoration:underline;font:inherit;cursor:pointer;-webkit-appearance:none;appearance:none;}
         .pw-toggle-btn{position:absolute;right:10px;top:50%;transform:translateY(-50%);border:0;background:transparent;padding:4px;line-height:0;cursor:pointer;}
         .password-input-container{position:relative;}
@@ -65,10 +67,10 @@
             <div class="logo-container">
                 <div class="collab-logo-wrapper">
                     <div class="logo-glow-wrapper logo-left">
-                        <img src="{{ asset('Images/SK_OnePortal_logo.png') }}" alt="SK OnePortal Logo" class="collab-logo" width="210" height="210">
+                        <img src="{{ asset('Images/SK_OnePortal_logo.png') }}" alt="SK OnePortal Logo" class="collab-logo" width="180" height="180">
                     </div>
                     <div class="logo-glow-wrapper logo-right">
-                        <img src="{{ asset('Images/SK_Federations_logo.jpg') }}" alt="SK Federations Logo" class="collab-logo" width="210" height="210">
+                        <img src="{{ asset('Images/SK_Federations_logo.jpg') }}" alt="SK Federations Logo" class="collab-logo" width="180" height="180">
                     </div>
                 </div>
                 <h1 class="brand-title">SK OnePortal</h1>

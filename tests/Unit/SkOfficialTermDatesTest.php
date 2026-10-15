@@ -255,3 +255,34 @@ it('defaults eligibility to current date when reference date is omitted', functi
     expect(SkOfficialTermDates::birthdateErrorFor('2006-09-07'))->toBeNull();
 });
 
+it('allows SK Federation birthdates from January 1 1992 through the 18-year cutoff', function () {
+    Carbon::setTestNow(Carbon::parse('2026-10-13'));
+
+    $bounds = SkOfficialTermDates::federationBirthdateBounds();
+    expect($bounds)->toBe([
+        'min' => '1992-01-01',
+        'max' => '2008-10-13',
+    ])
+        ->and(SkOfficialTermDates::federationBirthdateErrorFor('1992-01-01'))->toBeNull()
+        ->and(SkOfficialTermDates::federationBirthdateErrorFor('2008-10-13'))->toBeNull()
+        ->and(SkOfficialTermDates::federationBirthdateErrorFor('1991-12-31'))
+        ->toBe(SkOfficialTermDates::MSG_BEFORE_FEDERATION_MIN_BIRTHDATE)
+        ->and(SkOfficialTermDates::federationBirthdateErrorFor('2008-10-14'))
+        ->toBe(SkOfficialTermDates::MSG_UNDER_MIN_AGE);
+});
+
+it('allows SK Official account birthdates from January 1 1991 through the 18-year cutoff', function () {
+    Carbon::setTestNow(Carbon::parse('2026-10-13'));
+
+    $bounds = SkOfficialTermDates::officialAccountBirthdateBounds();
+    expect($bounds)->toBe([
+        'min' => '1991-01-01',
+        'max' => '2008-10-13',
+    ])
+        ->and(SkOfficialTermDates::officialAccountBirthdateErrorFor('1991-01-01'))->toBeNull()
+        ->and(SkOfficialTermDates::officialAccountBirthdateErrorFor('2008-10-13'))->toBeNull()
+        ->and(SkOfficialTermDates::officialAccountBirthdateErrorFor('1990-12-31'))
+        ->toBe(SkOfficialTermDates::MSG_BEFORE_OFFICIAL_MIN_BIRTHDATE)
+        ->and(SkOfficialTermDates::officialAccountBirthdateErrorFor('2008-10-14'))
+        ->toBe(SkOfficialTermDates::MSG_UNDER_MIN_AGE);
+});

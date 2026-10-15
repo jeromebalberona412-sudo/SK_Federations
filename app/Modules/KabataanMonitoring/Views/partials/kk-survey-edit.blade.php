@@ -135,8 +135,8 @@
                                 <input type="email" id="kkEditEmail" class="kkp-uline kkp-uline-med kkp-email-input" placeholder=" " maxlength="254" autocomplete="email" required>
                             </div>
                             <div class="kkp-inline-pair">
-                                <label class="kkp-inline-label" for="kkEditContactInput">Contact #: <span class="kkp-required">*</span></label>
-                                <input type="tel" id="kkEditContactInput" class="kkp-uline kkp-uline-med" placeholder="09XXXXXXXXX" inputmode="numeric" maxlength="11" pattern="09[0-9]{9}" required>
+                                <label class="kkp-inline-label" for="kkEditContactInput">Contact #: <span class="kkp-optional-label">(Optional)</span></label>
+                                <input type="tel" id="kkEditContactInput" class="kkp-uline kkp-uline-med" placeholder="09XXXXXXXXX" inputmode="numeric" maxlength="11" pattern="09[0-9]{9}">
                             </div>
                         </div>
                     </div>

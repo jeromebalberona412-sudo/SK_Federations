@@ -18,6 +18,7 @@
                     </button>
                 </div>
             </div>
+            <button type="button" class="comms-msg-mark-all" style="display:flex;align-items:center;justify-content:center;width:calc(100% - 24px);margin:8px 12px;box-sizing:border-box;background:#0039A8;color:#fff;border:0;border-radius:999px;padding:8px 12px;font-size:13px;font-weight:700;line-height:1.2;cursor:pointer;">Mark All as Read</button>
             <div class="comms-chat-fs-search-wrap">
                 <label class="comms-chat-fs-search" for="commsChatFsSearch">
                     <i class="fas fa-search" aria-hidden="true"></i>

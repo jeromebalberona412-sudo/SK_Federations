@@ -7,33 +7,33 @@
     let purokRequestSeq = 0;
     let purokLastPayload = null;
 
-    const BAR_COLORS = [
-        'rgba(59,130,246,.85)',
-        'rgba(34,197,94,.85)',
-        'rgba(244,194,13,.85)',
-        'rgba(239,68,68,.85)',
-        'rgba(168,85,247,.85)',
-        'rgba(20,184,166,.85)',
-        'rgba(249,115,22,.85)',
-        'rgba(99,102,241,.85)',
-        'rgba(236,72,153,.85)',
-        'rgba(14,165,233,.85)',
-        'rgba(132,204,22,.85)',
-        'rgba(245,158,11,.85)',
-        'rgba(244,63,94,.85)',
-        'rgba(139,92,246,.85)',
-        'rgba(6,182,212,.85)',
-        'rgba(234,179,8,.85)',
-    ];
-    const ALL_BARANGAYS_BAR_COLOR = '#F06565';
+    // Single flat blue for every bar, matching the SK Officials dashboard. The
+    // bar keeps this exact colour while hovered — no hover tint, so the graph
+    // stays one static colour. The tooltip box is the blue hover element and is
+    // themed dashboard-wide in dashboard.blade.php.
+    const BAR_COLOR = 'rgba(37, 99, 235, 0.88)';
+    const BAR_BORDER_COLOR = 'rgba(37, 99, 235, 0.2)';
 
-    function colorsForLabels(labels, allBarangays) {
-        if (allBarangays) {
-            return labels.map(function () { return ALL_BARANGAYS_BAR_COLOR; });
+    // Grid lines only — the chart deliberately paints no background of its own
+    // so the white card shows through instead of a dark panel.
+    const PLOT_GRID_COLOR = 'rgba(47, 78, 133, 0.16)';
+
+    // One blue per bar. The count has to come from labels.length — passing the
+    // array itself produced an empty colour list, and Chart.js then fell back
+    // to its own default rgba(0,0,0,0.1), which painted the whole graph black.
+    function colorsForLabels(count) {
+        return Array.from({ length: count || 0 }, function () { return BAR_COLOR; });
+    }
+
+    function setPurokTotal(counts) {
+        const valueEl = document.querySelector('#purokDistributionTotal .kk-demo-total-value');
+        if (!valueEl) {
+            return;
         }
-        return labels.map(function (_, index) {
-            return BAR_COLORS[index % BAR_COLORS.length];
-        });
+        const total = (Array.isArray(counts) ? counts : []).reduce(function (sum, value) {
+            return sum + Number(value || 0);
+        }, 0);
+        valueEl.textContent = total.toLocaleString();
     }
 
     function getDashboardDateRange() {
@@ -293,7 +293,7 @@
                         padding: 8,
                     },
                     grid: {
-                        color: 'rgba(148, 163, 184, 0.28)',
+                        color: PLOT_GRID_COLOR,
                         drawBorder: false,
                     },
                 },
@@ -319,6 +319,7 @@
         const isEmpty = labels.length === 0;
 
         setPurokEmptyState(isEmpty);
+        setPurokTotal(counts);
         if (isEmpty) {
             if (purokChart) {
                 purokChart.destroy();
@@ -327,7 +328,7 @@
             return;
         }
 
-        const colors = colorsForLabels(labels, allBarangays);
+        const colors = colorsForLabels(labels.length);
         sizePurokChartWrap(labels);
         const options = buildPurokChartOptions(labels.length);
 
@@ -344,14 +345,19 @@
                     label: 'Kabataan',
                     data: counts,
                     backgroundColor: colors,
+                    hoverBackgroundColor: colors,
+                    borderColor: BAR_BORDER_COLOR,
+                    borderWidth: 0,
                     borderRadius: {
                         topLeft: 6,
                         topRight: 6,
-                        bottomLeft: 0,
-                        bottomRight: 0,
+                        bottomLeft: 2,
+                        bottomRight: 2,
                     },
                     borderSkipped: false,
                     maxBarThickness: allBarangays ? 34 : 42,
+                    categoryPercentage: 0.72,
+                    barPercentage: 0.82,
                 }],
             },
             options: options,

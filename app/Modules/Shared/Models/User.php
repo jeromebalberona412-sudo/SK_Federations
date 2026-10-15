@@ -211,7 +211,7 @@ class User extends Authenticatable implements MustVerifyEmail
 
     public function canAccessFederationPortal(): bool
     {
-        if ($this->isSkFed()) {
+        if ($this->isSkFed() || $this->hasRole(self::ROLE_ADMIN)) {
             return true;
         }
 

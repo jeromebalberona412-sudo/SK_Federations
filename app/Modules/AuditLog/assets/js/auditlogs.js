@@ -103,10 +103,10 @@ document.addEventListener('DOMContentLoaded', function () {
                 <tr>
                     <td class="cell-primary" data-label="Date">${escapeHtml(row.created_date)}</td>
                     <td data-label="Time">${escapeHtml(row.created_time)}</td>
-                    <td class="audit-cell-email" data-label="Email">${escapeHtml(row.user_email || '-')}</td>
-                    <td data-label="Role">${escapeHtml(row.role)}</td>
-                    <td data-label="Event Type">${escapeHtml(row.event_type)}</td>
-                    <td data-label="IP Address">${escapeHtml(row.ip_address)}</td>
+                    <td class="audit-cell-email" data-label="Email">${escapeHtml(row.account_email || '-')}</td>
+                    <td data-label="Role" title="${escapeHtml(row.role)}">${escapeHtml(row.role)}</td>
+                    <td class="audit-cell-event" data-label="Event Type" title="${escapeHtml(row.event_type)}">${escapeHtml(row.event_type)}</td>
+                    <td data-label="IP Address" title="${escapeHtml(row.ip_address)}">${escapeHtml(row.ip_address)}</td>
                     <td data-label="View" class="audit-col-actions">
                         <button type="button" class="audit-details-btn" data-row-index="${index}">View</button>
                     </td>
@@ -154,6 +154,9 @@ document.addEventListener('DOMContentLoaded', function () {
 
                 const labelMap = {
                     'Total Audit Logs': 'total_logs',
+                    'This Month': 'month_activities',
+                    'This Week': 'week_activities',
+                    'This Day': 'today_activities',
                     "Today's Activities": 'today_activities',
                     'Security Events': 'security_events',
                     'Active Users Logged Today': 'active_users_today',
@@ -176,7 +179,7 @@ document.addEventListener('DOMContentLoaded', function () {
             return;
         }
 
-        const cacheKey = 'sk_fed_audit_logs_v1_' + buildQuery(getFilters());
+        const cacheKey = 'sk_fed_audit_logs_v2_' + buildQuery(getFilters());
         const cached = window.SkLocalCache?.get(cacheKey);
         const paint = (payload) => {
             state.rows = payload.data || [];
@@ -230,7 +233,7 @@ document.addEventListener('DOMContentLoaded', function () {
             return;
         }
 
-        const cacheKey = 'sk_fed_audit_stats_v1';
+        const cacheKey = 'sk_fed_audit_stats_v2';
         const cached = window.SkLocalCache?.get(cacheKey);
         if (cached?.payload?.data) {
             updateStatCards(cached.payload.data);
@@ -276,7 +279,7 @@ document.addEventListener('DOMContentLoaded', function () {
         const detailFields = [
             ['Date', row.created_date],
             ['Time', row.created_time],
-            ['Email', row.user_email || '-'],
+            ['Email', row.account_email || '-'],
             ['Role', row.role],
             ['Event Type', row.event_type],
             ['IP Address', row.ip_address],

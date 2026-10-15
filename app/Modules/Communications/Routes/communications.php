@@ -27,6 +27,9 @@ Route::middleware([
 
     Route::get('/api/communications/conversations', [ConversationController::class, 'index'])
         ->name('api.communications.conversations.index');
+    Route::post('/api/communications/conversations/mark-all-read', [ConversationController::class, 'markAllRead'])
+        ->middleware('throttle:20,1')
+        ->name('api.communications.conversations.mark-all-read');
     Route::post('/api/communications/conversations', [ConversationController::class, 'store'])
         ->middleware('throttle:30,1')
         ->name('api.communications.conversations.store');

@@ -356,12 +356,41 @@ body.comms-messages-layout .comms-composer {
     min-width: 0;
 }
 
+.comms-conv-item .comms-avatar {
+    width: 48px;
+    height: 48px;
+    flex-shrink: 0;
+}
+
 .comms-conv-name {
-    font-weight: 600;
+    font-weight: 700;
     font-size: 0.95rem;
+    max-width: 18ch;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+}
+
+.comms-mark-all-read {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin: 0 0 8px;
+    max-width: 100%;
+    border: 1px solid rgba(15, 23, 42, 0.12);
+    background: #fff;
+    color: #111827;
+    border-radius: 999px;
+    padding: 6px 12px;
+    font-size: 13px;
+    font-weight: 700;
+    line-height: 1.2;
+    cursor: pointer;
+}
+
+.comms-mark-all-read:disabled {
+    opacity: 0.65;
+    cursor: progress;
 }
 
 .comms-conv-preview {
@@ -718,6 +747,44 @@ body.comms-messages-layout .comms-composer {
 .comms-bubble-wrap.is-mine {
     align-self: flex-end;
     align-items: flex-end;
+}
+
+.comms-msg-sender {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    max-width: 100%;
+    margin: 0 0 4px 2px;
+}
+
+.comms-msg-sender-avatar {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    object-fit: cover;
+    flex-shrink: 0;
+}
+
+.comms-msg-sender-name {
+    font-size: 12px;
+    font-weight: 700;
+    line-height: 1.2;
+    max-width: 11rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.comms-call-join {
+    margin-left: 8px;
+    border: 0;
+    border-radius: 999px;
+    padding: 4px 10px;
+    background: #0b7a3b;
+    color: #fff;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
 }
 
 .comms-bubble-wrap.is-theirs {

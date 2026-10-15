@@ -127,29 +127,96 @@
 
 .auth-legal-modal-body {
     flex: 1;
+    min-height: 0;
     overflow-y: auto;
-    padding: 20px 22px;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+    padding: 18px 22px 22px;
 }
 
 .auth-legal-modal-footer {
     display: flex;
     flex-wrap: wrap;
-    align-items: flex-start;
+    align-items: center;
     justify-content: space-between;
-    gap: 14px;
-    padding: 16px 20px;
+    gap: 10px 16px;
+    padding: 12px 18px;
     border-top: 1px solid #e5e7eb;
     background: #f8fafc;
+}
+
+.auth-legal-modal-hint {
+    margin: 0;
+    flex: 1;
+    min-width: 0;
+    color: #b45309;
+    font-size: 0.8rem;
+    font-weight: 600;
+    line-height: 1.45;
+}
+
+.auth-legal-modal-hint.is-ready {
+    color: #15803d;
+}
+
+/* Sticky scroll notice: message + live percentage, pinned above the document */
+.auth-legal-scroll-notice {
+    position: sticky;
+    top: -18px;
+    z-index: 3;
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    margin: -18px -22px 16px;
+    padding: 11px 22px;
+    border-bottom: 1px solid #fde68a;
+    background: #fffbeb;
+    color: #92400e;
+    font-size: 0.8rem;
+    font-weight: 600;
+    line-height: 1.45;
+}
+
+.auth-legal-scroll-notice.is-complete {
+    border-bottom-color: #bbf7d0;
+    background: #f0fdf4;
+    color: #166534;
+}
+
+.auth-legal-scroll-icon {
+    width: 16px;
+    height: 16px;
+    margin-top: 1px;
+    flex-shrink: 0;
+}
+
+.auth-legal-scroll-text {
+    flex: 1;
+    min-width: 0;
+}
+
+.auth-legal-scroll-percent {
+    flex-shrink: 0;
+    align-self: center;
+    padding: 1px 8px;
+    border-radius: 999px;
+    background: rgba(146, 64, 14, 0.1);
+    font-size: 0.72rem;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+}
+
+.auth-legal-scroll-notice.is-complete .auth-legal-scroll-percent {
+    background: rgba(22, 101, 52, 0.12);
 }
 
 .auth-legal-modal-ack {
     display: flex;
     align-items: flex-start;
     gap: 10px;
-    flex: 1;
-    min-width: min(100%, 280px);
+    margin-top: 20px;
     padding: 12px 14px;
-    border-radius: 8px;
+    border-radius: 10px;
     background: #eff6ff;
     border: 1px solid #bfdbfe;
     font-size: 0.8125rem;
@@ -160,7 +227,9 @@
 }
 
 .auth-legal-modal-ack input {
-    margin-top: 4px;
+    width: 18px;
+    height: 18px;
+    margin-top: 3px;
     accent-color: var(--auth-legal-accent, #2563eb);
     flex-shrink: 0;
 }
@@ -176,7 +245,7 @@
 
 .auth-legal-modal-btn {
     flex-shrink: 0;
-    align-self: flex-end;
+    align-self: center;
     min-width: 88px;
     padding: 10px 22px;
     border: none;
@@ -294,16 +363,110 @@
 
 @media (max-width: 640px) {
     .auth-legal-modal {
-        padding: 10px;
+        padding: 0;
+    }
+
+    .auth-legal-modal-dialog {
+        width: 100%;
+        max-width: none;
+        max-height: 100dvh;
+        height: 100dvh;
+        border-radius: 0;
+    }
+
+    .auth-legal-modal-header {
+        padding: 12px 14px 13px;
+    }
+
+    .auth-legal-modal-title {
+        font-size: 1rem;
+    }
+
+    .auth-legal-modal-body {
+        padding: 14px 16px 18px;
     }
 
     .auth-legal-modal-footer {
-        flex-direction: column;
-        align-items: stretch;
+        padding: 10px 14px calc(10px + env(safe-area-inset-bottom, 0px));
+    }
+
+    .auth-legal-modal-ack {
+        margin-top: 16px;
+        padding: 11px 12px;
+        font-size: 0.78rem;
+        line-height: 1.5;
+    }
+
+    .auth-legal-modal-hint {
+        font-size: 0.76rem;
+    }
+
+    .auth-legal-scroll-notice {
+        top: -14px;
+        margin: -14px -16px 14px;
+        padding: 9px 16px;
+        font-size: 0.76rem;
+        line-height: 1.4;
+    }
+
+    .auth-legal-scroll-percent {
+        padding: 1px 6px;
+        font-size: 0.68rem;
     }
 
     .auth-legal-modal-btn {
-        width: 100%;
-        align-self: stretch;
+        min-width: 96px;
+        padding: 10px 20px;
+    }
+}
+
+@media (max-width: 400px) {
+    .auth-legal-scroll-notice {
+        top: -12px;
+        gap: 6px;
+        margin: -12px -14px 12px;
+        padding: 8px 14px;
+        font-size: 0.72rem;
+        line-height: 1.35;
+    }
+
+    .auth-legal-modal-header {
+        padding: 10px 12px;
+    }
+
+    .auth-legal-modal-body {
+        padding: 12px 14px 16px;
+    }
+
+    .auth-legal-modal-footer {
+        padding: 9px 12px calc(9px + env(safe-area-inset-bottom, 0px));
+    }
+
+    .auth-legal-modal-ack {
+        gap: 8px;
+        font-size: 0.74rem;
+        line-height: 1.45;
+    }
+
+    .auth-legal-modal-hint {
+        font-size: 0.72rem;
+    }
+
+    .auth-legal-doc p,
+    .auth-legal-doc li {
+        font-size: 0.84rem;
+        line-height: 1.55;
+    }
+
+    .auth-legal-modal-btn {
+        min-width: 84px;
+        padding: 9px 16px;
+        font-size: 0.82rem;
+    }
+}
+
+@media (min-width: 641px) {
+    .auth-legal-scroll-notice {
+        font-size: 0.85rem;
     }
 }

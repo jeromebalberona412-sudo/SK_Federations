@@ -441,6 +441,8 @@ class AdminAccountController extends Controller
                 $message = 'The selected position is not allowed. Please choose a valid SK Federation position.';
             } elseif (str_contains($e->getMessage(), 'users_email_unique')) {
                 $message = 'This email is already taken.';
+            } elseif (str_contains($e->getMessage(), '22001') || str_contains(strtolower($e->getMessage()), 'value too long') || str_contains(strtolower($e->getMessage()), 'data too long')) {
+                $message = 'A name is longer than the account record can store. Use at most 150 characters in each name field.';
             }
 
             if ($request->expectsJson()) {

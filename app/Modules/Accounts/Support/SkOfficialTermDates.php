@@ -19,9 +19,17 @@ final class SkOfficialTermDates
 
     public const SK_MAX_AGE = 30;
 
+    public const OFFICIAL_MIN_BIRTHDATE = '1991-01-01';
+
+    public const FEDERATION_MIN_BIRTHDATE = '1992-01-01';
+
     public const MSG_UNDER_MIN_AGE = 'SK Official must be at least '.self::SK_MIN_AGE.' years old.';
 
     public const MSG_OVER_MAX_AGE = 'SK Official must not be older than '.self::SK_MAX_AGE.' years old.';
+
+    public const MSG_BEFORE_FEDERATION_MIN_BIRTHDATE = 'SK Federation birthdate must be on or after January 1, 1992.';
+
+    public const MSG_BEFORE_OFFICIAL_MIN_BIRTHDATE = 'SK Official birthdate must be on or after January 1, 1991.';
 
     public const MSG_DOB_REQUIRED = 'Birthdate is required.';
 
@@ -59,6 +67,91 @@ final class SkOfficialTermDates
             'min' => $reference->copy()->subYears(self::SK_MAX_AGE + 1)->addDay()->toDateString(),
             'max' => $reference->copy()->subYears(self::SK_MIN_AGE)->toDateString(),
         ];
+    }
+
+    /**
+     * Inclusive birthdate window for an SK Official account. There is no upper
+     * age limit; the birthdate must be on/after January 1, 1991 and at least
+     * 18 years before the reference date.
+     *
+     * @return array{min: string, max: string}
+     */
+    public static function officialAccountBirthdateBounds(?string $referenceDate = null): array
+    {
+        return [
+            'min' => self::OFFICIAL_MIN_BIRTHDATE,
+            'max' => self::eligibilityReference($referenceDate)
+                ->subYears(self::SK_MIN_AGE)
+                ->toDateString(),
+        ];
+    }
+
+    public static function officialAccountBirthdateErrorFor(
+        CarbonInterface|string|null $dob,
+        ?string $referenceDate = null,
+    ): ?string {
+        if ($dob === null || (is_string($dob) && trim($dob) === '')) {
+            return self::MSG_DOB_REQUIRED;
+        }
+
+        try {
+            $birthdate = Carbon::parse($dob)->startOfDay();
+        } catch (\Throwable) {
+            return null;
+        }
+
+        $bounds = self::officialAccountBirthdateBounds($referenceDate);
+        if ($birthdate->toDateString() < $bounds['min']) {
+            return self::MSG_BEFORE_OFFICIAL_MIN_BIRTHDATE;
+        }
+
+        if ($birthdate->toDateString() > $bounds['max']) {
+            return self::MSG_UNDER_MIN_AGE;
+        }
+
+        return null;
+    }
+
+    /**
+     * Inclusive birthdate window for SK Federation accounts: at least 18 years
+     * old, with January 1, 1992 as the earliest permitted birthdate.
+     *
+     * @return array{min: string, max: string}
+     */
+    public static function federationBirthdateBounds(?string $referenceDate = null): array
+    {
+        return [
+            'min' => self::FEDERATION_MIN_BIRTHDATE,
+            'max' => self::eligibilityReference($referenceDate)
+                ->subYears(self::SK_MIN_AGE)
+                ->toDateString(),
+        ];
+    }
+
+    public static function federationBirthdateErrorFor(
+        CarbonInterface|string|null $dob,
+        ?string $referenceDate = null,
+    ): ?string {
+        if ($dob === null || (is_string($dob) && trim($dob) === '')) {
+            return self::MSG_DOB_REQUIRED;
+        }
+
+        try {
+            $birthdate = Carbon::parse($dob)->startOfDay();
+        } catch (\Throwable) {
+            return null;
+        }
+
+        $bounds = self::federationBirthdateBounds($referenceDate);
+        if ($birthdate->toDateString() < $bounds['min']) {
+            return self::MSG_BEFORE_FEDERATION_MIN_BIRTHDATE;
+        }
+
+        if ($birthdate->toDateString() > $bounds['max']) {
+            return self::MSG_UNDER_MIN_AGE;
+        }
+
+        return null;
     }
 
     /**

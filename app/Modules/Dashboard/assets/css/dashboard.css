@@ -175,6 +175,11 @@ body.sidebar-collapsed .toggle-icon-collapse { display: block; }
     appearance: none;
     transition: background-color 0.22s ease, color 0.22s ease;
 }
+.notif-btn svg {
+    width: 20px;
+    height: 20px;
+    display: block;
+}
 .notif-btn:hover,
 .notif-btn:focus-visible {
     background: rgba(255, 255, 255, 0.14);
@@ -270,24 +275,24 @@ body.sidebar-collapsed .toggle-icon-collapse { display: block; }
     top: calc(100% + 8px);
     right: 0;
     left: auto;
-    width: 300px;
+    width: 360px;
     max-width: calc(100vw - 24px);
-    max-height: min(420px, calc(100vh - 72px));
-    height: min(420px, calc(100vh - 72px));
+    max-height: min(560px, calc(100vh - 72px));
+    height: min(560px, calc(100vh - 72px));
     display: flex;
     flex-direction: column;
     background: #fff;
     border-radius: 12px;
     box-shadow: 0 12px 36px rgba(15, 23, 42, 0.18);
     border: 1px solid rgba(15, 23, 42, 0.08);
-    z-index: 4000;
+    z-index: 5200;
+    overflow: hidden;
+    color: #12263a;
     opacity: 0;
     visibility: hidden;
     transform: translateY(-8px);
-    transition: opacity 0.22s ease, transform 0.22s ease, visibility 0.22s ease;
     pointer-events: none;
-    overflow: hidden;
-    color: #12263a;
+    transition: opacity 0.2s ease, transform 0.2s ease, visibility 0.2s ease;
 }
 
 .comms-msg-popover.show {
@@ -379,7 +384,7 @@ body.sidebar-collapsed .toggle-icon-collapse { display: block; }
 
 .comms-msg-search-wrap {
     flex-shrink: 0;
-    padding: 14px 12px 10px;
+    padding: 12px 12px 8px;
 }
 
 .comms-msg-search {
@@ -411,26 +416,32 @@ body.sidebar-collapsed .toggle-icon-collapse { display: block; }
 .comms-msg-filters {
     flex-shrink: 0;
     display: flex;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     align-items: center;
     gap: 6px;
     padding: 0 12px 10px;
-    overflow: visible;
+    overflow-x: auto;
+    overflow-y: hidden;
     max-width: 100%;
+    scrollbar-width: none;
+}
+
+.comms-msg-filters::-webkit-scrollbar {
+    display: none;
 }
 
 .comms-msg-filter-chip {
     border: 0;
     border-radius: 999px;
-    padding: 7px 12px;
+    padding: 6px 12px;
     background: #f1f5f9;
     color: #334155;
-    font-size: 12px;
+    font-size: 13px;
     font-weight: 600;
     line-height: 1;
     white-space: nowrap;
     cursor: pointer;
-    min-height: 32px;
+    flex-shrink: 0;
 }
 
 .comms-msg-filter-chip.is-active {
@@ -466,7 +477,7 @@ body.sidebar-collapsed .toggle-icon-collapse { display: block; }
 
 .comms-msg-item {
     display: grid;
-    grid-template-columns: 52px minmax(0, 1fr) auto;
+    grid-template-columns: 48px minmax(0, 1fr) auto;
     gap: 10px;
     align-items: center;
     width: 100%;
@@ -503,8 +514,8 @@ body.sidebar-collapsed .toggle-icon-collapse { display: block; }
 }
 
 .comms-msg-avatar {
-    width: 52px;
-    height: 52px;
+    width: 48px;
+    height: 48px;
     border-radius: 50%;
     object-fit: cover;
     background: #d7e3f4;
@@ -555,8 +566,8 @@ body.sidebar-collapsed .toggle-icon-collapse { display: block; }
 }
 
 .comms-msg-unread-dot {
-    width: 12px;
-    height: 12px;
+    width: 10px;
+    height: 10px;
     border-radius: 50%;
     background: #0866ff;
     flex-shrink: 0;
@@ -601,9 +612,9 @@ body.sidebar-collapsed .toggle-icon-collapse { display: block; }
 
 .comms-msg-popover-footer {
     flex-shrink: 0;
-    padding: 8px 10px 10px;
-    border-top: 1px solid #f1f5f9;
-    background: #f8fafc;
+    padding: 10px 12px 12px;
+    border-top: 1px solid #e2e8f0;
+    background: #fff;
 }
 
 .comms-msg-see-all-btn {
@@ -611,16 +622,16 @@ body.sidebar-collapsed .toggle-icon-collapse { display: block; }
     align-items: center;
     justify-content: center;
     width: 100%;
-    padding: 8px 10px;
-    border-radius: 8px;
+    padding: 10px 12px;
+    border-radius: 10px;
     background: #eff6ff;
-    border: 1px solid #bfdbfe;
-    color: #213F99 !important;
-    font-size: 12px;
-    font-weight: 600;
+    border: 0;
+    color: #1d4ed8 !important;
+    font-size: 13px;
+    font-weight: 700;
     text-decoration: none !important;
-    min-height: 34px;
-    transition: background 0.15s ease, border-color 0.15s ease;
+    min-height: 0;
+    transition: background 0.15s ease;
 }
 
 .comms-msg-see-all-btn:hover,
@@ -2004,10 +2015,10 @@ body.comms-chat-modal-open {
     }
 
     .comms-msg-popover {
-        width: min(300px, calc(100vw - 16px));
+        width: min(360px, calc(100vw - 16px));
         max-width: calc(100vw - 16px);
-        height: min(420px, calc(100vh - var(--navbar-height, 60px) - 24px));
-        max-height: min(420px, calc(100vh - var(--navbar-height, 60px) - 24px));
+        height: min(560px, calc(100vh - var(--navbar-height, 60px) - 24px));
+        max-height: min(560px, calc(100vh - var(--navbar-height, 60px) - 24px));
     }
 }
 
@@ -2342,11 +2353,14 @@ body.comms-chat-modal-open {
     left: auto;
     width: 280px;
     max-width: calc(100vw - 24px);
+    max-height: calc(100vh - var(--navbar-height, 64px) - 16px);
     background: white;
     border-radius: 14px;
     box-shadow: 0 8px 32px rgba(0,0,0,0.18);
-    z-index: 2000;
-    display: none; overflow: hidden;
+    z-index: 20000;
+    display: none;
+    overflow-x: hidden;
+    overflow-y: auto;
     border: 1px solid rgba(0,0,0,0.06);
     animation: popoverIn 0.2s ease;
 }
@@ -2928,11 +2942,11 @@ body.sidebar-collapsed .main-content { margin-left: var(--sidebar-collapsed); }
 /* ── STAT CARDS ── */
 .stats-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 16px;
     margin-bottom: 28px;
 }
-.stats-grid-6 { grid-template-columns: repeat(6, 1fr); }
+.stats-grid-6 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 
 .stat-card {
     background: white;
@@ -3194,86 +3208,222 @@ body.sidebar-collapsed .main-content { margin-left: var(--sidebar-collapsed); }
 .stat-card-link { text-decoration: none; cursor: pointer; color: inherit; display: flex; }
 .stat-card-link:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(0,0,0,0.1); }
 
-/* Dashboard stat row */
-.dash-stats-grid {
-    display: grid;
-    grid-template-columns: repeat(5, minmax(0, 1fr));
-    gap: 16px;
-    margin-bottom: 24px;
+/* Municipality stat cards — icon left, total right, label underneath.
+   The total/count sits in the upper-right corner so it lines up with the
+   Total pill used on every chart card further down the dashboard. */
+.dashboard-statistics-section {
+    margin-bottom: 16px;
 }
 
-@media (max-width: 1200px) {
+.dashboard-statistics-heading {
+    margin: 0 0 8px;
+}
+
+.dashboard-statistics-heading h2 {
+    margin: 0;
+    color: #1e293b;
+    font-size: 16px;
+    font-weight: 700;
+}
+
+.dashboard-statistics-heading p {
+    margin: 3px 0 0;
+    color: #64748b;
+    font-size: 11px;
+}
+
+.dash-stats-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 10px;
+    margin-bottom: 0;
+    width: 100%;
+    max-width: 100%;
+}
+
+.dash-stats-grid .stat-card {
+    background: #ffffff;
+    border-radius: 16px;
+    position: relative;
+    padding: 16px 16px 14px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    align-items: stretch;
+    gap: 8px;
+    min-height: 112px;
+    box-shadow: 0 2px 8px rgba(15, 23, 42, 0.06);
+    border: 1px solid #e2e8f0;
+    transition: box-shadow 0.22s ease, border-color 0.22s ease;
+    min-width: 0;
+    overflow: hidden;
+    text-decoration: none;
+    color: inherit;
+    cursor: pointer;
+}
+
+.dash-stats-grid article.stat-card {
+    cursor: default;
+}
+
+.dash-stats-grid .stat-card:hover {
+    box-shadow: 0 5px 16px rgba(15, 23, 42, 0.1);
+    transform: none;
+    text-decoration: none;
+    color: inherit;
+}
+
+.dash-stats-grid .stat-card:focus-visible {
+    outline: 2px solid #1A3263;
+    outline-offset: 2px;
+}
+
+.dash-stats-grid .stat-card-top {
+    display: flex;
+    flex-direction: row-reverse;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 10px;
+    min-height: 42px;
+    margin: 0;
+}
+
+.dash-stats-grid .stat-card-value {
+    font-size: 26px;
+    font-weight: 800;
+    color: #0f172a;
+    line-height: 1.15;
+    letter-spacing: -0.02em;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    text-align: right;
+    flex: 1;
+    min-width: 0;
+}
+
+.dash-stats-grid .stat-card-icon {
+    position: static;
+    left: auto;
+    top: auto;
+    width: 42px;
+    height: 42px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    transform: none;
+}
+
+.dash-stats-grid .stat-card-icon svg {
+    width: 24px;
+    height: 24px;
+}
+
+.dash-stats-grid .stat-icon-blue,
+.dash-stats-grid .stat-icon-indigo { background: #eff6ff; }
+.dash-stats-grid .stat-icon-blue svg,
+.dash-stats-grid .stat-icon-indigo svg { stroke: #2563eb; }
+.dash-stats-grid .stat-icon-green { background: #ecfdf5; }
+.dash-stats-grid .stat-icon-green svg { stroke: #16a34a; }
+.dash-stats-grid .stat-icon-yellow { background: #fffbeb; }
+.dash-stats-grid .stat-icon-yellow svg { stroke: #d97706; }
+.dash-stats-grid .stat-icon-teal { background: #f0fdfa; }
+.dash-stats-grid .stat-icon-teal svg { stroke: #0d9488; }
+.dash-stats-grid .stat-icon-purple { background: #f5f3ff; }
+.dash-stats-grid .stat-icon-purple svg { stroke: #7c3aed; }
+.dash-stats-grid .stat-icon-slate { background: #fef2f2; }
+.dash-stats-grid .stat-icon-slate svg { stroke: #dc2626; }
+
+.dash-stats-grid .stat-card-label {
+    display: -webkit-box;
+    font-size: 13px;
+    font-weight: 600;
+    color: #64748b;
+    line-height: 1.3;
+    text-align: center;
+    margin-top: 0;
+    overflow: hidden;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    width: 100%;
+}
+
+@media (max-width: 1280px) {
     .dash-stats-grid {
-        grid-template-columns: repeat(3, minmax(0, 1fr));
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 1024px) {
+    .dash-stats-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 8px;
     }
 }
 
 @media (max-width: 768px) {
     .dash-stats-grid {
-        display: grid;
-        grid-template-columns: repeat(5, minmax(0, 1fr));
-        gap: 6px;
-        overflow: visible;
-        padding-bottom: 0;
-        margin-bottom: 18px;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 
     .dash-stats-grid .stat-card {
-        flex: unset;
-        min-width: 0;
-        max-width: none;
-        width: 100%;
-        padding: 8px 4px;
-        gap: 4px;
+        padding: 14px 12px 12px;
+        min-height: 96px;
+        border-radius: 13px;
+    }
+
+    .dash-stats-grid .stat-card-icon {
+        width: 36px;
+        height: 36px;
         border-radius: 10px;
-        flex-direction: column;
-        align-items: center;
-        text-align: center;
     }
 
-    .dash-stats-grid .stat-icon {
-        width: 28px;
-        height: 28px;
-        border-radius: 7px;
+    .dash-stats-grid .stat-card-icon svg {
+        width: 20px;
+        height: 20px;
+    }
+
+    .dash-stats-grid .stat-card-value {
+        font-size: 22px;
+    }
+
+    .dash-stats-grid .stat-card-label {
         font-size: 12px;
-    }
-
-    .dash-stats-grid .stat-info .stat-value {
-        font-size: 13px;
-        margin-bottom: 2px;
-    }
-
-    .dash-stats-grid .stat-info .stat-label {
-        font-size: 7px;
-        line-height: 1.2;
-        display: -webkit-box;
-        -webkit-line-clamp: 3;
-        -webkit-box-orient: vertical;
-        overflow: hidden;
+        line-height: 1.25;
     }
 }
 
-@media (max-width: 375px) {
+@media (max-width: 560px) {
     .dash-stats-grid {
-        gap: 4px;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 7px;
     }
 
     .dash-stats-grid .stat-card {
-        padding: 6px 3px;
+        min-height: 88px;
+        padding: 12px 10px 10px;
     }
 
-    .dash-stats-grid .stat-icon {
-        width: 24px;
-        height: 24px;
-        font-size: 10px;
+    .dash-stats-grid .stat-card-icon {
+        width: 32px;
+        height: 32px;
+        border-radius: 8px;
     }
 
-    .dash-stats-grid .stat-info .stat-value {
-        font-size: 12px;
+    .dash-stats-grid .stat-card-value {
+        font-size: 20px;
     }
 
-    .dash-stats-grid .stat-info .stat-label {
-        font-size: 6.5px;
+    .dash-stats-grid .stat-card-label {
+        font-size: 11px;
+    }
+}
+
+@media (max-width: 340px) {
+    .dash-stats-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 }
 
@@ -3295,10 +3445,6 @@ body.sidebar-collapsed .main-content { margin-left: var(--sidebar-collapsed); }
 }
 
 /* ── RESPONSIVE ── */
-@media (max-width: 1280px) {
-    .stats-grid-6 { grid-template-columns: repeat(3, 1fr); }
-}
-
 @media (max-width: 1024px) {
     .sidebar {
         transform: translateX(-100%);
@@ -3441,9 +3587,9 @@ body.sidebar-collapsed .main-content { margin-left: var(--sidebar-collapsed); }
         left: auto;
         bottom: auto;
         margin: 0;
-        width: min(300px, calc(100vw - 16px));
+        width: min(360px, calc(100vw - 16px));
         max-width: calc(100vw - 16px);
-        border-radius: 0 0 12px 12px;
+        border-radius: 12px;
         z-index: 5200;
         transform: none;
     }
@@ -3459,8 +3605,8 @@ body.sidebar-collapsed .main-content { margin-left: var(--sidebar-collapsed); }
     }
 
     .comms-msg-popover {
-        height: min(420px, calc(100vh - var(--navbar-height, 52px) - 12px));
-        max-height: min(420px, calc(100vh - var(--navbar-height, 52px) - 12px));
+        height: min(560px, calc(100vh - var(--navbar-height, 52px) - 16px));
+        max-height: min(560px, calc(100vh - var(--navbar-height, 52px) - 16px));
     }
 
     .notif-popover.show,
@@ -3523,7 +3669,7 @@ body.sidebar-collapsed .main-content { margin-left: var(--sidebar-collapsed); }
         margin: 0;
         width: min(280px, calc(100vw - 16px));
         max-width: calc(100vw - 16px);
-        border-radius: 0 0 12px 12px;
+        border-radius: 12px;
         transform: none;
     }
 
@@ -4260,6 +4406,13 @@ body.sidebar-collapsed .main-content { margin-left: var(--sidebar-collapsed); }
     background: #fff;
 }
 
+#purok-distribution-section > .card-header.kk-chart-section-header > .kk-demo-total {
+    order: 0;
+    margin-left: 0;
+    align-self: flex-start;
+    flex: 0 0 auto;
+}
+
 #purok-distribution-section .kk-chart-heading h3 {
     margin: 0;
     font-size: 15px;
@@ -4339,7 +4492,7 @@ body.sidebar-collapsed .main-content { margin-left: var(--sidebar-collapsed); }
     overflow: hidden;
     padding: 4px 0 2px;
     border-radius: 10px;
-    background: #fff;
+    background: #eff6ff;
     position: relative;
 }
 
@@ -4359,10 +4512,10 @@ body.sidebar-collapsed .main-content { margin-left: var(--sidebar-collapsed); }
     scrollbar-width: thin;
     scrollbar-color: #94a3b8 transparent;
     padding-bottom: 6px;
-    border: 1px solid #eef2f7;
+    border: 1px solid #dbeafe;
     background:
-        linear-gradient(#fff 0 0) padding-box,
-        linear-gradient(90deg, rgba(15, 23, 42, 0.05), transparent 18px) border-box;
+        linear-gradient(#eff6ff 0 0) padding-box,
+        linear-gradient(90deg, rgba(37, 99, 235, 0.18), transparent 18px) border-box;
 }
 
 .kk-chart-canvas-wrap--purok.is-scroll-x::-webkit-scrollbar {
@@ -4531,6 +4684,7 @@ body.sidebar-collapsed .main-content { margin-left: var(--sidebar-collapsed); }
     width: 100%;
     border-collapse: collapse;
     font-size: 12px;
+    table-layout: fixed;
 }
 
 .dash-audit-table thead th {
@@ -4576,14 +4730,15 @@ body.sidebar-collapsed .main-content { margin-left: var(--sidebar-collapsed); }
 
 .dash-audit-table .cell-primary { font-weight: 600; }
 
-.dash-audit-cell-email {
-    max-width: none;
-    min-width: 180px;
-    overflow: visible;
-    text-overflow: unset;
-    white-space: normal;
-    word-break: break-word;
-    overflow-wrap: anywhere;
+.dash-audit-cell-email,
+.dash-audit-cell-clip {
+    max-width: 0;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    word-break: normal;
+    overflow-wrap: normal;
 }
 
 .dash-audit-col-actions { width: 56px; text-align: center; }
@@ -4797,6 +4952,11 @@ body.sidebar-collapsed .main-content { margin-left: var(--sidebar-collapsed); }
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 20px;
     margin-bottom: 24px;
+}
+
+.dash-feed-row.charts-grid-2 {
+    grid-template-columns: minmax(0, 1fr);
+    margin-bottom: 0;
 }
 
 .charts-grid-2 .dash-section-card,
@@ -5177,13 +5337,12 @@ body.dash-activity-modal-open { overflow: hidden; }
     font-size: 12px;
 }
 
-.dash-audit-row--compact .dash-audit-col-date { min-width: 88px; width: 88px; }
-.dash-audit-row--compact .dash-audit-col-time { min-width: 68px; width: 68px; }
-.dash-audit-row--compact .dash-audit-col-ip,
-.dash-audit-row--compact .dash-audit-table thead th.dash-audit-col-ip,
-.dash-audit-row--compact .dash-audit-table tbody td.dash-audit-col-ip {
-    display: none;
-}
+.dash-audit-row--compact .dash-audit-col-date { min-width: 0; width: 16%; }
+.dash-audit-row--compact .dash-audit-col-time { min-width: 0; width: 12%; }
+.dash-audit-row--compact .dash-audit-col-email { min-width: 0; width: 24%; }
+.dash-audit-row--compact .dash-audit-col-role { min-width: 0; width: 14%; }
+.dash-audit-row--compact .dash-audit-col-event { min-width: 0; width: 16%; }
+.dash-audit-row--compact .dash-audit-col-ip { min-width: 0; width: 12%; }
 
 .dash-row--balanced {
     align-items: stretch;
@@ -5738,10 +5897,6 @@ button.activity-item--clickable:active {
         grid-template-columns: minmax(0, 1fr);
     }
 
-    .dash-row--kk-abyip {
-        grid-template-columns: minmax(0, 1fr);
-    }
-
     .dash-abyip-list {
         max-height: none;
     }
@@ -5986,7 +6141,7 @@ button.activity-item--clickable:active {
 
 .dash-row--main-charts {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(180px, 0.6fr);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 12px;
     align-items: stretch;
     margin-bottom: 20px;
@@ -6005,7 +6160,7 @@ button.activity-item--clickable:active {
 }
 
 .dash-row--top-split > .content-card,
-.dash-row--kk-abyip > .content-card {
+.dash-row--kk-sex-employment > .content-card {
     min-width: 0;
     display: flex;
     flex-direction: column;
@@ -6036,19 +6191,128 @@ button.activity-item--clickable:active {
 }
 
 .dash-row--top-split > .content-card > .card-header,
-.dash-row--kk-abyip > .content-card > .card-header,
+.dash-row--kk-sex-employment > .content-card > .card-header,
 .dash-row--demographics > .content-card > .card-header {
     overflow: visible;
     position: relative;
     z-index: 2;
 }
 
-.dash-row--kk-abyip {
+.dash-row--kk-month {
+    display: block;
+    width: 100%;
+    max-width: 100%;
+    margin-bottom: 20px;
+}
+
+.dash-row--kk-month > .dash-kk-chart-card,
+.dash-row--kk-month > #kk-profiling-section {
+    width: 100%;
+    max-width: 100%;
+}
+
+.dash-row--kk-sex-employment {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-    gap: 12px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px;
     align-items: stretch;
     margin-bottom: 20px;
+}
+
+.dash-row--kk-sex-employment #kk-profiling-section > .kk-chart-section-header {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: start;
+    gap: 10px 12px;
+}
+
+.dash-row--kk-sex-employment #kk-profiling-section .kk-chart-heading {
+    grid-column: 1;
+    grid-row: 1;
+    padding-right: 0;
+}
+
+.dash-row--kk-sex-employment #kk-profiling-section .kk-demo-total {
+    grid-column: 2;
+    grid-row: 1;
+    margin-left: 0;
+}
+
+.dash-row--kk-sex-employment #kk-profiling-section .kk-chart-header-actions {
+    display: grid;
+    grid-column: 1 / -1;
+    grid-row: 2;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
+    max-width: none;
+    margin-left: 0;
+}
+
+.dash-row--kk-sex-employment #kk-profiling-section .kk-chart-header-actions .kk-barangay-select {
+    width: 100%;
+    min-width: 0;
+    max-width: none;
+}
+
+.dash-row--kk-sex-employment .dash-demo-chart-header,
+.dash-row--kk-sex-employment #kabataan-sex-section .dash-demo-chart-header {
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 8px 12px;
+}
+
+.dash-row--kk-sex-employment #kabataan-sex-section .kk-chart-header-actions,
+.dash-row--kk-sex-employment .dash-demo-chart-header > .kk-chart-header-actions {
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 6px;
+    width: auto;
+    max-width: none;
+    margin-left: auto;
+    flex: 0 1 auto;
+    min-width: 0;
+}
+
+.dash-row--kk-sex-employment .dash-demo-chart-header > .kk-chart-heading {
+    flex: 1 1 0%;
+    min-width: 0;
+    padding-right: 0;
+}
+
+.dash-row--kk-sex-employment .dash-demo-chart-header > .kk-demo-total {
+    margin-left: 0;
+    align-self: flex-start;
+    flex: 0 0 auto;
+}
+
+.dash-row--kk-sex-employment .dash-demo-chart-header .kk-barangay-select {
+    width: auto;
+    min-width: 108px;
+    max-width: 150px;
+    flex: 0 1 auto;
+}
+
+.dash-row--kk-sex-employment > .content-card {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    min-height: 100%;
+    margin-bottom: 0;
+    background: #fff;
+}
+
+.dash-row--kk-sex-employment .card-body {
+    min-width: 0;
+}
+
+@media (max-width: 1100px) {
+    .dash-row--kk-month {
+        margin-bottom: 16px;
+    }
 }
 
 .dash-row--demographics {
@@ -6169,6 +6433,63 @@ button.activity-item--clickable:active {
     flex-shrink: 0;
 }
 
+#kabataan-sex-section .dash-demo-chart-body {
+    align-items: stretch;
+    justify-content: flex-start;
+    gap: 0;
+    min-height: 0;
+    padding: 0 16px 16px;
+}
+
+#kabataan-sex-section .kk-demo-chart-wrap,
+#kabataan-sex-section .chart-canvas-wrap--pie {
+    position: relative;
+    width: 100%;
+    max-width: none;
+    height: 260px;
+    min-height: 240px;
+    flex: 0 0 auto;
+}
+
+#kabataan-sex-section .kk-demo-chart-wrap canvas,
+#kabataan-sex-section .dash-demo-chart-body canvas {
+    width: 100% !important;
+    max-width: none;
+    height: 100% !important;
+}
+
+#kabataan-sex-section .pie-legend-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+    width: 100%;
+    margin-top: 12px;
+    padding-top: 10px;
+    border-top: 1px solid #f3f4f6;
+}
+
+#kabataan-sex-section .pie-legend-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+#kabataan-sex-section .pie-legend-box {
+    width: 12px;
+    height: 12px;
+    border-radius: 3px;
+    flex-shrink: 0;
+    display: inline-block;
+}
+
+#kabataan-sex-section .pie-legend-label {
+    font-size: 12px;
+    font-weight: 600;
+    color: #374151;
+}
+
 @media (max-width: 1100px) {
     .dash-row--demographics {
         grid-template-columns: 1fr;
@@ -6179,7 +6500,7 @@ button.activity-item--clickable:active {
     }
 }
 
-.dash-row--kk-abyip > .content-card {
+.dash-row--kk-sex-employment > .content-card {
     margin-bottom: 0;
     min-height: 100%;
     background: #fff;
@@ -6245,7 +6566,7 @@ button.activity-item--clickable:active {
 
 .dash-abyip-summary {
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 8px;
     padding: 0 14px 12px;
     border-bottom: 1px solid #f1f5f9;
@@ -6469,7 +6790,7 @@ button.activity-item--clickable:active {
     color: #475569;
 }
 
-.dash-row--kk-abyip .kk-chart-canvas-wrap--line {
+#kk-profiling-section .kk-chart-canvas-wrap--line {
     flex: 1;
     min-height: 220px;
     max-height: 280px;
@@ -6482,7 +6803,7 @@ button.activity-item--clickable:active {
 }
 
 #kk-profiling-section .kk-chart-heading h3 {
-    white-space: nowrap;
+    white-space: normal;
 }
 
 #kk-profiling-section .kk-chart-header-actions {
@@ -6493,7 +6814,7 @@ button.activity-item--clickable:active {
     min-height: 240px;
 }
 
-.dash-row--kk-abyip .dash-abyip-body {
+.dash-abyip-card .dash-abyip-body {
     min-height: 280px;
 }
 
@@ -6516,8 +6837,11 @@ button.activity-item--clickable:active {
 
 @media (max-width: 768px) {
     .dash-row--main-charts,
-    .dash-row--top-split,
-    .dash-row--kk-abyip {
+    .dash-row--top-split {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .dash-row--kk-sex-employment {
         grid-template-columns: minmax(0, 1fr);
     }
 
@@ -6531,7 +6855,7 @@ button.activity-item--clickable:active {
     }
 
     .dash-abyip-summary {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
+        grid-template-columns: minmax(0, 1fr);
     }
 
     .dash-abyip-header {
@@ -6578,3 +6902,361 @@ button.activity-item--clickable:active {
     }
 }
 
+/* ══════════════════════════════════════════════════════════════
+   Statistics filter dropdowns — one canonical layout
+   ══════════════════════════════════════════════════════════════
+   Each statistics card carried its own sizing override, so the same
+   filter looked different in every section — the youth-demographics
+   cards still used their own .dash-filter-select box. This block sits
+   last in the file and repeats the earlier per-section selectors so it
+   wins on source order: one size, one position in every card, and one
+   full-width dropdown per line on mobile.
+
+   The two descendant selectors are load-bearing, not redundant: the
+   bare class lost the cascade inside .kk-chart-section-header (the
+   Purok and KK Profiling cards) and those dropdowns fell back to the
+   unstyled native control, which is what made them disappear into
+   the card on a phone. Matching the header class directly restores
+   the shared styling at the same specificity the Sex/Employment cards
+   already used. */
+.kk-deadongay-select,
+#purok-distribution-section .kk-deadongay-select,
+.kk-chart-section-header .kk-deadongay-select,
+.kk-chart-header-actions .kk-deadongay-select,
+.dash-demo-chart-header .kk-deadongay-select,
+.dash-filter-select,
+.kk-demo-block .dash-filter-select,
+.kk-month-filter {
+    flex: 0 0 auto;
+    width: 150px;
+    min-width: 150px;
+    max-width: 150px;
+    height: 36px;
+    min-height: 36px;
+    padding: 0 28px 0 12px;
+    margin-left: 0;
+    align-self: center;
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 1.2;
+    background-color: #fff;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%23475569' d='M1.4 1.4L6 6 10.6 1.4'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 10px center;
+    background-size: 10px 7px;
+    -webkit-appearance: none;
+    appearance: none;
+    color: #1e293b;
+    border: 1.5px solid #e2e8f0;
+    border-radius: 8px;
+    cursor: pointer;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Filter groups stay pinned to the right edge on desktop. */
+.kk-chart-header-actions,
+.dash-demo-chart-header {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-left: auto;
+}
+
+@media (max-width: 1024px) {
+    .kk-chart-header-actions,
+    .dash-demo-chart-header {
+        justify-content: flex-start;
+        margin-left: 0;
+        width: 100%;
+    }
+}
+
+/* ══════════════════════════════════════════════════════════════
+   Card header — title shares its line with the Total pill
+   ══════════════════════════════════════════════════════════════
+   The pill is the last flex child, so it only stays in the upper
+   right if everything before it fits on one line. A max-content
+   basis on the title made the line break and dropped the pill onto a
+   line of its own, mid-card. A zero basis lets the title grow into
+   whatever space is left instead. */
+.kk-chart-heading,
+.kk-chart-section-header > .kk-chart-heading,
+.kk-chart-section-header > div:first-child,
+.dash-section-header-text,
+.kk-demo-block .dash-section-header-text {
+    flex: 1 1 0%;
+    min-width: 0;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   Card header on narrow screens — Total above the filters
+   ══════════════════════════════════════════════════════════════
+   The Total pill is a direct child of the card header (not buried in
+   the filter row), so the header can stay a single wrapping row on a
+   phone: the title takes line one with the pill hard right of it, and
+   the dropdowns drop to their own full-width line underneath. Without
+   this the pill sank below a full-width select and the card's upper
+   right corner went empty.
+
+   The Purok card is listed twice on purpose. Its own rule pins
+   `flex-wrap: nowrap` at .card-header specificity, which beats the
+   plain header selector here and squeezed the title down to 8px
+   instead of wrapping the filters onto their own line. */
+@media (max-width: 1024px) {
+    .kk-chart-section-header,
+    #purok-distribution-section .kk-chart-section-header,
+    #purok-distribution-section > .card-header.kk-chart-section-header,
+    .dash-demo-chart-header,
+    .kk-demo-block .dash-section-header {
+        flex-direction: row;
+        flex-wrap: wrap;
+        align-items: flex-start;
+        gap: 10px;
+    }
+
+    /* Title shares line one with the pill instead of taking a whole line. */
+    .kk-chart-section-header > .kk-chart-heading,
+    #purok-distribution-section .kk-chart-heading,
+    .dash-demo-chart-header > .kk-chart-heading,
+    .kk-demo-block .dash-section-header-text {
+        width: auto;
+        flex: 1 1 0%;
+        min-width: 0;
+        padding-right: 8px;
+    }
+
+    .kk-chart-section-header > .kk-demo-total,
+    .dash-demo-chart-header > .kk-demo-total,
+    .kk-demo-block .dash-section-header > .kk-demo-total {
+        order: 1;
+        margin-left: auto;
+        align-self: flex-start;
+    }
+
+    /* Filters always break to their own full-width line below both. */
+    .kk-chart-section-header > .kk-chart-header-actions,
+    .dash-demo-chart-header > .kk-chart-header-actions,
+    .kk-demo-block .dash-section-header > .dash-chart-header-actions {
+        order: 2;
+        flex: 1 1 100%;
+        width: 100%;
+        margin-left: 0;
+    }
+}
+
+@media (max-width: 768px) {
+    /* One dropdown per line, full width, so the tap target stays large. */
+    .kk-deadongay-select,
+    #purok-distribution-section .kk-deadongay-select,
+    .kk-chart-section-header .kk-deadongay-select,
+    .kk-chart-header-actions .kk-deadongay-select,
+    .dash-demo-chart-header .kk-deadongay-select,
+    .dash-filter-select,
+    .kk-demo-block .dash-filter-select,
+    .kk-month-filter {
+        flex: 1 1 100%;
+        width: 100%;
+        min-width: 0;
+        max-width: none;
+        height: 44px;
+        min-height: 44px;
+        font-size: 13px;
+    }
+
+    /* The youth cards wrap their filter inside a content-sized row, so a
+       width:100% dropdown had nothing to resolve against and came out at
+       whatever the option text needed. Give that row the full card width. */
+    .kk-demo-block .dash-chart-header-actions {
+        flex: 1 1 100%;
+        width: 100%;
+        justify-content: flex-start;
+    }
+}
+
+@media (max-width: 400px) {
+    .kk-deadongay-select,
+    #purok-distribution-section .kk-deadongay-select,
+    .kk-chart-section-header .kk-deadongay-select,
+    .kk-chart-header-actions .kk-deadongay-select,
+    .dash-demo-chart-header .kk-deadongay-select,
+    .dash-filter-select,
+    .kk-demo-block .dash-filter-select,
+    .kk-month-filter {
+        height: 42px;
+        min-height: 42px;
+        font-size: 12.5px;
+    }
+}
+
+/* ══════════════════════════════════════════════════════════════
+   Statistics "Total" box — one spec on every card
+   ══════════════════════════════════════════════════════════════
+   The label sits above the number inside a bordered pill, tinted with
+   the SK OnePortal primary blue. It is the last child of every card's
+   filter row (.kk-chart-header-actions / .dash-chart-header-actions),
+   which is what pins it to the upper-right corner of the card. The
+   youth-demographics stylesheet used to declare its own copy of these
+   three rules with a different alignment, so that duplicate has been
+   removed — this block is the only definition. */
+.kk-demo-total {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    align-self: flex-start;
+    min-width: 68px;
+    padding: 6px 10px;
+    border-radius: 10px;
+    background: #eff6ff;
+    border: 1.5px solid #2F4E85;
+    line-height: 1.05;
+    flex: 0 0 auto;
+    margin-left: auto;
+    text-align: center;
+}
+
+.kk-demo-total-label {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: #2F4E85;
+}
+
+.kk-demo-total-value {
+    font-size: 18px;
+    font-weight: 800;
+    color: #0f172a;
+    font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 768px) {
+    .kk-demo-total {
+        min-width: 58px;
+        padding: 4px 8px;
+        margin-left: auto;
+    }
+
+    .kk-demo-total-value {
+        font-size: 16px;
+    }
+}
+
+/* ══════════════════════════════════════════════════════════════
+   Statistics card headings and subtitles — one type scale
+   ══════════════════════════════════════════════════════════════
+   Purok and the seven youth-demographics cards already used a 15px /
+   800 title, while KK Profiling, ABYIP, Sex Distribution and
+   Employment Status used 16px / 700 — that is what made Sex
+   Distribution read as oversized next to its neighbours. Subtitles
+   were split between 12px / #9ca3af and 13px / #64748b. Everything
+   now resolves to the same title and subtitle spec. */
+.kk-chart-section-header h3,
+#purok-distribution-section .kk-chart-heading h3,
+.dash-demo-chart-header h3,
+.dash-section-title,
+.kk-demo-block .dash-section-title {
+    margin: 0;
+    font-size: 15px;
+    font-weight: 800;
+    line-height: 1.3;
+    color: #111827;
+    letter-spacing: -0.01em;
+    font-family: inherit;
+}
+
+.kk-chart-subtitle,
+#purok-distribution-section .kk-chart-subtitle,
+.dash-demo-chart-sub,
+.dash-section-sub,
+.kk-demo-block .dash-section-sub {
+    margin: 4px 0 0;
+    font-size: 13px;
+    font-weight: 500;
+    line-height: 1.4;
+    color: #64748b;
+    font-family: inherit;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   Purok/Sitio chart — no background panel
+   ══════════════════════════════════════════════════════════════
+   The graph is intentionally background-free: the scroll wrapper and
+   the canvas are both fully transparent so the white card shows
+   through. The previous light-blue tint plus the plot-gradient plugin
+   both painted a panel behind the bars and are gone. */
+.kk-chart-canvas-wrap--purok,
+.kk-chart-canvas-wrap--purok.is-scroll-x {
+    background: transparent;
+}
+
+.kk-chart-canvas-wrap--purok canvas {
+    background: transparent;
+}
+
+/* Keep monitoring panels and audit tables from shrinking below readable widths. */
+.dash-row--fed-audit > *,
+.dash-row--fed-audit .content-card,
+.dash-row--fed-audit .content-card-body {
+    min-width: 0;
+}
+
+.dash-row--fed-audit {
+    grid-template-columns: minmax(0, 1fr);
+}
+
+.dash-row--fed-audit .content-card-body,
+.dash-row--fed-audit .table-responsive {
+    overflow-x: auto;
+}
+
+.dash-row--fed-audit table {
+    min-width: 680px;
+}
+
+@media (max-width: 768px) {
+    .dash-row--demographics,
+    .dash-row--kk-sex-employment {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .dash-row--fed-audit table {
+        min-width: 600px;
+    }
+}
+
+@media (min-width: 1101px) {
+    .dash-row--kk-sex-employment {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+.dash-row--kk-sex-employment #kabataan-sex-section,
+.dash-row--kk-sex-employment #employment-status-section {
+    min-width: 0;
+}
+
+@media (max-width: 768px) {
+    .dash-row--kk-sex-employment #kabataan-sex-section .dash-demo-chart-body,
+    .dash-row--kk-sex-employment #employment-status-section .dash-demo-chart-body {
+        min-height: 230px;
+        padding: 14px;
+    }
+
+    #kabataan-sex-section .kk-demo-chart-wrap,
+    #kabataan-sex-section .chart-canvas-wrap--pie {
+        height: 220px;
+        min-height: 200px;
+    }
+
+    .dash-row--kk-sex-employment #kabataan-sex-section .dash-demo-legend,
+    .dash-row--kk-sex-employment #kabataan-sex-section .pie-legend-row,
+    .dash-row--kk-sex-employment #employment-status-section .dash-demo-legend {
+        justify-content: center;
+        gap: 8px 12px;
+    }
+}

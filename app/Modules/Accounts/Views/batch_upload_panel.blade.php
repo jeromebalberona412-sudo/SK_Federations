@@ -63,9 +63,17 @@
                 Empty <strong>Suffix</strong> defaults to <strong>None</strong>.
                 Region, Province, and Municipality are already filled
                 (IV-A CALABARZON, Laguna, Santa Cruz).
-                @php $batchDobBounds = \App\Modules\Accounts\Support\SkOfficialTermDates::birthdateBounds(); @endphp
-                Birthdate must correspond to ages <strong>{{ \App\Modules\Accounts\Support\SkOfficialTermDates::SK_MIN_AGE }}–{{ \App\Modules\Accounts\Support\SkOfficialTermDates::SK_MAX_AGE }}</strong>
-                as of {{ \App\Modules\Accounts\Support\SkOfficialTermDates::eligibilityReference()->format('F j, Y') }}
+                @php
+                    $batchDobBounds = $isOfficials
+                        ? \App\Modules\Accounts\Support\SkOfficialTermDates::officialAccountBirthdateBounds()
+                        : \App\Modules\Accounts\Support\SkOfficialTermDates::federationBirthdateBounds();
+                @endphp
+                @if ($isOfficials)
+                    Birthdate must be <strong>at least {{ \App\Modules\Accounts\Support\SkOfficialTermDates::SK_MIN_AGE }} years old</strong>
+                    as of {{ \App\Modules\Accounts\Support\SkOfficialTermDates::eligibilityReference()->format('F j, Y') }}, with no upper age limit
+                @else
+                    Birthdate must be between <strong>January 1, 1992 and the date corresponding to age 18</strong>
+                @endif
                 ({{ \Carbon\Carbon::parse($batchDobBounds['min'])->format('m/d/Y') }}
                 to {{ \Carbon\Carbon::parse($batchDobBounds['max'])->format('m/d/Y') }}).
                 Use <strong>MM/DD/YYYY</strong> for Birthdate and Term dates.
@@ -102,7 +110,11 @@
                 </span>
                 <div>
                     <strong>Birthdate</strong>
-                    <span>Age {{ \App\Modules\Accounts\Support\SkOfficialTermDates::SK_MIN_AGE }}–{{ \App\Modules\Accounts\Support\SkOfficialTermDates::SK_MAX_AGE }} as of {{ \App\Modules\Accounts\Support\SkOfficialTermDates::eligibilityReference()->format('M j, Y') }}</span>
+                    @if ($isOfficials)
+                        <span>At least 18 years old; born on or after January 1, 1991</span>
+                    @else
+                        <span>At least 18 years old; born on or after January 1, 1992</span>
+                    @endif
                 </div>
             </div>
 

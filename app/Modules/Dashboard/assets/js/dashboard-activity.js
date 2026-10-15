@@ -111,7 +111,7 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     function statsCacheKey(range) {
-        return 'sk_fed_dashboard_stats_v6_'
+        return 'sk_fed_dashboard_stats_v9_'
             + (range.date_from || '') + '_'
             + (range.date_to || '') + '_'
             + (range.range_mode || 'term');
@@ -134,7 +134,9 @@ document.addEventListener('DOMContentLoaded', function () {
                 sex_distribution_officials: feed.sex_distribution_officials || null,
                 sex_distribution_federations: feed.sex_distribution_federations || null,
                 employment_status_distribution: feed.employment_status_distribution || null,
+                youth_demographics: feed.youth_demographics || null,
                 abyip_overview: feed.abyip_overview || null,
+                programs: feed.programs || null,
                 top_barangays: feed.top_barangays || [],
                 recent_activity: feed.recent_activity || [],
                 upcoming_events: feed.upcoming_events || [],
@@ -238,7 +240,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
         feedRefreshInFlight = true;
         const range = getDashboardDateRangeParams();
-        const cacheKey = 'sk_fed_dashboard_feed_v5_' + (range.date_from || '') + '_' + (range.date_to || '');
+        const cacheKey = 'sk_fed_dashboard_feed_v6_' + (range.date_from || '') + '_' + (range.date_to || '');
         const cached = window.SkLocalCache?.get(cacheKey);
         if (cached?.payload) {
             renderActivity(cached.payload.recent_activity || [], els.activityList);
@@ -285,6 +287,9 @@ document.addEventListener('DOMContentLoaded', function () {
         if (payload.stats) {
             updateStats(payload.stats);
         }
+        if (payload.programs) {
+            window.dispatchEvent(new CustomEvent('skfed:dashboard-programs', { detail: payload.programs }));
+        }
         if (typeof window.applyDashboardDemographics === 'function') {
             window.applyDashboardDemographics(payload);
         }
@@ -312,6 +317,11 @@ document.addEventListener('DOMContentLoaded', function () {
 
         if (subtitle) {
             subtitle.textContent = 'Barangays that submitted ABYIP — ' + yearLabel;
+        }
+
+        const abyipTotalEl = document.querySelector('#dashAbyipTotal .kk-demo-total-value');
+        if (abyipTotalEl) {
+            abyipTotalEl.textContent = Number(stats.submitted || 0).toLocaleString();
         }
 
         if (empty) {
@@ -378,7 +388,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 return;
             }
 
-            const valueEl = card.querySelector('.stat-value');
+            const valueEl = card.querySelector('.stat-card-value, .stat-value');
             if (valueEl) {
                 valueEl.textContent = Number(stats[key] || 0).toLocaleString();
             }
@@ -480,7 +490,7 @@ document.addEventListener('DOMContentLoaded', function () {
         }
 
         if (!items.length) {
-            target.innerHTML = '<p class="dash-empty-msg">No recent activity recorded.</p>';
+            target.innerHTML = '';
             return;
         }
 

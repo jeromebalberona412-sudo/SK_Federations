@@ -749,7 +749,7 @@
                 let value = (this.value || '').replace(/\D/g, ''); // Remove all non-digits
 
                 if (!value) {
-                    value = '09';
+                    value = '';
                 } else if (value.length === 1 && value === '9') {
                     value = '09';
                 } else if (!value.startsWith('09')) {
@@ -772,7 +772,7 @@
                 const digits = (this.value || '').replace(/\D/g, '');
                 if ((e.key === 'Backspace' || e.key === 'Delete') && digits.length <= 2) {
                     e.preventDefault();
-                    this.value = '09';
+                    this.value = '';
                     validateContact();
                 }
             });
@@ -1016,9 +1016,9 @@
             showFieldError(email, emailMsg);
         }
 
-        // 10. Contact # (required in edit form)
+        // 10. Contact # (optional)
         const contact = root.querySelector('#' + ids.contact);
-        const contactErr = kkpValidateContact(contact?.value || '', true);
+        const contactErr = kkpValidateContact(contact?.value || '', false);
         if (contactErr) {
             errors.push(contactErr);
             showFieldError(contact, contactErr);

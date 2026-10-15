@@ -51,8 +51,8 @@
             key: 'barangay-monitoring',
             target: '[data-tour="barangay-monitoring"]',
             icon: 'fa-map-marker-alt',
-            title: 'Barangay Compliance',
-            description: 'Monitor barangay SK compliance and check which barangays have submitted or completed required requirements.',
+            title: 'Barangay ABYIP',
+            description: 'Monitor barangay ABYIP submissions and check which barangays have submitted or completed required requirements.',
             placement: 'right',
             isSidebar: true
         },
@@ -112,7 +112,7 @@
         },
         {
             key: 'messages',
-            target: '[data-tour="messages"]',
+            target: 'button[data-tour="messages"]',
             icon: 'fa-comments',
             title: 'Messages',
             description: 'Access your conversations and communicate with authorized users through the SK OnePortal communication system.',
@@ -121,7 +121,7 @@
         },
         {
             key: 'notifications',
-            target: '[data-tour="notifications"]',
+            target: 'button[data-tour="notifications"]',
             icon: 'fa-bell',
             title: 'Notifications',
             description: 'Check important updates, alerts, and system notifications here.',
@@ -130,7 +130,7 @@
         },
         {
             key: 'tutorial-guide',
-            target: '[data-tour="tutorial-guide"]',
+            target: 'button[data-tour="tutorial-guide"]',
             icon: 'fa-question-circle',
             title: 'Tutorial Guide',
             description: 'Click this question mark anytime you wish to restart or review this interactive guided tour.',
@@ -139,7 +139,7 @@
         },
         {
             key: 'account-menu',
-            target: '[data-tour="account-menu"]',
+            target: 'button[data-tour="account-menu"]',
             icon: 'fa-user-circle',
             title: 'Account Menu',
             description: 'Access your profile settings, switch accounts, and find secure logout controls.',
@@ -600,22 +600,30 @@
         }
 
         hideSkipConfirmation();
-        document.removeEventListener('keydown', handleKeydown);
+        document.removeEventListener('keydown', handleKeydown, true);
+    }
+
+    function isTypingField(target) {
+        if (!target || typeof target.closest !== 'function') return false;
+        return !!target.closest('input, textarea, select, [contenteditable="true"]');
     }
 
     function handleKeydown(e) {
-        if (!isActive) return;
+        if (!isActive || e.repeat || isTypingField(e.target)) return;
 
         if (e.key === 'ArrowRight' || e.key === 'Enter') {
             e.preventDefault();
+            e.stopPropagation();
             goToNextStep();
         } else if (e.key === 'ArrowLeft') {
             e.preventDefault();
+            e.stopPropagation();
             if (canSkip && !isMandatory) {
                 goToPrevStep();
             }
         } else if (e.key === 'Escape') {
             e.preventDefault();
+            e.stopPropagation();
             if (canSkip && !isMandatory) {
                 showSkipConfirmation();
             }
@@ -641,7 +649,7 @@
         rootEl.style.display = 'block';
         rootEl.setAttribute('aria-hidden', 'false');
         applyDismissControls();
-        document.addEventListener('keydown', handleKeydown);
+        document.addEventListener('keydown', handleKeydown, true);
         renderStep();
 
         const syncPromise = fromScratch

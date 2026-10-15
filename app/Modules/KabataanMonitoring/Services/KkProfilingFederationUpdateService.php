@@ -28,7 +28,7 @@ class KkProfilingFederationUpdateService
      */
     public function update(User $user, int $id, array $input): array
     {
-        $record = $this->monitoring->find($id);
+        $record = $this->monitoring->find($id, (int) $user->tenant_id);
         if ($record === null) {
             abort(404, 'Kabataan record not found.');
         }
@@ -105,7 +105,7 @@ class KkProfilingFederationUpdateService
             'invite_sent' => $inviteSent,
         ]);
 
-        $this->monitoring->forgetListCache($updated->barangay?->name);
+        $this->monitoring->forgetListCache($updated->barangay?->name, (int) $user->tenant_id);
 
         return [
             'registration' => $updated,
@@ -117,9 +117,9 @@ class KkProfilingFederationUpdateService
     /**
      * @return array<string, mixed>|null
      */
-    public function editPayload(int $id): ?array
+    public function editPayload(int $id, int $tenantId): ?array
     {
-        $record = $this->monitoring->find($id);
+        $record = $this->monitoring->find($id, $tenantId);
         if ($record === null) {
             return null;
         }

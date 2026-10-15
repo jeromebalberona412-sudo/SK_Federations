@@ -29,11 +29,6 @@
         <p class="comms-modal-type" id="commsCallEndedReason">The call has ended.</p>
         <div class="comms-modal-actions comms-modal-actions--ended">
             <button type="button" class="comms-btn comms-btn--success" id="commsCallEndedRedial" hidden>Redial</button>
-            <button type="button" class="comms-btn comms-btn--ghost-x" id="commsCallEndedCloseSide" aria-label="Close">
-                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.25" aria-hidden="true">
-                    <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-                </svg>
-            </button>
         </div>
     </div>
 </div>

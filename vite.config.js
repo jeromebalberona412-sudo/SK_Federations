@@ -94,8 +94,12 @@ export default defineConfig({
                 'app/Modules/Dashboard/assets/js/dashboard.js',
                 'app/Modules/Dashboard/assets/css/statcard.css',
                 'app/Modules/Dashboard/assets/js/dashboard-activity.js',
+                'app/Modules/Dashboard/assets/css/dashboard-youth-demographics.css',
+                'app/Modules/Dashboard/assets/css/dashboard-programs.css',
+                'app/Modules/Dashboard/assets/js/dashboard-youth-demographics.js',
                 'app/Modules/Dashboard/assets/js/dashboard-demographics.js',
                 'app/Modules/Dashboard/assets/js/dashboard-audit.js',
+                'app/Modules/Dashboard/assets/js/dashboard-programs.js',
                 'app/Modules/Dashboard/assets/js/dashboard-purok.js',
                 'app/Modules/Dashboard/assets/js/kkprofilingchart.js',
 
@@ -111,7 +115,7 @@ export default defineConfig({
                 'app/Modules/KabataanMonitoring/assets/js/kabataan-monitoring-table.js',
                 'app/Modules/KabataanMonitoring/assets/js/kabataan-monitoring-validation.js',
                 'app/Modules/KabataanMonitoring/assets/js/kabataan-monitoring-edit.js',
-
+                'app/Modules/KabataanMonitoring/assets/js/kabataan-monitoring-excel-upload.js',
                 // ── Layout ───────────────────────────────────────────────────
                 'app/Modules/Layout/assets/css/layout.css',
                 'app/Modules/Layout/assets/js/layout.js',

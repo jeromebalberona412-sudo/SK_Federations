@@ -115,29 +115,12 @@ class ConversationService
             ->with(['participants.user'])
             ->get();
 
-        $hiddenIds = MessageHide::query()
-            ->where('user_id', $userId)
-            ->where('user_type', $userType)
-            ->pluck('message_id');
+        $lastMessages = $this->latestVisibleMessages($conversationIds, $userId, $userType);
+        $unreadByConversation = $this->unreadCountsByConversation($conversationIds, $userId, $userType);
 
-        $lastMessages = Message::query()
-            ->whereIn('conversation_id', $conversationIds)
-            ->when($hiddenIds->isNotEmpty(), fn ($query) => $query->whereNotIn('id', $hiddenIds))
-            ->orderByDesc('id')
-            ->get()
-            ->unique('conversation_id')
-            ->keyBy('conversation_id');
-
-        $myParticipants = ConversationParticipant::query()
-            ->whereIn('conversation_id', $conversationIds)
-            ->where('user_id', $userId)
-            ->get()
-            ->keyBy('conversation_id');
-
-        $items = $conversations->map(function (Conversation $conversation) use ($user, $userId, $userType, $lastMessages, $myParticipants) {
+        $items = $conversations->map(function (Conversation $conversation) use ($user, $userId, $userType, $lastMessages, $unreadByConversation) {
             $last = $lastMessages->get($conversation->id);
-            $mine = $myParticipants->get($conversation->id);
-            $unread = $this->unreadCountForParticipant($conversation->id, $mine, $userId, $userType);
+            $unread = (int) ($unreadByConversation[$conversation->id] ?? 0);
             $lastBody = $last?->body;
             if ($last && $last->deleted_for_all_at !== null) {
                 $lastBody = 'This message was deleted';
@@ -362,53 +345,37 @@ class ConversationService
             ->where('conversation_id', $conversation->id)
             ->max('id') ?? 0);
 
-        $query = ConversationParticipant::query()
-            ->where('conversation_id', $conversation->id)
-            ->where('user_id', $userId);
-
-        if (! $conversation->isGroup()) {
-            $query->where('user_type', $userType);
+        $types = $this->types->equivalentTypes($userType);
+        if ($types === []) {
+            $types = [$userType];
         }
 
         $payload = ['last_read_at' => now()];
         if (Schema::hasColumn('conversation_participants', 'last_read_message_id') && $latestMessageId > 0) {
-            $payload['last_read_message_id'] = $latestMessageId;
+            $payload['last_read_message_id'] = DB::raw(
+                'GREATEST(COALESCE(last_read_message_id, 0), '.(int) $latestMessageId.')'
+            );
         }
 
-        $query->update($payload);
+        ConversationParticipant::query()
+            ->where('conversation_id', $conversation->id)
+            ->where('user_id', $userId)
+            ->whereIn('user_type', $types)
+            ->update($payload);
+    }
+
+    public function markAllRead(Authenticatable $user): void
+    {
+        $this->advanceReadCursor((int) $user->id, $this->viewerTypes());
     }
 
     public function unreadTotalForUser(Authenticatable $user): int
     {
-        $userType = $this->types->portalType();
-        $userId = (int) $user->id;
-        $hasMessageCursor = Schema::hasColumn('conversation_participants', 'last_read_message_id');
+        $row = $this->unreadMessagesQuery((int) $user->id, $this->viewerTypes())
+            ->selectRaw('COUNT(DISTINCT m.id) as unread')
+            ->first();
 
-        $columns = ['conversation_id', 'last_read_at', 'user_type'];
-        if ($hasMessageCursor) {
-            $columns[] = 'last_read_message_id';
-        }
-
-        $participants = ConversationParticipant::query()
-            ->where('user_id', $userId)
-            ->where('user_type', $userType)
-            ->get($columns);
-
-        if ($participants->isEmpty()) {
-            return 0;
-        }
-
-        $total = 0;
-        foreach ($participants as $participant) {
-            $total += $this->unreadCountForParticipant(
-                (int) $participant->conversation_id,
-                $participant,
-                $userId,
-                $userType
-            );
-        }
-
-        return $total;
+        return (int) ($row->unread ?? 0);
     }
 
     public function searchUsers(Authenticatable $authUser, string $query): Collection
@@ -634,7 +601,9 @@ class ConversationService
                 default => false,
             },
             ParticipantTypeResolver::SK_FED => in_array($toType, [
+                ParticipantTypeResolver::KABATAAN,
                 ParticipantTypeResolver::SK_OFFICIAL,
+                ParticipantTypeResolver::SK_FED,
             ], true),
             default => false,
         };
@@ -743,7 +712,11 @@ class ConversationService
                 ParticipantTypeResolver::SK_FED,
             ], true),
             ParticipantTypeResolver::KABATAAN => $toType === ParticipantTypeResolver::SK_OFFICIAL,
-            ParticipantTypeResolver::SK_FED => $toType === ParticipantTypeResolver::SK_OFFICIAL,
+            ParticipantTypeResolver::SK_FED => in_array($toType, [
+                ParticipantTypeResolver::KABATAAN,
+                ParticipantTypeResolver::SK_OFFICIAL,
+                ParticipantTypeResolver::SK_FED,
+            ], true),
             default => false,
         };
     }
@@ -791,6 +764,42 @@ class ConversationService
         return $this->types->normalizeSearchRole((string) $user->role) !== null;
     }
 
+    /**
+     * @return array{online_status: string, last_seen: ?string}
+     */
+    protected function resolvePresence(User $user): array
+    {
+        $lastSeen = null;
+        if (Schema::hasColumn('users', 'last_seen') && $user->last_seen) {
+            try {
+                $lastSeen = $user->last_seen instanceof \Illuminate\Support\Carbon
+                    ? $user->last_seen
+                    : \Illuminate\Support\Carbon::parse($user->last_seen);
+            } catch (\Throwable) {
+                $lastSeen = null;
+            }
+        }
+
+        $status = '';
+        if (Schema::hasColumn('users', 'online_status')) {
+            $status = strtolower(trim((string) ($user->online_status ?? '')));
+        }
+
+        $isOnline = false;
+        if ($status === 'offline') {
+            $isOnline = false;
+        } elseif ($lastSeen) {
+            $isOnline = $lastSeen->gte(now()->subMinutes(2));
+        } elseif ($status === 'online') {
+            $isOnline = true;
+        }
+
+        return [
+            'online_status' => $isOnline ? 'online' : 'offline',
+            'last_seen' => $lastSeen?->toIso8601String(),
+        ];
+    }
+
     public function serializeUser(?User $user, ?string $type = null): ?array
     {
         if (! $user) {
@@ -801,14 +810,9 @@ class ConversationService
 
         $avatar = $this->avatars->resolveForUser($user, $type, (string) $user->name);
 
-        $online = null;
-        $lastSeen = null;
-        if (Schema::hasColumn('users', 'online_status')) {
-            $online = $user->online_status ?? null;
-        }
-        if (Schema::hasColumn('users', 'last_seen')) {
-            $lastSeen = optional($user->last_seen)?->toIso8601String();
-        }
+        $presence = $this->resolvePresence($user);
+        $online = $presence['online_status'];
+        $lastSeen = $presence['last_seen'];
 
         if (! $user->relationLoaded('barangay') && method_exists($user, 'barangay')) {
             $user->loadMissing('barangay');
@@ -888,6 +892,180 @@ class ConversationService
         return $rows ? (int) $rows : null;
     }
 
+    /**
+     * @param  \Illuminate\Support\Collection<int, int>|array<int, int>  $conversationIds
+     * @return \Illuminate\Support\Collection<int, Message>
+     */
+    protected function latestVisibleMessages($conversationIds, int $userId, string $userType): Collection
+    {
+        $ids = collect($conversationIds)->filter()->values();
+        if ($ids->isEmpty()) {
+            return collect();
+        }
+
+        $hiddenIds = MessageHide::query()
+            ->where('user_id', $userId)
+            ->where('user_type', $userType)
+            ->pluck('message_id');
+
+        $latestIds = Message::query()
+            ->selectRaw('MAX(id) as id')
+            ->whereIn('conversation_id', $ids)
+            ->when($hiddenIds->isNotEmpty(), fn ($query) => $query->whereNotIn('id', $hiddenIds))
+            ->groupBy('conversation_id')
+            ->pluck('id');
+
+        if ($latestIds->isEmpty()) {
+            return collect();
+        }
+
+        return Message::query()
+            ->whereIn('id', $latestIds)
+            ->get()
+            ->keyBy('conversation_id');
+    }
+
+    /**
+     * @param  \Illuminate\Support\Collection<int, int>|array<int, int>  $conversationIds
+     * @return array<int, int>
+     */
+    protected function unreadCountsByConversation($conversationIds, int $userId, string $userType): array
+    {
+        $ids = collect($conversationIds)->filter()->map(fn ($id) => (int) $id)->unique()->values();
+        if ($ids->isEmpty()) {
+            return [];
+        }
+
+        return $this->unreadMessagesQuery($userId, $this->viewerTypes($userType))
+            ->whereIn('m.conversation_id', $ids->all())
+            ->selectRaw('m.conversation_id, COUNT(DISTINCT m.id) as unread')
+            ->groupBy('m.conversation_id')
+            ->pluck('unread', 'conversation_id')
+            ->mapWithKeys(fn ($count, $id) => [(int) $id => (int) $count])
+            ->all();
+    }
+
+    /**
+     * @return list<string>
+     */
+    protected function viewerTypes(?string $userType = null): array
+    {
+        $userType ??= $this->types->portalType();
+        $types = $this->types->equivalentTypes($userType);
+
+        return $types === [] ? [$userType] : $types;
+    }
+
+    /**
+     * Move this user's read cursor to the latest message in every chat they belong to.
+     *
+     * @param  list<string>  $types
+     */
+    protected function advanceReadCursor(int $userId, array $types): void
+    {
+        if ($types === []) {
+            return;
+        }
+
+        $hasCursor = Schema::hasColumn('conversation_participants', 'last_read_message_id');
+        $now = now();
+        $placeholders = implode(',', array_fill(0, count($types), '?'));
+        $bindings = array_merge([$now, $userId], $types);
+        $pgsql = DB::connection()->getDriverName() === 'pgsql';
+
+        DB::transaction(function () use ($hasCursor, $pgsql, $placeholders, $bindings, $now, $userId, $types): void {
+            $cursorSql = $hasCursor
+                ? ($pgsql
+                    ? ', last_read_message_id = GREATEST(COALESCE(cp.last_read_message_id, 0), COALESCE(latest.max_id, 0))'
+                    : ', cp.last_read_message_id = GREATEST(COALESCE(cp.last_read_message_id, 0), latest.max_id)')
+                : '';
+
+            if ($pgsql) {
+                DB::update(
+                    "UPDATE conversation_participants AS cp
+                     SET last_read_at = ?{$cursorSql}
+                     FROM (
+                         SELECT conversation_id, MAX(id) AS max_id
+                         FROM messages
+                         GROUP BY conversation_id
+                     ) AS latest
+                     WHERE cp.conversation_id = latest.conversation_id
+                       AND cp.user_id = ?
+                       AND cp.user_type IN ({$placeholders})",
+                    $bindings
+                );
+            } else {
+                DB::update(
+                    "UPDATE conversation_participants AS cp
+                     INNER JOIN (
+                         SELECT conversation_id, MAX(id) AS max_id
+                         FROM messages
+                         GROUP BY conversation_id
+                     ) AS latest ON latest.conversation_id = cp.conversation_id
+                     SET cp.last_read_at = ?{$cursorSql}
+                     WHERE cp.user_id = ?
+                       AND cp.user_type IN ({$placeholders})",
+                    $bindings
+                );
+            }
+
+            DB::table('conversation_participants')
+                ->where('user_id', $userId)
+                ->whereIn('user_type', $types)
+                ->update(['last_read_at' => $now]);
+        });
+    }
+
+    /**
+     * Messages still unread for this user: one join from messages to that user's read cursor.
+     *
+     * @param  list<string>  $types
+     */
+    protected function unreadMessagesQuery(int $userId, array $types)
+    {
+        $hasCursor = Schema::hasColumn('conversation_participants', 'last_read_message_id');
+        $cursors = DB::table('conversation_participants')
+            ->select('conversation_id')
+            ->where('user_id', $userId)
+            ->whereIn('user_type', $types)
+            ->groupBy('conversation_id');
+
+        if ($hasCursor) {
+            $cursors->selectRaw('MAX(COALESCE(last_read_message_id, 0)) as last_read_message_id');
+        } else {
+            $cursors->selectRaw('MAX(last_read_at) as last_read_at');
+        }
+
+        $query = DB::table('messages as m')
+            ->joinSub($cursors, 'cp', 'cp.conversation_id', '=', 'm.conversation_id')
+            ->where('m.sender_id', '!=', $userId);
+
+        if (Schema::hasColumn('messages', 'deleted_for_all_at')) {
+            $query->whereNull('m.deleted_for_all_at');
+        }
+
+        if (Schema::hasTable('message_hides')) {
+            $query->whereNotExists(function ($hidden) use ($userId, $types) {
+                $hidden->selectRaw('1')
+                    ->from('message_hides as h')
+                    ->whereColumn('h.message_id', 'm.id')
+                    ->where('h.user_id', $userId)
+                    ->whereIn('h.user_type', $types);
+            });
+        }
+
+        if ($hasCursor) {
+            $query->whereRaw('m.id > cp.last_read_message_id');
+        } else {
+            $query->where(function ($q) {
+                $q->whereNull('cp.last_read_at')
+                    ->orWhereColumn('m.created_at', '>', 'cp.last_read_at');
+            });
+        }
+
+        return $query;
+    }
+
     protected function unreadCountForParticipant(
         int $conversationId,
         ?ConversationParticipant $mine,
@@ -896,10 +1074,11 @@ class ConversationService
     ): int {
         $query = Message::query()
             ->where('conversation_id', $conversationId)
-            ->where(function (Builder $q) use ($userId, $userType) {
-                $q->where('sender_id', '!=', $userId)
-                    ->orWhere('sender_type', '!=', $userType);
-            });
+            ->where('sender_id', '!=', $userId);
+
+        if (Schema::hasColumn('messages', 'deleted_for_all_at')) {
+            $query->whereNull('deleted_for_all_at');
+        }
 
         $lastReadMessageId = (int) ($mine?->last_read_message_id ?? 0);
         if ($lastReadMessageId > 0 && Schema::hasColumn('conversation_participants', 'last_read_message_id')) {

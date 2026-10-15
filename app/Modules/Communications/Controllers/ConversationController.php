@@ -56,12 +56,27 @@ class ConversationController extends Controller
         ]);
     }
 
+    public function markAllRead(): JsonResponse
+    {
+        $user = Auth::user();
+        abort_if($user === null, 401);
+        $this->conversations->markAllRead($user);
+
+        return response()->json([
+            'ok' => true,
+            'unread_count' => $this->conversations->unreadTotalForUser($user),
+        ]);
+    }
+
     public function markRead(Conversation $conversation): JsonResponse
     {
         Gate::authorize('view', $conversation);
         $this->conversations->markRead($conversation, Auth::user());
 
-        return response()->json(['ok' => true]);
+        return response()->json([
+            'ok' => true,
+            'unread_count' => $this->conversations->unreadTotalForUser(Auth::user()),
+        ]);
     }
 
     public function rename(Request $request, Conversation $conversation): JsonResponse

@@ -44,17 +44,17 @@
                         <div class="form-grid">
                             <div class="form-group-light">
                                 <label class="form-label-light required">First Name</label>
-                                <input type="text" name="first_name" id="official_first_name" class="form-input-light input-uppercase" placeholder="" maxlength="150" required autocomplete="off" style="text-transform:uppercase;">
+                                <input type="text" name="first_name" id="official_first_name" class="form-input-light input-uppercase" placeholder="" required autocomplete="off" style="text-transform:uppercase;">
                                 <span class="form-error-light"></span>
                             </div>
                             <div class="form-group-light">
                                 <label class="form-label-light">Middle Name</label>
-                                <input type="text" name="middle_name" id="official_middle_name" class="form-input-light input-uppercase" placeholder="" maxlength="150" autocomplete="off" style="text-transform:uppercase;">
+                                <input type="text" name="middle_name" id="official_middle_name" class="form-input-light input-uppercase" placeholder="" autocomplete="off" style="text-transform:uppercase;">
                                 <span class="form-error-light"></span>
                             </div>
                             <div class="form-group-light">
                                 <label class="form-label-light required">Last Name</label>
-                                <input type="text" name="last_name" id="official_last_name" class="form-input-light input-uppercase" placeholder="" maxlength="150" required autocomplete="off" style="text-transform:uppercase;">
+                                <input type="text" name="last_name" id="official_last_name" class="form-input-light input-uppercase" placeholder="" required autocomplete="off" style="text-transform:uppercase;">
                                 <span class="form-error-light"></span>
                             </div>
                             <div class="form-group-light">
@@ -282,17 +282,17 @@
                     <div class="form-grid">
                         <div class="form-group-light">
                             <label for="edit_sk_officials_first_name" class="form-label-light required">First Name</label>
-                            <input type="text" id="edit_sk_officials_first_name" name="first_name" class="form-input-light input-uppercase" maxlength="150" required style="text-transform:uppercase;">
+                            <input type="text" id="edit_sk_officials_first_name" name="first_name" class="form-input-light input-uppercase" required style="text-transform:uppercase;">
                             <span class="form-error-light"></span>
                         </div>
                         <div class="form-group-light">
                             <label for="edit_sk_officials_last_name" class="form-label-light required">Last Name</label>
-                            <input type="text" id="edit_sk_officials_last_name" name="last_name" class="form-input-light input-uppercase" maxlength="150" required style="text-transform:uppercase;">
+                            <input type="text" id="edit_sk_officials_last_name" name="last_name" class="form-input-light input-uppercase" required style="text-transform:uppercase;">
                             <span class="form-error-light"></span>
                         </div>
                         <div class="form-group-light">
                             <label for="edit_sk_officials_middle_name" class="form-label-light">Middle Name</label>
-                            <input type="text" id="edit_sk_officials_middle_name" name="middle_name" class="form-input-light input-uppercase" maxlength="150" style="text-transform:uppercase;">
+                            <input type="text" id="edit_sk_officials_middle_name" name="middle_name" class="form-input-light input-uppercase" style="text-transform:uppercase;">
                             <span class="form-error-light"></span>
                         </div>
                         <div class="form-group-light">

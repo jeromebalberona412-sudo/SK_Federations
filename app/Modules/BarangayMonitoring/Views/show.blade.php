@@ -1,6 +1,6 @@
 @extends('layout::app')
 
-@section('title', ($barangayData['name'] ?? 'Barangay') . ' - Barangay Compliance')
+@section('title', ($barangayData['name'] ?? 'Barangay') . ' - Barangay ABYIP')
 
 @push('main-class')
     bm-main
@@ -20,7 +20,7 @@
 
     <a class="bm-back-link" href="{{ route('barangay-monitoring') }}" data-no-loading>
         <i class="fas fa-arrow-left"></i>
-        <span>Back to Barangay Compliance</span>
+        <span>Back to Barangay ABYIP</span>
     </a>
 
     <header class="bm-show-hero">

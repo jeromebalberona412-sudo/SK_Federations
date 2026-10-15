@@ -110,11 +110,13 @@ class AuthAuditLogService
         mixed $resourceId,
         ?int $tenantId,
     ): void {
+        $attemptedEmail = is_string($metadata['email'] ?? null) ? trim($metadata['email']) : '';
         $metadata = array_merge($metadata, [
             'portal' => 'sk_federation',
             'module' => 'authentication',
             'role' => $user?->role,
-            'email' => $user?->email,
+            'email' => $user?->email ?: ($attemptedEmail !== '' ? $attemptedEmail : null),
+            'user_name' => $user?->name ?: ($attemptedEmail !== '' ? $attemptedEmail : 'Unknown account'),
         ]);
 
         DB::table('admin_activity_logs')->insert([

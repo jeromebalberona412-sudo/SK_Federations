@@ -24,7 +24,7 @@ import {
     var meshRole = null;
     var meshConnected = false;
     var meshInvitees = [];
-    var RING_MS = 45000;
+    var RING_MS = 30000;
     var ringTimer = null;
 
     function rootEl() {
@@ -136,7 +136,7 @@ import {
         tile = document.createElement('div');
         tile.className = 'comms-remote-tile';
         tile.dataset.peerKey = key;
-        tile.innerHTML = '<video autoplay playsinline></video><div class="comms-remote-tile-label"></div>';
+        tile.innerHTML = '<video autoplay playsinline muted></video><div class="comms-remote-tile-label"></div>';
         var label = tile.querySelector('.comms-remote-tile-label');
         if (label) label.textContent = name || 'Participant';
         e.remoteGrid.appendChild(tile);
@@ -157,6 +157,8 @@ import {
         if (!tile) return;
         var video = tile.querySelector('video');
         if (video) {
+            video.muted = true;
+            video.playsInline = true;
             video.srcObject = stream;
             var play = video.play();
             if (play && typeof play.catch === 'function') play.catch(function () { /* ignore */ });
@@ -444,7 +446,13 @@ import {
             method: 'POST',
             body: JSON.stringify({ status: status }),
             dedupe: false
-        }).then(function (data) { return data.call; }).catch(function () { return null; });
+        }).then(function (data) {
+            if (data && data.message && window.CommsChat && typeof window.CommsChat.publishSentMessage === 'function') {
+                window.CommsChat.publishSentMessage(data.message, (data.call && data.call.invitees) || meshInvitees);
+                if (typeof window.CommsChat.appendMessage === 'function') window.CommsChat.appendMessage(data.message);
+            }
+            return data && data.call;
+        }).catch(function () { return null; });
     }
 
     async function startGroupCall(conversationId, callType, conversation) {
@@ -460,6 +468,10 @@ import {
                 dedupe: false
             });
             meshCall = data.call;
+            if (data.message && window.CommsChat && typeof window.CommsChat.publishSentMessage === 'function') {
+                window.CommsChat.publishSentMessage(data.message, meshCall.invitees || []);
+                if (typeof window.CommsChat.appendMessage === 'function') window.CommsChat.appendMessage(data.message);
+            }
             if (!meshCall || !meshCall.is_group_call) {
                 // Fall back to 1:1 path if server did not create a group room.
                 await cleanupMesh({ keepOverlay: true });
@@ -480,7 +492,7 @@ import {
             });
             await ensureLocalMedia();
             ringTimer = setTimeout(function () {
-                if (!meshConnected) {
+                if (!meshConnected && meshRole === 'caller') {
                     leaveGroupCall('missed');
                 }
             }, RING_MS);
@@ -535,7 +547,9 @@ import {
         var isCaller = meshRole === 'caller';
         await signal({ type: 'group-leave', reason: reason || 'ended' });
         if (isCaller) {
-            await updateStatus(reason === 'missed' ? 'missed' : (reason === 'cancelled' ? 'cancelled' : 'ended'));
+            var nextStatus = reason === 'cancelled' ? 'cancelled' : 'ended';
+            if (reason === 'missed' && !meshConnected) nextStatus = 'missed';
+            await updateStatus(nextStatus);
         } else if (reason === 'rejected') {
             await updateStatus('rejected');
         }
@@ -571,6 +585,11 @@ import {
 
         if (payload.type === 'group-join') {
             if (!meshCall || Number(payload.call_id) !== Number(meshCall.id)) return true;
+            meshConnected = true;
+            if (ringTimer) {
+                clearTimeout(ringTimer);
+                ringTimer = null;
+            }
             await connectToPeer(payload.from_user_id, payload.from_user_type, payload.from_name || payload.peer_name || 'Participant');
             return true;
         }
@@ -659,6 +678,43 @@ import {
 
     core.__startDirect = function (conversationId, callType, conversation, receiverId) {
         return originalStart(conversationId, callType, conversation, receiverId);
+    };
+
+    core.joinActiveGroupCall = async function (conversationId) {
+        if (meshCall && Number(meshCall.conversation_id) === Number(conversationId)) return;
+        if (!window.Comms) return;
+        var r = routes();
+        if (!r.calls) return;
+        var data = await window.Comms.api(r.calls, { method: 'GET', dedupe: false });
+        var list = (data && data.calls) || [];
+        var row = null;
+        for (var i = 0; i < list.length; i += 1) {
+            var item = list[i];
+            if (!item || !item.is_group_call) continue;
+            if (Number(item.conversation_id) !== Number(conversationId)) continue;
+            if (item.status !== 'ringing' && item.status !== 'accepted') continue;
+            row = item;
+            break;
+        }
+        if (!row) {
+            toast('That group call has already ended.', 'info');
+            return;
+        }
+        var self = me();
+        if (Number(row.caller_id) === self.id) {
+            toast('You are already the host of this call.', 'info');
+            return;
+        }
+        await acceptGroupInvite({
+            call_id: row.id,
+            conversation_id: row.conversation_id,
+            call_type: row.call_type,
+            caller_id: row.caller_id,
+            caller_type: row.caller_type,
+            peer_name: (row.peer && row.peer.name) || 'Group call',
+            invitees: row.invitees || [],
+            call_max_participants: row.call_max_participants
+        });
     };
 
     core.startCall = function (conversationId, callType, conversation, receiverId) {

@@ -732,8 +732,9 @@ body.profile-page .account-settings-panel:not([hidden]) {
 
     .navbar.sk-fed-navbar .notif-popover,
     .navbar.sk-fed-navbar .comms-msg-popover {
-        width: min(300px, calc(100vw - 16px)) !important;
+        width: min(360px, calc(100vw - 16px)) !important;
         max-width: calc(100vw - 16px) !important;
+        border-radius: 12px !important;
     }
 
     .navbar.sk-fed-navbar .profile-dropdown {
@@ -748,8 +749,8 @@ body.profile-page .account-settings-panel:not([hidden]) {
 
     .navbar.sk-fed-navbar .comms-msg-popover,
     .navbar.sk-fed-navbar .comms-msg-popover.show {
-        height: min(420px, calc(100vh - var(--navbar-height, 52px) - 12px)) !important;
-        max-height: min(420px, calc(100vh - var(--navbar-height, 52px) - 12px)) !important;
+        height: min(560px, calc(100vh - var(--navbar-height, 52px) - 16px)) !important;
+        max-height: min(560px, calc(100vh - var(--navbar-height, 52px) - 16px)) !important;
     }
 
     .navbar.sk-fed-navbar .notif-popover-header {

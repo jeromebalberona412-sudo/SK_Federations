@@ -31,6 +31,7 @@ return new class extends Migration
             return;
         }
 
+        if (! $this->isBaseTable('deleted_sk_officials')) {
         DB::statement(<<<'SQL'
             CREATE OR REPLACE VIEW deleted_sk_officials AS
             SELECT
@@ -59,6 +60,11 @@ return new class extends Migration
             WHERE u.deleted_at IS NOT NULL
               AND u.role = 'sk_official'
         SQL);
+        }
+
+        if ($this->isBaseTable('deleted_sk_federations')) {
+            return;
+        }
 
         DB::statement(<<<'SQL'
             CREATE OR REPLACE VIEW deleted_sk_federations AS
@@ -104,5 +110,15 @@ return new class extends Migration
                 $table->dropIndex('users_role_deleted_at_index');
             });
         }
+    }
+
+    private function isBaseTable(string $name): bool
+    {
+        $row = DB::selectOne(
+            'select c.relkind from pg_class c join pg_namespace n on n.oid = c.relnamespace where n.nspname = current_schema() and c.relname = ?',
+            [$name]
+        );
+
+        return $row !== null && $row->relkind === 'r';
     }
 };

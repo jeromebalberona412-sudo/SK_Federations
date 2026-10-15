@@ -3,23 +3,17 @@
  * and Kabataan employment status charts.
  */
 (function () {
-    const FED_BLUE = '#213F99';
-    const FED_RED = '#d0242b';
-    const FED_YELLOW = '#F7D31E';
-    const FED_GREEN = '#16a34a';
-    const FED_PURPLE = '#7c3aed';
-    // Male = federation blue, Female = pink
-    const SEX_COLORS = [FED_BLUE, '#ec4899'];
+    // Same sex and employment colors as the SK Officials dashboard
+    const SEX_COLORS = ['#3b82f6', '#ec4899'];
 
-    // Match dashboard legend reference: blue, green, yellow, red, purple
     const EMPLOYMENT_COLOR_BY_LABEL = {
-        'Employed': FED_BLUE,
-        'Unemployed': FED_GREEN,
-        'Self-Employed': FED_YELLOW,
-        'Currently looking for a Job': FED_RED,
-        'Not Interested Looking for a Job': FED_PURPLE,
+        'Employed': '#16a34a',
+        'Unemployed': '#dc2626',
+        'Self-Employed': '#059669',
+        'Currently looking for a Job': '#eab308',
+        'Not Interested Looking for a Job': '#ef4444',
     };
-    const EMPLOYMENT_FALLBACK = [FED_BLUE, FED_GREEN, FED_YELLOW, FED_RED, FED_PURPLE];
+    const EMPLOYMENT_FALLBACK = ['#16a34a', '#dc2626', '#059669', '#eab308', '#ef4444'];
 
     let sexChart = null;
     let employmentChart = null;
@@ -69,7 +63,9 @@
             return (
                 '<span class="dash-demo-legend-item">' +
                 '<span class="dash-demo-legend-swatch" style="background:' + color + '"></span>' +
-                '<span>' + label + ': <strong>' + count.toLocaleString() + '</strong> (' + pct + '%)</span>' +
+                '<span class="dash-demo-legend-label">' + label + ':</span> ' +
+                '<span class="dash-demo-legend-count">' + count.toLocaleString() + '</span> ' +
+                '<span class="dash-demo-legend-pct">(' + pct + '%)</span>' +
                 '</span>'
             );
         }).join('');
@@ -85,14 +81,58 @@
         if (legendEl) legendEl.hidden = isEmpty;
     }
 
+    function isFemaleLabel(label) {
+        const key = String(label || '').toLowerCase();
+        return key === 'female' || key.startsWith('female') || key.includes('babae');
+    }
+
+    function isMaleLabel(label) {
+        const key = String(label || '').toLowerCase();
+        if (isFemaleLabel(label)) return false;
+        return key === 'male'
+            || key.startsWith('male')
+            || key.includes('lalaki')
+            || key.includes('lalake')
+            || (key.includes('male') && !key.includes('female'));
+    }
+
     function currentSexDataset() {
         const role = document.getElementById('sexDistributionRoleFilter')?.value || 'all';
+        const gender = document.getElementById('sexDistributionGenderFilter')?.value || 'all';
         const source = role === 'all' ? combineSexRoles() : (sexByRole[role] || sexByRole.kabataan);
-        return {
-            labels: source.labels || ['Male', 'Female'],
-            values: (source.values || [0, 0]).map(function (value) { return Number(value || 0); }),
-            colors: SEX_COLORS,
-        };
+        const labels = [];
+        const values = [];
+        const colors = [];
+
+        (source.labels || ['Male', 'Female']).forEach(function (label, index) {
+            const include = gender === 'all'
+                || (gender === 'male' && isMaleLabel(label))
+                || (gender === 'female' && isFemaleLabel(label));
+            if (!include) return;
+            labels.push(label);
+            values.push(Number((source.values || [])[index] || 0));
+            colors.push(isFemaleLabel(label) ? '#ec4899' : '#3b82f6');
+        });
+
+        if (!labels.length) {
+            return { labels: ['No data'], values: [0], colors: ['#d1d5db'] };
+        }
+
+        return { labels: labels, values: values, colors: colors };
+    }
+
+    function renderPieLegend(el, labels, values, colors) {
+        if (!el) return;
+        el.innerHTML = labels.map(function (label, index) {
+            const count = Number(values[index] || 0);
+            const color = colors[index % colors.length];
+            return (
+                '<div class="pie-legend-item">' +
+                '<span class="pie-legend-box" style="background:' + color + ';"></span>' +
+                '<span class="pie-legend-label">' + String(label) + ' (' + count.toLocaleString() + ')</span>' +
+                '</div>'
+            );
+        }).join('');
     }
 
     function updateSexChart() {
@@ -102,28 +142,62 @@
         if (!canvas || typeof Chart === 'undefined') return;
 
         const dataset = currentSexDataset();
-        const isEmpty = sum(dataset.values) <= 0;
+        const sexTotal = sum(dataset.values);
+        const sexTotalEl = document.querySelector('#kabataanSexTotal .kk-demo-total-value');
+        if (sexTotalEl) {
+            sexTotalEl.textContent = sexTotal.toLocaleString();
+        }
+        const isEmpty = sexTotal <= 0;
         setEmpty(empty, canvas, legend, isEmpty);
         if (isEmpty) {
             if (sexChart) {
                 sexChart.destroy();
                 sexChart = null;
             }
+            if (legend) legend.innerHTML = '';
             return;
         }
 
-        renderLegend(legend, dataset.labels, dataset.values, dataset.colors);
+        renderPieLegend(legend, dataset.labels, dataset.values, dataset.colors);
 
         if (sexChart) {
-            sexChart.data.labels = dataset.labels;
-            sexChart.data.datasets[0].data = dataset.values;
-            sexChart.data.datasets[0].backgroundColor = dataset.colors;
-            sexChart.update('none');
-            return;
+            sexChart.destroy();
+            sexChart = null;
         }
+
+        const pieLabelsPlugin = {
+            id: 'pieLabels',
+            afterDraw: function (chart) {
+                const context = chart.ctx;
+                const total = sum(chart.data.datasets[0]?.data || []);
+                chart.data.datasets.forEach(function (chartDataset, datasetIndex) {
+                    const meta = chart.getDatasetMeta(datasetIndex);
+                    meta.data.forEach(function (arc, index) {
+                        const value = chartDataset.data[index];
+                        if (!value) return;
+                        const pct = total > 0 ? Math.round((value / total) * 100) : 0;
+                        const label = chart.data.labels[index];
+                        const angle = (arc.startAngle + arc.endAngle) / 2;
+                        const radius = (arc.innerRadius + arc.outerRadius) / 2;
+                        const x = arc.x + Math.cos(angle) * radius;
+                        const y = arc.y + Math.sin(angle) * radius;
+                        context.save();
+                        context.textAlign = 'center';
+                        context.textBaseline = 'middle';
+                        context.fillStyle = '#fff';
+                        context.font = 'bold 11px Segoe UI, sans-serif';
+                        context.fillText(label, x, y - 7);
+                        context.font = 'bold 12px Segoe UI, sans-serif';
+                        context.fillText(pct + '%', x, y + 7);
+                        context.restore();
+                    });
+                });
+            },
+        };
 
         sexChart = new Chart(canvas, {
             type: 'pie',
+            plugins: [pieLabelsPlugin],
             data: {
                 labels: dataset.labels,
                 datasets: [{
@@ -136,6 +210,7 @@
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
+                animation: false,
                 plugins: {
                     legend: { display: false },
                     tooltip: {
@@ -143,7 +218,7 @@
                             label: function (ctx) {
                                 const total = sum(ctx.dataset.data) || 1;
                                 const value = Number(ctx.raw || 0);
-                                const pct = Math.round((value / total) * 100);
+                                const pct = ((value / total) * 100).toFixed(1);
                                 return ' ' + ctx.label + ': ' + value.toLocaleString() + ' (' + pct + '%)';
                             },
                         },
@@ -186,7 +261,12 @@
         if (!canvas || typeof Chart === 'undefined') return;
 
         const dataset = buildEmploymentDataset(filter);
-        const isEmpty = sum(dataset.values) <= 0;
+        const employmentTotal = sum(dataset.values);
+        const employmentTotalEl = document.querySelector('#employmentStatusTotal .kk-demo-total-value');
+        if (employmentTotalEl) {
+            employmentTotalEl.textContent = employmentTotal.toLocaleString();
+        }
+        const isEmpty = employmentTotal <= 0;
         setEmpty(empty, canvas, legend, isEmpty);
         if (isEmpty) {
             if (employmentChart) {
@@ -223,7 +303,7 @@
                         context.textAlign = 'center';
                         context.textBaseline = 'middle';
                         context.fillStyle = '#fff';
-                        context.font = 'bold 11px Segoe UI, sans-serif';
+                        context.font = '600 11px Inter, system-ui, sans-serif';
                         context.fillText(pct + '%', x, y);
                         context.restore();
                     });
@@ -297,6 +377,10 @@
             };
             updateEmploymentChart();
         }
+
+        if (typeof window.applyYouthDemographics === 'function' && payload.youth_demographics) {
+            window.applyYouthDemographics(payload.youth_demographics);
+        }
     }
 
     window.applyDashboardDemographics = applyDemographics;
@@ -306,6 +390,7 @@
         applyDemographics(feed);
 
         document.getElementById('sexDistributionRoleFilter')?.addEventListener('change', updateSexChart);
+        document.getElementById('sexDistributionGenderFilter')?.addEventListener('change', updateSexChart);
         document.getElementById('employmentChartFilter')?.addEventListener('change', updateEmploymentChart);
     });
 })();

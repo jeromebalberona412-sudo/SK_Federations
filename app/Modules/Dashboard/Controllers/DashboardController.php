@@ -8,6 +8,7 @@ use App\Modules\BarangayMonitoring\Services\BarangayMonitoringService;
 use App\Modules\Dashboard\Services\DashboardStatsService;
 use App\Modules\Dashboard\Services\KkProfilingChartService;
 use App\Modules\Dashboard\Services\SkFedDashboardActivityService;
+use App\Modules\Dashboard\Services\YouthDemographicsService;
 use App\Modules\Shared\Controllers\Controller;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
@@ -24,6 +25,7 @@ class DashboardController extends Controller
         private readonly KkProfilingChartService $kkProfilingChartService,
         private readonly SkFedDashboardActivityService $dashboardActivityService,
         private readonly BarangayMonitoringService $barangayMonitoringService,
+        private readonly YouthDemographicsService $youthDemographicsService,
     ) {}
 
     public function index(Request $request): View
@@ -51,6 +53,15 @@ class DashboardController extends Controller
         } catch (\Throwable $e) {
             report($e);
             $statCards = [
+                'total_kk' => 0,
+                'kk_approved' => 0,
+                'kk_pending' => 0,
+                'total_programs' => 0,
+                'programs' => [
+                    'stats' => ['total_programs' => 0, 'open_programs' => 0, 'closed_programs' => 0, 'upcoming_programs' => 0],
+                    'status_chart' => ['labels' => [], 'values' => []],
+                    'barangay_chart' => ['labels' => [], 'values' => []],
+                ],
                 'total_kabataan_registered' => 0,
                 'total_sk_officials' => 0,
                 'total_sk_chairpersons' => 0,
@@ -76,34 +87,8 @@ class DashboardController extends Controller
             ];
         }
 
-        $kkInitialRequest = new Request([
-            'barangay_id' => 'all',
-            'period' => 'monthly',
-            'date_from' => $dateFrom,
-            'date_to' => $dateTo,
-        ]);
-
-        $purokInitialRequest = new Request([
-            'barangay_id' => 'all',
-            'purok' => 'all',
-            'date_from' => $dateFrom,
-            'date_to' => $dateTo,
-        ]);
-
         $kkProfilingInitial = null;
         $purokChartInitial = null;
-        if ($user) {
-            try {
-                $kkProfilingInitial = $this->kkProfilingChartService->getChartData($user, $kkInitialRequest);
-            } catch (\Throwable $e) {
-                report($e);
-            }
-            try {
-                $purokChartInitial = $this->kkProfilingChartService->getPurokChartData($user, $purokInitialRequest);
-            } catch (\Throwable $e) {
-                report($e);
-            }
-        }
 
         $safe = function (callable $callback, $fallback = null) {
             try {
@@ -117,6 +102,15 @@ class DashboardController extends Controller
 
         return view('dashboard::dashboard', [
             'user' => $user,
+            'totalKkProfiles' => $statCards['total_kk'] ?? 0,
+            'kkApproved' => $statCards['kk_approved'] ?? 0,
+            'kkPending' => $statCards['kk_pending'] ?? 0,
+            'totalPrograms' => $statCards['total_programs'] ?? 0,
+            'programDashboard' => $statCards['programs'] ?? [
+                'stats' => ['total_programs' => 0, 'open_programs' => 0, 'closed_programs' => 0, 'upcoming_programs' => 0],
+                'status_chart' => ['labels' => [], 'values' => []],
+                'barangay_chart' => ['labels' => [], 'values' => []],
+            ],
             'totalKabataanRegistered' => $statCards['total_kabataan_registered'] ?? 0,
             'totalSkOfficials' => $statCards['total_sk_officials'] ?? 0,
             'totalSkChairpersons' => $statCards['total_sk_chairpersons'] ?? 0,
@@ -126,6 +120,10 @@ class DashboardController extends Controller
             'sexDistributionOfficials' => $safe(fn () => $this->dashboardStatsService->sexDistributionOfficials($tenantId, $dateFrom, $dateTo), []),
             'sexDistributionFederations' => $safe(fn () => $this->dashboardStatsService->sexDistributionFederations($tenantId, $dateFrom, $dateTo), []),
             'employmentStatusDistribution' => $safe(fn () => $this->dashboardStatsService->employmentStatusDistribution($tenantId, $dateFrom, $dateTo), []),
+            'youthDemographics' => $safe(
+                fn () => $this->youthDemographicsService->aggregate($tenantId, $dateFrom, $dateTo),
+                $this->youthDemographicsService->emptyPayload()
+            ),
             'federationOfficers' => $safe(fn () => $this->dashboardStatsService->federationOfficers($tenantId), []),
             'topBarangays' => $safe(fn () => $this->dashboardStatsService->topBarangaysByYouth($tenantId, 5, $dateFrom, $dateTo), []),
             'barangays' => $barangays,
@@ -133,7 +131,7 @@ class DashboardController extends Controller
                 ->map(fn ($barangay) => ['id' => $barangay->id, 'name' => $barangay->name])
                 ->values()
                 ->all(),
-            'recentActivity' => $safe(fn () => $this->dashboardActivityService->recentActivity($tenantId, 12, $dateFrom, $dateTo), []),
+            'recentActivity' => $safe(fn () => $this->dashboardActivityService->recentActivity($tenantId, 12), []),
             'upcomingEvents' => $safe(fn () => $this->dashboardActivityService->upcomingCalendarNotes(6, $dateFrom, $dateTo), []),
             'todayReminder' => $safe(fn () => $this->dashboardActivityService->todayCalendarNote(), null),
             'todayLabel' => now()->timezone(config('app.timezone', 'Asia/Manila'))->format('F j, Y | l'),
@@ -186,15 +184,18 @@ class DashboardController extends Controller
         $tenantId = $request->user()?->tenant_id;
         [$dateFrom, $dateTo] = $this->resolveFeedDates($request);
         $cacheKey = sprintf(
-            'skfed:dash:stats:v8:%s:%s:%s',
+            'skfed:dash:stats:v13:%s:%s:%s',
             $tenantId === null ? 'all' : (string) $tenantId,
             $dateFrom ?? 'none',
             $dateTo ?? 'none'
         );
 
-        $payload = Cache::remember(
+        // The default cache store is the remote database, so a cache read
+        // costs another Supabase round trip. This payload is tenant-scoped
+        // and expires in 5 seconds; the local file store keeps that window.
+        $payload = Cache::store('file')->remember(
             $cacheKey,
-            20,
+            5,
             fn (): array => $this->dashboardLivePayload($tenantId, $dateFrom, $dateTo)
         );
 
@@ -218,19 +219,28 @@ class DashboardController extends Controller
 
         return [
             'stats' => [
+                'total_kk' => $statCards['total_kk'],
+                'kk_approved' => $statCards['kk_approved'],
+                'kk_pending' => $statCards['kk_pending'],
+                'total_programs' => $statCards['total_programs'],
+                'open_programs' => $statCards['programs']['stats']['open_programs'] ?? 0,
+                'closed_programs' => $statCards['programs']['stats']['closed_programs'] ?? 0,
+                'upcoming_programs' => $statCards['programs']['stats']['upcoming_programs'] ?? 0,
                 'total_kabataan_registered' => $statCards['total_kabataan_registered'],
                 'total_sk_officials' => $statCards['total_sk_officials'],
                 'total_sk_chairpersons' => $statCards['total_sk_chairpersons'],
                 'total_barangays_abyip_submitted' => (int) ($abyipOverview['stats']['submitted'] ?? 0),
                 'total_audit_logs' => $statCards['total_audit_logs'],
             ],
+            'programs' => $statCards['programs'] ?? $this->dashboardStatsService->programDashboardData($tenantId),
             'sex_distribution' => $this->dashboardStatsService->sexDistribution($tenantId, $dateFrom, $dateTo),
             'sex_distribution_officials' => $this->dashboardStatsService->sexDistributionOfficials($tenantId, $dateFrom, $dateTo),
             'sex_distribution_federations' => $this->dashboardStatsService->sexDistributionFederations($tenantId, $dateFrom, $dateTo),
             'employment_status_distribution' => $this->dashboardStatsService->employmentStatusDistribution($tenantId, $dateFrom, $dateTo),
+            'youth_demographics' => $this->youthDemographicsService->aggregate($tenantId, $dateFrom, $dateTo),
             'abyip_overview' => $abyipOverview,
             'top_barangays' => $this->dashboardStatsService->topBarangaysByYouth($tenantId, 5, $dateFrom, $dateTo),
-            'recent_activity' => $this->dashboardActivityService->recentActivity($tenantId, 12, $dateFrom, $dateTo),
+            'recent_activity' => $this->dashboardActivityService->recentActivity($tenantId, 12),
             'upcoming_events' => $this->dashboardActivityService->upcomingCalendarNotes(6, $dateFrom, $dateTo),
             'date_from' => $dateFrom,
             'date_to' => $dateTo,

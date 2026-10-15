@@ -21,7 +21,7 @@ class KabataanRegistration extends Model
         'form_data', 'status',
         'evaluation_status', 'evaluation_notes',
         'submitted_at', 'email_verified_at', 'password_set_at',
-        'reviewed_at', 'review_notes',
+        'reviewed_at', 'review_notes', 'rejection_reason', 'rejection_remarks', 'profiling_year',
     ];
 
     protected function casts(): array

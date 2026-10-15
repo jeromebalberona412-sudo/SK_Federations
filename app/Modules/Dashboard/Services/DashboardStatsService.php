@@ -8,6 +8,7 @@ use App\Modules\Accounts\Models\OfficialTerm;
 use App\Modules\Accounts\Services\ChairpersonFederationSyncService;
 use App\Modules\Accounts\Services\FederationRosterService;
 use App\Modules\AuditLog\Services\AuditLogQueryService;
+use App\Modules\KabataanMonitoring\Support\KkProfilingReviewStatus;
 use App\Modules\Shared\Models\User;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
@@ -46,6 +47,9 @@ class DashboardStatsService
     private ?Collection $cachedKabataanRecords = null;
 
     private ?int $cachedKabataanTenantId = null;
+
+    /** @var array<string, Collection<int, KabataanRegistration>> */
+    private array $datedActiveFormData = [];
 
     public function totalKabataanRegistered(?int $tenantId = null, ?string $dateFrom = null, ?string $dateTo = null): int
     {
@@ -123,9 +127,205 @@ class DashboardStatsService
     /**
      * @return array<string, int>
      */
+    /**
+     * Municipality-wide KK profiling counts (every barangay in the tenant).
+     *
+     * @return array{total_kk: int, approved: int, pending: int}
+     */
+    public function municipalityKkStats(?int $tenantId = null, ?string $dateFrom = null, ?string $dateTo = null): array
+    {
+        if (! $tenantId || ! Schema::hasTable('kabataan_registrations')) {
+            return ['total_kk' => 0, 'approved' => 0, 'pending' => 0];
+        }
+
+        $base = $this->tenantKabataanQuery($tenantId);
+
+        $approvedQuery = KkProfilingReviewStatus::applyApprovedScope((clone $base)->whereNull('deleted_at'));
+        $this->applyKabataanDateRange($approvedQuery, $dateFrom, $dateTo);
+
+        $pendingQuery = (clone $base)->whereNull('deleted_at');
+        KkProfilingReviewStatus::applyPendingScope($pendingQuery);
+        $this->applyKabataanDateRange($pendingQuery, $dateFrom, $dateTo);
+
+        $totalQuery = (clone $base)->whereNull('deleted_at');
+        $this->applyColumnDateRange($totalQuery, 'submitted_at', $dateFrom, $dateTo);
+
+        // One round trip. Each count keeps the same filters as the separate queries.
+        $row = DB::query()
+            ->selectSub((clone $totalQuery)->selectRaw('COUNT(*)'), 'total_kk')
+            ->selectSub((clone $approvedQuery)->selectRaw('COUNT(*)'), 'approved')
+            ->selectSub((clone $pendingQuery)->selectRaw('COUNT(*)'), 'pending')
+            ->first();
+
+        return [
+            'total_kk' => (int) ($row->total_kk ?? 0),
+            'approved' => (int) ($row->approved ?? 0),
+            'pending' => (int) ($row->pending ?? 0),
+        ];
+    }
+
+    /**
+     * Scheduled programs across every barangay in the tenant.
+     */
+    public function totalPrograms(?int $tenantId = null): int
+    {
+        return $this->countAbyipYouthPrograms($tenantId);
+    }
+
+    /**
+     * Youth program rows stored on barangay ABYIP submissions.
+     */
+    private function countAbyipYouthPrograms(?int $tenantId): int
+    {
+        if ($tenantId === null || $tenantId <= 0 || ! Schema::hasTable('abyip') || ! Schema::hasColumn('abyip', 'barangay_id')) {
+            return 0;
+        }
+
+        $query = DB::table('abyip')->where(function ($programQuery): void {
+            $programQuery->where('row_type', 'youth_program');
+            if (Schema::hasColumn('abyip', 'code')) {
+                $programQuery->orWhereIn('code', ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J']);
+            }
+        });
+
+        if (Schema::hasTable('barangays') && Schema::hasColumn('barangays', 'tenant_id')) {
+            $query->whereIn(
+                'abyip.barangay_id',
+                DB::table('barangays')->select('id')->where('tenant_id', $tenantId)
+            );
+        }
+
+        return (int) $query->count();
+    }
+
+    /**
+     * Aggregate active schedule programs within one Federation tenant.
+     *
+     * ScheduleProgram.status describes application availability, not program
+     * implementation, so only the persisted open/closed states are reported.
+     *
+     * @return array{
+     *     stats: array{total_programs:int, open_programs:int, closed_programs:int, upcoming_programs:int},
+     *     status_chart: array{labels:list<string>, values:list<int>},
+     *     barangay_chart: array{labels:list<string>, values:list<int>}
+     * }
+     */
+    public function programDashboardData(?int $tenantId): array
+    {
+        $empty = [
+            'stats' => [
+                'total_programs' => 0,
+                'open_programs' => 0,
+                'closed_programs' => 0,
+                'upcoming_programs' => 0,
+            ],
+            'status_chart' => ['labels' => [], 'values' => []],
+            'barangay_chart' => ['labels' => [], 'values' => []],
+        ];
+
+        $query = $this->activeScheduleProgramsQuery($tenantId);
+        if ($query === null) {
+            return $empty;
+        }
+
+        $statusRows = (clone $query)
+            ->selectRaw("LOWER(COALESCE(status, '')) AS program_status, COUNT(*) AS program_count")
+            ->groupByRaw("LOWER(COALESCE(status, ''))")
+            ->get();
+        $statusCounts = $statusRows->mapWithKeys(
+            fn (object $row): array => [(string) $row->program_status => (int) $row->program_count]
+        );
+
+        $total = (int) $statusRows->sum('program_count');
+        $upcoming = Schema::hasColumn('schedule_programs', 'start_date')
+            ? (int) (clone $query)->whereDate('start_date', '>', now()->toDateString())->count()
+            : 0;
+
+        $labels = [];
+        $values = [];
+        foreach ($statusCounts as $status => $count) {
+            $labels[] = match ($status) {
+                'open' => 'Open for Applications',
+                'closed' => 'Closed to Applications',
+                '' => 'Unspecified',
+                default => ucfirst(str_replace('_', ' ', $status)),
+            };
+            $values[] = $count;
+        }
+
+        $barangayChart = ['labels' => [], 'values' => []];
+        if (Schema::hasTable('barangays') && Schema::hasColumn('schedule_programs', 'barangay_id')) {
+            $barangayRows = (clone $query)
+                ->join('barangays as dashboard_barangays', 'dashboard_barangays.id', '=', 'schedule_programs.barangay_id')
+                ->select('dashboard_barangays.id', 'dashboard_barangays.name')
+                ->selectRaw('COUNT(*) AS program_count')
+                ->groupBy('dashboard_barangays.id', 'dashboard_barangays.name')
+                ->orderByDesc('program_count')
+                ->orderBy('dashboard_barangays.name')
+                ->limit(10)
+                ->get();
+
+            $barangayChart = [
+                'labels' => $barangayRows->map(
+                    fn (object $row): string => trim((string) $row->name) ?: 'Barangay '.$row->id
+                )->all(),
+                'values' => $barangayRows->map(fn (object $row): int => (int) $row->program_count)->all(),
+            ];
+        }
+
+        return [
+            'stats' => [
+                'total_programs' => $total,
+                'open_programs' => (int) ($statusCounts['open'] ?? 0),
+                'closed_programs' => (int) ($statusCounts['closed'] ?? 0),
+                'upcoming_programs' => $upcoming,
+            ],
+            'status_chart' => ['labels' => $labels, 'values' => $values],
+            'barangay_chart' => $barangayChart,
+        ];
+    }
+
+    private function activeScheduleProgramsQuery(?int $tenantId): ?\Illuminate\Database\Query\Builder
+    {
+        if ($tenantId === null || $tenantId <= 0 || ! Schema::hasTable('schedule_programs')) {
+            return null;
+        }
+
+        $query = DB::table('schedule_programs');
+        if (Schema::hasColumn('schedule_programs', 'deleted_at')) {
+            $query->whereNull('deleted_at');
+        }
+        if (Schema::hasColumn('schedule_programs', 'is_archived')) {
+            $query->where(function ($activeQuery): void {
+                $activeQuery->whereNull('is_archived')->orWhereRaw('"is_archived" = false');
+            });
+        }
+
+        if (Schema::hasColumn('schedule_programs', 'tenant_id')) {
+            return $query->where('schedule_programs.tenant_id', $tenantId);
+        }
+
+        if (Schema::hasTable('barangays') && Schema::hasColumn('barangays', 'tenant_id')) {
+            return $query->whereIn(
+                'barangay_id',
+                DB::table('barangays')->select('id')->where('tenant_id', $tenantId)
+            );
+        }
+
+        return null;
+    }
+
     public function dashboardStatCards(?int $tenantId = null, ?string $dateFrom = null, ?string $dateTo = null): array
     {
+        $kkStats = $this->municipalityKkStats($tenantId, $dateFrom, $dateTo);
+        $programs = $this->programDashboardData($tenantId);
+
         return [
+            'total_kk' => $kkStats['total_kk'],
+            'kk_approved' => $kkStats['approved'],
+            'kk_pending' => $kkStats['pending'],
+            'total_programs' => $this->countAbyipYouthPrograms($tenantId),
+            'programs' => $programs,
             'total_kabataan_registered' => $this->totalKabataanRegistered($tenantId, $dateFrom, $dateTo),
             'total_sk_officials' => $this->totalSkOfficials($tenantId, $dateFrom, $dateTo),
             'total_sk_chairpersons' => $this->totalSkChairpersons($tenantId, $dateFrom, $dateTo),
@@ -142,10 +342,9 @@ class DashboardStatsService
             return ['labels' => ['Male', 'Female'], 'values' => [0, 0]];
         }
 
-        $query = $this->activeKabataanQuery($tenantId);
-        $this->applyKabataanDateRange($query, $dateFrom, $dateTo);
-
-        return $this->sexDistributionFromRecords($query->get(['id', 'form_data']));
+        return $this->sexDistributionFromRecords(
+            $this->datedActiveFormDataRecords($tenantId, $dateFrom, $dateTo)
+        );
     }
 
     /**
@@ -196,9 +395,7 @@ class DashboardStatsService
             ];
         }
 
-        $query = $this->activeKabataanQuery($tenantId);
-        $this->applyKabataanDateRange($query, $dateFrom, $dateTo);
-        $records = $query->get(['id', 'form_data']);
+        $records = $this->datedActiveFormDataRecords($tenantId, $dateFrom, $dateTo);
         $surveyStatusById = $this->surveyWorkStatusByRegistrationId($records->pluck('id'));
 
         foreach ($records as $record) {
@@ -230,20 +427,59 @@ class DashboardStatsService
 
         $query = $this->activeKabataanQuery($tenantId);
         $this->applyKabataanDateRange($query, $dateFrom, $dateTo);
-        $records = $query
-            ->with('barangay:id,name')
-            ->get(['id', 'barangay_id', 'form_data']);
+        $youthRows = (clone $query)->select([
+            'kabataan_registrations.id',
+            'kabataan_registrations.barangay_id',
+        ]);
+        $groups = DB::query()
+            ->fromSub($youthRows, 'youth_rows')
+            ->leftJoin('barangays as youth_barangays', 'youth_barangays.id', '=', 'youth_rows.barangay_id')
+            ->select('youth_rows.barangay_id')
+            ->selectRaw('youth_barangays.name as barangay_name')
+            ->selectRaw('COUNT(*) as youth_count')
+            ->groupBy('youth_rows.barangay_id', 'youth_barangays.name')
+            ->get();
+
         $counts = [];
+        $hasMissingName = false;
+        foreach ($groups as $group) {
+            if ($group->barangay_name === null) {
+                $hasMissingName = true;
 
-        foreach ($records as $record) {
-            $formData = is_array($record->form_data) ? $record->form_data : [];
-            $barangay = $record->barangay?->name ?? $this->formValue($formData, 'barangay');
+                continue;
+            }
 
+            $barangay = (string) $group->barangay_name;
             if ($barangay === '—') {
                 continue;
             }
 
-            $counts[$barangay] = ($counts[$barangay] ?? 0) + 1;
+            $counts[$barangay] = ($counts[$barangay] ?? 0) + (int) $group->youth_count;
+        }
+
+        if ($hasMissingName) {
+            $missingIds = DB::query()
+                ->fromSub((clone $query)->select([
+                    'kabataan_registrations.id',
+                    'kabataan_registrations.barangay_id',
+                ]), 'youth_rows')
+                ->leftJoin('barangays as youth_barangays', 'youth_barangays.id', '=', 'youth_rows.barangay_id')
+                ->whereNull('youth_barangays.name')
+                ->pluck('youth_rows.id');
+            $missingNames = KabataanRegistration::query()
+                ->whereIn('id', $missingIds)
+                ->get(['id', 'form_data']);
+
+            foreach ($missingNames as $record) {
+                $formData = is_array($record->form_data) ? $record->form_data : [];
+                $barangay = $this->formValue($formData, 'barangay');
+
+                if ($barangay === '—') {
+                    continue;
+                }
+
+                $counts[$barangay] = ($counts[$barangay] ?? 0) + 1;
+            }
         }
 
         arsort($counts);
@@ -347,6 +583,34 @@ class DashboardStatsService
     /**
      * @return Builder<KabataanRegistration>
      */
+    private function tenantKabataanQuery(?int $tenantId)
+    {
+        $query = KabataanRegistration::query();
+
+        if ($tenantId !== null && Schema::hasColumn('kabataan_registrations', 'tenant_id')) {
+            $query->where('tenant_id', $tenantId);
+        }
+
+        return $query;
+    }
+
+    /**
+     * @param  Builder<Model>  $query
+     */
+    private function applyColumnDateRange(Builder $query, string $column, ?string $dateFrom, ?string $dateTo): void
+    {
+        [$from, $to] = $this->normalizeDateRange($dateFrom, $dateTo);
+        if ($from === null || $to === null || ! Schema::hasColumn($query->getModel()->getTable(), $column)) {
+            return;
+        }
+
+        $query->whereDate($column, '>=', $from)
+            ->whereDate($column, '<=', $to);
+    }
+
+    /**
+     * @return Builder<KabataanRegistration>
+     */
     private function activeKabataanQuery(?int $tenantId)
     {
         $query = KabataanRegistration::query()
@@ -428,6 +692,22 @@ class DashboardStatsService
         }
 
         return [$from, $to];
+    }
+
+    /**
+     * @return Collection<int, KabataanRegistration>
+     */
+    private function datedActiveFormDataRecords(?int $tenantId, ?string $dateFrom, ?string $dateTo): Collection
+    {
+        $key = ($tenantId === null ? 'all' : (string) $tenantId).'|'.($dateFrom ?? '').'|'.($dateTo ?? '');
+        if (isset($this->datedActiveFormData[$key])) {
+            return $this->datedActiveFormData[$key];
+        }
+
+        $query = $this->activeKabataanQuery($tenantId);
+        $this->applyKabataanDateRange($query, $dateFrom, $dateTo);
+
+        return $this->datedActiveFormData[$key] = $query->get(['id', 'form_data']);
     }
 
     /**

@@ -17,7 +17,7 @@
             </p>
         </div>
         <a href="{{ route('barangay-monitoring') }}" class="back-button" data-no-loading>
-            <i class="fas fa-arrow-left"></i> Back to Barangay Compliance
+            <i class="fas fa-arrow-left"></i> Back to Barangay ABYIP
         </a>
     </div>
 

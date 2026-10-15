@@ -504,7 +504,7 @@ body.sidebar-collapsed .dso-page-footer {
         min-width: 640px;
     }
 
-    .modal-content,
+    .modal-content:not(.logout-modal-content),
     .modal-overlay .modal-content,
     .calendar-modal,
     .calendar-jump-modal,

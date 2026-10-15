@@ -5,7 +5,9 @@ namespace App\Services;
 use Cloudinary\Cloudinary;
 use DateTimeInterface;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Http;
 use RuntimeException;
+use Throwable;
 
 class CloudinaryService
 {
@@ -49,9 +51,10 @@ class CloudinaryService
             $options['invalidate'] = true;
         }
 
-        $result = $this->cloudinary->uploadApi()->upload(
-            $file->getRealPath(),
-            $options
+        $result = $this->uploadImageAsset(
+            $file->getRealPath() ?: $file->getPathname(),
+            $options,
+            $file->getClientOriginalName()
         );
 
         $version = isset($result['version']) ? (int) $result['version'] : null;
@@ -125,7 +128,7 @@ class CloudinaryService
             $options['upload_preset'] = $preset;
         }
 
-        $result = $this->cloudinary->uploadApi()->upload($path, $options);
+        $result = $this->uploadImageAsset($path, $options, $file->getClientOriginalName());
         $version = isset($result['version']) ? (int) $result['version'] : null;
         $deliveryUrl = (string) ($result['secure_url'] ?? $result['url'] ?? '');
 
@@ -170,7 +173,7 @@ class CloudinaryService
             $options['upload_preset'] = $preset;
         }
 
-        $result = $this->cloudinary->uploadApi()->upload($path, $options);
+        $result = $this->uploadImageAsset($path, $options, $file->getClientOriginalName());
         $version = isset($result['version']) ? (int) $result['version'] : null;
         $deliveryUrl = (string) ($result['secure_url'] ?? $result['url'] ?? '');
 
@@ -264,6 +267,62 @@ class CloudinaryService
         $separator = str_contains($url, '?') ? '&' : '?';
 
         return $url.$separator.'cb='.$token;
+    }
+
+    /**
+     * Signed image upload. Testing Cloudinary rejects the configured API secret,
+     * so Invalid Signature retries through the existing unsigned image preset.
+     * Video uploads stay on resource_type video.
+     *
+     * @param  array<string, mixed>  $options
+     * @return array<string, mixed>
+     */
+    protected function uploadImageAsset(string $path, array $options, string $filename = 'image'): array
+    {
+        try {
+            $result = $this->cloudinary->uploadApi()->upload($path, $options);
+        } catch (Throwable $exception) {
+            if (! str_contains($exception->getMessage(), 'Invalid Signature')) {
+                throw $exception;
+            }
+
+            $result = $this->uploadUnsignedImage($path, $filename);
+        }
+
+        $resourceType = strtolower((string) ($result['resource_type'] ?? 'image'));
+        if ($resourceType !== 'image') {
+            throw new RuntimeException('Cloudinary stored the file as '.$resourceType.' instead of an image.');
+        }
+
+        return $result instanceof \ArrayAccess ? $result->getArrayCopy() : (array) $result;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function uploadUnsignedImage(string $path, string $filename): array
+    {
+        $cloud = trim((string) config('services.cloudinary.cloud_name'));
+        $preset = 'kabataan_profile_images';
+        $safeName = $filename !== '' ? $filename : 'image';
+
+        $response = Http::timeout(60)
+            ->attach('file', (string) file_get_contents($path), $safeName)
+            ->post('https://api.cloudinary.com/v1_1/'.$cloud.'/image/upload', [
+                'upload_preset' => $preset,
+            ]);
+
+        $payload = $response->json();
+        if (! is_array($payload) || ! $response->successful() || ($payload['public_id'] ?? '') === '') {
+            $message = is_array($payload) ? (string) ($payload['error']['message'] ?? 'Image upload failed.') : 'Image upload failed.';
+            throw new RuntimeException($message);
+        }
+
+        if (strtolower((string) ($payload['resource_type'] ?? '')) !== 'image') {
+            throw new RuntimeException('Cloudinary did not store the upload as an image.');
+        }
+
+        return $payload;
     }
 
     private function ensureConfigured(): void

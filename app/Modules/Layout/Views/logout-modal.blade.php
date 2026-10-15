@@ -35,15 +35,19 @@
         align-items: center;
         justify-content: center;
         -webkit-tap-highlight-color: transparent;
+        pointer-events: none;
     }
 
     #logoutModal.modal.show {
         display: flex !important;
+        pointer-events: auto;
     }
 
     #logoutModal .logout-modal-content {
-        max-width: 420px;
-        width: 100%;
+        max-width: 420px !important;
+        width: min(420px, 100%) !important;
+        height: auto !important;
+        max-height: min(90dvh, 520px) !important;
         background: #fff;
         border-radius: 16px;
         position: relative;

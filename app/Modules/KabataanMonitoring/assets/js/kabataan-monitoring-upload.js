@@ -31,11 +31,7 @@ function initializeKabataanUploadUI() {
         if (!addModal) return;
         setAddModalMaximized(false);
         addModal.style.display = 'flex';
-        if (manualPane) manualPane.hidden = false;
-        if (manualFooter) manualFooter.hidden = false;
-
-        const title = document.getElementById('kabataanAddModalTitle');
-        if (title) title.textContent = 'Add KK Record';
+        window.kmSetAddMode?.('manual');
 
         initializeKabataanForm();
         if (typeof window.initKabataanAddValidation === 'function') {
@@ -46,6 +42,33 @@ function initializeKabataanUploadUI() {
     if (addKkBtn) {
         addKkBtn.addEventListener('click', () => openAddKkModal());
     }
+
+    window.kmSetAddMode = (mode) => {
+        const uploadPane = document.getElementById('kabataanBatchUploadPanel');
+        const uploadFooter = document.getElementById('kmUploadFooter');
+        const title = document.getElementById('kabataanAddModalTitle');
+        const manualTab = document.getElementById('km-add-manual-tab');
+        const excelTab = document.getElementById('km-add-excel-tab');
+        const isExcel = mode === 'excel';
+
+        if (manualPane) manualPane.hidden = isExcel;
+        if (manualFooter) manualFooter.hidden = isExcel;
+        if (uploadPane) uploadPane.hidden = !isExcel;
+        if (uploadFooter) uploadFooter.hidden = !isExcel;
+        if (title) title.textContent = isExcel ? 'Upload KK Monitoring Records' : 'Add KK Record';
+        manualTab?.classList.toggle('is-active', !isExcel);
+        excelTab?.classList.toggle('is-active', isExcel);
+        manualTab?.setAttribute('aria-selected', String(!isExcel));
+        excelTab?.setAttribute('aria-selected', String(isExcel));
+    };
+
+    document.getElementById('km-add-manual-tab')?.addEventListener('click', () => {
+        window.kmSetAddMode('manual');
+    });
+
+    document.getElementById('km-add-excel-tab')?.addEventListener('click', () => {
+        window.kmSetAddMode('excel');
+    });
 
     const clearAllBtn = document.getElementById('kabataanClearAllBtn');
     const clearAllModal = document.getElementById('kabataanClearAllModal');
@@ -83,6 +106,9 @@ function initializeKabataanUploadUI() {
         btn.addEventListener('click', () => {
             closeAddModal();
         });
+    });
+    addModal?.addEventListener('click', (event) => {
+        if (event.target === addModal) closeAddModal();
     });
 
     if (saveBtn) {
@@ -124,7 +150,7 @@ async function handleManualSave() {
         const result = await response.json();
 
         if (response.ok) {
-            alert('Kabataan record saved successfully!');
+            alert('Kabataan record saved successfully and marked approved.');
             closeAddModal();
             if (typeof window.kmReloadRecords === 'function') {
                 window.kmReloadRecords({ force: true });
@@ -147,6 +173,7 @@ function getKabataanFormData() {
     const suffixSelect = document.getElementById('kabataanSuffix')?.value || 'None';
     const customSuffix = document.getElementById('kabataanCustomSuffix')?.value?.trim() || '';
     const suffix = suffixSelect === 'Others' ? (customSuffix || 'Others') : suffixSelect;
+    const contactNumber = document.getElementById('kabataanContactInput')?.value || '';
 
     return {
         last_name: document.getElementById('kabataanLastName')?.value || '',
@@ -154,7 +181,7 @@ function getKabataanFormData() {
         middle_name: document.getElementById('kabataanMiddleName')?.value || '',
         suffix: suffix,
         email: document.getElementById('kabataanEmail')?.value || '',
-        contact_number: document.getElementById('kabataanContactInput')?.value || '',
+        contact_number: contactNumber === '09' ? '' : contactNumber,
         age: document.getElementById('kabataanAgeInput')?.value || '',
         birthday: document.getElementById('kabataanDob')?.value || '',
         sex: document.getElementById('kabataanSex')?.value || '',
@@ -209,11 +236,6 @@ function initializeKabataanForm() {
     const respondentInput = document.getElementById('kabataanRespondentNumber');
     if (respondentInput) respondentInput.value = 'Auto-assigned on save';
 
-    const contactInput = document.getElementById('kabataanContactInput');
-    if (contactInput && !String(contactInput.value || '').trim()) {
-        contactInput.value = '09';
-    }
-
     syncKabataanSignatureName();
     if (typeof window.kkfSyncAssemblyFollowUp === 'function') {
         window.kkfSyncAssemblyFollowUp();
@@ -265,7 +287,7 @@ function clearManualKabataanForm() {
     });
 
     const contactAfterClear = document.getElementById('kabataanContactInput');
-    if (contactAfterClear) contactAfterClear.value = '09';
+    if (contactAfterClear) contactAfterClear.value = '';
 
     form.querySelectorAll('.kkp-field-error, .kkp-demo-block-error, .kkp-section-error').forEach((error) => error.remove());
     form.querySelectorAll('.kkp-input-err').forEach((input) => input.classList.remove('kkp-input-err'));
@@ -299,8 +321,11 @@ function closeAddModal() {
         if (restoreBtn) restoreBtn.hidden = true;
     }
 
+    window.kmSetAddMode?.('manual');
     clearManualKabataanForm();
 }
+
+window.kmCloseAddModal = closeAddModal;
 
 // Global functions for KK form interactions
 function kkfSetAssemblyFollowupState(cell, enabled) {

@@ -108,14 +108,18 @@ class StoreAccountRequest extends FormRequest
         $termStartMin = SkOfficialTermDates::FIRST_START;
         $termStartMax = SkOfficialTermDates::maxStart();
 
-        $bounds = SkOfficialTermDates::birthdateBounds();
+        $bounds = match (true) {
+            $isFederation => SkOfficialTermDates::federationBirthdateBounds(),
+            $isOfficial => SkOfficialTermDates::officialAccountBirthdateBounds(),
+            default => SkOfficialTermDates::birthdateBounds(),
+        };
         $dobMin = $bounds['min'];
         $dobMax = $bounds['max'];
 
         $nameMin = $isOfficial ? 2 : 3;
         $nameMax = $isOfficial ? 150 : 100;
-        $nameRules = ['required', 'string', 'min:'.$nameMin, 'max:'.$nameMax, 'regex:/^(?!\s)[A-Z.\-\']+(?: [A-Z.\-\']+)*$/u'];
-        $middleNameRules = ['nullable', 'string', 'min:'.$nameMin, 'max:'.$nameMax, 'regex:/^(?!\s)[A-Z.\-\']+(?: [A-Z.\-\']+)*$/u'];
+        $nameRules = ['required', 'string', 'min:'.$nameMin, 'max:'.$nameMax, 'regex:/^(?!\s)[\p{L}.\-\']+(?: [\p{L}.\-\']+)*$/u'];
+        $middleNameRules = ['nullable', 'string', 'min:'.$nameMin, 'max:'.$nameMax, 'regex:/^(?!\s)[\p{L}.\-\']+(?: [\p{L}.\-\']+)*$/u'];
 
         $dateOfBirthRules = ($isOfficial || $isFederation)
             ? ['required', 'date', 'before:today', 'after_or_equal:'.$dobMin, 'before_or_equal:'.$dobMax]
@@ -197,7 +201,11 @@ class StoreAccountRequest extends FormRequest
             return;
         }
 
-        $error = SkOfficialTermDates::birthdateErrorFor($dob);
+        $error = match ($this->input('role')) {
+            User::ROLE_SK_FED => SkOfficialTermDates::federationBirthdateErrorFor($dob),
+            User::ROLE_SK_OFFICIAL => SkOfficialTermDates::officialAccountBirthdateErrorFor($dob),
+            default => SkOfficialTermDates::birthdateErrorFor($dob),
+        };
         if ($error !== null) {
             $validator->errors()->add('date_of_birth', $error);
         }
@@ -265,22 +273,28 @@ class StoreAccountRequest extends FormRequest
      */
     public function messages(): array
     {
+        $role = (string) $this->input('role');
+
         return [
             'email.unique' => 'This email is already taken.',
             'email.required' => ValidEmailAddress::MSG_REQUIRED,
             'email.max' => ValidEmailAddress::MSG_MAX,
             'first_name.regex' => 'First name must use uppercase letters only; need a letter before each space; no pure spaces.',
             'first_name.min' => 'First name must be at least 2 characters.',
-            'first_name.max' => 'First name must not exceed 150 characters.',
+            'first_name.max' => '150 maximum characters only.',
             'last_name.regex' => 'Last name must use uppercase letters only; need a letter before each space; no pure spaces.',
             'last_name.min' => 'Last name must be at least 2 characters.',
-            'last_name.max' => 'Last name must not exceed 150 characters.',
+            'last_name.max' => '150 maximum characters only.',
             'middle_name.regex' => 'Middle name must use uppercase letters only; need a letter before each space; no pure spaces.',
             'middle_name.min' => 'Middle name must be at least 2 characters when provided.',
-            'middle_name.max' => 'Middle name must not exceed 150 characters.',
+            'middle_name.max' => '150 maximum characters only.',
             'date_of_birth.required' => SkOfficialTermDates::MSG_DOB_REQUIRED,
             'date_of_birth.before' => 'Birthdate must be before today.',
-            'date_of_birth.after_or_equal' => SkOfficialTermDates::MSG_OVER_MAX_AGE,
+            'date_of_birth.after_or_equal' => match ($role) {
+                User::ROLE_SK_FED => SkOfficialTermDates::MSG_BEFORE_FEDERATION_MIN_BIRTHDATE,
+                User::ROLE_SK_OFFICIAL => SkOfficialTermDates::MSG_BEFORE_OFFICIAL_MIN_BIRTHDATE,
+                default => SkOfficialTermDates::MSG_OVER_MAX_AGE,
+            },
             'date_of_birth.before_or_equal' => SkOfficialTermDates::MSG_UNDER_MIN_AGE,
             'age.min' => 'Age must be a valid number.',
             'age.max' => 'Age must be a valid number.',

@@ -94,7 +94,11 @@ class AuditLogQueryService
 
         $weekQuery = AdminActivityLog::query();
         $this->applyTenantScope($weekQuery, $tenantId);
-        $weekQuery->where('created_at', '>=', now()->subDays(7)->startOfDay());
+        $weekQuery->where('created_at', '>=', now()->startOfWeek());
+
+        $monthQuery = AdminActivityLog::query();
+        $this->applyTenantScope($monthQuery, $tenantId);
+        $monthQuery->where('created_at', '>=', now()->startOfMonth());
 
         return [
             'total_logs' => (int) $base->count(),
@@ -102,6 +106,7 @@ class AuditLogQueryService
             'security_events' => (int) $securityQuery->count(),
             'failed_logins_today' => (int) $failedLoginsQuery->count(),
             'week_activities' => (int) $weekQuery->count(),
+            'month_activities' => (int) $monthQuery->count(),
         ];
     }
 
@@ -277,6 +282,15 @@ class AuditLogQueryService
             },
         ]);
         $this->applyTenantScope($query, $tenantId);
+        $query->where(function (Builder $scope): void {
+            $scope->whereNull('user_id')
+                ->orWhereHas('user', function (Builder $userQuery): void {
+                    $userQuery
+                        ->withoutGlobalScope(SoftDeletingScope::class)
+                        ->whereNotNull('email')
+                        ->where('email', '<>', '');
+                });
+        });
 
         return $query;
     }

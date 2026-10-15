@@ -10,6 +10,304 @@
     --km-radius: 16px;
 }
 
+.km-review-section,
+.km-review-detail-card {
+    background: #fff;
+    border: 1px solid var(--km-border);
+    border-radius: var(--km-radius);
+    box-shadow: var(--km-card-shadow);
+    padding: 20px;
+}
+
+.km-review-heading {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 16px;
+}
+
+.km-review-heading h1,
+.km-review-heading h2,
+.km-review-detail-card h2 {
+    margin: 0;
+    color: var(--km-text);
+    font-size: 20px;
+    font-weight: 750;
+}
+
+.km-review-heading p,
+.km-review-detail-card > p,
+.km-review-year {
+    color: var(--km-muted);
+    margin: 5px 0 0;
+}
+
+.km-review-eyebrow {
+    color: var(--km-blue) !important;
+    font-size: 11px;
+    font-weight: 750;
+    letter-spacing: .08em;
+    margin: 0 0 4px !important;
+    text-transform: uppercase;
+}
+
+.km-review-all-link {
+    color: var(--km-blue);
+    font-weight: 650;
+    text-decoration: none;
+}
+
+.km-review-all-link:hover {
+    text-decoration: underline;
+}
+
+.km-review-filter {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 0 0 14px;
+}
+
+.km-review-filter label {
+    color: var(--km-text);
+    font-size: 13px;
+    font-weight: 650;
+}
+
+.km-review-filter .km-select {
+    min-width: 180px;
+}
+
+.km-review-filter-submit {
+    border: 1px solid var(--km-border);
+    border-radius: 8px;
+    background: #fff;
+    padding: 8px 12px;
+}
+
+.km-review-message {
+    border-radius: 9px;
+    margin: 0 0 14px;
+    padding: 10px 12px;
+}
+
+.km-review-message p,
+.km-review-message ul {
+    margin: 0;
+}
+
+.km-review-message ul {
+    padding-left: 20px;
+}
+
+.km-review-message--success {
+    background: #ecfdf5;
+    border: 1px solid #86efac;
+    color: #166534;
+}
+
+.km-review-message--error {
+    background: #fff1f2;
+    border: 1px solid #fda4af;
+    color: #9f1239;
+}
+
+.km-review-table-wrap {
+    overflow-x: auto;
+    width: 100%;
+}
+
+.km-review-table {
+    border-collapse: collapse;
+    min-width: 690px;
+    width: 100%;
+}
+
+.km-review-table th,
+.km-review-table td {
+    border-bottom: 1px solid #e8edf4;
+    padding: 11px 10px;
+    text-align: left;
+    vertical-align: middle;
+}
+
+.km-review-table th {
+    background: #f8fafc;
+    color: #475569;
+    font-size: 11px;
+    font-weight: 750;
+    text-transform: uppercase;
+}
+
+.km-review-table td {
+    color: var(--km-text);
+    font-size: 13px;
+}
+
+.km-review-status {
+    background: #f1f5f9;
+    border-radius: 999px;
+    color: #475569;
+    display: inline-flex;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 4px 9px;
+    white-space: nowrap;
+}
+
+.km-review-status--pending {
+    background: #fffbeb;
+    color: #92400e;
+}
+
+.km-review-status--approved {
+    background: #ecfdf5;
+    color: #166534;
+}
+
+.km-review-status--rejected {
+    background: #fff1f2;
+    color: #9f1239;
+}
+
+.km-review-actions {
+    align-items: flex-start;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.km-review-button {
+    align-items: center;
+    border: 1px solid transparent;
+    border-radius: 7px;
+    cursor: pointer;
+    display: inline-flex;
+    font: inherit;
+    font-size: 12px;
+    font-weight: 650;
+    justify-content: center;
+    min-height: 32px;
+    padding: 6px 9px;
+    text-decoration: none;
+}
+
+.km-review-button:disabled {
+    cursor: wait;
+    opacity: .65;
+}
+
+.km-review-button--secondary {
+    background: #eff6ff;
+    border-color: #bfdbfe;
+    color: #1e40af;
+}
+
+.km-review-button--approve {
+    background: #16a34a;
+    color: #fff;
+}
+
+.km-review-button--reject {
+    background: #dc2626;
+    color: #fff;
+}
+
+.km-review-reject {
+    position: relative;
+}
+
+.km-review-reject summary {
+    list-style: none;
+}
+
+.km-review-reject summary::-webkit-details-marker {
+    display: none;
+}
+
+.km-review-reject form {
+    background: #fff;
+    border: 1px solid var(--km-border);
+    border-radius: 10px;
+    box-shadow: 0 10px 25px rgba(15, 23, 42, .14);
+    display: grid;
+    gap: 7px;
+    min-width: 240px;
+    padding: 12px;
+    position: absolute;
+    right: 0;
+    top: 38px;
+    z-index: 10;
+}
+
+.km-review-reject label {
+    color: var(--km-text);
+    font-size: 12px;
+    font-weight: 650;
+}
+
+.km-review-reject label span {
+    color: var(--km-muted);
+    font-weight: 400;
+}
+
+.km-review-reject input,
+.km-review-reject textarea {
+    border: 1px solid var(--km-border);
+    border-radius: 6px;
+    font: inherit;
+    font-size: 13px;
+    padding: 7px;
+    width: 100%;
+}
+
+.km-review-empty {
+    color: var(--km-muted) !important;
+    padding: 24px !important;
+    text-align: center !important;
+}
+
+.km-review-pagination {
+    margin-top: 12px;
+}
+
+.km-review-detail-page {
+    max-width: 1080px;
+}
+
+.km-review-detail-card {
+    margin-top: 16px;
+}
+
+.km-review-detail-card .km-review-heading {
+    margin-bottom: 10px;
+}
+
+.km-review-rejection-reason {
+    color: #9f1239 !important;
+}
+
+@media (max-width: 640px) {
+    .km-review-section,
+    .km-review-detail-card {
+        padding: 14px;
+    }
+
+    .km-review-heading {
+        flex-direction: column;
+    }
+
+    .km-review-filter {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .km-review-filter .km-select {
+        width: 100%;
+    }
+}
+
 .main-content.km-main {
     background: var(--km-bg);
     min-height: calc(100vh - 64px);
@@ -695,7 +993,169 @@
     outline-offset: 2px;
 }
 
-/* ── Manual / Batch mode tabs (inside Add KK modal) ── */
+.km-btn--excel-upload {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    height: 36px;
+    padding: 0 16px;
+    border: 1px solid #15803d;
+    border-radius: 8px;
+    background: #198754;
+    color: #fff;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background 0.15s, border-color 0.15s;
+}
+
+.km-btn--excel-upload:hover:not(:disabled) {
+    background: #157347;
+    border-color: #146c43;
+}
+
+.km-btn--excel-upload:focus-visible,
+.km-import-monitoring-btn:focus-visible {
+    outline: 2px solid #198754;
+    outline-offset: 2px;
+}
+
+.km-record-source {
+    display: inline-flex;
+    align-items: center;
+    border-radius: 999px;
+    padding: 4px 9px;
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 1.2;
+    white-space: nowrap;
+}
+
+.km-record-source--approved {
+    background: #dcfce7;
+    color: #166534;
+}
+
+.km-record-source--monitoring {
+    background: #fef3c7;
+    color: #92400e;
+}
+
+.km-record-source--pending {
+    background: #fef3c7;
+    color: #92400e;
+}
+
+.km-record-source--rejected {
+    background: #fee2e2;
+    color: #991b1b;
+}
+
+.km-btn--template,
+.km-btn--browse {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    min-height: 36px;
+    padding: 0 14px;
+    border: 1px solid #198754;
+    border-radius: 8px;
+    background: #fff;
+    color: #157347;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.km-btn--template:hover,
+.km-btn--browse:hover {
+    background: #f0fdf4;
+}
+
+.km-upload-feedback {
+    padding: 11px 13px;
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    color: #334155;
+    background: #f8fafc;
+    font-size: 13px;
+    line-height: 1.5;
+}
+
+.km-upload-feedback.is-success {
+    color: #166534;
+    border-color: #86efac;
+    background: #f0fdf4;
+}
+
+.km-upload-feedback.is-warning {
+    color: #854d0e;
+    border-color: #fcd34d;
+    background: #fffbeb;
+}
+
+.km-upload-feedback.is-error {
+    color: #991b1b;
+    border-color: #fca5a5;
+    background: #fef2f2;
+}
+
+.km-upload-errors {
+    max-height: 180px;
+    overflow: auto;
+    margin: 0;
+    padding: 10px 12px 10px 32px;
+    border: 1px solid #fecaca;
+    border-radius: 8px;
+    color: #7f1d1d;
+    background: #fff7f7;
+    font-size: 12px;
+    line-height: 1.45;
+}
+
+.km-upload-errors li + li {
+    margin-top: 4px;
+}
+
+.kabataan-upload-area.is-dragging {
+    border-color: #198754;
+    background: #f0fdf4;
+}
+
+.km-import-monitoring-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    min-height: 36px;
+    background: #198754;
+    color: #fff;
+}
+
+.kabataan-modal-footer .km-import-monitoring-btn {
+    background: #198754;
+    color: #fff;
+}
+
+.km-import-monitoring-btn:hover:not(:disabled) {
+    background: #157347;
+}
+
+.km-import-monitoring-btn:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+}
+
+.kabataan-file-info[hidden],
+.km-upload-feedback[hidden],
+.km-upload-errors[hidden] {
+    display: none !important;
+}
+
+/* ── Manual / Excel mode tabs (inside Add Kabataan modal) ── */
 .km-add-mode-switcher {
     flex-shrink: 0;
     padding: 12px 18px 0;
@@ -1066,6 +1526,186 @@
     border: 1px solid #e2e8f0;
     border-radius: 8px;
     margin-bottom: 12px;
+}
+
+.km-excel-preview {
+    min-width: 0;
+    padding: 14px;
+    background: #ffffff;
+    border: 1px solid #dbe4ee;
+    border-radius: 12px;
+}
+
+.km-excel-preview[hidden] {
+    display: none;
+}
+
+.km-excel-preview-heading {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 10px;
+}
+
+.km-excel-preview-heading h3 {
+    margin: 0;
+    color: #1e293b;
+    font-size: 14px;
+    font-weight: 700;
+}
+
+.km-excel-preview-heading p,
+.km-excel-preview-note {
+    margin: 4px 0 0;
+    color: #64748b;
+    font-size: 12px;
+}
+
+.km-excel-preview-note {
+    flex: 0 0 auto;
+}
+
+.km-excel-preview-scroll {
+    width: 100%;
+    max-height: 340px;
+    overflow: auto;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    background: #ffffff;
+}
+
+.km-excel-preview-table {
+    width: max-content;
+    min-width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    color: #334155;
+    font-size: 12px;
+}
+
+.km-excel-preview-table th,
+.km-excel-preview-table td {
+    max-width: 280px;
+    padding: 8px 10px;
+    overflow: hidden;
+    border-bottom: 1px solid #e2e8f0;
+    text-align: left;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.km-excel-preview-table td {
+    max-width: none;
+    min-width: 145px;
+    padding: 5px;
+}
+
+.km-excel-preview-control {
+    width: 100%;
+    min-width: 135px;
+    min-height: 34px;
+    padding: 6px 8px;
+    border: 1px solid #cbd5e1;
+    border-radius: 6px;
+    background: #fff;
+    color: #1e293b;
+    font: inherit;
+    font-size: 12px;
+    text-overflow: ellipsis;
+}
+
+.km-excel-preview-control:focus {
+    border-color: #2f4e85;
+    outline: 2px solid rgba(47, 78, 133, .18);
+}
+
+.km-excel-preview-control[type="number"] {
+    min-width: 90px;
+}
+
+.km-excel-preview-pagination {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    margin-top: 12px;
+    color: #475569;
+    font-size: 12px;
+}
+
+.km-excel-preview-pagination[hidden] {
+    display: none;
+}
+
+.km-excel-preview-page-btn {
+    min-height: 34px;
+    padding: 6px 12px;
+    border: 1px solid #cbd5e1;
+    border-radius: 6px;
+    background: #fff;
+    color: #334155;
+    font: inherit;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.km-excel-preview-page-btn:hover:not(:disabled) {
+    border-color: #2f4e85;
+    color: #2f4e85;
+}
+
+.km-excel-preview-page-btn:disabled {
+    opacity: .5;
+    cursor: not-allowed;
+}
+
+.km-excel-preview-table th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    background: #f1f5f9;
+    color: #334155;
+    font-weight: 700;
+}
+
+.km-excel-preview-table tbody tr:nth-child(even) {
+    background: #f8fafc;
+}
+
+.km-excel-preview-table tbody tr:last-child td {
+    border-bottom: 0;
+}
+
+.km-excel-preview-row-number {
+    position: sticky;
+    left: 0;
+    z-index: 2;
+    background: #f1f5f9;
+    color: #64748b;
+    font-weight: 700;
+}
+
+#kabataanAddModal.modal-maximized {
+    align-items: stretch;
+    justify-content: stretch;
+    padding: 0;
+}
+
+#kabataanAddModal.modal-maximized .kabataan-modal-box {
+    width: 100%;
+    max-width: none;
+    height: 100%;
+    max-height: 100%;
+    border-radius: 0;
+}
+
+#kabataanAddModal.modal-maximized .kabataan-modal-body {
+    padding: 18px 22px;
+}
+
+#kabataanAddModal.modal-maximized .km-excel-preview-scroll {
+    max-height: min(55vh, 620px);
 }
 
 .kabataan-preview-table {
@@ -1798,7 +2438,9 @@
 }
 
 .km-export-btn,
-.km-batch-print-btn {
+.km-batch-print-btn,
+.km-batch-approve-btn,
+.km-batch-delete-btn {
     height: 36px;
     padding: 0 14px;
     display: inline-flex;
@@ -1822,11 +2464,14 @@
 }
 
 .km-export-btn--csv {
-    background: #16a34a;
+    background: #fff;
+    color: #475569;
+    border: 1px solid #cbd5e1;
 }
 
 .km-export-btn--csv:hover {
-    background: #15803d;
+    background: #f1f5f9;
+    color: #1f2937;
 }
 
 .km-batch-print-btn {
@@ -1838,9 +2483,88 @@
     background: #15803d;
 }
 
-.km-batch-print-btn:disabled {
+.km-batch-print-btn:disabled,
+.km-batch-approve-btn:disabled,
+.km-batch-delete-btn:disabled {
     opacity: 0.45;
     cursor: not-allowed;
+}
+
+.km-batch-approve-btn {
+    background: #16a34a;
+}
+
+.km-batch-approve-btn:hover:not(:disabled) {
+    background: #15803d;
+}
+
+.km-batch-delete-btn {
+    background: #dc2626;
+}
+
+.km-batch-delete-btn:hover:not(:disabled) {
+    background: #b91c1c;
+}
+
+.km-add-mode-toggle {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 16px;
+    padding: 4px;
+    border-radius: 10px;
+    background: #f1f5f9;
+}
+
+.km-add-mode-tab {
+    flex: 1;
+    min-width: 0;
+    min-height: 42px;
+    padding: 8px 14px;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    color: #475569;
+    font: inherit;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.km-add-mode-tab.is-active {
+    background: #fff;
+    color: #1a3263;
+    box-shadow: 0 1px 4px rgba(15, 23, 42, 0.12);
+}
+
+.km-add-mode-tab:focus-visible {
+    outline: 2px solid #1a3263;
+    outline-offset: 2px;
+}
+
+.km-upload-panel-actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-top: 18px;
+    padding: 14px 0 0;
+    border-top: 1px solid #e2e8f0;
+}
+
+.km-upload-approved-note {
+    margin: 0 auto 0 0;
+    color: #166534;
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.km-upload-panel-actions [data-add-modal-close],
+.km-upload-panel-actions .km-import-monitoring-btn {
+    min-height: 40px;
+}
+
+[hidden] {
+    display: none !important;
 }
 
 .km-col-check {
@@ -2442,6 +3166,149 @@
     font-size: 13px;
     font-weight: 700;
     cursor: pointer;
+}
+
+.km-monitoring-document {
+    margin: 18px 0;
+    padding: 16px;
+    border: 1px solid var(--km-border);
+    border-radius: 12px;
+    background: #fff;
+}
+
+.km-monitoring-document-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 12px;
+}
+
+.km-monitoring-document-header h3 {
+    margin: 0;
+    color: var(--km-text);
+    font-size: 15px;
+    font-weight: 700;
+}
+
+.km-monitoring-document-meta {
+    margin: 5px 0 0;
+    color: var(--km-muted);
+    font-size: 13px;
+    overflow-wrap: anywhere;
+}
+
+.km-monitoring-document-links,
+.km-monitoring-document-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+}
+
+.km-monitoring-document-link,
+.km-monitoring-document-upload-btn {
+    min-height: 38px;
+    padding: 8px 12px;
+    border: 1px solid #15803d;
+    border-radius: 8px;
+    background: #16a34a;
+    color: #fff;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    font: inherit;
+    font-size: 13px;
+    font-weight: 700;
+    text-decoration: none;
+    cursor: pointer;
+}
+
+.km-monitoring-document-link:hover,
+.km-monitoring-document-upload-btn:hover {
+    background: #15803d;
+    color: #fff;
+}
+
+.km-monitoring-document-link[hidden],
+.km-monitoring-document-links[hidden],
+.km-monitoring-document-upload[hidden] {
+    display: none !important;
+}
+
+.km-monitoring-document-upload {
+    margin-top: 14px;
+    padding-top: 14px;
+    border-top: 1px solid #e2e8f0;
+}
+
+.km-monitoring-document-upload-label {
+    display: block;
+    margin-bottom: 8px;
+    color: var(--km-text);
+    font-size: 13px;
+    font-weight: 700;
+}
+
+.km-monitoring-document-input {
+    min-width: 0;
+    max-width: 100%;
+    color: var(--km-text);
+    font-size: 13px;
+}
+
+.km-monitoring-document-upload-btn:disabled {
+    opacity: .65;
+    cursor: wait;
+}
+
+.km-monitoring-document progress {
+    display: block;
+    width: 100%;
+    height: 8px;
+    margin-top: 12px;
+    accent-color: #16a34a;
+}
+
+.km-monitoring-document progress[hidden] {
+    display: none;
+}
+
+.km-monitoring-document-status {
+    margin: 10px 0 0;
+    color: #166534;
+    font-size: 13px;
+    overflow-wrap: anywhere;
+}
+
+.km-monitoring-document-status.is-error {
+    color: #b91c1c;
+}
+
+.km-monitoring-document-status[hidden] {
+    display: none;
+}
+
+@media (max-width: 576px) {
+    .km-monitoring-document {
+        padding: 12px;
+    }
+
+    .km-monitoring-document-header,
+    .km-monitoring-document-actions {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .km-monitoring-document-links {
+        width: 100%;
+    }
+
+    .km-monitoring-document-link,
+    .km-monitoring-document-upload-btn {
+        flex: 1 1 auto;
+    }
 }
 
 .km-kkp-btn-save:hover {
@@ -3320,7 +4187,9 @@ body.sidebar-collapsed .km-page-pagination {
     }
 
     .km-filter-bar--detail .km-export-btn,
-    .km-filter-bar--detail .km-batch-print-btn {
+    .km-filter-bar--detail .km-batch-print-btn,
+    .km-filter-bar--detail .km-batch-approve-btn,
+    .km-filter-bar--detail .km-batch-delete-btn {
         width: 100%;
         justify-content: center;
     }
@@ -3454,7 +4323,9 @@ body.sidebar-collapsed .km-page-pagination {
     }
 
     .km-filter-bar--detail .km-export-btn,
-    .km-filter-bar--detail .km-batch-print-btn {
+    .km-filter-bar--detail .km-batch-print-btn,
+    .km-filter-bar--detail .km-batch-approve-btn,
+    .km-filter-bar--detail .km-batch-delete-btn {
         width: 100%;
         height: 38px;
         padding: 0 10px;

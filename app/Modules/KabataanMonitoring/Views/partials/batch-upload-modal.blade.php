@@ -1,77 +1,66 @@
-{{-- Batch Upload Modal --}}
-<div class="modal-backdrop kabataan-modal-backdrop" id="kabataanBatchUploadModal" style="display:none;">
-    <div class="modal-box kabataan-modal-box">
-        <div class="modal-header">
-            <h2 class="modal-title">Batch Upload Kabataan Records</h2>
-            <div class="modal-window-controls">
-                <button type="button" class="modal-close" data-batch-modal-close aria-label="Close">&times;</button>
-            </div>
-        </div>
-        <div class="modal-body kabataan-modal-body">
-            <div class="kabataan-batch-upload-container">
+<section id="kabataanBatchUploadPanel" class="kabataan-mode-panel kabataan-batch-upload-panel" role="tabpanel" aria-labelledby="km-add-excel-tab" hidden>
+    <div class="kabataan-batch-upload-container">
                 <div class="kabataan-upload-instructions">
-                    <h3>Upload Instructions</h3>
-                    <p>Upload an Excel (.xlsx) or CSV file containing Kabataan records.</p>
+                    <h3>Barangay-scoped monitoring import</h3>
+                    <p>Upload youth monitoring records for <strong>{{ $barangay }}</strong>. Files are validated on the server before any records are written.</p>
                     <ul>
-                        <li>Download the template below to ensure correct format</li>
-                        <li>Fill in the required fields</li>
-                        <li>Upload the completed file</li>
+                        <li>Use the template headers without renaming columns.</li>
+                        <li>Required fields include name, sex, age, and Purok/Zone.</li>
+                        <li>Valid records are added to the approved KK registry. Duplicate and invalid rows are skipped and included in the import summary.</li>
+                        <li>Maximum file size: 25 MB; maximum data rows: 5,000.</li>
                     </ul>
-                    <button type="button" class="km-btn km-btn--manual" id="km-download-template-btn">
-                        <i class="fas fa-download"></i> Download Template
+                    <button type="button" class="km-btn km-btn--template" id="km-download-template-btn">
+                        <i class="fas fa-file-download" aria-hidden="true"></i> Download Excel Template
                     </button>
                 </div>
 
-                <div class="kabataan-upload-area">
-                    <div class="kabataan-upload-dropzone" id="kabataanUploadDropzone">
+                <div class="kabataan-upload-area" id="kabataanUploadDropzone">
+                    <div class="kabataan-upload-dropzone">
                         <div class="kabataan-upload-icon">
-                            <i class="fas fa-cloud-upload-alt"></i>
+                            <i class="fas fa-file-excel" aria-hidden="true"></i>
                         </div>
-                        <p class="kabataan-upload-text">Drag and drop your file here</p>
-                        <p class="kabataan-upload-or">or</p>
-                        <input type="file" id="kabataanFileInput" accept=".xlsx,.xls,.csv" style="display:none;">
-                        <button type="button" class="km-btn km-btn--manual" id="kabataanSelectFileBtn">
-                            <i class="fas fa-folder-open"></i> Browse Files
+                        <p class="kabataan-upload-text">Choose an Excel file for this barangay</p>
+                        <input type="file" id="kabataanFileInput" accept=".xlsx,.xls,.csv" hidden>
+                        <button type="button" class="km-btn km-btn--browse" id="kabataanSelectFileBtn">
+                            <i class="fas fa-folder-open" aria-hidden="true"></i> Browse Files
                         </button>
-                        <p class="kabataan-upload-formats">Supported formats: .xlsx, .xls, .csv</p>
-                    </div>
-                    <div class="kabataan-file-info" id="kabataanFileInfo" style="display:none;">
-                        <div class="kabataan-file-name" id="kabataanFileName"></div>
-                        <button type="button" class="kabataan-remove-file" id="kabataanRemoveFileBtn">
-                            <i class="fas fa-times"></i>
-                        </button>
+                        <p class="kabataan-upload-formats">Supported: .xlsx, .xls, .csv</p>
                     </div>
                 </div>
-
-                <div class="kabataan-upload-preview" id="kabataanUploadPreview" style="display:none;">
-                    <h3>Preview</h3>
-                    <div class="kabataan-preview-table-container">
-                        <table class="kabataan-preview-table">
-                            <thead>
-                                <tr>
-                                    <th>Last Name</th>
-                                    <th>First Name</th>
-                                    <th>Middle Name</th>
-                                    <th>Age</th>
-                                    <th>Sex</th>
-                                    <th>Purok/Zone</th>
-                                </tr>
-                            </thead>
-                            <tbody id="kabataanPreviewBody">
-                            </tbody>
+                <div class="kabataan-file-info" id="kabataanFileInfo" hidden>
+                    <span class="kabataan-file-name" id="kabataanFileName"></span>
+                    <button type="button" class="kabataan-remove-file" id="kabataanRemoveFileBtn" aria-label="Remove selected file">
+                        <i class="fas fa-times" aria-hidden="true"></i>
+                    </button>
+                </div>
+                <section class="km-excel-preview" id="kmExcelPreview" hidden aria-labelledby="kmExcelPreviewTitle">
+                    <div class="km-excel-preview-heading">
+                        <div>
+                            <h3 id="kmExcelPreviewTitle">Spreadsheet Preview</h3>
+                            <p id="kmExcelPreviewMeta"></p>
+                        </div>
+                        <span class="km-excel-preview-note">First worksheet · editable, paginated preview</span>
+                    </div>
+                    <div class="km-excel-preview-scroll" role="region" aria-label="Uploaded spreadsheet preview" tabindex="0">
+                        <table class="km-excel-preview-table">
+                            <thead id="kmExcelPreviewHead"></thead>
+                            <tbody id="kmExcelPreviewBody"></tbody>
                         </table>
                     </div>
-                    <div class="kabataan-pagination-info" id="kabataanPaginationInfo"></div>
-                    <div class="kabataan-pagination-controls">
-                        <button type="button" class="km-btn" id="kabataanPreviewPrev" disabled>Previous</button>
-                        <button type="button" class="km-btn" id="kabataanPreviewNext" disabled>Next</button>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div class="modal-footer kabataan-modal-footer">
-            <button type="button" class="btn btn-approve-cancel" data-batch-modal-close>Cancel</button>
-            <button type="button" class="btn primary-btn" id="kabataanBatchUploadBtn" disabled>Upload Records</button>
+                    <nav class="km-excel-preview-pagination" id="kmExcelPreviewPagination" aria-label="Spreadsheet preview pages" hidden>
+                        <button type="button" class="km-excel-preview-page-btn" data-preview-page-step="-1" disabled>Previous</button>
+                        <span id="kmExcelPreviewPageLabel" aria-live="polite"></span>
+                        <button type="button" class="km-excel-preview-page-btn" data-preview-page-step="1">Next</button>
+                    </nav>
+                </section>
+                <div class="km-upload-feedback" id="km-upload-feedback" hidden aria-live="polite"></div>
+                <ul class="km-upload-errors" id="km-upload-errors" hidden></ul>
+        <div class="modal-footer kabataan-modal-footer km-upload-panel-actions" id="kmUploadFooter">
+            <button type="button" class="km-kkp-btn-close" data-add-modal-close>Cancel</button>
+            <p class="km-upload-approved-note">Uploaded records are saved as Approved.</p>
+            <button type="button" class="btn primary-btn km-import-monitoring-btn" id="kabataanBatchUploadBtn" disabled>
+                <i class="fas fa-file-import" aria-hidden="true"></i> Import Approved Records
+            </button>
         </div>
     </div>
-</div>
+</section>

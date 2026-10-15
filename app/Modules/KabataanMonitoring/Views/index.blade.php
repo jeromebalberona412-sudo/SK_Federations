@@ -49,6 +49,7 @@
 <script>
     window.kmPageMode = 'index';
     window.kmBarangay = '';
+    window.kmTenantId = @json((int) $user->tenant_id);
     window.kmInitialPayload = {
         data: @json($initialRecords ?? []),
         years: @json($registrationYears ?? []),

@@ -74,15 +74,18 @@
                 aria-expanded="false"
                 aria-haspopup="true"
             >
-                <i class="fas fa-bell"></i>
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
+                    <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+                </svg>
                 <span class="notif-badge" id="notifBadge" data-unread-total="{{ $unreadNotifCount }}" style="{{ $unreadNotifCount > 0 ? '' : 'display: none;' }}">{{ $unreadNotifLabel }}</span>
             </button>
 
             @include('notifications::dropdown-popover')
         </div>
 
-        <div class="profile-dropdown-wrapper" data-tour="account-menu">
-            <button class="profile-btn" onclick="toggleProfileDropdown(event)" aria-label="Profile menu" aria-expanded="false" aria-haspopup="true">
+        <div class="profile-dropdown-wrapper">
+            <button class="profile-btn" data-tour="account-menu" onclick="toggleProfileDropdown(event)" aria-label="Profile menu" aria-expanded="false" aria-haspopup="true">
                 <img src="{{ $avatar }}" alt="Profile" class="nav-avatar">
                 <i class="fas fa-chevron-down nav-chevron"></i>
             </button>
