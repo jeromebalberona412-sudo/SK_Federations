@@ -66,21 +66,29 @@ function getDashboardDateRange() {
             toInput.min = dateFrom;
             toInput.max = maxBound;
         }
-    } else {
-        if (termStart && dateFrom < termStart) {
+    } else if (termStart && termEnd && (dateFrom < termStart || dateTo > termEnd || dateFrom > dateTo)) {
+        if (dateFrom < termStart) {
             dateFrom = termStart;
-            if (fromInput) fromInput.value = dateFrom;
         }
-        if (termEnd && dateTo > termEnd) {
+        if (dateTo > termEnd) {
             dateTo = termEnd;
-            if (toInput) toInput.value = dateTo;
         }
+        if (dateFrom > dateTo) {
+            dateTo = dateFrom;
+        }
+        if (fromInput) fromInput.value = dateFrom;
+        if (toInput) toInput.value = dateTo;
         if (fromInput && toInput) {
-            fromInput.min = termStart || '';
-            fromInput.max = termEnd || '';
-            toInput.min = termStart || '';
-            toInput.max = termEnd || '';
+            fromInput.min = termStart;
+            fromInput.max = termEnd;
+            toInput.min = dateFrom;
+            toInput.max = termEnd;
         }
+    } else if (fromInput && toInput) {
+        fromInput.min = termStart || '';
+        fromInput.max = termEnd || '';
+        toInput.min = dateFrom || termStart || '';
+        toInput.max = termEnd || '';
     }
 
     if (dateFrom && dateTo && dateFrom > dateTo) {

@@ -116,11 +116,7 @@
             <a href="{{ route('calendar') }}" class="dash-reminder-link">View Calendar</a>
         </div>
 
-        <section class="dashboard-statistics-section" aria-labelledby="dashboardStatisticsTitle">
-            <div class="dashboard-statistics-heading">
-                <h2 id="dashboardStatisticsTitle">Dashboard Statistics</h2>
-                <p>Municipal, profiling, audit, and program totals.</p>
-            </div>
+        <section class="dashboard-statistics-section">
         <div class="dash-stats-grid">
             <a href="{{ route('kabataan-monitoring') }}" class="stat-card stat-card-blue" data-no-loading data-stat-key="total_kk" title="Kabataan registrations across all barangays">
                 <div class="stat-card-top">
@@ -444,7 +440,7 @@
 
         {{-- ── ROW 3: Top 5 Barangays + Recent Activity + Upcoming Events ── --}}
         <div class="dash-row">
-            <div class="content-card dash-col-4" id="top-barangays-section">
+            <div class="content-card dash-col-6" id="top-barangays-section">
                 <div class="card-header">
                     <h3><i class="fas fa-trophy" style="color:#F7D31E;margin-right:8px;"></i>Top 5 Barangays by Youth Population</h3>
                 </div>
@@ -473,7 +469,7 @@
                 </div>
             </div>
 
-            <div class="dash-col-8">
+            <div class="dash-col-6">
                 @include('dashboard::partials.dashboard-recent-activity')
             </div>
         </div>

@@ -131,7 +131,7 @@ class DashboardController extends Controller
                 ->map(fn ($barangay) => ['id' => $barangay->id, 'name' => $barangay->name])
                 ->values()
                 ->all(),
-            'recentActivity' => $safe(fn () => $this->dashboardActivityService->recentActivity($tenantId, 12, $dateFrom, $dateTo), []),
+            'recentActivity' => $safe(fn () => $this->dashboardActivityService->recentActivity($tenantId, 12), []),
             'upcomingEvents' => $safe(fn () => $this->dashboardActivityService->upcomingCalendarNotes(6, $dateFrom, $dateTo), []),
             'todayReminder' => $safe(fn () => $this->dashboardActivityService->todayCalendarNote(), null),
             'todayLabel' => now()->timezone(config('app.timezone', 'Asia/Manila'))->format('F j, Y | l'),
@@ -240,7 +240,7 @@ class DashboardController extends Controller
             'youth_demographics' => $this->youthDemographicsService->aggregate($tenantId, $dateFrom, $dateTo),
             'abyip_overview' => $abyipOverview,
             'top_barangays' => $this->dashboardStatsService->topBarangaysByYouth($tenantId, 5, $dateFrom, $dateTo),
-            'recent_activity' => $this->dashboardActivityService->recentActivity($tenantId, 12, $dateFrom, $dateTo),
+            'recent_activity' => $this->dashboardActivityService->recentActivity($tenantId, 12),
             'upcoming_events' => $this->dashboardActivityService->upcomingCalendarNotes(6, $dateFrom, $dateTo),
             'date_from' => $dateFrom,
             'date_to' => $dateTo,

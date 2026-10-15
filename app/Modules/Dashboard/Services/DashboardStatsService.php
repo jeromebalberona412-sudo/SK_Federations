@@ -169,9 +169,33 @@ class DashboardStatsService
      */
     public function totalPrograms(?int $tenantId = null): int
     {
-        $query = $this->activeScheduleProgramsQuery($tenantId);
+        return $this->countAbyipYouthPrograms($tenantId);
+    }
 
-        return $query === null ? 0 : (int) $query->count();
+    /**
+     * Youth program rows stored on barangay ABYIP submissions.
+     */
+    private function countAbyipYouthPrograms(?int $tenantId): int
+    {
+        if ($tenantId === null || $tenantId <= 0 || ! Schema::hasTable('abyip') || ! Schema::hasColumn('abyip', 'barangay_id')) {
+            return 0;
+        }
+
+        $query = DB::table('abyip')->where(function ($programQuery): void {
+            $programQuery->where('row_type', 'youth_program');
+            if (Schema::hasColumn('abyip', 'code')) {
+                $programQuery->orWhereIn('code', ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J']);
+            }
+        });
+
+        if (Schema::hasTable('barangays') && Schema::hasColumn('barangays', 'tenant_id')) {
+            $query->whereIn(
+                'abyip.barangay_id',
+                DB::table('barangays')->select('id')->where('tenant_id', $tenantId)
+            );
+        }
+
+        return (int) $query->count();
     }
 
     /**
@@ -300,7 +324,7 @@ class DashboardStatsService
             'total_kk' => $kkStats['total_kk'],
             'kk_approved' => $kkStats['approved'],
             'kk_pending' => $kkStats['pending'],
-            'total_programs' => $programs['stats']['total_programs'],
+            'total_programs' => $this->countAbyipYouthPrograms($tenantId),
             'programs' => $programs,
             'total_kabataan_registered' => $this->totalKabataanRegistered($tenantId, $dateFrom, $dateTo),
             'total_sk_officials' => $this->totalSkOfficials($tenantId, $dateFrom, $dateTo),

@@ -24,7 +24,7 @@ import {
     var meshRole = null;
     var meshConnected = false;
     var meshInvitees = [];
-    var RING_MS = 45000;
+    var RING_MS = 30000;
     var ringTimer = null;
 
     function rootEl() {

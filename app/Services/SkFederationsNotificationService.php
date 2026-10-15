@@ -115,8 +115,8 @@ class SkFederationsNotificationService
         return SkFederationsNotification::create([
             'user_id' => $user->id,
             'category' => $category,
-            'title' => $title,
-            'body' => $body,
+            'title' => Str::limit($title, 200),
+            'body' => Str::limit($body, 1000),
             'action_url' => $actionUrl,
         ]);
     }
@@ -133,6 +133,8 @@ class SkFederationsNotificationService
         string $body,
         ?string $open = null,
     ): SkFederationsNotification {
+        $title = Str::limit($title, 200);
+        $body = Str::limit($body, 1000);
         $actionUrl = $this->communityFeedPostActionUrl($postId, $open);
         $postId = max(0, $postId);
 

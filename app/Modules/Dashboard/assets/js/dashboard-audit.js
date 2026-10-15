@@ -50,10 +50,10 @@ document.addEventListener('DOMContentLoaded', function () {
                 <tr>
                     <td class="cell-primary dash-audit-col-date">${escapeHtml(row.created_date)}</td>
                     <td class="dash-audit-col-time">${escapeHtml(row.created_time)}</td>
-                    <td class="dash-audit-cell-email dash-audit-col-email" title="${escapeHtml(row.account_email || '-')}">${escapeHtml(row.account_email || '-')}</td>
-                    <td class="dash-audit-col-role">${escapeHtml(row.role)}</td>
-                    <td class="dash-audit-col-event">${escapeHtml(row.event_type)}</td>
-                    <td class="dash-audit-col-ip">${escapeHtml(row.ip_address)}</td>
+                    <td class="dash-audit-cell-clip dash-audit-col-email" title="${escapeHtml(row.account_email || '-')}">${escapeHtml(row.account_email || '-')}</td>
+                    <td class="dash-audit-cell-clip dash-audit-col-role" title="${escapeHtml(row.role)}">${escapeHtml(row.role)}</td>
+                    <td class="dash-audit-cell-clip dash-audit-col-event" title="${escapeHtml(row.event_type)}">${escapeHtml(row.event_type)}</td>
+                    <td class="dash-audit-cell-clip dash-audit-col-ip" title="${escapeHtml(row.ip_address)}">${escapeHtml(row.ip_address)}</td>
                     <td>
                         <button type="button" class="dash-audit-details-btn" data-row-index="${index}">View</button>
                     </td>

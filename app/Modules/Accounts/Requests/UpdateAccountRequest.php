@@ -163,8 +163,8 @@ class UpdateAccountRequest extends FormRequest
 
         $nameMin = $isOfficial ? 2 : 3;
         $nameMax = $isOfficial ? 150 : 100;
-        $nameRules = ['required', 'string', 'min:'.$nameMin, 'max:'.$nameMax, 'regex:/^(?!\s)[A-Z.\-\']+(?: [A-Z.\-\']+)*$/u'];
-        $middleNameRules = ['nullable', 'string', 'min:'.$nameMin, 'max:'.$nameMax, 'regex:/^(?!\s)[A-Z.\-\']+(?: [A-Z.\-\']+)*$/u'];
+        $nameRules = ['required', 'string', 'min:'.$nameMin, 'max:'.$nameMax, 'regex:/^(?!\s)[\p{L}.\-\']+(?: [\p{L}.\-\']+)*$/u'];
+        $middleNameRules = ['nullable', 'string', 'min:'.$nameMin, 'max:'.$nameMax, 'regex:/^(?!\s)[\p{L}.\-\']+(?: [\p{L}.\-\']+)*$/u'];
         $lastNameRules = $nameRules;
 
         return [

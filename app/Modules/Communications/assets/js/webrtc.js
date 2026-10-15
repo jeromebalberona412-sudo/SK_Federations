@@ -16,7 +16,7 @@ import {
         return;
     }
 
-    var RING_TIMEOUT_MS = 45000;
+    var RING_TIMEOUT_MS = 30000;
     var CALL_START_DELAY_MS = 3000;
     var CONNECTION_TIMEOUT_MS = 30000;
 
@@ -333,7 +333,7 @@ import {
             case 'missed':
                 return {
                     title: 'Call ended',
-                    reason: role === 'caller' ? 'No answer. The call was not picked up.' : 'Missed call. You did not answer in time.'
+                    reason: 'Call ended. No pickup.'
                 };
             case 'rejected':
                 return {
@@ -688,7 +688,10 @@ import {
         };
     }
 
+    var dismissedRingIds = Object.create(null);
+
     function showIncoming(call) {
+        if (call && call.id != null && dismissedRingIds[Number(call.id)]) return;
         els.incoming = document.getElementById('commsIncomingCall') || els.incoming;
         els.incomingPeer = document.getElementById('commsIncomingPeer') || els.incomingPeer;
         els.incomingType = document.getElementById('commsIncomingType') || els.incomingType;
@@ -706,9 +709,16 @@ import {
                 : (call.call_type === 'video' ? 'Video call' : 'Voice call');
         }
         if (call.is_group_call || call._groupInvite) {
-            if (call._groupInvite) {
-                window.__commsPendingGroupInvite = call._groupInvite;
-            }
+            window.__commsPendingGroupInvite = call._groupInvite || {
+                call_id: call.id,
+                conversation_id: call.conversation_id,
+                call_type: call.call_type || 'video',
+                caller_id: call.caller_id,
+                caller_type: call.caller_type,
+                peer_name: (call.peer && call.peer.name) || call.peer_name || 'Group call',
+                invitees: call.invitees || [],
+                call_max_participants: call.call_max_participants
+            };
             // Keep currentCall null so 1:1 cleanup does not steal the group room.
             currentCall = null;
             els.incoming.hidden = false;
@@ -717,12 +727,10 @@ import {
             startRingtone('incoming');
             clearRingTimeout();
             ringTimeout = setTimeout(function () {
-                if (typeof window.CommsWebRTC !== 'undefined'
-                    && typeof window.CommsWebRTC.__rejectGroupIfPending === 'function') {
-                    window.CommsWebRTC.__rejectGroupIfPending();
-                }
+                if (call.id != null) dismissedRingIds[Number(call.id)] = true;
                 hideIncoming();
                 stopRingtone();
+                window.__commsPendingGroupInvite = null;
             }, RING_TIMEOUT_MS);
             return;
         }

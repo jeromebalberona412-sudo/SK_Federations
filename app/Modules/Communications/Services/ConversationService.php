@@ -601,7 +601,9 @@ class ConversationService
                 default => false,
             },
             ParticipantTypeResolver::SK_FED => in_array($toType, [
+                ParticipantTypeResolver::KABATAAN,
                 ParticipantTypeResolver::SK_OFFICIAL,
+                ParticipantTypeResolver::SK_FED,
             ], true),
             default => false,
         };
@@ -710,7 +712,11 @@ class ConversationService
                 ParticipantTypeResolver::SK_FED,
             ], true),
             ParticipantTypeResolver::KABATAAN => $toType === ParticipantTypeResolver::SK_OFFICIAL,
-            ParticipantTypeResolver::SK_FED => $toType === ParticipantTypeResolver::SK_OFFICIAL,
+            ParticipantTypeResolver::SK_FED => in_array($toType, [
+                ParticipantTypeResolver::KABATAAN,
+                ParticipantTypeResolver::SK_OFFICIAL,
+                ParticipantTypeResolver::SK_FED,
+            ], true),
             default => false,
         };
     }
@@ -758,6 +764,42 @@ class ConversationService
         return $this->types->normalizeSearchRole((string) $user->role) !== null;
     }
 
+    /**
+     * @return array{online_status: string, last_seen: ?string}
+     */
+    protected function resolvePresence(User $user): array
+    {
+        $lastSeen = null;
+        if (Schema::hasColumn('users', 'last_seen') && $user->last_seen) {
+            try {
+                $lastSeen = $user->last_seen instanceof \Illuminate\Support\Carbon
+                    ? $user->last_seen
+                    : \Illuminate\Support\Carbon::parse($user->last_seen);
+            } catch (\Throwable) {
+                $lastSeen = null;
+            }
+        }
+
+        $status = '';
+        if (Schema::hasColumn('users', 'online_status')) {
+            $status = strtolower(trim((string) ($user->online_status ?? '')));
+        }
+
+        $isOnline = false;
+        if ($status === 'offline') {
+            $isOnline = false;
+        } elseif ($lastSeen) {
+            $isOnline = $lastSeen->gte(now()->subMinutes(2));
+        } elseif ($status === 'online') {
+            $isOnline = true;
+        }
+
+        return [
+            'online_status' => $isOnline ? 'online' : 'offline',
+            'last_seen' => $lastSeen?->toIso8601String(),
+        ];
+    }
+
     public function serializeUser(?User $user, ?string $type = null): ?array
     {
         if (! $user) {
@@ -768,14 +810,9 @@ class ConversationService
 
         $avatar = $this->avatars->resolveForUser($user, $type, (string) $user->name);
 
-        $online = null;
-        $lastSeen = null;
-        if (Schema::hasColumn('users', 'online_status')) {
-            $online = $user->online_status ?? null;
-        }
-        if (Schema::hasColumn('users', 'last_seen')) {
-            $lastSeen = optional($user->last_seen)?->toIso8601String();
-        }
+        $presence = $this->resolvePresence($user);
+        $online = $presence['online_status'];
+        $lastSeen = $presence['last_seen'];
 
         if (! $user->relationLoaded('barangay') && method_exists($user, 'barangay')) {
             $user->loadMissing('barangay');

@@ -7,15 +7,6 @@
 @endpush
 
 @section('content')
-@php
-    $statCards = [
-        ['label' => 'Total Audit Logs', 'metricKey' => 'total_logs', 'value' => $stats['total_logs'] ?? 0, 'tone' => 'azure', 'icon' => 'activity'],
-        ['label' => "Today's Activities", 'metricKey' => 'today_activities', 'value' => $stats['today_activities'] ?? 0, 'tone' => 'teal', 'icon' => 'users'],
-        ['label' => 'Security Events', 'metricKey' => 'security_events', 'value' => $stats['security_events'] ?? 0, 'tone' => 'red', 'icon' => 'reject'],
-        ['label' => 'Failed Logins Today', 'metricKey' => 'failed_logins_today', 'value' => $stats['failed_logins_today'] ?? 0, 'tone' => 'violet', 'icon' => 'officials'],
-    ];
-@endphp
-
 <div id="mainContent" class="auditlog-page">
 <div id="auditLogApp" class="auditlog-container" data-audit-routes='@json($routes)' data-date-bounds='@json($filterOptions['date_bounds'] ?? ['min' => '', 'max' => ''])'>
     <div class="page-header-modern-with-button">
@@ -25,11 +16,44 @@
         </div>
     </div>
 
-    <section class="audit-stats-grid" aria-label="Audit statistics">
-        @foreach ($statCards as $card)
-            @include('dashboard::components.statcard', $card)
-        @endforeach
-    </section>
+    <div class="audit-stats-grid" aria-label="Audit log totals">
+        <div class="stat-card stat-card-azure">
+            <div class="stat-card-top">
+                <span class="stat-card-value">{{ number_format($stats['total_logs'] ?? 0) }}</span>
+                <div class="stat-card-icon stat-icon-azure" aria-hidden="true">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>
+                </div>
+            </div>
+            <span class="stat-card-label">Total Audit Logs</span>
+        </div>
+        <div class="stat-card stat-card-emerald">
+            <div class="stat-card-top">
+                <span class="stat-card-value">{{ number_format($stats['month_activities'] ?? 0) }}</span>
+                <div class="stat-card-icon stat-icon-emerald" aria-hidden="true">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+                </div>
+            </div>
+            <span class="stat-card-label">This Month</span>
+        </div>
+        <div class="stat-card stat-card-amber">
+            <div class="stat-card-top">
+                <span class="stat-card-value">{{ number_format($stats['week_activities'] ?? 0) }}</span>
+                <div class="stat-card-icon stat-icon-amber" aria-hidden="true">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v6l4 2"/></svg>
+                </div>
+            </div>
+            <span class="stat-card-label">This Week</span>
+        </div>
+        <div class="stat-card stat-card-slate">
+            <div class="stat-card-top">
+                <span class="stat-card-value">{{ number_format($stats['today_activities'] ?? 0) }}</span>
+                <div class="stat-card-icon stat-icon-red" aria-hidden="true">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 8v4l3 2"/><circle cx="12" cy="12" r="9"/></svg>
+                </div>
+            </div>
+            <span class="stat-card-label">This Day</span>
+        </div>
+    </div>
 
     <div class="page-header-filters">
         <form class="audit-filter-form" id="auditFilterForm" novalidate>

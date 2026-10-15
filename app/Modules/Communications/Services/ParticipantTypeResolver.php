@@ -37,7 +37,7 @@ class ParticipantTypeResolver
         $role = strtolower(trim($role));
 
         return match ($role) {
-            'sk_fed' => self::SK_FED,
+            'sk_fed', 'admin' => self::SK_FED,
             'sk_official' => self::SK_OFFICIAL,
             'kabataan', 'user' => self::KABATAAN,
             default => null,

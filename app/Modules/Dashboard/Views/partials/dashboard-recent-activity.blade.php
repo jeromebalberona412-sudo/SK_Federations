@@ -3,17 +3,6 @@
     <div class="content-card dash-section-card">
         <div class="dash-section-header dash-section-header--compact">
             <div>
-                <h2 class="dash-section-title">Recent Activity</h2>
-                <p class="dash-section-sub">Latest system actions</p>
-            </div>
-            <button type="button" class="dash-view-all" id="dashActivityViewAllBtn">View all</button>
-        </div>
-        <div class="activity-list activity-list--dashboard" id="activityList"></div>
-    </div>
-
-    <div class="content-card dash-section-card">
-        <div class="dash-section-header dash-section-header--compact">
-            <div>
                 <h2 class="dash-section-title"><i class="fas fa-calendar-alt" aria-hidden="true"></i> Upcoming Events</h2>
                 <p class="dash-section-sub">Calendar preview</p>
             </div>

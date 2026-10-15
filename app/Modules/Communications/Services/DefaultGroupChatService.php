@@ -285,17 +285,14 @@ class DefaultGroupChatService
             ->pluck('id')
             ->map(fn ($id) => (int) $id);
 
-        // SK Federation portal members (exclude bootstrap Administrator account).
         $federationAdminIds = User::query()
             ->where('tenant_id', $tenantId)
-            ->where('role', User::ROLE_SK_FED)
+            ->whereIn('role', [User::ROLE_SK_FED, User::ROLE_ADMIN])
             ->whereNull('deleted_at')
             ->whereIn('status', [
                 User::STATUS_ACTIVE,
                 User::STATUS_PENDING_APPROVAL,
             ])
-            ->whereRaw('LOWER(email) != ?', [BootstrapSkFedAdminService::bootstrapEmailNormalized()])
-            ->whereRaw('LOWER(TRIM(name)) != ?', ['sk federation administrator'])
             ->pluck('id')
             ->map(fn ($id) => (int) $id);
 
@@ -317,7 +314,7 @@ class DefaultGroupChatService
                 User::STATUS_PENDING_APPROVAL,
             ])
             ->where(function ($scope) {
-                $scope->where('role', User::ROLE_SK_FED);
+                $scope->whereIn('role', [User::ROLE_SK_FED, User::ROLE_ADMIN]);
 
                 $scope->orWhere(function ($officials) {
                     $officials->where('role', User::ROLE_SK_OFFICIAL);
@@ -351,7 +348,12 @@ class DefaultGroupChatService
             );
         }
 
-        return $query->orderBy('id')->pluck('id')->map(fn ($id) => (int) $id)->values();
+        return $query
+            ->orderByRaw('CASE WHEN users.role = ? THEN 0 ELSE 1 END', [User::ROLE_ADMIN])
+            ->orderBy('id')
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->values();
     }
 
     public function federationPresidentUserId(int $tenantId): ?int

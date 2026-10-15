@@ -490,7 +490,7 @@ document.addEventListener('DOMContentLoaded', function () {
         }
 
         if (!items.length) {
-            target.innerHTML = '<p class="dash-empty-msg">No recent activity recorded.</p>';
+            target.innerHTML = '';
             return;
         }
 

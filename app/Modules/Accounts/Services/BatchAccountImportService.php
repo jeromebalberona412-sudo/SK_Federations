@@ -297,7 +297,7 @@ class BatchAccountImportService
     {
         $errors = [];
         $isOfficial = $role === User::ROLE_SK_OFFICIAL;
-        $namePattern = '/^(?!\s)[A-Z.\-\']+(?: [A-Z.\-\']+)*$/u';
+        $namePattern = '/^(?!\s)[\p{L}.\-\']+(?: [\p{L}.\-\']+)*$/u';
         $nameMax = $isOfficial ? 150 : 35;
         $nameMin = $isOfficial ? 2 : 3;
 

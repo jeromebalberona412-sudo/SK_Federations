@@ -144,7 +144,12 @@ class SkFedDashboardActivityService
         $query = SkFedActivity::query()
             ->with(['user.officialProfile'])
             ->when($tenantId !== null, function ($query) use ($tenantId) {
-                $query->whereHas('user', fn ($userQuery) => $userQuery->where('tenant_id', $tenantId));
+                $query->where(function ($scope) use ($tenantId) {
+                    $scope->whereHas('user', function ($userQuery) use ($tenantId) {
+                        $userQuery->where('tenant_id', $tenantId)
+                            ->orWhereNull('tenant_id');
+                    })->orWhereDoesntHave('user');
+                });
             })
             ->orderByDesc('created_at');
 

@@ -327,7 +327,6 @@
                 '</div>' +
                 '<div class="comms-conv-meta">' +
                 '<span class="comms-conv-time">' + Comms.escapeHtml(Comms.formatTime(c.updated_at)) + '</span>' +
-                (unread > 0 ? '<span class="comms-unread">' + (unread > 99 ? '99+' : unread) + '</span>' : '') +
                 '</div></button>';
         }).join('');
     }

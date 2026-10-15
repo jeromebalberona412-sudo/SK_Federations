@@ -1132,8 +1132,10 @@ const SK_OFFICIAL_TERM_END_MESSAGE = `Term end date must be between ${SK_OFFICIA
 const SK_OFFICIAL_NAME_MIN = 2;
 const SK_OFFICIAL_NAME_MAX = 150;
 const SK_OFFICIAL_NAME_SOFT_MAX = 50;
-/** Letters (and . - ') required before each space; no leading/pure/double spaces. */
-const PERSON_NAME_ONE_SPACE_REGEX = /^(?!\s)[A-Z.\-']+(?: [A-Z.\-']+)*$/;
+/** Letters including Ñ, plus . - ', one space between words. */
+const PERSON_NAME_ONE_SPACE_REGEX = /^(?!\s)[\p{L}.\-']+(?: [\p{L}.\-']+)*$/u;
+const PERSON_NAME_STRIP_REGEX = /[^\p{L}.\-'\s]/gu;
+const SK_OFFICIAL_NAME_MAX_MSG = '150 maximum characters only.';
 const SK_OFFICIAL_FIRST_NAME_REGEX = PERSON_NAME_ONE_SPACE_REGEX;
 const SK_OFFICIAL_SUFFIX_OTHER_MAX = 5;
 const SK_OFFICIAL_AGE_MIN = 18;
@@ -1142,7 +1144,7 @@ const SK_OFFICIAL_AGE_MAX = 30;
 const SK_EMAIL_TOTAL_MAX = 64;
 const SK_EMAIL_LOCAL_MIN = 6;
 const SK_EMAIL_LOCAL_MAX = 30;
-const SK_OFFICIAL_MAX_MSG = 'Maximum of 150 characters reached';
+const SK_OFFICIAL_MAX_MSG = SK_OFFICIAL_NAME_MAX_MSG;
 const BATCH_EMAIL_MAX = SK_EMAIL_TOTAL_MAX;
 const BATCH_SK_FED_NAME_MAX = 35;
 const BATCH_LOCATION_MAX = 100;
@@ -1413,7 +1415,7 @@ function processSkOfficialFirstNameInput(input) {
 
 function processPersonNameInput(input) {
     if (!input) return '';
-    let value = input.value.replace(/^\s+/, '').replace(/[^a-zA-Z.\-'\s]/g, '').toUpperCase();
+    let value = input.value.normalize('NFC').replace(/^\s+/, '').replace(PERSON_NAME_STRIP_REGEX, '').toLocaleUpperCase('en-PH');
     value = value.replace(/\s{2,}/g, ' ');
     if (value.length > SK_OFFICIAL_NAME_MAX) {
         value = value.slice(0, SK_OFFICIAL_NAME_MAX);
@@ -1667,11 +1669,11 @@ function _validateSkOfficialFirstName(input, options = {}) {
         return false;
     }
     if (val.length > SK_OFFICIAL_NAME_MAX) {
-        _showErr(input, 'First name must not exceed 150 characters');
+        _showErr(input, SK_OFFICIAL_NAME_MAX_MSG);
         return false;
     }
     if (!PERSON_NAME_ONE_SPACE_REGEX.test(val)) {
-        _showErr(input, 'Letters only; need a letter before each space; no pure spaces');
+            _showErr(input, 'Letters only, including Ñ; need a letter before each space; no pure spaces');
         return false;
     }
     _markValid(input);
@@ -1691,11 +1693,11 @@ function _validateSkOfficialMiddleName(input, options = {}) {
         return false;
     }
     if (val.length > SK_OFFICIAL_NAME_MAX) {
-        _showErr(input, 'Middle name must not exceed 150 characters');
+        _showErr(input, SK_OFFICIAL_NAME_MAX_MSG);
         return false;
     }
     if (!PERSON_NAME_ONE_SPACE_REGEX.test(val)) {
-        _showErr(input, 'Letters only; need a letter before each space; no pure spaces');
+            _showErr(input, 'Letters only, including Ñ; need a letter before each space; no pure spaces');
         return false;
     }
     _markValid(input);
@@ -1715,11 +1717,11 @@ function _validateSkOfficialLastName(input, options = {}) {
         return false;
     }
     if (val.length > SK_OFFICIAL_NAME_MAX) {
-        _showErr(input, 'Last name must not exceed 150 characters');
+        _showErr(input, SK_OFFICIAL_NAME_MAX_MSG);
         return false;
     }
     if (!PERSON_NAME_ONE_SPACE_REGEX.test(val)) {
-        _showErr(input, 'Letters only; need a letter before each space; no pure spaces');
+            _showErr(input, 'Letters only, including Ñ; need a letter before each space; no pure spaces');
         return false;
     }
     _markValid(input);
@@ -2315,11 +2317,12 @@ function wireSkOfficialsManualValidation(form) {
         el.addEventListener('input', () => {
             const start = el.selectionStart;
             const before = el.value;
-            let next = before.replace(/^\s+/, '').replace(/[^a-zA-Z.\-'\s]/g, '').toUpperCase().replace(/\s{2,}/g, ' ');
+            let next = before.normalize('NFC').replace(/^\s+/, '').replace(PERSON_NAME_STRIP_REGEX, '').toLocaleUpperCase('en-PH').replace(/\s{2,}/g, ' ');
             const removed = Math.max(0, before.length - next.length);
             const caret = Math.max(0, (start ?? next.length) - removed);
+            const overMax = next.length > SK_OFFICIAL_NAME_MAX;
 
-            if (next.length > SK_OFFICIAL_NAME_MAX) {
+            if (overMax) {
                 next = next.slice(0, SK_OFFICIAL_NAME_MAX);
                 el.value = next;
                 try {
@@ -2327,7 +2330,7 @@ function wireSkOfficialsManualValidation(form) {
                 } catch (_e) {
                     // ignore
                 }
-                fn(el, { finalize: false });
+                _showErr(el, SK_OFFICIAL_NAME_MAX_MSG);
                 return;
             }
 
@@ -2360,8 +2363,12 @@ function wireSkOfficialsManualValidation(form) {
                 }
             }
             const len = (el.value || '').length;
-            if (len >= SK_OFFICIAL_NAME_MAX && e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
+            const startSel = el.selectionStart ?? len;
+            const endSel = el.selectionEnd ?? startSel;
+            if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey
+                && len - (endSel - startSel) >= SK_OFFICIAL_NAME_MAX) {
                 e.preventDefault();
+                _showErr(el, SK_OFFICIAL_NAME_MAX_MSG);
             }
         });
     });
@@ -2508,7 +2515,7 @@ function _validateNameField(input, options = {}) {
         return false;
     }
     if (!PERSON_NAME_ONE_SPACE_REGEX.test(val)) {
-        _showErr(input, 'Letters only; need a letter before each space; no pure spaces');
+            _showErr(input, 'Letters only, including Ñ; need a letter before each space; no pure spaces');
         return false;
     }
     _clearErr(input);
@@ -5824,7 +5831,7 @@ document.addEventListener('DOMContentLoaded', function () {
             officialsForm.dataset.createRequestId = String(requestId);
             showLoadingOverlay('Creating account', 'Please wait while we set up the account...');
             const createBtn = getCreateAccountSubmitButton(officialsForm);
-            setCreateAccountButtonLoading(createBtn, true, 'Creating...');
+            if (createBtn) createBtn.disabled = true;
 
             const controller = new AbortController();
             const timeoutId = window.setTimeout(() => controller.abort(), 45000);
@@ -5834,7 +5841,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 }
                 window.clearTimeout(timeoutId);
                 hideLoadingOverlay();
-                setCreateAccountButtonLoading(createBtn, false);
+                if (createBtn) createBtn.disabled = false;
                 officialsForm.dataset.submitting = '0';
             };
 
@@ -5926,7 +5933,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
             showLoadingOverlay('Creating account', 'Please wait while we set up the account...');
             const createBtn = getCreateAccountSubmitButton(fedForm);
-            setCreateAccountButtonLoading(createBtn, true, 'Creating...');
+            if (createBtn) createBtn.disabled = true;
             fetch('/accounts', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'), 'Accept': 'application/json' },
@@ -5936,7 +5943,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 .then(({ ok, data }) => {
                     if (!ok || !data.success) {
                         hideLoadingOverlay();
-                        setCreateAccountButtonLoading(createBtn, false);
+                        if (createBtn) createBtn.disabled = false;
                         if (data.errors) {
                             let handledError = false;
                             Object.keys(data.errors).forEach(f => {
@@ -5955,14 +5962,14 @@ document.addEventListener('DOMContentLoaded', function () {
                         }
                         return;
                     }
-                    setCreateAccountButtonLoading(createBtn, false);
+                    if (createBtn) createBtn.disabled = false;
                     cleanupAccountUiState();
                     showAccountToast(data.message || 'SK Federation account created. Password setup email sent.', 'success');
                     window.setTimeout(() => window.location.reload(), 900);
                 })
                 .catch(() => {
                     hideLoadingOverlay();
-                    setCreateAccountButtonLoading(createBtn, false);
+                    if (createBtn) createBtn.disabled = false;
                     alert('An unexpected error occurred. Please try again.');
                 });
         });

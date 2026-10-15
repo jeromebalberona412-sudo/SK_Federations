@@ -4,30 +4,48 @@
 .auditlog-page {
     --audit-footer-height: 34px;
     --audit-control-height: 32px;
+    --audit-page-pad: 24px;
     position: relative;
     z-index: auto;
     box-sizing: border-box;
     min-height: calc(100vh - var(--navbar-height, 64px));
-    margin: -28px;
-    padding: 12px 20px calc(var(--audit-footer-height) + 20px);
+    margin: 0;
+    padding: 4px 0 calc(var(--audit-footer-height) + 20px);
     color: #374151;
     font-family: 'Inter', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
     background: #f0f1f5 !important;
-    width: auto;
+    width: 100%;
     max-width: none;
+    min-width: 0;
     overflow-x: hidden;
 }
 
 .main-content:has(.auditlog-page) {
+    box-sizing: border-box;
+    width: calc(100% - var(--sidebar-width, 260px));
+    max-width: calc(100% - var(--sidebar-width, 260px));
+    margin-left: var(--sidebar-width, 260px);
+    margin-right: 0;
+    padding-left: var(--audit-page-pad, 24px);
+    padding-right: var(--audit-page-pad, 24px);
     overflow-x: hidden;
     min-width: 0;
+    flex: 1 1 auto;
+}
+
+body.sidebar-collapsed .main-content:has(.auditlog-page) {
+    width: calc(100% - var(--sidebar-collapsed, 72px));
+    max-width: calc(100% - var(--sidebar-collapsed, 72px));
+    margin-left: var(--sidebar-collapsed, 72px);
+    margin-right: 0;
 }
 
 .auditlog-container {
     position: relative;
     z-index: 1;
+    width: 100%;
     min-width: 0;
-    max-width: 100%;
+    max-width: none;
 }
 
 /* ── Header + filters (Manage Account style) ───────────────── */
@@ -96,9 +114,10 @@
     position: relative;
     display: flex;
     align-items: center;
-    flex: 0 0 220px;
-    width: 220px;
-    max-width: 100%;
+    flex: 1 1 220px;
+    width: auto;
+    min-width: 180px;
+    max-width: none;
 }
 
 .filter-dropdown,
@@ -222,27 +241,60 @@
     min-height: 86px;
     padding: 0.8rem 0.9rem;
     margin-bottom: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: space-between;
+    gap: 8px;
+    cursor: default;
+}
+
+.audit-stats-grid .stat-card:hover {
+    transform: none;
 }
 
 .audit-stats-grid .stat-card-top {
+    display: flex;
+    flex-direction: row-reverse;
+    align-items: flex-start;
+    justify-content: space-between;
     margin-bottom: 0.35rem;
     gap: 0.5rem;
 }
 
 .audit-stats-grid .stat-card-value {
     font-size: clamp(1.15rem, 0.8vw + 0.85rem, 1.6rem);
+    font-weight: 800;
+    color: #0f172a;
+    line-height: 1.15;
 }
 
 .audit-stats-grid .stat-card-icon {
     width: 34px;
     height: 34px;
     border-radius: 9px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
 }
 
 .audit-stats-grid .stat-card-icon svg {
     width: 16px;
     height: 16px;
 }
+
+.audit-stats-grid .stat-card-icon {
+    background: #dbeafe;
+}
+.audit-stats-grid .stat-icon-azure { background: #dbeafe !important; }
+.audit-stats-grid .stat-icon-azure svg { stroke: #2563eb !important; }
+.audit-stats-grid .stat-icon-emerald { background: #d1fae5 !important; }
+.audit-stats-grid .stat-icon-emerald svg { stroke: #059669 !important; }
+.audit-stats-grid .stat-icon-amber { background: #fef3c7 !important; }
+.audit-stats-grid .stat-icon-amber svg { stroke: #d97706 !important; }
+.audit-stats-grid .stat-icon-red { background: #fee2e2 !important; }
+.audit-stats-grid .stat-icon-red svg { stroke: #dc2626 !important; }
+.audit-stats-grid .stat-card-amber { border-color: #f59e0b; }
 
 .audit-stats-grid .stat-card-label {
     margin-bottom: 0;
@@ -257,12 +309,14 @@
     border-radius: 0;
     box-shadow: none;
     overflow: visible;
+    width: 100%;
     min-width: 0;
-    max-width: 100%;
+    max-width: none;
 }
 
 .audit-table-wrap {
     position: relative;
+    width: 100%;
     min-height: 220px;
     border: 1px solid #e2e8f0;
     border-radius: 12px;
@@ -277,18 +331,19 @@
 
 .audit-table-responsive,
 .table-responsive.audit-table-responsive {
+    width: 100%;
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
-    max-width: 100%;
+    max-width: none;
 }
 
 .audit-table {
     width: 100%;
-    min-width: 760px;
+    min-width: 0;
     border-collapse: separate;
     border-spacing: 0;
     font-size: 0.82rem;
-    table-layout: auto;
+    table-layout: fixed;
 }
 
 .audit-table thead th {
@@ -320,8 +375,11 @@
     border-right: 1px solid #edf2f7;
     color: #334155;
     vertical-align: middle;
-    word-break: break-word;
-    overflow-wrap: anywhere;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    word-break: normal;
+    overflow-wrap: normal;
     background: #ffffff;
 }
 
@@ -351,13 +409,32 @@
     color: #0f172a;
 }
 
+.audit-table thead th:nth-child(1),
+.audit-table tbody td:nth-child(1) { width: 12%; }
+.audit-table thead th:nth-child(2),
+.audit-table tbody td:nth-child(2) { width: 10%; }
+.audit-table thead th:nth-child(3),
+.audit-table tbody td:nth-child(3) { width: 28%; }
+.audit-table thead th:nth-child(4),
+.audit-table tbody td:nth-child(4) { width: 14%; }
+.audit-table thead th:nth-child(5),
+.audit-table tbody td:nth-child(5) { width: 18%; }
+.audit-table thead th:nth-child(6),
+.audit-table tbody td:nth-child(6) { width: 12%; }
+.audit-table thead th:nth-child(7),
+.audit-table tbody td:nth-child(7) { width: 96px; }
+
 .audit-col-actions {
-    width: 84px;
+    width: 96px;
+    min-width: 96px;
+    text-align: center;
+    white-space: nowrap;
 }
 
 .audit-details-btn {
     height: 32px;
     padding: 0 10px;
+    white-space: nowrap;
     border-radius: 8px;
     border: 1px solid #dbeafe;
     background: #fff;
@@ -383,12 +460,13 @@
     bottom: 0;
     left: var(--sidebar-width, 260px);
     right: 0;
+    width: auto;
     z-index: 90;
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 0.75rem;
-    padding: 5px 20px;
+    padding: 5px var(--audit-page-pad, 24px);
     border-top: 1px solid #e2e8f0;
     background: #f8fafc;
     font-size: 11px;
@@ -611,19 +689,31 @@ body.sidebar-collapsed .audit-page-footer {
 /* ── Responsive ─────────────────────────────────────────────── */
 @media (max-width: 1280px) {
     .search-container {
-        flex-basis: 200px;
-        width: 200px;
+        flex-basis: 180px;
+        min-width: 160px;
     }
 }
 
 @media (max-width: 1024px) {
+    .main-content:has(.auditlog-page),
+    body.sidebar-collapsed .main-content:has(.auditlog-page) {
+        width: 100% !important;
+        max-width: 100% !important;
+        margin-left: 0 !important;
+        margin-right: 0 !important;
+        padding-left: 16px;
+        padding-right: 16px;
+    }
+
     .auditlog-page {
-        margin: -20px;
-        padding: 10px 14px calc(var(--audit-footer-height) + 16px);
+        margin: 0;
+        padding: 8px 0 calc(var(--audit-footer-height) + 16px);
     }
 
     .audit-page-footer {
         left: 0;
+        padding-left: 16px;
+        padding-right: 16px;
     }
 
     .audit-stats-grid {
@@ -633,8 +723,8 @@ body.sidebar-collapsed .audit-page-footer {
 
 @media (max-width: 768px) {
     .auditlog-page {
-        margin: -16px;
-        padding: 10px 12px calc(var(--audit-footer-height) + 18px);
+        margin: 0;
+        padding: 8px 0 calc(var(--audit-footer-height) + 18px);
         --audit-control-height: 32px;
         overflow-x: hidden;
     }
@@ -727,9 +817,9 @@ body.sidebar-collapsed .audit-page-footer {
 
     .audit-table {
         display: table;
-        width: 760px;
-        min-width: 760px;
-        table-layout: auto;
+        width: 100%;
+        min-width: 0;
+        table-layout: fixed;
         border-spacing: 0;
     }
 
@@ -763,7 +853,7 @@ body.sidebar-collapsed .audit-page-footer {
         white-space: nowrap;
         text-overflow: ellipsis;
         overflow: hidden;
-        max-width: 180px;
+        max-width: none;
     }
 
     .audit-table .audit-col-actions {
@@ -783,8 +873,8 @@ body.sidebar-collapsed .audit-page-footer {
 
 @media (max-width: 480px) {
     .auditlog-page {
-        margin: -16px;
-        padding: 8px 10px calc(var(--audit-footer-height) + 20px);
+        margin: 0;
+        padding: 8px 0 calc(var(--audit-footer-height) + 20px);
     }
 
     .audit-filter-left .filter-dropdown-container {

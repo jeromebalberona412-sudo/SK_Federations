@@ -372,6 +372,7 @@ import { createClient } from '@supabase/supabase-js';
         var n = Number(count || 0);
         if (!Number.isFinite(n) || n < 0) n = 0;
         badge.dataset.unreadTotal = String(n);
+        try { sessionStorage.setItem('commsUnreadTotal', String(n)); } catch (e) { /* ignore */ }
         if (n <= 0) {
             badge.style.display = 'none';
             badge.textContent = '0';
@@ -938,6 +939,21 @@ import { createClient } from '@supabase/supabase-js';
         updateHeaderBadge: updateHeaderBadge,
         flushPendingSignals: flushPendingSignals
     };
+
+    window.addEventListener('pageshow', function (event) {
+        if (event.persisted) {
+            try {
+                var stored = sessionStorage.getItem('commsUnreadTotal');
+                if (stored !== null && stored !== '') {
+                    updateHeaderBadge(Number(stored));
+                }
+            } catch (e) { /* ignore */ }
+        }
+        refreshUnread();
+        if (window.CommsChat && typeof window.CommsChat.reloadConversations === 'function') {
+            window.CommsChat.reloadConversations();
+        }
+    });
 
     window.addEventListener('pagehide', function () {
         if (localTyping.active && localTyping.conversationId) {

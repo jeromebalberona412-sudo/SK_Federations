@@ -285,7 +285,7 @@ class CallService
             Call::STATUS_ACCEPTED => $label.' answered',
             Call::STATUS_ENDED => $label.' ended'
                 .($call->duration_seconds ? ' · '.$this->formatDuration((int) $call->duration_seconds) : ''),
-            Call::STATUS_MISSED => 'Missed '.$label,
+            Call::STATUS_MISSED => 'Call ended. No pickup.',
             Call::STATUS_REJECTED => $label.' declined',
             Call::STATUS_CANCELLED => $label.' cancelled',
             default => null,

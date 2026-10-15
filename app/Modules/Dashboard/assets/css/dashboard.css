@@ -175,6 +175,11 @@ body.sidebar-collapsed .toggle-icon-collapse { display: block; }
     appearance: none;
     transition: background-color 0.22s ease, color 0.22s ease;
 }
+.notif-btn svg {
+    width: 20px;
+    height: 20px;
+    display: block;
+}
 .notif-btn:hover,
 .notif-btn:focus-visible {
     background: rgba(255, 255, 255, 0.14);
@@ -3229,7 +3234,7 @@ body.sidebar-collapsed .main-content { margin-left: var(--sidebar-collapsed); }
 
 .dash-stats-grid {
     display: grid;
-    grid-template-columns: repeat(6, minmax(0, 1fr));
+    grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 10px;
     margin-bottom: 0;
     width: 100%;
@@ -3347,13 +3352,13 @@ body.sidebar-collapsed .main-content { margin-left: var(--sidebar-collapsed); }
 
 @media (max-width: 1280px) {
     .dash-stats-grid {
-        grid-template-columns: repeat(6, minmax(0, 1fr));
+        grid-template-columns: repeat(4, minmax(0, 1fr));
     }
 }
 
 @media (max-width: 1024px) {
     .dash-stats-grid {
-        grid-template-columns: repeat(6, minmax(0, 1fr));
+        grid-template-columns: repeat(2, minmax(0, 1fr));
         gap: 8px;
     }
 }
@@ -4679,6 +4684,7 @@ body.sidebar-collapsed .main-content { margin-left: var(--sidebar-collapsed); }
     width: 100%;
     border-collapse: collapse;
     font-size: 12px;
+    table-layout: fixed;
 }
 
 .dash-audit-table thead th {
@@ -4724,14 +4730,15 @@ body.sidebar-collapsed .main-content { margin-left: var(--sidebar-collapsed); }
 
 .dash-audit-table .cell-primary { font-weight: 600; }
 
-.dash-audit-cell-email {
-    max-width: none;
-    min-width: 180px;
-    overflow: visible;
-    text-overflow: unset;
-    white-space: normal;
-    word-break: break-word;
-    overflow-wrap: anywhere;
+.dash-audit-cell-email,
+.dash-audit-cell-clip {
+    max-width: 0;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    word-break: normal;
+    overflow-wrap: normal;
 }
 
 .dash-audit-col-actions { width: 56px; text-align: center; }
@@ -4945,6 +4952,11 @@ body.sidebar-collapsed .main-content { margin-left: var(--sidebar-collapsed); }
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 20px;
     margin-bottom: 24px;
+}
+
+.dash-feed-row.charts-grid-2 {
+    grid-template-columns: minmax(0, 1fr);
+    margin-bottom: 0;
 }
 
 .charts-grid-2 .dash-section-card,
@@ -5325,13 +5337,12 @@ body.dash-activity-modal-open { overflow: hidden; }
     font-size: 12px;
 }
 
-.dash-audit-row--compact .dash-audit-col-date { min-width: 88px; width: 88px; }
-.dash-audit-row--compact .dash-audit-col-time { min-width: 68px; width: 68px; }
-.dash-audit-row--compact .dash-audit-col-ip,
-.dash-audit-row--compact .dash-audit-table thead th.dash-audit-col-ip,
-.dash-audit-row--compact .dash-audit-table tbody td.dash-audit-col-ip {
-    display: none;
-}
+.dash-audit-row--compact .dash-audit-col-date { min-width: 0; width: 16%; }
+.dash-audit-row--compact .dash-audit-col-time { min-width: 0; width: 12%; }
+.dash-audit-row--compact .dash-audit-col-email { min-width: 0; width: 24%; }
+.dash-audit-row--compact .dash-audit-col-role { min-width: 0; width: 14%; }
+.dash-audit-row--compact .dash-audit-col-event { min-width: 0; width: 16%; }
+.dash-audit-row--compact .dash-audit-col-ip { min-width: 0; width: 12%; }
 
 .dash-row--balanced {
     align-items: stretch;

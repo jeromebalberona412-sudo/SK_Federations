@@ -1,10 +1,4 @@
-<section class="program-dashboard-section" aria-labelledby="programStatisticsTitle">
-    <div class="program-dashboard-heading">
-        <div>
-            <h2 id="programStatisticsTitle">Program Statistics</h2>
-            <p>Counts cover non-archived schedules across your barangays. Open/closed reflects application availability, not implementation progress.</p>
-        </div>
-    </div>
+<section class="program-dashboard-section">
     <div class="program-charts-grid">
         <article class="content-card program-chart-card">
             <div class="card-header">
@@ -12,10 +6,20 @@
                     <h3>Program Schedule Status</h3>
                     <p class="program-chart-subtitle">Open and closed application schedules</p>
                 </div>
-                <span class="kk-demo-total" id="programStatusTotal" aria-live="polite">
-                    <span class="kk-demo-total-label">Total</span>
-                    <span class="kk-demo-total-value">0</span>
-                </span>
+                <div class="program-chart-header-tools">
+                    <label class="program-status-filter">
+                        <span class="visually-hidden">Filter by status</span>
+                        <select id="programStatusFilter" aria-label="Filter program schedule status">
+                            <option value="all">All statuses</option>
+                            <option value="open">Open</option>
+                            <option value="closed">Closed</option>
+                        </select>
+                    </label>
+                    <span class="kk-demo-total" id="programStatusTotal" aria-live="polite">
+                        <span class="kk-demo-total-label">Total</span>
+                        <span class="kk-demo-total-value">0</span>
+                    </span>
+                </div>
             </div>
             <div class="card-body program-chart-body">
                 <div class="program-chart-canvas">

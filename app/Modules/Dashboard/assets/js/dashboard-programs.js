@@ -1,6 +1,7 @@
 document.addEventListener('DOMContentLoaded', function () {
     const initial = window.__DASHBOARD_FEED__?.programs || {};
     const charts = {};
+    let statusSource = { labels: [], values: [] };
 
     if (typeof window.Chart === 'undefined') {
         ['programStatusChart', 'programBarangayChart'].forEach(function (canvasId) {
@@ -94,8 +95,10 @@ document.addEventListener('DOMContentLoaded', function () {
                 tooltip: {
                     callbacks: {
                         label(context) {
-                            const value = Number(context.parsed?.y ?? context.parsed ?? 0);
-                            return ' ' + context.label + ': ' + value.toLocaleString();
+                            const raw = context.dataset?.data?.[context.dataIndex];
+                            const value = Number(raw);
+                            const shown = Number.isFinite(value) ? value : 0;
+                            return ' ' + context.label + ': ' + shown.toLocaleString();
                         },
                     },
                 },
@@ -127,10 +130,35 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
+    function filterStatusChart(source) {
+        const mode = document.getElementById('programStatusFilter')?.value || 'all';
+        const labels = Array.isArray(source?.labels) ? source.labels : [];
+        const values = Array.isArray(source?.values) ? source.values : [];
+        if (mode === 'all') {
+            return { labels: labels, values: values };
+        }
+        const nextLabels = [];
+        const nextValues = [];
+        labels.forEach(function (label, index) {
+            const normalized = String(label).toLowerCase();
+            const matches = mode === 'open' ? normalized.includes('open') : normalized.includes('closed');
+            if (matches) {
+                nextLabels.push(label);
+                nextValues.push(Number(values[index]) || 0);
+            }
+        });
+        return { labels: nextLabels, values: nextValues };
+    }
+
     function render(payload) {
-        renderChart('status', payload?.status_chart);
+        statusSource = payload?.status_chart || { labels: [], values: [] };
+        renderChart('status', filterStatusChart(statusSource));
         renderChart('barangay', payload?.barangay_chart);
     }
+
+    document.getElementById('programStatusFilter')?.addEventListener('change', function () {
+        renderChart('status', filterStatusChart(statusSource));
+    });
 
     render(initial);
     window.addEventListener('skfed:dashboard-programs', function (event) {
