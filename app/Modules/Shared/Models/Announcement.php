@@ -188,4 +188,24 @@ class Announcement extends Model
     {
         return $query->whereRaw('"is_federation_wide" = true');
     }
+
+    public function scopeVisibleToTenant(Builder $query, int $tenantId): Builder
+    {
+        return $query->where(function (Builder $tenantPosts) use ($tenantId): void {
+            $tenantPosts
+                ->where(function (Builder $federationPosts) use ($tenantId): void {
+                    $federationPosts
+                        ->whereRaw('"is_federation_wide" = true')
+                        ->whereHas('user', fn (Builder $user) => $user->where('tenant_id', $tenantId));
+                })
+                ->orWhere(function (Builder $barangayPosts) use ($tenantId): void {
+                    $barangayPosts
+                        ->where(function (Builder $specific) {
+                            $specific->whereRaw('"is_federation_wide" = false')
+                                ->orWhereNull('is_federation_wide');
+                        })
+                        ->whereHas('barangay', fn (Builder $barangay) => $barangay->where('tenant_id', $tenantId));
+                });
+        });
+    }
 }

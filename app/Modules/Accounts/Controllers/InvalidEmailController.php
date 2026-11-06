@@ -6,6 +6,7 @@ use App\Models\InvalidEmailAddress;
 use App\Modules\AuditLog\Contracts\AuditLogInterface;
 use App\Modules\Shared\Controllers\Controller;
 use App\Services\InvalidEmailService;
+use App\Support\OpaqueUrlId;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -72,8 +73,9 @@ class InvalidEmailController extends Controller
         return back()->with('success', 'Invalid email recorded as temporarily invalid.');
     }
 
-    public function reset(InvalidEmailAddress $invalidEmail): RedirectResponse
+    public function reset(string $emailRecord): RedirectResponse
     {
+        $invalidEmail = InvalidEmailAddress::query()->findOrFail(OpaqueUrlId::decode($emailRecord));
         $this->invalidEmails->resetToActive($invalidEmail->normalized_email);
         $this->auditLog->log('email_status_reset', request()->user(), [
             'email' => $invalidEmail->normalized_email,
@@ -82,8 +84,9 @@ class InvalidEmailController extends Controller
         return back()->with('success', 'Email status reset. It can be used again.');
     }
 
-    public function permanentlyBlock(Request $request, InvalidEmailAddress $invalidEmail): RedirectResponse
+    public function permanentlyBlock(Request $request, string $emailRecord): RedirectResponse
     {
+        $invalidEmail = InvalidEmailAddress::query()->findOrFail(OpaqueUrlId::decode($emailRecord));
         $validated = $request->validate([
             'reason' => ['nullable', 'string', 'max:80'],
             'notes' => ['nullable', 'string', 'max:1000'],
@@ -102,8 +105,9 @@ class InvalidEmailController extends Controller
         return back()->with('success', 'Email permanently blocked.');
     }
 
-    public function destroy(InvalidEmailAddress $invalidEmail): RedirectResponse
+    public function destroy(string $emailRecord): RedirectResponse
     {
+        $invalidEmail = InvalidEmailAddress::query()->findOrFail(OpaqueUrlId::decode($emailRecord));
         $email = $invalidEmail->normalized_email;
         $this->invalidEmails->remove($email);
         $this->auditLog->log('email_status_reset', request()->user(), [

@@ -7,6 +7,7 @@ use App\Modules\BarangayMonitoring\Services\BarangayMonitoringService;
 use App\Modules\Profile\Models\Barangay;
 use App\Modules\Shared\Models\Announcement;
 use App\Modules\Shared\Models\User;
+use App\Support\OpaqueUrlId;
 use App\Services\BarangayLogoUrlService;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
@@ -212,7 +213,7 @@ class CommunityFeedService
     /**
      * @return list<array<string, mixed>>
      */
-    public function listPostsForBarangay(?int $barangayId): array
+    public function listPostsForBarangay(?int $barangayId, int $tenantId): array
     {
         if ($barangayId === null) {
             return [];
@@ -222,6 +223,7 @@ class CommunityFeedService
             ->with(['user', 'barangay', 'images'])
             ->withCount(['reactions', 'comments'])
             ->active()
+            ->visibleToTenant($tenantId)
             ->where('barangay_id', $barangayId)
             ->whereRaw('"is_federation_wide" = false')
             ->orderByDesc('created_at')
@@ -230,7 +232,7 @@ class CommunityFeedService
                 $type = strtolower((string) $post->type);
 
                 return [
-                    'id' => $post->id,
+                    'id' => OpaqueUrlId::encode($post->id),
                     'type' => ucfirst($type),
                     'type_class' => in_array($type, ['event', 'announcement', 'activity', 'program', 'update'], true)
                         ? $type

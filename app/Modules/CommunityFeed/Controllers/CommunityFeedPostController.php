@@ -2,6 +2,7 @@
 
 namespace App\Modules\CommunityFeed\Controllers;
 
+use App\Modules\Accounts\Models\Barangay;
 use App\Modules\Accounts\Models\OfficialProfile;
 use App\Modules\Accounts\Support\PortalAppUrl;
 use App\Modules\CommunityFeed\Services\CloudinaryService;
@@ -18,11 +19,13 @@ use App\Modules\Shared\Models\AnnouncementImage;
 use App\Modules\Shared\Models\AnnouncementReaction;
 use App\Modules\Shared\Models\AnnouncementVideo;
 use App\Modules\Shared\Models\User;
+use App\Support\OpaqueUrlId;
 use App\Services\CommunityFeedAvatarService;
 use App\Services\FeedCommentRateLimiter;
 use App\Services\ProhibitedWordsService;
 use App\Services\SkFederationsNotificationService;
 use App\Services\SkFedPageCache;
+use Illuminate\Contracts\Cache\LockTimeoutException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -63,7 +66,18 @@ class CommunityFeedPostController extends Controller
         $perPage = min(100, max(1, (int) $request->get('per_page', 100)));
         $filter = (string) ($request->filter ?: 'all');
         $search = trim((string) $request->get('search', ''));
-        $barangayId = $request->filled('barangay_id') ? (int) $request->barangay_id : null;
+        $barangayId = $request->filled('barangay_id')
+            ? OpaqueUrlId::decode((string) $request->query('barangay_id'))
+            : null;
+        if ($barangayId !== null) {
+            abort_unless(
+                Barangay::query()
+                    ->where('tenant_id', $user->tenant_id)
+                    ->whereKey($barangayId)
+                    ->exists(),
+                404
+            );
+        }
         $federationOnly = $request->boolean('federation_only');
         $year = (int) $request->query('year', 0);
         if ($year < 2000 || $year > 2100) {
@@ -81,7 +95,8 @@ class CommunityFeedPostController extends Controller
                 'reactions.user.officialProfile',
             ])
                 ->withCount('reactions')
-                ->active();
+                ->active()
+                ->visibleToTenant((int) $user->tenant_id);
 
             $query->orderByDesc('created_at');
 
@@ -188,6 +203,7 @@ class CommunityFeedPostController extends Controller
         $payload = $pageCache->remember('community.feed', function () use ($id, $user) {
             $post = Announcement::query()
                 ->active()
+                ->visibleToTenant((int) $user->tenant_id)
                 ->with([
                     'barangay',
                     'comments.user',
@@ -266,6 +282,7 @@ class CommunityFeedPostController extends Controller
         }
 
         $user = Auth::user();
+        abort_unless($user !== null && (int) $user->tenant_id > 0, 403, 'Your Federation account is not assigned to a tenant.');
         $title = isset($validated['title']) ? trim((string) $validated['title']) : null;
         if ($validated['type'] !== 'update') {
             $title = ($title !== null && $title !== '') ? $title : null;
@@ -292,49 +309,97 @@ class CommunityFeedPostController extends Controller
         );
         $visibility = in_array('public', $notifyTargets, true) ? 'public' : 'federation';
 
-        $post = Announcement::create([
-            'type' => $validated['type'],
-            'title' => $title,
-            'body' => $body,
-            'link_url' => $linkUrl,
-            'email_notifications_enabled' => DB::raw($emailNotificationsEnabled ? 'true' : 'false'),
-            'user_id' => $user->id,
-            'barangay_id' => null,
-            'is_federation_wide' => $isFederationWide,
-            'visibility' => $visibility,
-            'notify_targets' => $notifyTargets,
-        ]);
+        $idempotencyKey = trim((string) (
+            $request->header('Idempotency-Key')
+            ?: $request->header('X-Idempotency-Key')
+            ?: ''
+        ));
+        $cacheKey = $idempotencyKey !== ''
+            ? 'community-feed:create:'.$user->id.':'.hash('sha256', $idempotencyKey)
+            : null;
+        $idempotencyLock = $cacheKey ? Cache::lock($cacheKey.':lock', 120) : null;
 
-        $post->email_notifications_enabled = $emailNotificationsEnabled;
+        try {
+            if ($idempotencyLock) {
+                $idempotencyLock->block(8);
+            }
 
-        $this->storePostImages($post, $request);
-        $this->storePostVideos($post, $request, $linkUrl, ($validated['link_kind'] ?? null) === 'google_drive_video');
-        $this->storeUploadedVideoMetadata($post, (array) ($validated['uploaded_videos'] ?? []));
+            if ($cacheKey && ($cachedPostId = Cache::get($cacheKey))) {
+                $cachedPost = Announcement::with([
+                    'barangay',
+                    'comments.user',
+                    'comments.reactions',
+                    'user',
+                    'images',
+                    'videos',
+                    'reactions.user.officialProfile',
+                ])
+                    ->withCount('reactions')
+                    ->find($cachedPostId);
 
-        $fresh = Announcement::with([
-            'barangay',
-            'comments.user',
-            'comments.reactions',
-            'user',
-            'images',
-            'videos',
-            'reactions.user.officialProfile',
-        ])
-            ->withCount('reactions')
-            ->findOrFail($post->id);
+                if ($cachedPost) {
+                    $payload = $this->formatPost($cachedPost, $user->id);
+                    $payload['email_notifications_queued'] = (bool) $cachedPost->email_notifications_enabled;
+                    $payload['message'] = 'Federation post published successfully.';
 
-        $this->dispatchFederationPostNotifications((int) $fresh->id, (int) $user->id, $emailNotificationsEnabled);
+                    return response()->json($payload);
+                }
+            }
 
-        app(SkFedPageCache::class)->bump('community.feed');
-        app(SkFedPageCache::class)->bump('archive.deleted_posts');
+            $post = Announcement::create([
+                'type' => $validated['type'],
+                'title' => $title,
+                'body' => $body,
+                'link_url' => $linkUrl,
+                'email_notifications_enabled' => DB::raw($emailNotificationsEnabled ? 'true' : 'false'),
+                'user_id' => $user->id,
+                'barangay_id' => null,
+                'is_federation_wide' => $isFederationWide,
+                'visibility' => $visibility,
+                'notify_targets' => $notifyTargets,
+            ]);
 
-        $payload = $this->formatPost($fresh, $user->id);
-        $payload['email_notifications_queued'] = $emailNotificationsEnabled;
-        $payload['message'] = $emailNotificationsEnabled
-            ? 'Federation post published. Email notifications have been queued for selected targets.'
-            : 'Federation post published successfully.';
+            if ($cacheKey) {
+                Cache::put($cacheKey, $post->id, now()->addMinutes(10));
+            }
 
-        return response()->json($payload, 201);
+            $post->email_notifications_enabled = $emailNotificationsEnabled;
+
+            $this->storePostImages($post, $request);
+            $this->storePostVideos($post, $request, $linkUrl, ($validated['link_kind'] ?? null) === 'google_drive_video');
+            $this->storeUploadedVideoMetadata($post, (array) ($validated['uploaded_videos'] ?? []));
+
+            $fresh = Announcement::with([
+                'barangay',
+                'comments.user',
+                'comments.reactions',
+                'user',
+                'images',
+                'videos',
+                'reactions.user.officialProfile',
+            ])
+                ->withCount('reactions')
+                ->findOrFail($post->id);
+
+            $this->dispatchFederationPostNotifications((int) $fresh->id, (int) $user->id, $emailNotificationsEnabled);
+
+            app(SkFedPageCache::class)->bump('community.feed');
+            app(SkFedPageCache::class)->bump('archive.deleted_posts');
+
+            $payload = $this->formatPost($fresh, $user->id);
+            $payload['email_notifications_queued'] = $emailNotificationsEnabled;
+            $payload['message'] = $emailNotificationsEnabled
+                ? 'Federation post published. Email notifications have been queued for selected targets.'
+                : 'Federation post published successfully.';
+
+            return response()->json($payload, 201);
+        } catch (LockTimeoutException) {
+            return response()->json([
+                'message' => 'Your previous post request is still processing. Please wait a moment.',
+            ], 409);
+        } finally {
+            $idempotencyLock?->release();
+        }
     }
 
     // PUT /api/community-feed/{id}
@@ -516,7 +581,7 @@ class CommunityFeedPostController extends Controller
     // GET /api/community-feed/{id}/likes
     public function likes(int $id): JsonResponse
     {
-        Announcement::query()->findOrFail($id);
+        $this->findTenantVisiblePost($id);
 
         $reactions = AnnouncementReaction::query()
             ->with('user.officialProfile')
@@ -542,7 +607,7 @@ class CommunityFeedPostController extends Controller
     public function react(Request $request, int $id): JsonResponse
     {
         $user = Auth::user();
-        $post = Announcement::query()->findOrFail($id);
+        $post = $this->findTenantVisiblePost($id);
         $validated = $request->validate([
             'reaction_type' => ['nullable', 'string', Rule::in(AnnouncementReaction::TYPES)],
             'client_seq' => ['sometimes', 'integer', 'min:1'],
@@ -632,7 +697,7 @@ class CommunityFeedPostController extends Controller
     public function commentReact(Request $request, int $id, int $commentId): JsonResponse
     {
         $user = Auth::user();
-        Announcement::query()->findOrFail($id);
+        $this->findTenantVisiblePost($id);
         $comment = AnnouncementComment::query()
             ->where('community_feed_id', $id)
             ->where('id', $commentId)
@@ -717,14 +782,16 @@ class CommunityFeedPostController extends Controller
 
         $request->validate([
             'body' => 'required|string|max:'.FeedCommentRateLimiter::MAX_BODY_LENGTH,
-            'parent_id' => 'nullable|integer',
+            'parent_id' => 'nullable|string|max:255',
         ]);
 
         $this->prohibitedWords->assertClean((string) $request->input('body'), 'body');
 
-        $post = Announcement::query()->findOrFail($id);
+        $post = $this->findTenantVisiblePost($id);
 
-        $parentId = $request->input('parent_id');
+        $parentId = $request->filled('parent_id')
+            ? OpaqueUrlId::decode((string) $request->input('parent_id'))
+            : null;
         if ($parentId) {
             $parent = AnnouncementComment::query()
                 ->where('id', (int) $parentId)
@@ -828,7 +895,7 @@ class CommunityFeedPostController extends Controller
 
     public function commentReactions(int $id, int $commentId): JsonResponse
     {
-        Announcement::query()->findOrFail($id);
+        $this->findTenantVisiblePost($id);
         $comment = AnnouncementComment::query()
             ->where('community_feed_id', $id)
             ->where('id', $commentId)
@@ -943,7 +1010,7 @@ class CommunityFeedPostController extends Controller
         }
 
         return [
-            'id' => $post->id,
+            'id' => OpaqueUrlId::encode($post->id),
             'type' => $post->type,
             'title' => $post->title,
             'body' => $post->body,
@@ -994,11 +1061,12 @@ class CommunityFeedPostController extends Controller
         );
 
         return [
-            'id' => $comment->id,
-            'parent_id' => $comment->parent_id,
+            'id' => OpaqueUrlId::encode($comment->id),
+            'is_reply' => $comment->parent_id !== null,
             'author_name' => Str::limit($comment->author_name, 50, '...'),
             'body' => $comment->body,
             'time' => $comment->created_at?->diffForHumans() ?? 'Just now',
+            'created_at' => $comment->created_at?->toIso8601String(),
             'user_type' => $comment->user_type,
             'owned' => (int) $comment->user_id === $userId && $comment->user_type === 'sk_fed',
             'avatar_url' => $this->avatarService->resolveForComment($comment),
@@ -1523,6 +1591,16 @@ class CommunityFeedPostController extends Controller
                 report($exception);
             }
         })->afterResponse();
+    }
+
+    private function findTenantVisiblePost(int $id): Announcement
+    {
+        $user = Auth::user();
+        abort_unless($user !== null && (int) $user->tenant_id > 0, 403);
+
+        return Announcement::query()
+            ->visibleToTenant((int) $user->tenant_id)
+            ->findOrFail($id);
     }
 
     private function normalizeEmptyLinkUrl(Request $request): void

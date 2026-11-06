@@ -6,6 +6,7 @@ let feedSearch = '';
 let editingPostId = null;
 let composeAudienceSnapshot = [];
 let composeSubmitInFlight = false;
+let composeIdempotencyKey = null;
 let pendingFiles = [];
 let existingImages = [];
 let removedImageIds = [];
@@ -64,7 +65,7 @@ function loadPosts(reset) {
     var url = '/api/community-feed?per_page=100&page=1'
         + (feedSearch ? '&search=' + encodeURIComponent(feedSearch) : '')
         + (currentYearFilter > 0 ? '&year=' + encodeURIComponent(String(currentYearFilter)) : '');
-    var cacheKey = 'sk_fed_community_feed_v3_' + (currentYearFilter || 'all') + '_' + (feedSearch || '');
+    var cacheKey = 'sk_fed_community_feed_v4_' + (currentYearFilter || 'all') + '_' + (feedSearch || '');
 
     function paintFeed(data) {
         posts = (data.data || []).filter(function(p) { return p && p.id; });
@@ -72,7 +73,7 @@ function loadPosts(reset) {
         var signature = posts.map(function (p) { return String(p.id); }).join(',');
         if (container.dataset.feedSignature === signature && container.querySelector('[data-post-id]')) {
             posts.forEach(function (p) {
-                knownPostIds.add(Number(p.id));
+                knownPostIds.add(String(p.id));
                 softSyncPostEngagement(p);
             });
             applyFeedView();
@@ -81,8 +82,8 @@ function loadPosts(reset) {
         container.dataset.feedSignature = signature;
         container.innerHTML = '';
         posts.forEach(function(p) {
-            knownPostIds.add(Number(p.id));
-            postCache.set(Number(p.id), p);
+            knownPostIds.add(String(p.id));
+            postCache.set(String(p.id), p);
             var el = document.createElement('div');
             el.className = 'post-card';
             el.dataset.postId = p.id;
@@ -176,7 +177,7 @@ function pollFeedUpdates() {
             var items = data.data || [];
             var fresh = [];
             items.forEach(function (p) {
-                var id = Number(p.id);
+                var id = String(p.id || '');
                 if (!id) return;
                 if (knownPostIds.has(id) || postExistsInDom(id)) {
                     softSyncPostEngagement(p);
@@ -190,8 +191,8 @@ function pollFeedUpdates() {
             }
             var container = document.getElementById('feed-posts');
             fresh.reverse().forEach(function (p) {
-                knownPostIds.add(Number(p.id));
-                postCache.set(Number(p.id), p);
+                knownPostIds.add(String(p.id));
+                postCache.set(String(p.id), p);
                 posts.unshift(p);
                 var el = document.createElement('div');
                 el.className = 'post-card post-card-new';
@@ -218,9 +219,9 @@ function pollFeedUpdates() {
 
 function softSyncPostEngagement(p) {
     if (!p || !p.id) return;
-    var id = Number(p.id);
+    var id = String(p.id || '');
     postCache.set(id, Object.assign({}, postCache.get(id) || {}, p));
-    var idx = posts.findIndex(function (x) { return Number(x.id) === id; });
+    var idx = posts.findIndex(function (x) { return String(x.id) === id; });
     if (idx >= 0) posts[idx] = Object.assign({}, posts[idx], p);
     else posts.push(p);
 
@@ -270,9 +271,9 @@ function renderPosts(reset) {
 
 function replacePostCard(updated) {
     if (!updated || !updated.id) return;
-    var id = Number(updated.id);
+    var id = String(updated.id || '');
     postCache.set(id, updated);
-    var idx = posts.findIndex(function (p) { return Number(p.id) === id; });
+    var idx = posts.findIndex(function (p) { return String(p.id) === id; });
     if (idx >= 0) posts[idx] = updated;
     var card = document.querySelector('.post-card[data-post-id="' + id + '"]');
     if (!card) return;
@@ -882,7 +883,7 @@ function buildStatsBar(p) {
 
     var likesHtml = '';
     if (likeCount > 0) {
-        likesHtml = '<button type="button" class="post-stats-likes" onclick="event.stopPropagation();openReactionViewer(\'post\',' + p.id + ')">'
+        likesHtml = '<button type="button" class="post-stats-likes" onclick="event.stopPropagation();openReactionViewer(\'post\',\'' + p.id + '\')">'
             + '<span class="reaction-faces">' + reactionFacesHtml(p.reaction_counts || {}) + '</span>'
             + '<span class="reaction-total">' + formatCount(likeCount) + '</span>'
             + '</button>';
@@ -890,7 +891,7 @@ function buildStatsBar(p) {
 
     var commentsHtml = '';
     if (commentCount > 0) {
-        commentsHtml = '<button type="button" class="post-stats-comments" onclick="event.stopPropagation();openComments(' + p.id + ')">'
+        commentsHtml = '<button type="button" class="post-stats-comments" onclick="event.stopPropagation();openComments(\'' + p.id + '\')">'
             + formatCount(commentCount) + ' comment' + (commentCount === 1 ? '' : 's')
             + '</button>';
     }
@@ -904,7 +905,7 @@ function buildCommentItem(c, postId, isReply) {
     var likeLabel = reactionLabel(type);
     var repliesHtml = replies.map(function (r) { return buildCommentItem(r, postId, true); }).join('');
     var viewReplies = replies.length && !isReply
-        ? '<button type="button" class="fb-view-replies" onclick="toggleFedReplies(' + c.id + ')">View ' + replies.length + (replies.length === 1 ? ' reply' : ' replies') + '</button>'
+        ? '<button type="button" class="fb-view-replies" onclick="toggleFedReplies(\'' + c.id + '\')">View ' + replies.length + (replies.length === 1 ? ' reply' : ' replies') + '</button>'
         : '';
 
     return '<div class="comment-item' + (isReply ? ' is-reply' : '') + '" data-comment-id="' + c.id + '">'
@@ -920,17 +921,17 @@ function buildCommentItem(c, postId, isReply) {
         + reactionPickerHtml(type)
         + '</div>'
         + (Number(c.likes || 0) > 0
-            ? '<button type="button" class="comment-react-badge" onclick="openReactionViewer(\'comment\',' + postId + ',' + c.id + ')">'
+            ? '<button type="button" class="comment-react-badge" onclick="openReactionViewer(\'comment\',\'' + postId + '\',\'' + c.id + '\')">'
                 + '<span class="reaction-faces">' + reactionFacesHtml(c.reaction_counts || {}) + '</span>'
                 + '<span class="reaction-total">' + formatCount(c.likes) + '</span>'
                 + '</button>'
             : '')
-        + '<button type="button" class="comment-action-btn" onclick="showFedReply(' + postId + ',' + c.id + ')">Reply</button>'
+        + '<button type="button" class="comment-action-btn" onclick="showFedReply(\'' + postId + '\',\'' + c.id + '\')">Reply</button>'
         + '<span class="comment-time">' + escapeHtml(c.time || '') + '</span>'
         + '</div>'
         + viewReplies
         + '<div class="comment-reply-box" id="fed-reply-' + c.id + '" style="display:none;gap:8px;margin-top:8px;">'
-        + '<input type="text" class="comment-input" placeholder="Write a reply..." maxlength="2000" onkeydown="if(event.key===\'Enter\'){event.preventDefault();addComment(' + postId + ',this,' + c.id + ');}">'
+        + '<input type="text" class="comment-input" placeholder="Write a reply..." maxlength="2000" onkeydown="if(event.key===\'Enter\'){event.preventDefault();addComment(\'' + postId + '\',this,\'' + c.id + '\');}">'
         + '</div>'
         + (repliesHtml ? '<div class="comment-replies" id="fed-replies-' + c.id + '" hidden>' + repliesHtml + '</div>' : '')
         + '</div></div>';
@@ -943,7 +944,7 @@ function buildCommentsList(p) {
     var total = countAllComments(comments);
 
     if (comments.length > 2 && !expanded) {
-        html += '<button type="button" class="view-more-comments" onclick="expandAllComments(' + p.id + ')">'
+        html += '<button type="button" class="view-more-comments" onclick="expandAllComments(\'' + p.id + '\')">'
             + 'View all ' + total + ' comments</button>';
     }
 
@@ -972,8 +973,8 @@ function buildCommentInput(p) {
     var userAvatar = window.currentAvatar || FED_AVATAR;
     return '<div class="comment-input-wrapper">'
         + avatarImg(userAvatar, 'comment-avatar', 'You')
-        + '<input type="text" class="comment-input" placeholder="Write a comment..." maxlength="2000" onkeydown="submitComment(event,' + p.id + ',this)">'
-        + '<button type="button" class="send-comment-btn" onclick="submitCommentBtn(' + p.id + ',this)">'
+        + '<input type="text" class="comment-input" placeholder="Write a comment..." maxlength="2000" onkeydown="submitComment(event,\'' + p.id + '\',this)">'
+        + '<button type="button" class="send-comment-btn" onclick="submitCommentBtn(\'' + p.id + '\',this)">'
         + '<svg viewBox="0 0 20 20" fill="currentColor"><path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z"/></svg>'
         + '</button></div>';
 }
@@ -999,7 +1000,7 @@ window.expandAllComments = expandAllComments;
 function formatLikeCountLabel(postId, count) {
     var total = count || 0;
     if (total > 0) {
-        return 'Like (<span class="post-like-count-link" onclick="event.stopPropagation();openReactionViewer(\'post\',' + postId + ')">' + total + '</span>)';
+        return 'Like (<span class="post-like-count-link" onclick="event.stopPropagation();openReactionViewer(\'post\',\'' + postId + '\')">' + total + '</span>)';
     }
     return 'Like (0)';
 }
@@ -1119,12 +1120,12 @@ function buildPost(p) {
     var optionsHtml = '';
     if (p.owned) {
         optionsHtml = '<div class="post-options-wrap">'
-            + '<button type="button" class="post-options-btn" onclick="togglePostOptions(' + p.id + ', event)" aria-label="Post options" title="More">'
+            + '<button type="button" class="post-options-btn" onclick="togglePostOptions(\'' + p.id + '\', event)" aria-label="Post options" title="More">'
             + '<svg viewBox="0 0 20 20" fill="currentColor"><path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z"/></svg>'
             + '</button>'
             + '<div class="post-options-menu" id="options-menu-' + p.id + '">'
-            + '<button type="button" onclick="editPost(' + p.id + ')"><svg viewBox="0 0 20 20" fill="currentColor"><path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z"/></svg>Edit</button>'
-            + '<button type="button" class="danger" onclick="deletePost(' + p.id + ')"><svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd"/></svg>Delete</button>'
+            + '<button type="button" onclick="editPost(\'' + p.id + '\')"><svg viewBox="0 0 20 20" fill="currentColor"><path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z"/></svg>Edit</button>'
+            + '<button type="button" class="danger" onclick="deletePost(\'' + p.id + '\')"><svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd"/></svg>Delete</button>'
             + '</div></div>';
     }
 
@@ -1164,7 +1165,7 @@ function buildPost(p) {
         + '<span class="reaction-label" id="like-count-' + p.id + '">' + escapeHtml(reactionLabel(reactionType)) + '</span></button>'
         + reactionPickerHtml(reactionType)
         + '</div>'
-        + '<button type="button" class="action-btn comment-btn" onclick="openComments(' + p.id + ')">'
+        + '<button type="button" class="action-btn comment-btn" onclick="openComments(\'' + p.id + '\')">'
         + '<svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M18 10c0 3.866-3.582 7-8 7a8.841 8.841 0 01-4.083-.98L2 17l1.338-3.123C2.493 12.767 2 11.434 2 10c0-3.866 3.582-7 8-7s8 3.134 8 7zM7 9H5v2h2V9zm8 0h-2v2h2V9zM9 9h2v2H9V9z" clip-rule="evenodd"/></svg>'
         + '<span id="comment-count-' + p.id + '">Comment</span></button>'
         + (window.SkCfMedia ? window.SkCfMedia.buildShareButtonHtml(p) : '')
@@ -1231,8 +1232,8 @@ function bindReactionWrap(wrap) {
     var hideTimer = null;
     var pressTimer = null;
     var didLongPress = false;
-    var postId = Number(wrap.dataset.postId);
-    var commentId = Number(wrap.dataset.commentId || 0);
+    var postId = String(wrap.dataset.postId || '');
+    var commentId = String(wrap.dataset.commentId || '');
     var isComment = wrap.dataset.target === 'comment';
 
     function apply(type) {
@@ -1334,7 +1335,7 @@ function paintPostReaction(id, liked, nextType, count) {
 }
 
 function refreshPostStats(id) {
-    var p = posts.find(function (x) { return Number(x.id) === Number(id); }) || postCache.get(Number(id));
+    var p = posts.find(function (x) { return String(x.id) === String(id); }) || postCache.get(String(id));
     var card = document.querySelector('[data-post-id="' + id + '"]');
     if (!p || !card) return;
     var statsBar = card.querySelector('.post-stats-bar');
@@ -1352,7 +1353,7 @@ function setReaction(id, type) {
     var btn = document.getElementById('like-btn-' + id);
     var current = btn ? (btn.dataset.type || '') : '';
     var next = resolveNextReaction(current, type);
-    var p = posts.find(function (x) { return Number(x.id) === Number(id); }) || postCache.get(Number(id));
+    var p = posts.find(function (x) { return String(x.id) === String(id); }) || postCache.get(String(id));
     var count = Number((p && p.likes) || 0);
     if (current && !next.liked) count = Math.max(0, count - 1);
     else if (!current && next.liked) count += 1;
@@ -1364,7 +1365,7 @@ function setReaction(id, type) {
         p.reaction_type = next.type || '';
         p.reaction_counts = bumpReactionCounts(p.reaction_counts || {}, current, next.type);
     }
-    var cached = postCache.get(Number(id));
+    var cached = postCache.get(String(id));
     if (cached && cached !== p) {
         cached.likes = count;
         cached.liked = next.liked;
@@ -1392,7 +1393,7 @@ function setReaction(id, type) {
             var data = result.data;
             var serverType = data.liked ? (data.reaction_type || 'like') : '';
             paintPostReaction(id, data.liked, serverType, data.count);
-            var post = posts.find(function (x) { return Number(x.id) === Number(id); }) || postCache.get(Number(id));
+            var post = posts.find(function (x) { return String(x.id) === String(id); }) || postCache.get(String(id));
             if (post) {
                 post.likes = data.count;
                 post.liked = data.liked;
@@ -1455,7 +1456,7 @@ function setCommentReaction(postId, commentId, type) {
 
             var count = Number(data.count || 0);
             var badgeHtml = count > 0
-                ? '<button type="button" class="comment-react-badge" onclick="openReactionViewer(\'comment\',' + postId + ',' + commentId + ')">'
+                ? '<button type="button" class="comment-react-badge" onclick="openReactionViewer(\'comment\',\'' + postId + '\',\'' + commentId + '\')">'
                     + '<span class="reaction-faces">' + reactionFacesHtml(data.reaction_counts || {}) + '</span>'
                     + '<span class="reaction-total">' + formatCount(count) + '</span>'
                     + '</button>'
@@ -1489,8 +1490,8 @@ function commentsPageUrl(id) {
 }
 
 function openComments(id) {
-    var postId = Number(id);
-    var cached = postCache.get(postId) || posts.find(function (x) { return Number(x.id) === postId; });
+    var postId = String(id);
+    var cached = postCache.get(postId) || posts.find(function (x) { return String(x.id) === postId; });
 
     if (typeof window.openCommentPreview === 'function') {
         if (cached) {
@@ -1616,8 +1617,8 @@ function addComment(id, input, parentId) {
     var payload = { body: text };
     if (parentId) payload.parent_id = parentId;
 
-    var p = posts.find(function (x) { return Number(x.id) === Number(id); });
-    if (!p) p = postCache.get(Number(id));
+    var p = posts.find(function (x) { return String(x.id) === String(id); });
+    if (!p) p = postCache.get(String(id));
     var tempId = 'tmp-' + Date.now();
     var tempComment = {
         id: tempId,
@@ -1633,7 +1634,7 @@ function addComment(id, input, parentId) {
     };
     if (p) {
         insertCachedComment(p, tempComment, parentId);
-        postCache.set(Number(id), p);
+        postCache.set(String(id), p);
         refreshFeedCommentUi(id, p);
     }
 
@@ -1651,11 +1652,11 @@ function addComment(id, input, parentId) {
             });
         })
         .then(function(c) {
-            var post = posts.find(function (x) { return Number(x.id) === Number(id); }) || postCache.get(Number(id));
+            var post = posts.find(function (x) { return String(x.id) === String(id); }) || postCache.get(String(id));
             if (post) {
                 removeCachedComment(post.comments || [], tempId);
-                insertCachedComment(post, c, c.parent_id || parentId);
-                postCache.set(Number(id), post);
+                insertCachedComment(post, c, parentId);
+                postCache.set(String(id), post);
                 refreshFeedCommentUi(id, post);
             }
             if (window.FeedCommentGuard) window.FeedCommentGuard.applyFromPayload(c);
@@ -1664,7 +1665,7 @@ function addComment(id, input, parentId) {
             }
         })
         .catch(function(err) {
-            var post = posts.find(function (x) { return Number(x.id) === Number(id); }) || postCache.get(Number(id));
+            var post = posts.find(function (x) { return String(x.id) === String(id); }) || postCache.get(String(id));
             if (post) {
                 removeCachedComment(post.comments || [], tempId);
                 refreshFeedCommentUi(id, post);
@@ -1700,19 +1701,19 @@ function commentBodyText(commentId) {
 
 function updateCachedCommentBody(postId, commentId, body) {
     var targets = [];
-    var fromPosts = posts.find(function (x) { return Number(x.id) === Number(postId); });
+    var fromPosts = posts.find(function (x) { return String(x.id) === String(postId); });
     if (fromPosts) targets.push(fromPosts);
-    var fromCache = postCache.get(Number(postId));
+    var fromCache = postCache.get(String(postId));
     if (fromCache && fromCache !== fromPosts) targets.push(fromCache);
     targets.forEach(function (p) {
         var comment = findCachedComment(p.comments || [], commentId);
         if (comment) comment.body = body;
-        postCache.set(Number(postId), p);
+        postCache.set(String(postId), p);
     });
 }
 
 function editComment(postId, commentId) {
-    pendingCommentAction = { postId: Number(postId), commentId: Number(commentId), isReply: isReplyComment(commentId) };
+    pendingCommentAction = { postId: String(postId), commentId: String(commentId), isReply: isReplyComment(commentId) };
     document.querySelectorAll('.comment-options-menu.open, .cp-options-menu.open, .post-options-menu.open').forEach(function (m) {
         m.classList.remove('open');
     });
@@ -1792,7 +1793,7 @@ function confirmEditComment() {
 }
 
 function deleteComment(postId, commentId) {
-    pendingCommentAction = { postId: Number(postId), commentId: Number(commentId), isReply: isReplyComment(commentId) };
+    pendingCommentAction = { postId: String(postId), commentId: String(commentId), isReply: isReplyComment(commentId) };
     document.querySelectorAll('.comment-options-menu.open, .cp-options-menu.open, .post-options-menu.open').forEach(function (m) {
         m.classList.remove('open');
     });
@@ -1884,8 +1885,8 @@ function mountFeedPostsList(list, containerId, filterType) {
     }
 
     filtered.forEach(function (p) {
-        knownPostIds.add(Number(p.id));
-        postCache.set(Number(p.id), p);
+        knownPostIds.add(String(p.id));
+        postCache.set(String(p.id), p);
         var el = document.createElement('div');
         el.className = 'post-card';
         el.dataset.postId = p.id;
@@ -1998,8 +1999,8 @@ function applyFeedView() {
     var cards = container.querySelectorAll('.post-card[data-post-id]');
     var visible = 0;
     cards.forEach(function (card) {
-        var id = Number(card.dataset.postId);
-        var post = postCache.get(id) || posts.find(function (item) { return Number(item.id) === id; });
+        var id = String(card.dataset.postId || '');
+        var post = postCache.get(id) || posts.find(function (item) { return String(item.id) === id; });
         var show = postMatchesView(post || { type: card.dataset.postType || '' });
         card.hidden = !show;
         card.style.display = show ? '' : 'none';
@@ -2110,13 +2111,14 @@ function confirmArchivePost() {
                 window.SkLocalCache.clearByPrefix('sk_fed_community_feed_v');
                 window.SkLocalCache.clearByPrefix('sk_fed_deleted_posts_v1_');
             }
-            posts = posts.filter(function (x) { return Number(x.id) !== Number(id); });
-            knownPostIds.delete(Number(id));
-            postCache.delete(Number(id));
+            posts = posts.filter(function (x) { return String(x.id) !== String(id); });
+            knownPostIds.delete(String(id));
+            postCache.delete(String(id));
             var el = document.querySelector('[data-post-id="' + id + '"]');
             if (el) el.remove();
             closeArchiveModal();
             notifyFeed('Post moved to Deleted Posts.', 'success');
+            window.location.assign(window.CommunityFeedConfig.deletedPostsUrl);
         })
         .catch(function () {
             notifyFeed('Unable to delete the post. Please try again.', 'error');
@@ -2130,7 +2132,7 @@ function confirmArchivePost() {
 }
 
 function editPost(id) {
-    var p = posts.find(function(x) { return Number(x.id) === Number(id); }) || postCache.get(Number(id));
+    var p = posts.find(function(x) { return String(x.id) === String(id); }) || postCache.get(String(id));
     if (!p) {
         notifyFeed('Unable to open this post for editing.', 'error');
         return;
@@ -2221,11 +2223,11 @@ function setComposeLinkError(message) {
 }
 
 function resolveEditingPostId() {
-    var fromState = editingPostId != null && editingPostId !== '' ? Number(editingPostId) : 0;
-    if (fromState > 0) return fromState;
+    var fromState = editingPostId != null && editingPostId !== '' ? String(editingPostId) : '';
+    if (fromState) return fromState;
     var hidden = document.getElementById('edit-post-id');
-    var fromHidden = hidden && hidden.value !== '' ? Number(hidden.value) : 0;
-    return fromHidden > 0 ? fromHidden : null;
+    var fromHidden = hidden && hidden.value !== '' ? String(hidden.value) : '';
+    return fromHidden || null;
 }
 
 function submitPost() {
@@ -2326,6 +2328,9 @@ function submitPost() {
 
     composeSubmitInFlight = true;
     setComposePostLoading(true, editId !== null ? 'Saving...' : 'Posting...');
+    if ((editId === null || editId === '') && !composeIdempotencyKey) {
+        composeIdempotencyKey = 'cf-post-' + Date.now() + '-' + Math.random().toString(36).slice(2, 10);
+    }
 
     if (isDriveFolderPost) {
         var emailNotify = document.getElementById('compose-email-notify');
@@ -2337,7 +2342,7 @@ function submitPost() {
             notifyTargets: targets,
         }).then(function (saved) {
             if (!saved || !saved.id) throw new Error('Invalid response from server.');
-            if (window.SkLocalCache) window.SkLocalCache.clearByPrefix('sk_fed_community_feed_v1_');
+            if (window.SkLocalCache) window.SkLocalCache.clearByPrefix('sk_fed_community_feed_v');
             closeComposeModal();
             if (saved.email_notifications_queued) {
                 notifyFeed(saved.message || 'Post published. Email notifications queued for selected targets.');
@@ -2392,7 +2397,7 @@ function submitPost() {
 }
 
 function savePostForm(formData, uploadingIds, editId) {
-    var isEdit = editId !== null && Number(editId) > 0;
+    var isEdit = editId !== null && editId !== '';
     uploadingIds = uploadingIds || [];
     var url = isEdit ? '/api/community-feed/' + editId : '/api/community-feed';
     var headers = {
@@ -2400,6 +2405,10 @@ function savePostForm(formData, uploadingIds, editId) {
         'Accept': 'application/json',
         'X-Requested-With': 'XMLHttpRequest',
     };
+    if (!isEdit && composeIdempotencyKey) {
+        headers['Idempotency-Key'] = composeIdempotencyKey;
+        headers['X-Idempotency-Key'] = composeIdempotencyKey;
+    }
     if (isEdit) {
         formData.append('_method', 'PUT');
         headers['X-HTTP-Method-Override'] = 'PUT';
@@ -2433,10 +2442,11 @@ function savePostForm(formData, uploadingIds, editId) {
         })
         .then(function(saved) {
             if (!saved || !saved.id) throw new Error('Invalid response from server.');
-            if (isEdit && Number(saved.id) !== Number(editId)) {
+            if (isEdit && String(saved.id) !== String(editId)) {
                 throw new Error('Edit did not update the original post. Please try again.');
             }
-            if (window.SkLocalCache) window.SkLocalCache.clearByPrefix('sk_fed_community_feed_v1_');
+            if (!isEdit) composeIdempotencyKey = null;
+            if (window.SkLocalCache) window.SkLocalCache.clearByPrefix('sk_fed_community_feed_v');
             closeComposeModal();
             if (uploadingIds.length && window.SkCfMedia) {
                 window.SkCfMedia.queueAttachVideosToPost(saved.id, uploadingIds);
@@ -2468,6 +2478,7 @@ function savePostForm(formData, uploadingIds, editId) {
 
 function openComposeModal(type) {
     editingPostId = null;
+    composeIdempotencyKey = null;
     pendingFiles = [];
     existingImages = [];
     removedImageIds = [];

@@ -3,6 +3,8 @@
 use App\Modules\CommunityFeed\Controllers\CommunityFeedController;
 use App\Modules\CommunityFeed\Controllers\CommunityFeedGoogleDriveFolderController;
 use App\Modules\CommunityFeed\Controllers\CommunityFeedPostController;
+use App\Modules\CommunityFeed\Http\Middleware\ResolveOpaqueFeedIds;
+use App\Support\OpaqueUrlId;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/community/post/{token}', [CommunityFeedController::class, 'publicShow'])
@@ -33,21 +35,19 @@ Route::get('/modules/community-feed/{type}/{file}', function ($type, $file) {
     return response()->file($path, ['Content-Type' => $mimeType]);
 })->where('type', 'css|js|images')->where('file', '.*');
 
-Route::middleware(['auth', 'session.timeout', 'verified', 'single.session', 'sk_fed.access', 'trusted.device', 'prevent.back'])
+Route::middleware(['auth', 'session.timeout', 'verified', 'single.session', 'sk_fed.access', 'trusted.device', 'prevent.back', ResolveOpaqueFeedIds::class])
     ->group(function () {
         // Views
         Route::get('/community-feed', [CommunityFeedController::class, 'index'])->name('community-feed');
         Route::get('/community-feed/comments/{id}', [CommunityFeedController::class, 'comments'])
-            ->whereNumber('id')
             ->name('community-feed.comments');
         Route::get('/community-feed/{id}/comments', function (int $id) {
-            return redirect('/community-feed/comments/'.$id);
-        })->whereNumber('id');
+            return redirect('/community-feed/comments/'.OpaqueUrlId::encode($id));
+        });
         Route::get('/sk-federation-profile', [CommunityFeedController::class, 'skFedProfile'])->name('sk-fed-profile');
         Route::post('/sk-federation-profile/post', [CommunityFeedController::class, 'createPost'])->name('sk-fed-profile.post');
         Route::get('/barangay-profile/{slug}', [CommunityFeedController::class, 'barangayProfile'])->name('skfed.barangay-profile');
         Route::get('/barangay-profile/{slug}/comments/{id}', [CommunityFeedController::class, 'barangayComments'])
-            ->whereNumber('id')
             ->name('skfed.barangay-profile.comments');
 
         // Federation-wide post API
@@ -64,23 +64,19 @@ Route::middleware(['auth', 'session.timeout', 'verified', 'single.session', 'sk_
                 ->name('api.community-feed.google-drive-folder.publish');
             Route::post('/google-drive-folder/sync', [CommunityFeedGoogleDriveFolderController::class, 'sync'])
                 ->name('api.community-feed.google-drive-folder.sync');
-            Route::get('/{id}', [CommunityFeedPostController::class, 'show'])->whereNumber('id')->name('api.community-feed.show');
-            Route::put('/{id}', [CommunityFeedPostController::class, 'update'])->whereNumber('id')->name('api.community-feed.update');
-            Route::delete('/{id}', [CommunityFeedPostController::class, 'destroy'])->whereNumber('id')->name('api.community-feed.destroy');
-            Route::get('/{id}/likes', [CommunityFeedPostController::class, 'likes'])->whereNumber('id')->name('api.community-feed.likes');
-            Route::post('/{id}/react', [CommunityFeedPostController::class, 'react'])->whereNumber('id')->name('api.community-feed.react');
-            Route::post('/{id}/comment', [CommunityFeedPostController::class, 'comment'])->whereNumber('id')->name('api.community-feed.comment');
+            Route::get('/{id}', [CommunityFeedPostController::class, 'show'])->name('api.community-feed.show');
+            Route::put('/{id}', [CommunityFeedPostController::class, 'update'])->name('api.community-feed.update');
+            Route::delete('/{id}', [CommunityFeedPostController::class, 'destroy'])->name('api.community-feed.destroy');
+            Route::get('/{id}/likes', [CommunityFeedPostController::class, 'likes'])->name('api.community-feed.likes');
+            Route::post('/{id}/react', [CommunityFeedPostController::class, 'react'])->name('api.community-feed.react');
+            Route::post('/{id}/comment', [CommunityFeedPostController::class, 'comment'])->name('api.community-feed.comment');
             Route::put('/{id}/comments/{comment}', [CommunityFeedPostController::class, 'updateComment'])
-                ->whereNumber('comment')
                 ->name('api.community-feed.comments.update');
             Route::delete('/{id}/comments/{comment}', [CommunityFeedPostController::class, 'destroyComment'])
-                ->whereNumber('comment')
                 ->name('api.community-feed.comments.destroy');
             Route::get('/{id}/comments/{comment}/reactions', [CommunityFeedPostController::class, 'commentReactions'])
-                ->whereNumber('comment')
                 ->name('api.community-feed.comment-reactions');
             Route::post('/{id}/comments/{comment}/reactions', [CommunityFeedPostController::class, 'commentReact'])
-                ->whereNumber('comment')
                 ->name('api.community-feed.comment-react');
         });
     });

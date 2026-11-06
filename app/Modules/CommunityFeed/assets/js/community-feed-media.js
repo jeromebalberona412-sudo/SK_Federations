@@ -543,14 +543,14 @@
 
     function buildShareButtonHtml(p) {
         var canShare = p.can_share !== false && !!p.share_url;
-        return '<button type="button" class="action-btn share-btn" onclick="openShareModal(' + p.id + ')" aria-label="Share post"'
+        return '<button type="button" class="action-btn share-btn" onclick="openShareModal(\'' + p.id + '\')" aria-label="Share post"'
             + (canShare ? '' : ' disabled title="Sharing unavailable for this post"') + '>'
             + '<svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path d="M15 8a3 3 0 10-2.977-2.63l-4.94 2.47a3 3 0 100 4.319l4.94 2.47a3 3 0 10.895-1.789l-4.94-2.47a3.027 3.027 0 000-.74l4.94-2.47C13.456 7.68 14.19 8 15 8z"/></svg>'
             + '<span>Share</span></button>';
     }
 
     function openShareModal(postId) {
-        var id = Number(postId);
+        var id = String(postId);
         var cached = (global.postCache && global.postCache.get) ? (global.postCache.get(id) || {}) : {};
         var shareUrl = String(cached.share_url || '').trim();
         if (!shareUrl || cached.can_share === false) {
@@ -897,7 +897,7 @@
     }
 
     function queueAttachVideosToPost(postId, uploadIds) {
-        var id = Number(postId);
+        var id = String(postId);
         if (!id || !uploadIds || !uploadIds.length) return;
         attachVideosAfterPostQueue.push({ postId: id, uploadIds: uploadIds.slice() });
         maybeFlushAttachVideosQueue();

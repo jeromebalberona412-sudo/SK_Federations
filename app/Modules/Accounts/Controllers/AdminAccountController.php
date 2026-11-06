@@ -18,6 +18,7 @@ use App\Modules\Accounts\Services\BatchAccountImportService;
 use App\Modules\Accounts\Services\ChairpersonFederationSyncService;
 use App\Modules\Accounts\Services\FederationRosterService;
 use App\Modules\Accounts\Support\SkOfficialTermDates;
+use App\Support\OpaqueUrlId;
 use App\Modules\Shared\Controllers\Controller;
 use App\Modules\Shared\Models\Tenant;
 use App\Modules\Shared\Models\User;
@@ -46,12 +47,15 @@ class AdminAccountController extends Controller
         private readonly ChairpersonFederationSyncService $chairpersonFederationSyncService,
     ) {}
 
-    public function indexFederation(Request $request): View
+    public function indexFederation(Request $request): View|RedirectResponse
     {
         $this->authorize('viewAny', User::class);
 
         $tenantId = $this->resolveTenantId($request->user());
         $this->ensureTenantBarangays($tenantId);
+        if ($redirect = $this->canonicalizeLegacyBarangayFilter($request, $tenantId)) {
+            return $redirect;
+        }
         $this->processExpiredTermsForManage($tenantId, $request->user());
         $this->federationRosterService->syncFederationRosterAccess($tenantId);
 
@@ -65,6 +69,13 @@ class AdminAccountController extends Controller
             ->where('tenant_id', $tenantId)
             ->orderBy('name')
             ->get();
+        $selectedBarangayId = $request->filled('barangay')
+            ? OpaqueUrlId::decode((string) $request->query('barangay'))
+            : null;
+        abort_if(
+            $selectedBarangayId !== null && ! $barangays->contains(fn (Barangay $barangay) => (int) $barangay->id === $selectedBarangayId),
+            404
+        );
 
         $takenFederationPositions = $this->federationRosterService->takenFederationPositions($tenantId);
 
@@ -79,6 +90,7 @@ class AdminAccountController extends Controller
             'accounts',
             'accountType',
             'barangays',
+            'selectedBarangayId',
             'positionOptions',
             'takenFederationPositions',
             'defaultTermStart',
@@ -86,12 +98,15 @@ class AdminAccountController extends Controller
         ));
     }
 
-    public function indexOfficials(Request $request): View
+    public function indexOfficials(Request $request): View|RedirectResponse
     {
         $this->authorize('viewAny', User::class);
 
         $tenantId = $this->resolveTenantId($request->user());
         $this->ensureTenantBarangays($tenantId);
+        if ($redirect = $this->canonicalizeLegacyBarangayFilter($request, $tenantId)) {
+            return $redirect;
+        }
 
         // Archive ended terms into Records before rendering so Manage stays current-term only.
         $this->processExpiredTermsForManage($tenantId, $request->user());
@@ -101,6 +116,13 @@ class AdminAccountController extends Controller
             ->where('tenant_id', $tenantId)
             ->orderBy('name')
             ->get();
+        $selectedBarangayId = $request->filled('barangay')
+            ? OpaqueUrlId::decode((string) $request->query('barangay'))
+            : null;
+        abort_if(
+            $selectedBarangayId !== null && ! $barangays->contains(fn (Barangay $barangay) => (int) $barangay->id === $selectedBarangayId),
+            404
+        );
         $accounts = collect();
 
         $accountType = 'sk_officials';
@@ -121,6 +143,7 @@ class AdminAccountController extends Controller
             'accounts',
             'accountType',
             'barangays',
+            'selectedBarangayId',
             'positionOptions',
             'defaultTermStart',
             'defaultTermEnd',
@@ -469,13 +492,13 @@ class AdminAccountController extends Controller
         }
     }
 
-    public function update(UpdateAccountRequest $request, User $user): RedirectResponse|JsonResponse
+    public function update(UpdateAccountRequest $request, User $account): RedirectResponse|JsonResponse
     {
         $this->resolveTenantId($request->user());
 
-        $this->authorize('update', $user);
+        $this->authorize('update', $account);
 
-        $result = $this->accountService->updateAccount($user, $request->validated(), $request->user());
+        $result = $this->accountService->updateAccount($account, $request->validated(), $request->user());
         $account = $result['account'];
         $this->bumpAccountsCache();
 
@@ -510,13 +533,13 @@ class AdminAccountController extends Controller
         return back()->with('status', $message);
     }
 
-    public function resendSetupEmail(Request $request, User $user): JsonResponse
+    public function resendSetupEmail(Request $request, User $account): JsonResponse
     {
         $this->resolveTenantId($request->user());
-        $this->authorize('resendSetupEmail', $user);
+        $this->authorize('resendSetupEmail', $account);
 
         try {
-            $this->accountService->resendAccountSetupEmail($user, $request->user());
+            $this->accountService->resendAccountSetupEmail($account, $request->user());
             $this->bumpAccountsCache();
 
             return response()->json([
@@ -536,7 +559,7 @@ class AdminAccountController extends Controller
             report($exception);
             Log::error('Account setup email sending failed', [
                 'operation' => 'resend_setup_email_controller',
-                'user_id' => $user->id,
+                'user_id' => $account->id,
                 'exception' => $exception::class,
                 'message' => $exception->getMessage(),
             ]);
@@ -548,13 +571,13 @@ class AdminAccountController extends Controller
         }
     }
 
-    public function updateFederationPosition(AssignFederationPositionRequest $request, User $user): JsonResponse
+    public function updateFederationPosition(AssignFederationPositionRequest $request, User $account): JsonResponse
     {
         $this->resolveTenantId($request->user());
-        $this->authorize('update', $user);
+        $this->authorize('update', $account);
 
         $account = $this->federationRosterService->assignFederationPosition(
-            $user,
+            $account,
             $request->validated('federation_position'),
             $request->user()
         );
@@ -609,10 +632,11 @@ class AdminAccountController extends Controller
         return response()->json($payload);
     }
 
-    public function deactivate(Request $request, int $user): RedirectResponse|JsonResponse
+    public function deactivate(Request $request, string $accountId): RedirectResponse|JsonResponse
     {
         $admin = $request->user();
         $this->resolveTenantId($admin);
+        $user = OpaqueUrlId::decode($accountId);
 
         $target = User::query()
             ->whereKey($user)
@@ -681,29 +705,29 @@ class AdminAccountController extends Controller
             : 'accounts.federation.index';
     }
 
-    public function resetPassword(Request $request, User $user): RedirectResponse
+    public function resetPassword(Request $request, User $account): RedirectResponse
     {
         $this->resolveTenantId($request->user());
 
-        $this->authorize('resetPassword', $user);
+        $this->authorize('resetPassword', $account);
 
         $payload = $request->validate([
             'password' => ['nullable', 'string', 'min:8', 'confirmed'],
         ]);
 
         $newPassword = $payload['password'] ?? Str::random(16);
-        $this->accountService->resetPassword($user, $newPassword, $request->user());
+        $this->accountService->resetPassword($account, $newPassword, $request->user());
 
         return back()->with('status', 'Password reset successfully.');
     }
 
-    public function extendTerm(ExtendTermRequest $request, OfficialProfile $officialProfile): RedirectResponse
+    public function extendTerm(ExtendTermRequest $request, OfficialProfile $profile): RedirectResponse
     {
         $this->resolveTenantId($request->user());
 
-        $this->authorize('extendTerm', $officialProfile);
+        $this->authorize('extendTerm', $profile);
 
-        $this->accountService->extendTerm($officialProfile, $request->validated(), $request->user());
+        $this->accountService->extendTerm($profile, $request->validated(), $request->user());
 
         return back()->with('status', 'Term extended successfully.');
     }
@@ -817,6 +841,7 @@ class AdminAccountController extends Controller
 
         return [
             'id' => $account->id,
+            'url_id' => OpaqueUrlId::encode($account->id),
             'role' => $account->role,
             'email' => $account->email,
             'status' => $account->status,
@@ -860,6 +885,7 @@ class AdminAccountController extends Controller
 
         return [
             'id' => $account->id,
+            'url_id' => OpaqueUrlId::encode($account->id),
             'role' => $account->role,
             'email' => $account->email,
             'status' => $account->status,
@@ -892,6 +918,32 @@ class AdminAccountController extends Controller
             'term_end_display' => '—',
             'is_incoming_turnover' => false,
         ];
+    }
+
+    private function canonicalizeLegacyBarangayFilter(Request $request, int $tenantId): ?RedirectResponse
+    {
+        if (! $request->has('barangay_id')) {
+            return null;
+        }
+
+        $query = $request->query();
+        $legacyBarangayId = $query['barangay_id'] ?? null;
+        unset($query['barangay_id']);
+
+        if (! $request->filled('barangay') && is_scalar($legacyBarangayId) && ctype_digit((string) $legacyBarangayId)) {
+            $barangay = Barangay::query()
+                ->where('tenant_id', $tenantId)
+                ->whereKey((int) $legacyBarangayId)
+                ->first();
+
+            if ($barangay) {
+                $query['barangay'] = OpaqueUrlId::encode($barangay->id);
+            }
+        }
+
+        $url = url()->current();
+
+        return redirect()->to($url.($query !== [] ? '?'.http_build_query($query) : ''));
     }
 
     private function resolveTenantId(User $admin): int

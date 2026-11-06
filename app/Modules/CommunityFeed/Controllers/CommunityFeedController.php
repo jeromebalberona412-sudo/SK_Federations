@@ -22,15 +22,16 @@ class CommunityFeedController extends Controller
             'user' => $request->user(),
             'barangayProfiles' => $this->feedService->listBarangayProfiles($tenantId),
             'commentPreviewPost' => null,
-            'feedYearsWithPosts' => $this->yearsWithFederationPosts(),
+            'feedYearsWithPosts' => $this->yearsWithFederationPosts((int) ($request->user()?->tenant_id ?? 0)),
         ]);
     }
 
-    public function comments(Request $request, int $id): View
+    public function comments(Request $request, int $id): View|RedirectResponse
     {
         $user = $request->user();
         $post = Announcement::query()
             ->active()
+            ->visibleToTenant((int) ($user?->tenant_id ?? 0))
             ->with([
                 'barangay',
                 'comments.user',
@@ -41,13 +42,28 @@ class CommunityFeedController extends Controller
                 'reactions.user',
             ])
             ->withCount('reactions')
-            ->findOrFail($id);
+            ->find($id);
+
+        if ($post === null) {
+            abort_unless(
+                Announcement::query()
+                    ->archived()
+                    ->visibleToTenant((int) ($user?->tenant_id ?? 0))
+                    ->whereKey($id)
+                    ->exists(),
+                404
+            );
+
+            return redirect()
+                ->route('deleted-posts')
+                ->with('success', 'This post was moved to Deleted Posts.');
+        }
 
         return view('community_feed::index', [
             'user' => $user,
             'barangayProfiles' => $this->feedService->listBarangayProfiles($user?->tenant_id),
             'commentPreviewPost' => app(CommunityFeedPostController::class)->formatPostForPage($post, (int) $user->id),
-            'feedYearsWithPosts' => $this->yearsWithFederationPosts(),
+            'feedYearsWithPosts' => $this->yearsWithFederationPosts((int) ($user?->tenant_id ?? 0)),
         ]);
     }
 
@@ -85,7 +101,7 @@ class CommunityFeedController extends Controller
     public function skFedProfile(Request $request): View
     {
         $user = $request->user();
-        $formattedPosts = $this->loadFormattedFederationPosts((int) $user->id);
+        $formattedPosts = $this->loadFormattedFederationPosts((int) $user->id, (int) ($user->tenant_id ?? 0));
         $officerCount = $this->countFederationOfficers((int) ($user->tenant_id ?? 0));
 
         return view('community_feed::sk-fed-profile', [
@@ -117,7 +133,11 @@ class CommunityFeedController extends Controller
         $barangayId = $profile['id'] ?? null;
         $term = $this->feedService->resolveBarangayTerm($barangayId);
         $officials = $this->feedService->listOfficialsForBarangay($barangayId, $profile['logo_url'] ?? null);
-        $formattedPosts = $this->loadFormattedBarangayPosts($barangayId, (int) $user->id);
+        $formattedPosts = $this->loadFormattedBarangayPosts(
+            $barangayId,
+            (int) $user->id,
+            (int) ($user->tenant_id ?? 0)
+        );
 
         return view('community_feed::barangay-profile', [
             'user' => $user,
@@ -147,6 +167,7 @@ class CommunityFeedController extends Controller
         $barangayId = $profile['id'] ?? null;
         $post = Announcement::query()
             ->active()
+            ->visibleToTenant((int) ($user?->tenant_id ?? 0))
             ->where('barangay_id', $barangayId)
             ->whereRaw('"is_federation_wide" = false')
             ->with([
@@ -163,7 +184,7 @@ class CommunityFeedController extends Controller
 
         $term = $this->feedService->resolveBarangayTerm($barangayId);
         $officials = $this->feedService->listOfficialsForBarangay($barangayId, $profile['logo_url'] ?? null);
-        $formattedPosts = $this->loadFormattedBarangayPosts($barangayId, (int) $user->id);
+        $formattedPosts = $this->loadFormattedBarangayPosts($barangayId, (int) $user->id, (int) ($user->tenant_id ?? 0));
 
         return view('community_feed::barangay-profile', [
             'user' => $user,
@@ -183,7 +204,7 @@ class CommunityFeedController extends Controller
     /**
      * @return list<array<string, mixed>>
      */
-    private function loadFormattedFederationPosts(int $userId): array
+    private function loadFormattedFederationPosts(int $userId, int $tenantId): array
     {
         $formatter = app(CommunityFeedPostController::class);
 
@@ -199,6 +220,7 @@ class CommunityFeedController extends Controller
             ])
             ->withCount('reactions')
             ->active()
+            ->visibleToTenant($tenantId)
             ->whereRaw('"is_federation_wide" = true')
             ->orderByDesc('created_at')
             ->get()
@@ -250,7 +272,7 @@ class CommunityFeedController extends Controller
     /**
      * @return list<array<string, mixed>>
      */
-    private function loadFormattedBarangayPosts(?int $barangayId, int $userId): array
+    private function loadFormattedBarangayPosts(?int $barangayId, int $userId, int $tenantId): array
     {
         if ($barangayId === null) {
             return [];
@@ -270,6 +292,7 @@ class CommunityFeedController extends Controller
             ])
             ->withCount('reactions')
             ->active()
+            ->visibleToTenant($tenantId)
             ->where('barangay_id', $barangayId)
             ->whereRaw('"is_federation_wide" = false')
             ->orderByDesc('created_at')
@@ -282,10 +305,11 @@ class CommunityFeedController extends Controller
     /**
      * @return list<int>
      */
-    private function yearsWithFederationPosts(): array
+    private function yearsWithFederationPosts(int $tenantId): array
     {
         return Announcement::query()
             ->active()
+            ->visibleToTenant($tenantId)
             ->whereRaw('"is_federation_wide" = true')
             ->selectRaw('DISTINCT EXTRACT(YEAR FROM created_at)::integer as year')
             ->orderByDesc('year')
