@@ -5,6 +5,7 @@ namespace App\Modules\Dashboard\Services;
 use App\Models\KabataanRegistration;
 use App\Modules\Accounts\Models\Barangay;
 use App\Modules\Shared\Models\User;
+use App\Support\OpaqueUrlId;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -16,48 +17,43 @@ class KkProfilingChartService
 {
     private const CACHE_TTL_SECONDS = 60;
 
+    private const KK_PROFILING_CACHE_TTL_SECONDS = 5;
+
     /**
      * @return array<string, mixed>
      */
     public function getChartData(User $user, Request $request): array
     {
         if (! Schema::hasTable('kabataan_registrations')) {
-            return $this->emptyPayload('monthly');
+            return $this->emptyPayload();
         }
 
         $tenantId = (int) $user->tenant_id;
-        $barangayId = (string) $request->input('barangay_id', 'all');
-        $period = $request->input('period', 'monthly') === 'weekly' ? 'weekly' : 'monthly';
+        $barangayToken = (string) $request->input('barangay_id', 'all');
+        $barangayId = $barangayToken === 'all' || $barangayToken === ''
+            ? null
+            : OpaqueUrlId::decode($barangayToken);
         [$dateFrom, $dateTo] = $this->resolveDateRange($request);
-        $month = max(1, min(12, (int) $request->input('month', $dateTo->month)));
 
         $cacheKey = sprintf(
-            'skfed:dash:kk-chart:v5:%d:%s:%s:%s:%s:%d',
+            'skfed:dash:kk-chart:v7:%d:%s:%s:%s',
             $tenantId,
-            $barangayId === '' ? 'all' : $barangayId,
-            $period,
+            $barangayId ?? 'all',
             $dateFrom->toDateString(),
-            $dateTo->toDateString(),
-            $month
+            $dateTo->toDateString()
         );
 
-        return Cache::store('file')->remember($cacheKey, self::CACHE_TTL_SECONDS, function () use ($tenantId, $barangayId, $period, $month, $dateFrom, $dateTo): array {
+        return Cache::store('file')->remember($cacheKey, self::KK_PROFILING_CACHE_TTL_SECONDS, function () use ($tenantId, $barangayId, $dateFrom, $dateTo): array {
             $barangayIds = Barangay::query()
                 ->where('tenant_id', $tenantId)
                 ->pluck('id');
 
-            if ($barangayId !== 'all' && $barangayId !== '' && $barangayId !== null) {
-                $barangayIds = $barangayIds->filter(fn ($id) => (int) $id === (int) $barangayId)->values();
+            if ($barangayId !== null) {
+                $barangayIds = $barangayIds->filter(fn ($id) => (int) $id === $barangayId)->values();
             }
 
             if ($barangayIds->isEmpty()) {
-                return $this->emptyPayload($period, $dateFrom, $dateTo);
-            }
-
-            if ($period === 'weekly') {
-                $weekMonth = $this->resolveWeekMonth($dateFrom, $dateTo, $month);
-
-                return $this->weeklyPayload($tenantId, $barangayIds->all(), $weekMonth, $dateFrom, $dateTo);
+                return $this->emptyPayload($dateFrom, $dateTo);
             }
 
             return $this->monthlyPayload($tenantId, $barangayIds->all(), $dateFrom, $dateTo);
@@ -71,13 +67,16 @@ class KkProfilingChartService
     {
         $tenantId = (int) $user->tenant_id;
         $barangayIdInput = (string) $request->input('barangay_id', 'all');
+        $barangayId = $barangayIdInput === 'all' || $barangayIdInput === ''
+            ? null
+            : OpaqueUrlId::decode($barangayIdInput);
         $purokFilter = trim((string) $request->input('purok', 'all'));
         [$dateFrom, $dateTo] = $this->resolveDateRange($request);
 
         $cacheKey = sprintf(
             'skfed:dash:purok-chart:v4:%d:%s:%s:%s:%s',
             $tenantId,
-            $barangayIdInput === '' ? 'all' : $barangayIdInput,
+            $barangayId ?? 'all',
             $purokFilter === '' ? 'all' : $purokFilter,
             $dateFrom->toDateString(),
             $dateTo->toDateString()
@@ -99,8 +98,15 @@ class KkProfilingChartService
         [$dateFrom, $dateTo] = $this->resolveDateRange($request);
 
         $barangayId = ($barangayIdInput !== 'all' && $barangayIdInput !== '' && $barangayIdInput !== null)
-            ? (int) $barangayIdInput
+            ? OpaqueUrlId::decode((string) $barangayIdInput)
             : null;
+
+        if ($barangayId !== null) {
+            abort_unless(
+                Barangay::query()->where('tenant_id', $tenantId)->whereKey($barangayId)->exists(),
+                404
+            );
+        }
 
         $zones = $barangayId ? $this->zonesForBarangay($barangayId) : [];
 
@@ -274,8 +280,6 @@ class KkProfilingChartService
         $buckets = $this->monthBuckets($dateFrom, $dateTo);
 
         return [
-            'period' => 'monthly',
-            'year' => (int) $dateTo->year,
             'date_from' => $dateFrom->toDateString(),
             'date_to' => $dateTo->toDateString(),
             'labels' => array_column($buckets, 'label'),
@@ -286,131 +290,22 @@ class KkProfilingChartService
     }
 
     /**
-     * @param  list<int>  $barangayIds
-     * @return array<string, mixed>
-     */
-    private function weeklyPayload(int $tenantId, array $barangayIds, Carbon $monthStart, Carbon $dateFrom, Carbon $dateTo): array
-    {
-        $year = (int) $monthStart->year;
-        $month = (int) $monthStart->month;
-        $weeks = $this->buildWeeksForMonth($year, $month);
-        $labels = array_column($weeks, 'label');
-        $approved = [];
-        $pending = [];
-        $rejected = [];
-
-        foreach ($weeks as $week) {
-            $weekStart = Carbon::parse($week['start'])->startOfDay();
-            $weekEnd = Carbon::parse($week['end'])->endOfDay();
-            $clipStart = $weekStart->lt($dateFrom) ? $dateFrom->copy()->startOfDay() : $weekStart;
-            $clipEnd = $weekEnd->gt($dateTo) ? $dateTo->copy()->endOfDay() : $weekEnd;
-
-            if ($clipStart->gt($clipEnd)) {
-                $approved[] = 0;
-                $pending[] = 0;
-                $rejected[] = 0;
-
-                continue;
-            }
-
-            $approved[] = $this->countWeekly($tenantId, $barangayIds, $clipStart->toDateString(), $clipEnd->toDateString(), 'approved');
-            $pending[] = $this->countWeekly($tenantId, $barangayIds, $clipStart->toDateString(), $clipEnd->toDateString(), 'pending');
-            $rejected[] = $this->countWeekly($tenantId, $barangayIds, $clipStart->toDateString(), $clipEnd->toDateString(), 'rejected');
-        }
-
-        return [
-            'period' => 'weekly',
-            'year' => $year,
-            'month' => $month,
-            'date_from' => $dateFrom->toDateString(),
-            'date_to' => $dateTo->toDateString(),
-            'labels' => $labels,
-            'approved' => $approved,
-            'pending' => $pending,
-            'rejected' => $rejected,
-        ];
-    }
-
-    /**
-     * @return list<array{week: int, label: string, start: string, end: string}>
-     */
-    private function buildWeeksForMonth(int $year, int $month): array
-    {
-        $weeks = [];
-        $monthStart = Carbon::create($year, $month, 1)->startOfDay();
-        $monthEnd = $monthStart->copy()->endOfMonth();
-        $cursor = $monthStart->copy()->startOfWeek(Carbon::MONDAY);
-
-        while ($cursor->lte($monthEnd)) {
-            $weekStart = $cursor->copy();
-            $weekEnd = $cursor->copy()->endOfWeek(Carbon::SUNDAY);
-
-            if ($weekEnd->lt($monthStart) || $weekStart->gt($monthEnd)) {
-                $cursor->addWeek();
-
-                continue;
-            }
-
-            $clipStart = $weekStart->lt($monthStart) ? $monthStart->copy() : $weekStart->copy();
-            $clipEnd = $weekEnd->gt($monthEnd) ? $monthEnd->copy() : $weekEnd->copy();
-
-            $weeks[] = [
-                'week' => $weekStart->isoWeek(),
-                'label' => sprintf(
-                    'W%d (%s – %s)',
-                    $weekStart->isoWeek(),
-                    $clipStart->format('M j'),
-                    $clipEnd->format('M j, Y')
-                ),
-                'start' => $clipStart->toDateString(),
-                'end' => $clipEnd->toDateString(),
-            ];
-
-            $cursor->addWeek();
-        }
-
-        return $weeks;
-    }
-
-    /**
-     * Prefer the selected calendar month nearest to the end of the dashboard range.
-     */
-    private function resolveWeekMonth(Carbon $dateFrom, Carbon $dateTo, int $month): Carbon
-    {
-        $month = max(1, min(12, $month));
-        $candidate = Carbon::create($dateTo->year, $month, 1)->startOfMonth();
-
-        while ($candidate->gt($dateTo) && $candidate->year > $dateFrom->year) {
-            $candidate->subYear();
-        }
-
-        if ($candidate->copy()->endOfMonth()->lt($dateFrom)) {
-            return $dateFrom->copy()->startOfMonth();
-        }
-
-        return $candidate;
-    }
-
-    /**
-     * Always returns the 12 months January..December of the dashboard year.
-     *
-     * The selected range is clamped into the official term, which can start or end
-     * mid-year. Bucketing on the clamped range alone would hide months the term does
-     * not cover, so the axis is pinned to the full calendar year and months outside
-     * the range are simply reported as zero by countByMonthBuckets().
-     *
      * @return list<array{key: string, label: string}>
      */
     private function monthBuckets(Carbon $dateFrom, Carbon $dateTo): array
     {
-        $year = (int) $dateTo->year;
         $buckets = [];
+        $multipleYears = $dateFrom->year !== $dateTo->year;
+        $cursor = $dateFrom->copy()->startOfYear();
+        $lastMonth = $dateTo->copy()->endOfYear()->startOfMonth();
 
-        for ($month = 1; $month <= 12; $month++) {
+        while ($cursor->lte($lastMonth)) {
             $buckets[] = [
-                'key' => sprintf('%04d-%02d', $year, $month),
-                'label' => Carbon::create($year, $month, 1)->format('M'),
+                'key' => $cursor->format('Y-m'),
+                'label' => $cursor->format($multipleYears ? 'M Y' : 'F'),
             ];
+
+            $cursor->addMonth();
         }
 
         return $buckets;
@@ -448,20 +343,6 @@ class KkProfilingChartService
         }
 
         return $counts;
-    }
-
-    /**
-     * @param  list<int>  $barangayIds
-     */
-    private function countWeekly(int $tenantId, array $barangayIds, string $start, string $end, string $category): int
-    {
-        $dateExpression = $this->dateExpression($category);
-        $dateCast = $this->sqlDateCast($dateExpression);
-        $query = $this->baseQuery($tenantId, $barangayIds, $category);
-
-        return (int) $query
-            ->whereRaw("{$dateCast} BETWEEN ? AND ?", [$start, $end])
-            ->count();
     }
 
     private function sqlDateCast(string $expression): string
@@ -568,31 +449,15 @@ class KkProfilingChartService
     /**
      * @return array<string, mixed>
      */
-    private function emptyPayload(string $period, ?Carbon $dateFrom = null, ?Carbon $dateTo = null): array
+    private function emptyPayload(?Carbon $dateFrom = null, ?Carbon $dateTo = null): array
     {
         $from = $dateFrom ?? now()->copy()->startOfYear();
         $to = $dateTo ?? now()->copy()->startOfDay();
-
-        if ($period === 'weekly') {
-            return [
-                'period' => 'weekly',
-                'year' => (int) $from->year,
-                'month' => (int) $from->month,
-                'date_from' => $from->toDateString(),
-                'date_to' => $to->toDateString(),
-                'labels' => [],
-                'approved' => [],
-                'pending' => [],
-                'rejected' => [],
-            ];
-        }
 
         $buckets = $this->monthBuckets($from, $to);
         $zeros = array_fill(0, count($buckets), 0);
 
         return [
-            'period' => 'monthly',
-            'year' => (int) $to->year,
             'date_from' => $from->toDateString(),
             'date_to' => $to->toDateString(),
             'labels' => array_column($buckets, 'label'),

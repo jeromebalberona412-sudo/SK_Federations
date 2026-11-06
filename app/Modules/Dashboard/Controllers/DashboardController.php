@@ -127,10 +127,6 @@ class DashboardController extends Controller
             'federationOfficers' => $safe(fn () => $this->dashboardStatsService->federationOfficers($tenantId), []),
             'topBarangays' => $safe(fn () => $this->dashboardStatsService->topBarangaysByYouth($tenantId, 5, $dateFrom, $dateTo), []),
             'barangays' => $barangays,
-            'kkBarangayOptions' => $barangays
-                ->map(fn ($barangay) => ['id' => $barangay->id, 'name' => $barangay->name])
-                ->values()
-                ->all(),
             'recentActivity' => $safe(fn () => $this->dashboardActivityService->recentActivity($tenantId, 12), []),
             'upcomingEvents' => $safe(fn () => $this->dashboardActivityService->upcomingCalendarNotes(6, $dateFrom, $dateTo), []),
             'todayReminder' => $safe(fn () => $this->dashboardActivityService->todayCalendarNote(), null),

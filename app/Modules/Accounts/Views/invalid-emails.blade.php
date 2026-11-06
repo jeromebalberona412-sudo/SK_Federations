@@ -114,17 +114,17 @@
                         <td>{{ optional($row->retry_after)->format('M j, Y H:i') ?: '—' }}</td>
                         <td>
                             <div class="invalid-email-actions">
-                                <form method="post" action="{{ route('accounts.invalid-emails.reset', $row) }}">
+                                <form method="post" action="{{ route('accounts.invalid-emails.reset', ['emailRecord' => \App\Support\OpaqueUrlId::encode($row->id)]) }}">
                                     @csrf
                                     <button type="submit" class="btn-reset">Reset / Unblock</button>
                                 </form>
                                 @if($row->status !== 'permanently_blocked')
-                                    <form method="post" action="{{ route('accounts.invalid-emails.block', $row) }}">
+                                    <form method="post" action="{{ route('accounts.invalid-emails.block', ['emailRecord' => \App\Support\OpaqueUrlId::encode($row->id)]) }}">
                                         @csrf
                                         <button type="submit" class="btn-block" onclick="return confirm('Permanently block this email?')">Permanent Block</button>
                                     </form>
                                 @endif
-                                <form method="post" action="{{ route('accounts.invalid-emails.destroy', $row) }}">
+                                <form method="post" action="{{ route('accounts.invalid-emails.destroy', ['emailRecord' => \App\Support\OpaqueUrlId::encode($row->id)]) }}">
                                     @csrf
                                     @method('DELETE')
                                     <button type="submit" class="btn-remove" onclick="return confirm('Remove this record?')">Remove</button>

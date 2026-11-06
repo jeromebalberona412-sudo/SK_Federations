@@ -37,17 +37,17 @@ Route::middleware(['auth', 'session.timeout', 'verified', 'single.session', 'sk_
             ->where('type', 'officials|federation')
             ->name('accounts.batch-template');
 
-        Route::put('/accounts/{user}', [AdminAccountController::class, 'update'])->name('accounts.update');
-        Route::put('/accounts/{user}/federation-position', [AdminAccountController::class, 'updateFederationPosition'])->name('accounts.federation-position.update');
-        Route::post('/accounts/{user}/resend-setup-email', [AdminAccountController::class, 'resendSetupEmail'])->name('accounts.resend-setup-email');
+        Route::put('/accounts/{account}', [AdminAccountController::class, 'update'])->name('accounts.update');
+        Route::put('/accounts/{account}/federation-position', [AdminAccountController::class, 'updateFederationPosition'])->name('accounts.federation-position.update');
+        Route::post('/accounts/{account}/resend-setup-email', [AdminAccountController::class, 'resendSetupEmail'])->name('accounts.resend-setup-email');
 
-        Route::post('/accounts/{user}/deactivate', [AdminAccountController::class, 'deactivate'])->name('accounts.deactivate');
-        Route::post('/accounts/{user}/reset-password', [AdminAccountController::class, 'resetPassword'])->name('accounts.reset-password');
-        Route::post('/accounts/{officialProfile}/extend-term', [AdminAccountController::class, 'extendTerm'])->name('accounts.extend-term');
+        Route::post('/accounts/{accountId}/deactivate', [AdminAccountController::class, 'deactivate'])->name('accounts.deactivate');
+        Route::post('/accounts/{account}/reset-password', [AdminAccountController::class, 'resetPassword'])->name('accounts.reset-password');
+        Route::post('/accounts/{profile}/extend-term', [AdminAccountController::class, 'extendTerm'])->name('accounts.extend-term');
 
         Route::get('/invalid-emails', [\App\Modules\Accounts\Controllers\InvalidEmailController::class, 'index'])->name('accounts.invalid-emails.index');
         Route::post('/invalid-emails', [\App\Modules\Accounts\Controllers\InvalidEmailController::class, 'store'])->name('accounts.invalid-emails.store');
-        Route::post('/invalid-emails/{invalidEmail}/reset', [\App\Modules\Accounts\Controllers\InvalidEmailController::class, 'reset'])->name('accounts.invalid-emails.reset');
-        Route::post('/invalid-emails/{invalidEmail}/permanent-block', [\App\Modules\Accounts\Controllers\InvalidEmailController::class, 'permanentlyBlock'])->name('accounts.invalid-emails.block');
-        Route::delete('/invalid-emails/{invalidEmail}', [\App\Modules\Accounts\Controllers\InvalidEmailController::class, 'destroy'])->name('accounts.invalid-emails.destroy');
+        Route::post('/invalid-emails/{emailRecord}/reset', [\App\Modules\Accounts\Controllers\InvalidEmailController::class, 'reset'])->name('accounts.invalid-emails.reset');
+        Route::post('/invalid-emails/{emailRecord}/permanent-block', [\App\Modules\Accounts\Controllers\InvalidEmailController::class, 'permanentlyBlock'])->name('accounts.invalid-emails.block');
+        Route::delete('/invalid-emails/{emailRecord}', [\App\Modules\Accounts\Controllers\InvalidEmailController::class, 'destroy'])->name('accounts.invalid-emails.destroy');
     });

@@ -57,10 +57,10 @@
                 <form method="get" action="#" class="accounts-filter-form" id="accountsFilterForm" novalidate>
                     <div class="accounts-filter-grid">
                         <div class="filter-dropdown-container">
-                            <select id="barangayFilter" class="filter-dropdown form-select" name="barangay_id" aria-label="Filter by barangay">
+                            <select id="barangayFilter" class="filter-dropdown form-select" name="barangay" aria-label="Filter by barangay">
                                 <option value="">All Barangays</option>
                                 @foreach($barangays as $barangay)
-                                    <option value="{{ $barangay->id }}" {{ request('barangay_id') == $barangay->id ? 'selected' : '' }}>{{ $barangay->name }}</option>
+                                    <option value="{{ $barangay->id }}" data-url-id="{{ \App\Support\OpaqueUrlId::encode($barangay->id) }}" {{ isset($selectedBarangayId) && (int) $selectedBarangayId === (int) $barangay->id ? 'selected' : '' }}>{{ $barangay->name }}</option>
                                 @endforeach
                             </select>
                         </div>
@@ -192,6 +192,7 @@
                                     $isIncomingTurnover = $account->isIncomingTurnoverOfficer();
                                 @endphp
                                 <tr data-account-id="{{ $account->id }}"
+                                    data-account-url-id="{{ \App\Support\OpaqueUrlId::encode($account->id) }}"
                                     data-barangay-id="{{ $account->barangay_id ?? '' }}"
                                     data-filter-position="{{ $filterPosition }}"
                                     data-search-text="{{ $searchBlob }}"

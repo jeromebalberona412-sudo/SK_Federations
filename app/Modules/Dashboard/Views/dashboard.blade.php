@@ -6,6 +6,11 @@
 @if (session('success'))
     <div class="dash-flash dash-flash-success" role="status">{{ session('success') }}</div>
 @endif
+@php
+    $kkChartToday = now()->timezone(config('app.timezone', 'Asia/Manila'));
+    $kkChartFromDate = $kkChartToday->copy()->startOfYear()->toDateString();
+    $kkChartToDate = $kkChartToday->toDateString();
+@endphp
 {{-- Page Header --}}
         <div class="dash-page-header">
             <div class="dash-page-header-left">
@@ -185,39 +190,32 @@
         </div>
         </section>
 
-        {{-- ── KK Profiling by Month ── --}}
+        {{-- ── KK Profiling ── --}}
         <div class="dash-row dash-row--kk-month">
             <div class="content-card dash-kk-chart-card" id="kk-profiling-section">
                 <div class="card-header kk-chart-section-header">
                     <div class="kk-chart-heading">
-                        <h3>KK Profiling by Month</h3>
-                        <p class="kk-chart-subtitle kk-chart-subtitle--center" id="kkProfilingChartSubtitle">Monthly submissions — approved, pending, and rejected</p>
+                        <h3>KK Profiling</h3>
+                        <p class="kk-chart-subtitle kk-chart-subtitle--center" id="kkProfilingChartSubtitle"></p>
                     </div>
                     <div class="kk-chart-header-actions">
                         <select id="kkProfilingBarangayFilter" class="kk-barangay-select" aria-label="Filter by barangay">
                             <option value="all">All Barangays</option>
                             @foreach ($barangays as $barangay)
-                                <option value="{{ $barangay->id }}">{{ $barangay->name }}</option>
+                                <option value="{{ \App\Support\OpaqueUrlId::encode($barangay->id) }}">{{ $barangay->name }}</option>
                             @endforeach
                         </select>
-                        <select id="kkProfilingPeriodFilter" class="kk-barangay-select" aria-label="Filter by period">
-                            <option value="monthly" selected>Monthly</option>
-                            <option value="weekly">Weekly</option>
-                        </select>
-                        <select id="kkProfilingMonthFilter" class="kk-barangay-select kk-month-filter" hidden aria-label="Filter by month">
-                            <option value="1">January</option>
-                            <option value="2">February</option>
-                            <option value="3">March</option>
-                            <option value="4">April</option>
-                            <option value="5">May</option>
-                            <option value="6">June</option>
-                            <option value="7">July</option>
-                            <option value="8">August</option>
-                            <option value="9">September</option>
-                            <option value="10">October</option>
-                            <option value="11">November</option>
-                            <option value="12">December</option>
-                        </select>
+                        <div class="kk-chart-date-range" role="group" aria-label="KK profiling chart date range">
+                            <label class="kk-chart-date-field" for="kkProfilingDateFrom">
+                                <span>From</span>
+                                <input type="date" id="kkProfilingDateFrom" value="{{ $kkChartFromDate }}" max="{{ $kkChartToDate }}" aria-label="KK profiling start date">
+                            </label>
+                            <span class="kk-chart-date-range-separator" aria-hidden="true">–</span>
+                            <label class="kk-chart-date-field" for="kkProfilingDateTo">
+                                <span>To</span>
+                                <input type="date" id="kkProfilingDateTo" value="{{ $kkChartToDate }}" max="{{ $kkChartToDate }}" aria-label="KK profiling end date">
+                            </label>
+                        </div>
                     </div>
                     <span class="kk-demo-total" id="kkProfilingTotal">
                         <span class="kk-demo-total-label">Total</span>
@@ -226,9 +224,11 @@
                 </div>
                 <div class="card-body">
                     <div class="kk-chart-canvas-wrap kk-chart-canvas-wrap--line">
-                        <canvas id="kkProfilingMonthlyChart"></canvas>
+                        <canvas id="kkProfilingMonthlyChart" hidden></canvas>
+                        <p class="chart-empty-state" data-chart-empty-state hidden>No data available for the selected filters.</p>
+                        <p class="chart-empty-state" data-chart-error hidden>Unable to load KK profiling data. Please try again.</p>
                     </div>
-                    <div class="kk-chart-filter-row">
+                    <div class="kk-chart-filter-row" id="kkProfilingSeriesFilters" hidden>
                         <label class="kk-chart-filter-check kk-chart-filter-check--approved">
                             <input type="checkbox" id="filterKkApproved" checked>
                             <span class="kk-chart-filter-dot kk-chart-filter-dot--approved"></span>
@@ -261,7 +261,7 @@
                         <select id="purokBarangayFilter" class="kk-barangay-select" aria-label="Filter by barangay">
                             <option value="all">All Barangays</option>
                             @foreach ($barangays as $barangay)
-                                <option value="{{ $barangay->id }}">{{ $barangay->name }}</option>
+                                <option value="{{ \App\Support\OpaqueUrlId::encode($barangay->id) }}">{{ $barangay->name }}</option>
                             @endforeach
                         </select>
                         <select id="purokZoneFilter" class="kk-barangay-select" aria-label="Filter by purok or sitio" hidden>
@@ -488,7 +488,6 @@
     $sexDistributionFederationsData = $sexDistributionFederations ?? ['labels' => ['Male', 'Female'], 'values' => [0, 0]];
 @endphp
 <script>
-    window.__KK_BARANGAYS__ = @json($kkBarangayOptions);
     window.__KK_PROFILING_DATA_URL__ = @json(route('dashboard.kk-profiling-data'));
     window.__PUROK_DATA_URL__ = @json(Route::has('dashboard.purok-distribution') ? route('dashboard.purok-distribution') : url('/api/dashboard/purok-distribution'));
     window.__KK_PROFILING_INITIAL__ = @json($kkProfilingInitial ?? null);

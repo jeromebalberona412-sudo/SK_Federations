@@ -238,7 +238,7 @@
         };
         window.BarangayProfileConfig = {
             slug: @json($slug ?? ''),
-            barangayId: @json($profile['id'] ?? null),
+            barangayId: @json(isset($profile['id']) ? \App\Support\OpaqueUrlId::encode($profile['id']) : null),
             posts: @json($formattedPosts ?? []),
             feedPollMs: 8000,
         };

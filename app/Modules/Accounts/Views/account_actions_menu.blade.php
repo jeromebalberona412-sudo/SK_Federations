@@ -1,6 +1,7 @@
 @php
     $sharedData = [
         'data-account-id' => $account->id,
+        'data-account-url-id' => \App\Support\OpaqueUrlId::encode($account->id),
         'data-first-name' => $firstName ?? '',
         'data-last-name' => $lastName ?? '',
         'data-middle-name' => $middleName !== '' ? mb_strtoupper($middleName, 'UTF-8') : '',
@@ -60,6 +61,7 @@
                 class="account-actions-item btn-resend-setup-email"
                 role="menuitem"
                 data-account-id="{{ $account->id }}"
+                data-account-url-id="{{ \App\Support\OpaqueUrlId::encode($account->id) }}"
                 data-display-name="{{ $displayName }}"
                 data-email="{{ $account->email ?? '' }}"
                 data-needs-setup="1">
@@ -82,6 +84,7 @@
                 class="account-actions-item account-actions-item-danger btn-delete-account"
                 role="menuitem"
                 data-account-id="{{ $account->id }}"
+                data-account-url-id="{{ \App\Support\OpaqueUrlId::encode($account->id) }}"
                 data-display-name="{{ $displayName }}">
             <i class="fas fa-trash" aria-hidden="true"></i>
             <span>Delete Account</span>

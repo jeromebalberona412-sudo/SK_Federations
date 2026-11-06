@@ -210,7 +210,11 @@ window.AccountsDeleteModal = (function () {
                 return;
             }
 
-            const response = await fetch(`/accounts/${targetId}/deactivate`, {
+            const routeId = getAccountRouteId(targetId);
+            if (!routeId) {
+                throw new Error('Unable to identify this account. Refresh the page and try again.');
+            }
+            const response = await fetch(`/accounts/${encodeURIComponent(routeId)}/deactivate`, {
                 method: 'POST',
                 credentials: 'same-origin',
                 headers: {
@@ -446,6 +450,12 @@ function getCurrentAccountType() {
     return window.location.pathname.includes('/accounts/officials') ? 'sk_officials' : 'sk_federation';
 }
 
+function getAccountRouteId(accountId) {
+    const row = Array.from(document.querySelectorAll('#accountsTableBody tr[data-account-id]'))
+        .find((item) => item.dataset.accountId === String(accountId));
+    return row?.dataset.accountUrlId || '';
+}
+
 function calculateAge(dateOfBirthValue) {
     return window.AccountDateFieldUtils
         ? window.AccountDateFieldUtils.calculateAge(dateOfBirthValue)
@@ -619,6 +629,7 @@ function buildOfficialAccountRowHtml(account) {
     const isIncoming = !!account.is_incoming_turnover;
     const sharedAttrs = [
         ['data-account-id', id],
+        ['data-account-url-id', account.url_id || ''],
         ['data-first-name', account.first_name || ''],
         ['data-last-name', account.last_name || ''],
         ['data-middle-name', account.middle_name || ''],
@@ -666,6 +677,7 @@ function buildOfficialAccountRowHtml(account) {
                         class="account-actions-item btn-resend-setup-email"
                         role="menuitem"
                         data-account-id="${id}"
+                        data-account-url-id="${escapeAttr(account.url_id || '')}"
                         data-display-name="${escapeAttr(displayName)}"
                         data-email="${escapeAttr(email)}"
                         data-needs-setup="1">
@@ -695,6 +707,7 @@ function buildOfficialAccountRowHtml(account) {
                 class="account-actions-item account-actions-item-danger btn-delete-account"
                 role="menuitem"
                 data-account-id="${id}"
+                data-account-url-id="${escapeAttr(account.url_id || '')}"
                 data-display-name="${escapeAttr(displayName)}">
                 <i class="fas fa-trash" aria-hidden="true"></i>
                 <span>Delete Account</span>
@@ -703,6 +716,7 @@ function buildOfficialAccountRowHtml(account) {
 
     return `
         <tr data-account-id="${id}"
+            data-account-url-id="${escapeAttr(account.url_id || '')}"
             data-barangay-id="${escapeAttr(account.barangay_id ?? '')}"
             data-filter-position="${escapeAttr(account.filter_position || account.position || '')}"
             data-search-text="${escapeAttr(account.search_text || '')}"
@@ -1084,7 +1098,13 @@ function resendAccountSetupEmail(button) {
     button.setAttribute('aria-busy', 'true');
     showLoadingOverlay('Sending setup email', 'Please wait...');
 
-    fetch(`/accounts/${accountId}/resend-setup-email`, {
+    const routeId = button?.dataset?.accountUrlId || getAccountRouteId(accountId);
+    if (!routeId) {
+        showAccountToast('Unable to identify this account. Refresh the page and try again.', 'error');
+        return;
+    }
+
+    fetch(`/accounts/${encodeURIComponent(routeId)}/resend-setup-email`, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
@@ -5738,12 +5758,13 @@ document.addEventListener('DOMContentLoaded', function () {
 
     function syncFilterUrl() {
         const url = new URL(window.location.href);
-        const barangayId = barangayFilter?.value || '';
+        const barangayToken = barangayFilter?.selectedOptions?.[0]?.dataset.urlId || '';
         const position = positionFilter?.value || '';
         const search = (searchInput?.value || '').trim();
 
-        if (barangayId) url.searchParams.set('barangay_id', barangayId);
-        else url.searchParams.delete('barangay_id');
+        if (barangayToken) url.searchParams.set('barangay', barangayToken);
+        else url.searchParams.delete('barangay');
+        url.searchParams.delete('barangay_id');
 
         if (position) url.searchParams.set('position', position);
         else url.searchParams.delete('position');
@@ -5788,8 +5809,15 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     const urlParams = new URLSearchParams(window.location.search);
-    if (barangayFilter && urlParams.get('barangay_id')) {
-        barangayFilter.value = urlParams.get('barangay_id');
+    const hasBarangayFilter = urlParams.has('barangay');
+    const hadLegacyBarangayId = urlParams.has('barangay_id');
+    if (barangayFilter && !hasBarangayFilter && hadLegacyBarangayId) {
+        const legacyOption = Array.from(barangayFilter.options).find(
+            (option) => option.value === urlParams.get('barangay_id')
+        );
+        if (legacyOption) {
+            barangayFilter.value = legacyOption.value;
+        }
     }
     if (positionFilter && urlParams.get('position')) {
         positionFilter.value = urlParams.get('position');
@@ -5797,7 +5825,10 @@ document.addEventListener('DOMContentLoaded', function () {
     if (searchInput && urlParams.get('search')) {
         searchInput.value = urlParams.get('search');
     }
-    if (urlParams.get('barangay_id') || urlParams.get('position') || urlParams.get('search')) {
+    if (hadLegacyBarangayId) {
+        syncFilterUrl();
+    }
+    if (hasBarangayFilter || hadLegacyBarangayId || urlParams.get('position') || urlParams.get('search')) {
         applyAccountsTableFilters();
     }
 
@@ -6039,7 +6070,12 @@ document.addEventListener('DOMContentLoaded', function () {
             const controller = new AbortController();
             const timeoutId = window.setTimeout(() => controller.abort(), emailChanged ? 60000 : 30000);
 
-            fetch(`/accounts/${accountId}`, {
+            const routeId = getAccountRouteId(accountId);
+            if (!routeId) {
+                showAccountToast('Unable to identify this account. Refresh the page and try again.', 'error');
+                return;
+            }
+            fetch(`/accounts/${encodeURIComponent(routeId)}`, {
                 method: 'PUT',
                 headers: {
                     'Content-Type': 'application/json',
@@ -6482,7 +6518,12 @@ document.addEventListener('DOMContentLoaded', function () {
             }
 
             setAssignFederationSaving(true);
-            fetch(`/accounts/${accountId}/federation-position`, {
+            const routeId = getAccountRouteId(accountId);
+            if (!routeId) {
+                showAccountToast('Unable to identify this account. Refresh the page and try again.', 'error');
+                return;
+            }
+            fetch(`/accounts/${encodeURIComponent(routeId)}/federation-position`, {
                 method: 'PUT',
                 headers: {
                     'Content-Type': 'application/json',

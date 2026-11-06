@@ -10,7 +10,6 @@ use App\Modules\Shared\Middleware\EnsureConsistentHost;
 use App\Modules\Turnover\Middleware\EnsureFederationLeadershipForTurnover;
 use App\Modules\Turnover\Middleware\EnsureTurnoverTermLock;
 use App\Modules\Turnover\Middleware\EnsureTurnoverWaitingOnly;
-use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -49,21 +48,5 @@ return Application::configure(basePath: dirname(__DIR__))
             'turnover.term.lock' => EnsureTurnoverTermLock::class,
         ]);
     })
-    ->withExceptions(function (Exceptions $exceptions): void {
-        $exceptions->render(function (QueryException $e, $request) {
-            $errorMessage = $e->getMessage();
-
-            // Check if it's a connection error
-            if (
-                str_contains($errorMessage, 'could not translate host name') ||
-                str_contains($errorMessage, 'Connection refused') ||
-                str_contains($errorMessage, 'Connection timed out') ||
-                str_contains($errorMessage, 'No route to host') ||
-                str_contains($errorMessage, 'Network is unreachable') ||
-                str_contains($errorMessage, 'SQLSTATE[08006]') ||
-                str_contains($errorMessage, 'SQLSTATE[HY000]')
-            ) {
-                return response()->view('errors.network-error', [], 503);
-            }
-        });
-    })->create();
+    ->withExceptions(function (Exceptions $exceptions): void {})
+    ->create();

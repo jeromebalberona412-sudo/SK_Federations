@@ -2,6 +2,7 @@
 
 use App\Modules\Dashboard\Services\KkProfilingChartService;
 use App\Modules\Shared\Models\User;
+use App\Support\OpaqueUrlId;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
@@ -73,7 +74,22 @@ function insertKkRegistration(array $overrides): void
     ], $overrides));
 }
 
-it('plots kk profiling months across the selected date range instead of the start year only', function () {
+it('returns a full January to December range with zero series when no records match', function () {
+    $payload = app(KkProfilingChartService::class)->getChartData(kkChartUser(), new Request([
+        'barangay_id' => 'all',
+        'date_from' => '2026-01-01',
+        'date_to' => '2026-12-31',
+    ]));
+
+    expect($payload['labels'])->toHaveCount(12)
+        ->and($payload['labels'][0])->toBe('January')
+        ->and($payload['labels'][11])->toBe('December')
+        ->and(array_sum($payload['approved']))->toBe(0)
+        ->and(array_sum($payload['pending']))->toBe(0)
+        ->and(array_sum($payload['rejected']))->toBe(0);
+});
+
+it('plots kk profiling months across the selected date range with complete calendar years', function () {
     insertKkRegistration([
         'evaluation_status' => 'active',
         'reviewed_at' => '2023-02-10 09:00:00',
@@ -96,49 +112,59 @@ it('plots kk profiling months across the selected date range instead of the star
 
     $payload = app(KkProfilingChartService::class)->getChartData(kkChartUser(), new Request([
         'barangay_id' => 'all',
-        'period' => 'monthly',
         'date_from' => '2023-01-01',
         'date_to' => '2026-09-11',
     ]));
 
-    expect($payload['period'])->toBe('monthly')
-        ->and($payload['labels'][0])->toBe('Jan 2023')
+    expect($payload['labels'][0])->toBe('Jan 2023')
         ->and($payload['labels'])->toContain('Feb 2023')
         ->and($payload['labels'])->toContain('Aug 2026')
-        ->and($payload['labels'])->toHaveCount(45);
+        ->and($payload['labels'])->toContain('Dec 2026')
+        ->and($payload['labels'])->toHaveCount(48);
 
     $feb2023 = array_search('Feb 2023', $payload['labels'], true);
     $aug2026 = array_search('Aug 2026', $payload['labels'], true);
 
     expect($payload['approved'][$feb2023])->toBe(1)
         ->and($payload['approved'][$aug2026])->toBe(1)
-        ->and($payload['pending'][$aug2026])->toBe(1);
+        ->and($payload['pending'][$aug2026])->toBe(1)
+        ->and($payload['approved'][array_search('Dec 2026', $payload['labels'], true)])->toBe(0);
 });
 
-it('uses the selected month in the date-to year for weekly kk profiling', function () {
+it('shows January through December while counting only the selected month range', function () {
     insertKkRegistration([
         'evaluation_status' => 'active',
         'reviewed_at' => '2026-09-03 10:00:00',
         'submitted_at' => '2026-09-02 10:00:00',
         'created_at' => '2026-09-02 10:00:00',
     ]);
+    $payload = app(KkProfilingChartService::class)->getChartData(kkChartUser(), new Request([
+        'barangay_id' => 'all',
+        'date_from' => '2026-09-01',
+        'date_to' => '2026-09-30',
+    ]));
+
+    expect($payload['labels'])->toHaveCount(12)
+        ->and($payload['labels'][0])->toBe('January')
+        ->and($payload['labels'][11])->toBe('December')
+        ->and(array_sum($payload['approved']))->toBe(1);
+});
+
+it('accepts opaque barangay identifiers for kk profiling filters', function () {
     insertKkRegistration([
         'evaluation_status' => 'active',
-        'reviewed_at' => '2023-09-04 10:00:00',
-        'submitted_at' => '2023-09-04 10:00:00',
-        'created_at' => '2023-09-04 10:00:00',
+        'reviewed_at' => '2026-03-15 09:00:00',
+        'submitted_at' => '2026-03-15 09:00:00',
+        'created_at' => '2026-03-15 09:00:00',
     ]);
 
     $payload = app(KkProfilingChartService::class)->getChartData(kkChartUser(), new Request([
-        'barangay_id' => 'all',
-        'period' => 'weekly',
-        'month' => 9,
-        'date_from' => '2023-01-01',
-        'date_to' => '2026-09-11',
+        'barangay_id' => OpaqueUrlId::encode(11),
+        'date_from' => '2026-01-01',
+        'date_to' => '2026-12-31',
     ]));
 
-    expect($payload['period'])->toBe('weekly')
-        ->and($payload['year'])->toBe(2026)
-        ->and($payload['month'])->toBe(9)
-        ->and(array_sum($payload['approved']))->toBe(1);
+    expect(array_sum($payload['approved']))->toBe(1)
+        ->and(array_sum($payload['pending']))->toBe(0)
+        ->and(array_sum($payload['rejected']))->toBe(0);
 });

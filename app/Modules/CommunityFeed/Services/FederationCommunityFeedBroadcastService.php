@@ -10,6 +10,7 @@ use App\Modules\Shared\Models\Announcement;
 use App\Modules\Shared\Models\User;
 use App\Services\InvalidEmailService;
 use App\Services\SkFederationsNotificationService;
+use App\Support\OpaqueUrlId;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
@@ -29,9 +30,18 @@ class FederationCommunityFeedBroadcastService
 
     public function broadcastInApp(Announcement $post, int $authorUserId): void
     {
+        $tenantId = $this->postTenantId($post);
+        if ($tenantId === null) {
+            Log::warning('[FederationCommunityFeedBroadcast] Post author has no tenant; skipping notifications.', [
+                'community_feed_id' => $post->id,
+            ]);
+
+            return;
+        }
+
         if ($post->shouldNotifyKabataan()) {
             try {
-                $this->notifyKabataanInApp($post);
+                $this->notifyKabataanInApp($post, $tenantId);
             } catch (Throwable $exception) {
                 Log::error('[FederationCommunityFeedBroadcast] Kabataan in-app failed.', [
                     'community_feed_id' => $post->id,
@@ -42,7 +52,7 @@ class FederationCommunityFeedBroadcastService
         }
         if ($post->shouldNotifyOfficials()) {
             try {
-                $this->notifyOfficialsInApp($post);
+                $this->notifyOfficialsInApp($post, $tenantId);
                 $this->bumpOfficialsCommunityFeedCache();
             } catch (Throwable $exception) {
                 Log::error('[FederationCommunityFeedBroadcast] Officials in-app failed.', [
@@ -71,11 +81,20 @@ class FederationCommunityFeedBroadcastService
             return;
         }
 
+        $tenantId = $this->postTenantId($post);
+        if ($tenantId === null) {
+            Log::warning('[FederationCommunityFeedBroadcast] Post author has no tenant; skipping email notifications.', [
+                'community_feed_id' => $post->id,
+            ]);
+
+            return;
+        }
+
         $kabataanUrl = $this->buildKabataanPostUrl((int) $post->id);
         $officialsUrl = $this->buildOfficialsPostUrl((int) $post->id);
 
         if ($post->shouldNotifyKabataan()) {
-            foreach ($this->eligibleKabataanEmailRecipients() as $recipient) {
+            foreach ($this->eligibleKabataanEmailRecipients($tenantId) as $recipient) {
                 $this->sendEmailToRecipient(
                     $post,
                     $recipient['email'],
@@ -88,7 +107,7 @@ class FederationCommunityFeedBroadcastService
         }
 
         if ($post->shouldNotifyOfficials()) {
-            foreach ($this->eligibleOfficialEmailRecipients() as $recipient) {
+            foreach ($this->eligibleOfficialEmailRecipients($tenantId) as $recipient) {
                 $this->sendEmailToRecipient(
                     $post,
                     $recipient['email'],
@@ -101,7 +120,7 @@ class FederationCommunityFeedBroadcastService
         }
 
         if ($post->shouldNotifyFederationPortal()) {
-            foreach ($this->eligibleFederationPortalEmailRecipients() as $recipient) {
+            foreach ($this->eligibleFederationPortalEmailRecipients($tenantId) as $recipient) {
                 $this->sendEmailToRecipient(
                     $post,
                     $recipient['email'],
@@ -114,7 +133,7 @@ class FederationCommunityFeedBroadcastService
         }
     }
 
-    private function notifyKabataanInApp(Announcement $post): void
+    private function notifyKabataanInApp(Announcement $post, int $tenantId): void
     {
         if (! Schema::hasTable('kabataan_notifications')) {
             Log::warning('[FederationCommunityFeedBroadcast] kabataan_notifications table missing; skipping Kabataan bells.', [
@@ -124,7 +143,7 @@ class FederationCommunityFeedBroadcastService
             return;
         }
 
-        $userIds = $this->eligibleKabataanUserIds();
+        $userIds = $this->eligibleKabataanUserIds($tenantId);
         if ($userIds === []) {
             Log::info('[FederationCommunityFeedBroadcast] No eligible Kabataan users for in-app notify.', [
                 'community_feed_id' => $post->id,
@@ -143,7 +162,7 @@ class FederationCommunityFeedBroadcastService
         }
 
         $now = now();
-        $actionUrl = '/dashboard/comments/'.(int) $post->id;
+        $actionUrl = '/dashboard/comments/'.OpaqueUrlId::encode($post->id);
         $rows = [];
         foreach ($userIds as $userId) {
             $rows[] = [
@@ -172,7 +191,7 @@ class FederationCommunityFeedBroadcastService
         }
     }
 
-    private function notifyOfficialsInApp(Announcement $post): void
+    private function notifyOfficialsInApp(Announcement $post, int $tenantId): void
     {
         if (! Schema::hasTable('sk_officials_notifications')) {
             Log::warning('[FederationCommunityFeedBroadcast] sk_officials_notifications table missing; skipping Officials bells.', [
@@ -184,6 +203,7 @@ class FederationCommunityFeedBroadcastService
 
         $officialIds = User::query()
             ->where('role', User::ROLE_SK_OFFICIAL)
+            ->where('tenant_id', $tenantId)
             ->where('status', User::STATUS_ACTIVE)
             ->whereNull('deleted_at')
             ->pluck('id')
@@ -199,7 +219,7 @@ class FederationCommunityFeedBroadcastService
 
         $postLabel = $this->federationNotifications->postLabel($post->title, $post->body);
         $now = now();
-        $actionUrl = '/community-feed/comments/'.(int) $post->id;
+        $actionUrl = '/community-feed/comments/'.OpaqueUrlId::encode($post->id);
         $rows = [];
 
         foreach ($officialIds as $officialId) {
@@ -245,13 +265,13 @@ class FederationCommunityFeedBroadcastService
     /**
      * @return list<int>
      */
-    private function eligibleKabataanUserIds(): array
+    private function eligibleKabataanUserIds(int $tenantId): array
     {
         if (! Schema::hasTable('kabataan_registrations')) {
             return [];
         }
 
-        return $this->eligibleKabataanRegistrationsQuery()
+        return $this->eligibleKabataanRegistrationsQuery($tenantId)
             ->pluck('user_id')
             ->map(fn ($id) => (int) $id)
             ->filter(fn (int $id) => $id > 0)
@@ -268,13 +288,13 @@ class FederationCommunityFeedBroadcastService
      *     kabataan_registration_id: int
      * }>
      */
-    private function eligibleKabataanEmailRecipients(): Collection
+    private function eligibleKabataanEmailRecipients(int $tenantId): Collection
     {
         if (! Schema::hasTable('kabataan_registrations')) {
             return collect();
         }
 
-        return $this->eligibleKabataanRegistrationsQuery()
+        return $this->eligibleKabataanRegistrationsQuery($tenantId)
             ->with(['user' => fn ($query) => $query->select('id', 'email', 'name', 'status', 'deleted_at')])
             ->get()
             ->map(function (KabataanRegistration $registration) {
@@ -303,10 +323,11 @@ class FederationCommunityFeedBroadcastService
     /**
      * @return Collection<int, array{email: string, name: string, user_id: int}>
      */
-    private function eligibleOfficialEmailRecipients(): Collection
+    private function eligibleOfficialEmailRecipients(int $tenantId): Collection
     {
         return User::query()
             ->where('role', User::ROLE_SK_OFFICIAL)
+            ->where('tenant_id', $tenantId)
             ->where('status', User::STATUS_ACTIVE)
             ->whereNull('deleted_at')
             ->whereNotNull('email')
@@ -334,10 +355,10 @@ class FederationCommunityFeedBroadcastService
     /**
      * @return Collection<int, array{email: string, name: string, user_id: int}>
      */
-    private function eligibleFederationPortalEmailRecipients(): Collection
+    private function eligibleFederationPortalEmailRecipients(int $tenantId): Collection
     {
         return $this->federationNotifications
-            ->federationPortalUsersForBroadcast()
+            ->federationPortalUsersForBroadcast($tenantId)
             ->map(function (User $user) {
                 $email = $this->resolveValidEmail((string) ($user->email ?? ''));
                 if ($email === null) {
@@ -360,12 +381,19 @@ class FederationCommunityFeedBroadcastService
     /**
      * @return Builder<KabataanRegistration>
      */
-    private function eligibleKabataanRegistrationsQuery(): Builder
+    private function eligibleKabataanRegistrationsQuery(int $tenantId): Builder
     {
         $query = KabataanRegistration::query()
             ->whereNull('deleted_at')
             ->whereNotNull('user_id')
             ->whereIn('status', ['active', 'email_verified', 'password_set']);
+
+        if (Schema::hasColumn('kabataan_registrations', 'tenant_id')) {
+            $query->where('tenant_id', $tenantId);
+        }
+        if (Schema::hasTable('barangays')) {
+            $query->whereHas('barangay', fn (Builder $barangay) => $barangay->where('tenant_id', $tenantId));
+        }
 
         if (Schema::hasColumn('kabataan_registrations', 'archived_at')) {
             $query->whereNull('archived_at');
@@ -386,6 +414,17 @@ class FederationCommunityFeedBroadcastService
         });
 
         return $query;
+    }
+
+    private function postTenantId(Announcement $post): ?int
+    {
+        $tenantId = $post->relationLoaded('user')
+            ? $post->user?->tenant_id
+            : $post->user()->value('tenant_id');
+
+        return $tenantId !== null && (int) $tenantId > 0
+            ? (int) $tenantId
+            : null;
     }
 
     private function sendEmailToRecipient(
@@ -506,7 +545,7 @@ class FederationCommunityFeedBroadcastService
     {
         return PortalAppUrl::join(
             PortalAppUrl::selfApp(),
-            '/community-feed/comments/'.$postId
+            '/community-feed/comments/'.OpaqueUrlId::encode($postId)
         );
     }
 
@@ -517,16 +556,16 @@ class FederationCommunityFeedBroadcastService
         if ($base === '') {
             Log::warning('KABATAAN_APP_URL is missing or localhost; Federation→Kabataan email links may be wrong in production.');
 
-            return PortalAppUrl::join(PortalAppUrl::selfApp(), '/dashboard/comments/'.$postId);
+            return PortalAppUrl::join(PortalAppUrl::selfApp(), '/dashboard/comments/'.OpaqueUrlId::encode($postId));
         }
 
-        return PortalAppUrl::join($base, '/dashboard/comments/'.$postId);
+        return PortalAppUrl::join($base, '/dashboard/comments/'.OpaqueUrlId::encode($postId));
     }
 
     private function buildOfficialsPostUrl(int $postId): string
     {
         $base = PortalAppUrl::officials() ?? '';
-        $path = '/community-feed/comments/'.$postId;
+        $path = '/community-feed/comments/'.OpaqueUrlId::encode($postId);
 
         if ($base === '') {
             Log::warning('SK_OFFICIALS_APP_URL is empty or localhost; Federation→Officials email links may open the wrong app.');

@@ -237,7 +237,7 @@ class SkFederationsNotificationService
 
     public function communityFeedPostActionUrl(int $postId, ?string $open = null): string
     {
-        $url = '/community-feed/comments/'.max(0, $postId);
+        $url = '/community-feed/comments/'.\App\Support\OpaqueUrlId::encode(max(0, $postId));
         $open = strtolower(trim((string) $open));
 
         if (in_array($open, ['reactions', 'comments'], true)) {
@@ -360,9 +360,9 @@ class SkFederationsNotificationService
      *
      * @return Collection<int, User>
      */
-    public function federationPortalUsersForBroadcast()
+    public function federationPortalUsersForBroadcast(int $tenantId)
     {
-        return $this->federationPortalUsers();
+        return $this->federationPortalUsers()->where('tenant_id', $tenantId);
     }
 
     /**

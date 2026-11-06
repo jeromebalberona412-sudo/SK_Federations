@@ -3,8 +3,11 @@
 namespace App\Modules\Accounts\Providers;
 
 use App\Modules\Accounts\Controllers\AdminAccountController;
+use App\Modules\Accounts\Models\OfficialProfile;
 use App\Modules\Accounts\Services\AccountService;
 use App\Modules\Accounts\Services\AccountSetupService;
+use App\Modules\Shared\Models\User;
+use App\Support\OpaqueUrlId;
 use Illuminate\Foundation\Support\Providers\RouteServiceProvider;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
@@ -30,6 +33,8 @@ class AccountsServiceProvider extends ServiceProvider
     {
         $this->loadViewsFrom(__DIR__.'/../Views', 'accounts');
         $this->loadMigrationsFrom(__DIR__.'/../Database/Migrations');
+        Route::bind('account', fn (string $token): User => User::query()->findOrFail(OpaqueUrlId::decode($token)));
+        Route::bind('profile', fn (string $token): OfficialProfile => OfficialProfile::query()->findOrFail(OpaqueUrlId::decode($token)));
 
         $this->publishes([
             __DIR__.'/../assets' => public_path('modules/accounts'),
