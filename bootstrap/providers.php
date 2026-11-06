@@ -26,11 +26,9 @@ use App\Modules\Turnover\Providers\TurnoverServiceProvider;
 use App\Modules\Tutorial_Guide\Providers\TutorialGuideServiceProvider;
 use App\Providers\AppServiceProvider;
 use Laravel\Fortify\FortifyServiceProvider;
-use Resend\Laravel\ResendServiceProvider;
 
 return [
     AppServiceProvider::class,
-    ResendServiceProvider::class,
     FortifyServiceProvider::class,
     App\Providers\FortifyServiceProvider::class,
     SharedServiceProvider::class,

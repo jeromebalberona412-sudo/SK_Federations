@@ -16,8 +16,7 @@
         "laravel/framework": "^12.0",
         "laravel/tinker": "^2.10.1",
         "phpoffice/phpspreadsheet": "^5.9",
-        "propaganistas/laravel-disposable-email": "^2.5",
-        "resend/resend-laravel": "^1.7"
+        "propaganistas/laravel-disposable-email": "^2.5"
     },
     "require-dev": {
         "fakerphp/faker": "^1.23",
