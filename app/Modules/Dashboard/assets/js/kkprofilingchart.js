@@ -1,5 +1,7 @@
 let kkProfilingMonthlyChart = null;
 let kkProfilingCurrentData = null;
+const kkProfilingDailyCounts = new Map();
+let kkProfilingDateCoverage = [];
 let kkProfilingBarangayWired = false;
 let kkProfilingDateRangeWired = false;
 let kkProfilingFetchTimer = null;
@@ -106,6 +108,94 @@ function normalizeKkChartSeries(values) {
             return Number.isFinite(numericValue) ? numericValue : null;
         })
         : [];
+}
+
+function rememberKkProfilingDailyData(data) {
+    if (!Array.isArray(data?.daily) || !isValidIsoDate(data.date_from) || !isValidIsoDate(data.date_to)) {
+        return;
+    }
+
+    kkProfilingDailyCounts.forEach(function (_counts, date) {
+        if (date >= data.date_from && date <= data.date_to) {
+            kkProfilingDailyCounts.delete(date);
+        }
+    });
+    data.daily.forEach(function (day) {
+        if (!isValidIsoDate(day?.date)) {
+            return;
+        }
+
+        kkProfilingDailyCounts.set(day.date, {
+            approved: Number(day.approved) || 0,
+            pending: Number(day.pending) || 0,
+            rejected: Number(day.rejected) || 0,
+        });
+    });
+
+    kkProfilingDateCoverage.push([data.date_from, data.date_to]);
+    kkProfilingDateCoverage.sort((left, right) => left[0].localeCompare(right[0]));
+    kkProfilingDateCoverage = kkProfilingDateCoverage.reduce(function (merged, range) {
+        const previous = merged[merged.length - 1];
+        if (previous && range[0] <= previous[1]) {
+            previous[1] = previous[1] > range[1] ? previous[1] : range[1];
+        } else {
+            merged.push(range.slice());
+        }
+        return merged;
+    }, []);
+}
+
+function getKkProfilingDataForDateRange(range) {
+    const isCovered = kkProfilingDateCoverage.some(([dateFrom, dateTo]) => (
+        range.date_from >= dateFrom && range.date_to <= dateTo
+    ));
+    if (!isCovered) {
+        return null;
+    }
+
+    const firstYear = Number(range.date_from.slice(0, 4));
+    const lastYear = Number(range.date_to.slice(0, 4));
+    const multipleYears = firstYear !== lastYear;
+    const labels = [];
+    const monthIndexes = new Map();
+
+    for (let year = firstYear; year <= lastYear; year += 1) {
+        for (let month = 0; month < 12; month += 1) {
+            const key = `${year}-${String(month + 1).padStart(2, '0')}`;
+            monthIndexes.set(key, labels.length);
+            labels.push(new Date(Date.UTC(year, month, 1)).toLocaleString('en-US', {
+                month: multipleYears ? 'short' : 'long',
+                timeZone: 'UTC',
+            }) + (multipleYears ? ` ${year}` : ''));
+        }
+    }
+
+    const approved = Array(labels.length).fill(0);
+    const pending = Array(labels.length).fill(0);
+    const rejected = Array(labels.length).fill(0);
+
+    kkProfilingDailyCounts.forEach(function (counts, date) {
+        if (date < range.date_from || date > range.date_to) {
+            return;
+        }
+
+        const index = monthIndexes.get(date.slice(0, 7));
+        if (index === undefined) {
+            return;
+        }
+        approved[index] += counts.approved;
+        pending[index] += counts.pending;
+        rejected[index] += counts.rejected;
+    });
+
+    return {
+        date_from: range.date_from,
+        date_to: range.date_to,
+        labels,
+        approved,
+        pending,
+        rejected,
+    };
 }
 
 function getKkProfilingDateRange() {
@@ -230,11 +320,15 @@ function getKkProfilingFilters() {
 
 function seedKkProfilingCacheFromInitial() {
     const initial = window.__KK_PROFILING_INITIAL__;
-    if (!initial || !window.SkLocalCache) {
+    if (!initial) {
+        return;
+    }
+    rememberKkProfilingDailyData(initial);
+    if (!window.SkLocalCache) {
         return;
     }
     const params = new URLSearchParams(getKkProfilingFilters());
-    const cacheKey = 'sk_fed_kk_chart_v6_' + params.toString();
+    const cacheKey = 'sk_fed_kk_chart_v7_' + params.toString();
     if (!window.SkLocalCache.get(cacheKey)?.payload) {
         window.SkLocalCache.set(cacheKey, initial);
     }
@@ -249,9 +343,12 @@ async function fetchKkProfilingData() {
 
     const requestSeq = ++kkProfilingRequestSeq;
     const params = new URLSearchParams(getKkProfilingFilters());
-    const cacheKey = 'sk_fed_kk_chart_v6_' + params.toString();
+    const cacheKey = 'sk_fed_kk_chart_v7_' + params.toString();
     const cached = window.SkLocalCache?.get(cacheKey);
     const cachedPayload = cached?.payload || null;
+    if (cachedPayload) {
+        rememberKkProfilingDailyData(cachedPayload);
+    }
 
     if (kkProfilingAbortController) {
         kkProfilingAbortController.abort();
@@ -278,6 +375,7 @@ async function fetchKkProfilingData() {
             throw new Error('KK profiling response did not contain chart data.');
         }
         if (data && requestSeq === kkProfilingRequestSeq) {
+            rememberKkProfilingDailyData(data);
             window.SkLocalCache?.set(cacheKey, data);
             setKkProfilingChartError(false);
         }
@@ -292,7 +390,11 @@ async function fetchKkProfilingData() {
                     return;
                 }
                 const barangayFilter = document.getElementById('kkProfilingBarangayFilter');
-                applyKkProfilingChartData(data, getSelectedBarangayName(barangayFilter?.value || 'all'));
+                const range = getKkProfilingDateRange();
+                applyKkProfilingChartData(
+                    getKkProfilingDataForDateRange(range) || data,
+                    getSelectedBarangayName(barangayFilter?.value || 'all')
+                );
             })
             .catch((error) => {
                 if (error?.name !== 'AbortError' && requestSeq === kkProfilingRequestSeq) {
@@ -475,7 +577,11 @@ async function refreshKkProfilingChart() {
         return;
     }
 
-    applyKkProfilingChartData(data, getSelectedBarangayName(barangayId));
+    const range = getKkProfilingDateRange();
+    applyKkProfilingChartData(
+        getKkProfilingDataForDateRange(range) || data,
+        getSelectedBarangayName(barangayId)
+    );
 }
 
 function initKkProfilingMonthlyChart() {
@@ -648,7 +754,15 @@ function wireKkProfilingDateRange() {
     }
 
     const handleRangeChange = () => {
-        getKkProfilingDateRange();
+        const range = getKkProfilingDateRange();
+        const localData = getKkProfilingDataForDateRange(range);
+        const barangayFilter = document.getElementById('kkProfilingBarangayFilter');
+        if (localData) {
+            applyKkProfilingChartData(
+                localData,
+                getSelectedBarangayName(barangayFilter?.value || 'all')
+            );
+        }
         scheduleKkProfilingRefresh();
     };
     fromInput.addEventListener('change', handleRangeChange);

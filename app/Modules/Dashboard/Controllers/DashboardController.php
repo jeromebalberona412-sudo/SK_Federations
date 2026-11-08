@@ -424,6 +424,10 @@ class DashboardController extends Controller
             $query = DB::table('kabataan_registrations')
                 ->whereNull('deleted_at');
 
+            if ($tenantId !== null && Schema::hasColumn('kabataan_registrations', 'tenant_id')) {
+                $query->where('tenant_id', $tenantId);
+            }
+
             if (Schema::hasColumn('kabataan_registrations', 'archived_at')) {
                 $query->whereNull('archived_at');
             }

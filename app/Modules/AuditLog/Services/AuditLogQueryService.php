@@ -123,10 +123,10 @@ class AuditLogQueryService
         }
 
         if ($from !== '') {
-            $query->whereDate('created_at', '>=', $from);
+            $query->where('created_at', '>=', $from.' 00:00:00');
         }
         if ($to !== '') {
-            $query->whereDate('created_at', '<=', $to);
+            $query->where('created_at', '<', Carbon::parse($to)->addDay()->toDateString().' 00:00:00');
         }
 
         return (int) $query->count();

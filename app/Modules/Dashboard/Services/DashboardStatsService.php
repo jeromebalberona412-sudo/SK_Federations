@@ -8,6 +8,7 @@ use App\Modules\Accounts\Models\OfficialTerm;
 use App\Modules\Accounts\Services\ChairpersonFederationSyncService;
 use App\Modules\Accounts\Services\FederationRosterService;
 use App\Modules\AuditLog\Services\AuditLogQueryService;
+use App\Modules\KabataanMonitoring\Support\KkProfilingDateRange;
 use App\Modules\KabataanMonitoring\Support\KkProfilingReviewStatus;
 use App\Modules\Shared\Models\User;
 use Illuminate\Database\Eloquent\Builder;
@@ -145,12 +146,12 @@ class DashboardStatsService
 
         $pendingQuery = (clone $base)->whereNull('deleted_at');
         KkProfilingReviewStatus::applyPendingScope($pendingQuery);
-        $this->applyKabataanDateRange($pendingQuery, $dateFrom, $dateTo);
+        $this->applyKabataanDateRange($pendingQuery, $dateFrom, $dateTo, 'pending');
 
         $totalQuery = (clone $base)->whereNull('deleted_at');
-        $this->applyColumnDateRange($totalQuery, 'submitted_at', $dateFrom, $dateTo);
+        $this->applyKabataanDateRange($totalQuery, $dateFrom, $dateTo, 'registration');
 
-        // One round trip. Each count keeps the same filters as the separate queries.
+        // Keep all card totals within the same selected date range.
         $row = DB::query()
             ->selectSub((clone $totalQuery)->selectRaw('COUNT(*)'), 'total_kk')
             ->selectSub((clone $approvedQuery)->selectRaw('COUNT(*)'), 'approved')
@@ -237,9 +238,7 @@ class DashboardStatsService
         );
 
         $total = (int) $statusRows->sum('program_count');
-        $upcoming = Schema::hasColumn('schedule_programs', 'start_date')
-            ? (int) (clone $query)->whereDate('start_date', '>', now()->toDateString())->count()
-            : 0;
+        $upcoming = (int) $statusRows->sum('upcoming_count');
 
         $labels = [];
         $values = [];
@@ -553,6 +552,7 @@ class DashboardStatsService
 
         $assigned = $this->federationRosterService
             ->federationRosterQuery($tenantId)
+            ->without(['officialProfile.latestTerm', 'officialProfile.currentActiveTerm'])
             ->with(['officialProfile', 'barangay:id,name'])
             ->get()
             ->filter(fn (User $user): bool => filled($user->officialProfile?->federation_position))
@@ -614,18 +614,16 @@ class DashboardStatsService
     private function activeKabataanQuery(?int $tenantId)
     {
         $query = KabataanRegistration::query()
-            ->whereNull('deleted_at')
-            ->whereIn('status', ['active', 'email_verified', 'password_set']);
+            ->whereNull('deleted_at');
 
         if ($tenantId !== null) {
             $query->where('tenant_id', $tenantId);
         }
 
         if (Schema::hasColumn('kabataan_registrations', 'evaluation_status')) {
-            $query->where(function ($evaluationQuery): void {
-                $evaluationQuery->whereNull('evaluation_status')
-                    ->orWhereIn('evaluation_status', ['active', 'Auto Approved']);
-            });
+            KkProfilingReviewStatus::applyApprovedScope($query);
+        } else {
+            $query->whereIn('status', ['active', 'email_verified', 'password_set']);
         }
 
         return $query;
@@ -648,24 +646,14 @@ class DashboardStatsService
     /**
      * @param  Builder<KabataanRegistration>  $query
      */
-    private function applyKabataanDateRange(Builder $query, ?string $dateFrom, ?string $dateTo): void
+    private function applyKabataanDateRange(
+        Builder $query,
+        ?string $dateFrom,
+        ?string $dateTo,
+        string $dateType = 'approved',
+    ): void
     {
-        [$from, $to] = $this->normalizeDateRange($dateFrom, $dateTo);
-        if ($from === null || $to === null) {
-            return;
-        }
-
-        $query->where(function ($rangeQuery) use ($from, $to): void {
-            $rangeQuery->where(function ($reviewedQuery) use ($from, $to): void {
-                $reviewedQuery->whereNotNull('reviewed_at')
-                    ->whereDate('reviewed_at', '>=', $from)
-                    ->whereDate('reviewed_at', '<=', $to);
-            })->orWhere(function ($createdQuery) use ($from, $to): void {
-                $createdQuery->whereNull('reviewed_at')
-                    ->whereDate('created_at', '>=', $from)
-                    ->whereDate('created_at', '<=', $to);
-            });
-        });
+        KkProfilingDateRange::apply($query, $dateFrom, $dateTo, $dateType);
     }
 
     /**

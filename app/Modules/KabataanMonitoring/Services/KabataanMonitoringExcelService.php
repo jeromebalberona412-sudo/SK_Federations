@@ -208,24 +208,31 @@ class KabataanMonitoringExcelService
         }
 
         if ($validRows !== []) {
-            DB::transaction(function () use ($validRows, $user, $barangay): void {
-                foreach ($validRows as $row) {
-                    $formData = $this->buildFormData($row, $barangay, (int) $user->id);
-                    KabataanRegistration::query()->create([
-                        'tenant_id' => $user->tenant_id,
-                        'barangay_id' => $barangay->id,
-                        'last_name' => $row['last_name'],
-                        'first_name' => $row['first_name'],
-                        'middle_name' => $row['middle_name'] ?: null,
-                        'suffix' => strcasecmp(trim($row['suffix']), 'None') === 0 ? null : ($row['suffix'] ?: null),
-                        'contact_number' => $this->normalizeMobileNumber($row['contact_number']) ?: null,
-                        'form_data' => $formData,
-                        'status' => 'active',
-                        'evaluation_status' => 'active',
-                        'submitted_at' => now(),
-                        'reviewed_by_user_id' => $user->id,
-                        'reviewed_at' => now(),
-                    ]);
+            $now = now();
+            $payload = [];
+            foreach ($validRows as $row) {
+                $formData = $this->buildFormData($row, $barangay, (int) $user->id);
+                $payload[] = [
+                    'tenant_id' => $user->tenant_id,
+                    'barangay_id' => $barangay->id,
+                    'last_name' => $row['last_name'],
+                    'first_name' => $row['first_name'],
+                    'middle_name' => $row['middle_name'] ?: null,
+                    'suffix' => strcasecmp(trim($row['suffix']), 'None') === 0 ? null : ($row['suffix'] ?: null),
+                    'contact_number' => $this->normalizeMobileNumber($row['contact_number']) ?: null,
+                    'form_data' => json_encode($formData),
+                    'status' => 'active',
+                    'evaluation_status' => 'active',
+                    'submitted_at' => $now,
+                    'reviewed_by_user_id' => $user->id,
+                    'reviewed_at' => $now,
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ];
+            }
+            DB::transaction(function () use ($payload): void {
+                foreach (array_chunk($payload, 500) as $chunk) {
+                    KabataanRegistration::query()->insert($chunk);
                 }
             });
             $this->monitoring->forgetListCache((string) $barangay->name, (int) $user->tenant_id);

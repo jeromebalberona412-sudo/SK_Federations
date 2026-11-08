@@ -3,6 +3,8 @@
 namespace App\Modules\Dashboard\Services;
 
 use App\Models\KabataanRegistration;
+use App\Modules\KabataanMonitoring\Support\KkProfilingDateRange;
+use App\Modules\KabataanMonitoring\Support\KkProfilingReviewStatus;
 use Carbon\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -199,14 +201,15 @@ class YouthDemographicsService
     private function loadRecords(?int $tenantId, ?string $dateFrom, ?string $dateTo): Collection
     {
         $query = KabataanRegistration::query()
-            ->where('status', 'active')
-            ->whereIn('evaluation_status', ['active', 'Auto Approved', 'ID Verified']);
+            ->whereNull('deleted_at');
+
+        KkProfilingReviewStatus::applyApprovedScope($query);
 
         if ($tenantId !== null && Schema::hasColumn('kabataan_registrations', 'tenant_id')) {
             $query->where('tenant_id', $tenantId);
         }
 
-        $this->applyApprovedDateRange($query, $dateFrom, $dateTo);
+        KkProfilingDateRange::apply($query, $dateFrom, $dateTo, 'approved');
 
         $registrations = $query->get(['id', 'form_data']);
         if ($registrations->isEmpty()) {

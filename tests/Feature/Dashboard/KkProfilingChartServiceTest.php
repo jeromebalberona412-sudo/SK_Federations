@@ -89,7 +89,7 @@ it('returns a full January to December range with zero series when no records ma
         ->and(array_sum($payload['rejected']))->toBe(0);
 });
 
-it('plots kk profiling months across the selected date range with complete calendar years', function () {
+it('plots kk profiling months only across the selected date range', function () {
     insertKkRegistration([
         'evaluation_status' => 'active',
         'reviewed_at' => '2023-02-10 09:00:00',
@@ -127,16 +127,33 @@ it('plots kk profiling months across the selected date range with complete calen
 
     expect($payload['approved'][$feb2023])->toBe(1)
         ->and($payload['approved'][$aug2026])->toBe(1)
-        ->and($payload['pending'][$aug2026])->toBe(1)
-        ->and($payload['approved'][array_search('Dec 2026', $payload['labels'], true)])->toBe(0);
+        ->and($payload['pending'][$aug2026])->toBe(1);
 });
 
-it('shows January through December while counting only the selected month range', function () {
+it('shows only months in the selected date range and counts dates inclusively', function () {
+    insertKkRegistration([
+        'evaluation_status' => 'active',
+        'reviewed_at' => '2026-08-31 23:59:59',
+        'submitted_at' => '2026-08-31 23:59:59',
+        'created_at' => '2026-08-31 23:59:59',
+    ]);
     insertKkRegistration([
         'evaluation_status' => 'active',
         'reviewed_at' => '2026-09-03 10:00:00',
         'submitted_at' => '2026-09-02 10:00:00',
         'created_at' => '2026-09-02 10:00:00',
+    ]);
+    insertKkRegistration([
+        'evaluation_status' => 'active',
+        'reviewed_at' => '2026-09-30 23:59:59',
+        'submitted_at' => '2026-09-30 23:59:59',
+        'created_at' => '2026-09-30 23:59:59',
+    ]);
+    insertKkRegistration([
+        'evaluation_status' => 'active',
+        'reviewed_at' => '2026-10-01 00:00:00',
+        'submitted_at' => '2026-10-01 00:00:00',
+        'created_at' => '2026-10-01 00:00:00',
     ]);
     $payload = app(KkProfilingChartService::class)->getChartData(kkChartUser(), new Request([
         'barangay_id' => 'all',
@@ -146,8 +163,10 @@ it('shows January through December while counting only the selected month range'
 
     expect($payload['labels'])->toHaveCount(12)
         ->and($payload['labels'][0])->toBe('January')
+        ->and($payload['labels'][8])->toBe('September')
         ->and($payload['labels'][11])->toBe('December')
-        ->and(array_sum($payload['approved']))->toBe(1);
+        ->and(array_sum($payload['approved']))->toBe(2)
+        ->and(array_column($payload['daily'], 'date'))->toBe(['2026-09-03', '2026-09-30']);
 });
 
 it('accepts opaque barangay identifiers for kk profiling filters', function () {

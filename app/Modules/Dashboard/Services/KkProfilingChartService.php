@@ -4,6 +4,8 @@ namespace App\Modules\Dashboard\Services;
 
 use App\Models\KabataanRegistration;
 use App\Modules\Accounts\Models\Barangay;
+use App\Modules\KabataanMonitoring\Support\KkProfilingDateRange;
+use App\Modules\KabataanMonitoring\Support\KkProfilingReviewStatus;
 use App\Modules\Shared\Models\User;
 use App\Support\OpaqueUrlId;
 use Carbon\Carbon;
@@ -36,7 +38,7 @@ class KkProfilingChartService
         [$dateFrom, $dateTo] = $this->resolveDateRange($request);
 
         $cacheKey = sprintf(
-            'skfed:dash:kk-chart:v7:%d:%s:%s:%s',
+            'skfed:dash:kk-chart:v8:%d:%s:%s:%s',
             $tenantId,
             $barangayId ?? 'all',
             $dateFrom->toDateString(),
@@ -278,14 +280,36 @@ class KkProfilingChartService
     private function monthlyPayload(int $tenantId, array $barangayIds, Carbon $dateFrom, Carbon $dateTo): array
     {
         $buckets = $this->monthBuckets($dateFrom, $dateTo);
+        $bucketIndexes = [];
+        foreach ($buckets as $index => $bucket) {
+            $bucketIndexes[$bucket['key']] = $index;
+        }
+
+        $approved = array_fill(0, count($buckets), 0);
+        $pending = array_fill(0, count($buckets), 0);
+        $rejected = array_fill(0, count($buckets), 0);
+        $daily = $this->dailyPayload($tenantId, $barangayIds, $dateFrom, $dateTo);
+
+        foreach ($daily as $day) {
+            $monthKey = substr($day['date'], 0, 7);
+            if (! array_key_exists($monthKey, $bucketIndexes)) {
+                continue;
+            }
+
+            $index = $bucketIndexes[$monthKey];
+            $approved[$index] += $day['approved'];
+            $pending[$index] += $day['pending'];
+            $rejected[$index] += $day['rejected'];
+        }
 
         return [
             'date_from' => $dateFrom->toDateString(),
             'date_to' => $dateTo->toDateString(),
             'labels' => array_column($buckets, 'label'),
-            'approved' => $this->countByMonthBuckets($tenantId, $barangayIds, 'approved', $dateFrom, $dateTo, $buckets),
-            'pending' => $this->countByMonthBuckets($tenantId, $barangayIds, 'pending', $dateFrom, $dateTo, $buckets),
-            'rejected' => $this->countByMonthBuckets($tenantId, $barangayIds, 'rejected', $dateFrom, $dateTo, $buckets),
+            'approved' => $approved,
+            'pending' => $pending,
+            'rejected' => $rejected,
+            'daily' => $daily,
         ];
     }
 
@@ -313,36 +337,42 @@ class KkProfilingChartService
 
     /**
      * @param  list<int>  $barangayIds
-     * @param  list<array{key: string, label: string}>  $buckets
-     * @return list<int>
+     * @return list<array{date: string, approved: int, pending: int, rejected: int}>
      */
-    private function countByMonthBuckets(int $tenantId, array $barangayIds, string $category, Carbon $dateFrom, Carbon $dateTo, array $buckets): array
+    private function dailyPayload(int $tenantId, array $barangayIds, Carbon $dateFrom, Carbon $dateTo): array
     {
-        $counts = array_fill(0, count($buckets), 0);
-        $indexByKey = [];
-        foreach ($buckets as $index => $bucket) {
-            $indexByKey[$bucket['key']] = $index;
-        }
+        $daily = [];
 
-        $dateExpression = $this->dateExpression($category);
-        $dateCast = $this->sqlDateCast($dateExpression);
-        $yearMonth = $this->sqlYearMonth($dateExpression);
-        $query = $this->baseQuery($tenantId, $barangayIds, $category);
+        foreach (['approved', 'pending', 'rejected'] as $category) {
+            $dateExpression = $this->dateExpression($category);
+            $dateCast = $this->sqlDateCast($dateExpression);
+            $query = $this->baseQuery($tenantId, $barangayIds, $category);
+            KkProfilingDateRange::apply(
+                $query,
+                $dateFrom->toDateString(),
+                $dateTo->toDateString(),
+                $category === 'pending' ? 'pending' : 'approved',
+            );
+            $rows = $query
+                ->selectRaw("{$dateCast} AS bucket, COUNT(*) AS total")
+                ->groupByRaw($dateCast)
+                ->get();
 
-        $rows = $query
-            ->whereRaw("{$dateCast} BETWEEN ? AND ?", [$dateFrom->toDateString(), $dateTo->toDateString()])
-            ->selectRaw("{$yearMonth} AS bucket, COUNT(*) AS total")
-            ->groupByRaw($yearMonth)
-            ->get();
-
-        foreach ($rows as $row) {
-            $key = (string) $row->bucket;
-            if (array_key_exists($key, $indexByKey)) {
-                $counts[$indexByKey[$key]] = (int) $row->total;
+            foreach ($rows as $row) {
+                $date = (string) $row->bucket;
+                $daily[$date] ??= [
+                    'date' => $date,
+                    'approved' => 0,
+                    'pending' => 0,
+                    'rejected' => 0,
+                ];
+                $daily[$date][$category] = (int) $row->total;
             }
         }
 
-        return $counts;
+        ksort($daily);
+
+        return array_values($daily);
     }
 
     private function sqlDateCast(string $expression): string
@@ -354,21 +384,12 @@ class KkProfilingChartService
         };
     }
 
-    private function sqlYearMonth(string $expression): string
-    {
-        return match (DB::connection()->getDriverName()) {
-            'pgsql' => "to_char({$expression}, 'YYYY-MM')",
-            'sqlite' => "strftime('%Y-%m', {$expression})",
-            default => "DATE_FORMAT({$expression}, '%Y-%m')",
-        };
-    }
-
     /**
      * @param  list<int>  $barangayIds
      */
     private function baseQuery(int $tenantId, array $barangayIds, string $category)
     {
-        $query = DB::table('kabataan_registrations')
+        $query = KabataanRegistration::query()
             ->whereNull('deleted_at')
             ->where('tenant_id', $tenantId)
             ->whereIn('barangay_id', $barangayIds);
@@ -380,16 +401,7 @@ class KkProfilingChartService
             };
         }
 
-        return match ($category) {
-            'approved' => $query
-                ->where('status', '!=', 'rejected')
-                ->whereIn('evaluation_status', ['active', 'Auto Approved', 'ID Verified']),
-            'pending' => $query
-                ->whereIn('evaluation_status', ['Not Profiled', 'Wrong Credentials'])
-                ->where('status', '!=', 'rejected'),
-            'rejected' => $query->where('status', 'rejected'),
-            default => $query,
-        };
+        return KkProfilingReviewStatus::applyFilter($query, $category);
     }
 
     private function dateExpression(string $category): string
@@ -464,6 +476,7 @@ class KkProfilingChartService
             'approved' => $zeros,
             'pending' => $zeros,
             'rejected' => $zeros,
+            'daily' => [],
         ];
     }
 }
